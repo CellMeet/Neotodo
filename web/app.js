@@ -1125,6 +1125,16 @@ const AudioFX = (() => {
     if (!c) return;
     playSample("enter", 0.74);
     const now = c.currentTime;
+    tone(118, now, 0.2, 0.045);
+    tone(72, now + 0.055, 0.3, 0.04);
+    tone(987.77, now + 0.38, 0.5, 0.012);
+  }
+
+  function confirmCarriage() {
+    const c = ensure();
+    if (!c) return;
+    playSample("enter", 0.74);
+    const now = c.currentTime;
     tone(118, now, 0.28, 0.045);
     tone(72, now + 0.06, 0.4, 0.04);
     tone(1318.5, now + 0.38, 0.9, 0.014);
@@ -1660,7 +1670,7 @@ const AudioFX = (() => {
     tone(88, now + 0.15, 0.22, 0.22);
   }
 
-  return { rustle, pageTurn, waterFlow, subtaskFlow, exhale, splash, writing, itemGet, bassZap, celebrationBass, cardWind, type, mechanical, carriage, unroll, paper, seal, chime, ding, trainWhistle, categoryTap, achievementTap, timerTap, addTap, completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle, startLeafStretch, stopLeafStretch, unlock, preloadSamples, toggle, get muted() { return muted; } };
+  return { rustle, pageTurn, waterFlow, subtaskFlow, exhale, splash, writing, itemGet, bassZap, celebrationBass, cardWind, type, mechanical, carriage, confirmCarriage, unroll, paper, seal, chime, ding, trainWhistle, categoryTap, achievementTap, timerTap, addTap, completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle, startLeafStretch, stopLeafStretch, unlock, preloadSamples, toggle, get muted() { return muted; } };
 })();
 
 const DEFAULT_SETTINGS = { theme: "postcard", postcard: "violet", resolved_postcard: "violet", light_postcard: "violet", dark_postcard: "tokyo", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 48, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", note_material: "paper", note_background: "", note_background_image: "", note_blur: 16 };
@@ -5062,7 +5072,7 @@ async function handleAction(actionName, element) {
       selectedSubtaskId = null;
       notesPreview = false;
       const result = await action("add_todo", { category_id: category.id, name });
-      if (result?.ok) AudioFX.carriage();
+      if (result?.ok) AudioFX.confirmCarriage();
     }
     return;
   }
@@ -5668,10 +5678,10 @@ function aboutSettings() {
       <div><span>Theme</span><small>明信片 / ${postcardName(currentPostcardId())}</small></div>
       <div><span>Body font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.font)?.name || "Art Serif"}</small></div>
       <div><span>Note font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.note_font)?.name || "Art Serif"}</small></div>
+      <div><span>Shortcuts</span><small>Tab</small></div>
       <div><span>Project</span><small><a class="about-link" href="https://github.com/CellMeet/Neotodo" data-external-link="https://github.com/CellMeet/Neotodo">github.com/CellMeet/Neotodo</a></small></div>
       <div><span>Email</span><small><a class="about-link" href="mailto:cellmeet@163.com" data-external-link="mailto:cellmeet@163.com">cellmeet@163.com</a></small></div>
       <div><span>Version</span><small>0.0.1</small></div>
-      <div><span>Shortcuts</span><small>Tab · Categories &nbsp; j / k · Scroll &nbsp; q · Close</small></div>
     </div>
     <div class="about-bottom">
       <div class="about-thanks"><em>Thanks</em></div>
@@ -6643,7 +6653,7 @@ function bindEvents() {
           if (input) { input.value = title; input.focus(); }
           return;
         }
-        AudioFX.carriage();
+        AudioFX.confirmCarriage();
         startNewTask(title);
       });
       return;

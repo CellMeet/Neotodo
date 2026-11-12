@@ -10975,3 +10975,26 @@ html[data-theme="postcard"] .history-subtask.selected .h-sub-name {
   font-weight: 600;
   opacity: 0.82;
 }
+
+/* Dialog title: solid, dense ink instead of a gradient. */
+html[data-theme="postcard"] .modal h3 {
+  color: var(--pc-ink, var(--ink)) !important;
+  -webkit-text-fill-color: currentColor !important;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  filter: none !important;
+  font-weight: 900;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.14);
+}
+html[data-postcard-dark="true"] .modal h3 {
+  color: var(--pc-ink, var(--ink)) !important;
+  -webkit-text-fill-color: currentColor !important;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* Empty todo line: lift it further and nudge it left with the title. */
+.page-head .new-todo-title {
+  top: -13px;
+  left: -8px;
+}
