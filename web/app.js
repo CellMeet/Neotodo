@@ -440,6 +440,7 @@ const AudioFX = (() => {
     waterFlow: "/sounds/water-flow.wav",
     trickle: "/sounds/water-trickle.wav",
     windScroll: "/sounds/wind-scroll.wav",
+    train: "/sounds/train-whistle.mp3",
   };
 
   function preloadSamples() {
@@ -1124,9 +1125,10 @@ const AudioFX = (() => {
     if (!c) return;
     playSample("enter", 0.74);
     const now = c.currentTime;
-    tone(118, now, 0.2, 0.045);
-    tone(72, now + 0.055, 0.3, 0.04);
-    tone(987.77, now + 0.38, 0.5, 0.012);
+    tone(118, now, 0.28, 0.045);
+    tone(72, now + 0.06, 0.4, 0.04);
+    tone(1318.5, now + 0.38, 0.9, 0.014);
+    tone(1760, now + 0.45, 0.75, 0.008);
   }
 
   function tone(freq, when, duration, volume = 0.03) {
@@ -1183,12 +1185,22 @@ const AudioFX = (() => {
   }
 
   function trainWhistle() {
+    if (muted) return;
     const c = ensure();
     if (!c) return;
+    if (sampleBuffers.train) {
+      playSample("train", 0.9);
+      return;
+    }
     const now = c.currentTime + 0.01;
-    tone(311.13, now, 0.72, 0.024);
-    tone(369.99, now, 0.72, 0.019);
-    tone(466.16, now + 0.02, 0.75, 0.015);
+    const blast = (start, level) => {
+      tone(311.13, start, 0.46, 0.055 * level);
+      tone(369.99, start, 0.46, 0.038 * level);
+      tone(466.16, start, 0.46, 0.026 * level);
+      tone(622.26, start, 0.42, 0.014 * level);
+    };
+    blast(now, 1);
+    blast(now + 0.52, 0.82);
     const src = c.createBufferSource();
     src.buffer = noiseBuffer();
     const filter = c.createBiquadFilter();
@@ -1197,12 +1209,12 @@ const AudioFX = (() => {
     filter.Q.value = 0.7;
     const gain = c.createGain();
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.02, now + 0.04);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+    gain.gain.exponentialRampToValueAtTime(0.035, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.05);
     src.connect(filter);
     filter.connect(gain);
     gain.connect(c.destination);
-    src.start(now, 0.1, 0.6);
+    src.start(now, 0.1, 0.95);
   }
 
   function unlock() {

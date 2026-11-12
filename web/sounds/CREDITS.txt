@@ -21,3 +21,9 @@ wind-scroll.wav
   https://freesound.org/people/DBlover/sounds/505999/
   License: Creative Commons 0 (public domain)
   4.5 second excerpt, mono 22.05 kHz, for scrolling the Doing card.
+
+train-whistle.mp3
+  "Parovoz sound" (steam locomotive signal) by Alex Alex Lep
+  https://commons.wikimedia.org/wiki/File:Parovoz_sound.ogg
+  License: Public domain (released by the author)
+  Converted from OGG to MP3 for the new-category dialog.

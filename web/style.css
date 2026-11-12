@@ -10606,7 +10606,7 @@ html[data-theme="postcard"] .current-subtask.selected .sub-name {
   color: var(--pc-ink, var(--ink)) !important;
 }
 html[data-theme="postcard"] .current-subtask.selected.done .sub-name {
-  color: var(--pc-muted, var(--faint, #8d7a5f)) !important;
+  color: var(--pc-ink, var(--ink)) !important;
 }
 html[data-theme="postcard"] .history-subtask.selected .h-sub-name,
 html[data-theme="postcard"] .history-row.selected .h-name {
@@ -10940,4 +10940,38 @@ html[data-theme="postcard"] .modal-actions .btn.primary.to-do {
 /* Move the todo title block nearer the banner icon. */
 html[data-theme="postcard"] .page-head > .page-head-title {
   transform: translateX(calc(var(--title-offset, 0px) - 8px));
+}
+
+/* Selected subtask underline starts left of the glyphs and runs a little longer. */
+.current-subtask.selected .sub-name,
+.history-subtask.selected .h-sub-name,
+html[data-theme="postcard"] .current-subtask.selected .sub-name,
+html[data-theme="postcard"] .history-subtask.selected .h-sub-name {
+  text-decoration: none !important;
+  position: relative;
+}
+.current-subtask.selected .sub-name::after,
+.history-subtask.selected .h-sub-name::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  right: -2px;
+  bottom: -2px;
+  height: 1px;
+  background: var(--pc-accent, var(--gold));
+  pointer-events: none;
+}
+
+/* Empty "Nothing to do..." line: larger, lifted so the N crosses the rule. */
+.page-head .new-todo-title {
+  height: 42px;
+  font-size: calc(31px * var(--user-scale, 1));
+  line-height: 42px;
+  position: relative;
+  top: -6px;
+}
+.page-head .new-todo-title::placeholder {
+  font-size: inherit;
+  font-weight: 600;
+  opacity: 0.82;
 }
