@@ -1,0 +1,23 @@
+Sound credits
+=============
+
+water-flow.wav
+  "Soft flowing water very close to the river" by Mixigodo
+  https://freesound.org/people/Mixigodo/sounds/553606/
+  License: Creative Commons 0 (public domain)
+  3.5 second seamless loop, trimmed and filtered for the completed-task scroll.
+
+water-trickle.wav
+  "flowing rippling gurgling bubbling water sound effect" by Garuda1982
+  https://freesound.org/people/Garuda1982/sounds/537680/
+  License: Creative Commons 0 (public domain)
+  3.5 second seamless loop, high-passed and brightened for the subtask scroll.
+
+keyany.wav, keyenter.wav, drawer-open.mp3, drawer-close.mp3
+  Existing project samples (see repository history).
+
+wind-scroll.wav
+  "Howling winter storm ambient sounds" by DBlover
+  https://freesound.org/people/DBlover/sounds/505999/
+  License: Creative Commons 0 (public domain)
+  4.5 second excerpt, mono 22.05 kHz, for scrolling the Doing card.

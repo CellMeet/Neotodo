@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=NeoTodo
+GenericName=Weekly Postcard Todo
+Comment=A quiet home for weekly focus and postcard memories
+Exec=/home/arch/MyCode/NeoTodo/run.sh
+Icon=/home/arch/MyCode/NeoTodo/icon-check.svg
+Terminal=false
+Categories=Utility;
+StartupWMClass=io.github.neotodo
+StartupNotify=true
