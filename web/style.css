@@ -10806,8 +10806,8 @@ html[data-theme="postcard"] .completed-stage {
 }
 
 /* Match the achievement and pomodoro sheets to the Settings width. */
-.completed-sheet { width: min(820px, 94vw) !important; }
-.focus-sheet { width: min(820px, 94vw) !important; }
+.completed-sheet { width: min(780px, 94vw) !important; }
+.focus-sheet { width: min(780px, 94vw) !important; }
 
 /* Drop the archive close X one row so it clears the windmill. */
 .drawer-head .plain-x {
