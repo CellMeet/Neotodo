@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import re
 import socket
 import subprocess
@@ -14,9 +15,23 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-APP_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+else:
+    APP_DIR = Path(__file__).resolve().parent
 WEB_DIR = APP_DIR / "web"
-DATA_DIR = Path.home() / ".local/share/neotodo"
+
+
+def app_data_dir() -> Path:
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA") or str(Path.home())
+        return Path(base) / "NeoTodo"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "NeoTodo"
+    return Path.home() / ".local/share/neotodo"
+
+
+DATA_DIR = app_data_dir()
 DATA_FILE = DATA_DIR / "NeoTodo.json"
 LEGACY_FILE = DATA_DIR / "data.json"
 
@@ -431,12 +446,17 @@ class Store:
                 url = payload.get("url")
                 if isinstance(url, str) and url.startswith(("https://", "http://", "mailto:")):
                     try:
-                        subprocess.Popen(
-                            ["xdg-open", url],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                            start_new_session=True,
-                        )
+                        if sys.platform == "win32":
+                            os.startfile(url)
+                        elif sys.platform == "darwin":
+                            subprocess.Popen(["open", url], start_new_session=True)
+                        else:
+                            subprocess.Popen(
+                                ["xdg-open", url],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                start_new_session=True,
+                            )
                     except Exception:
                         error = "Could not open link"
                 else:

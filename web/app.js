@@ -5678,7 +5678,7 @@ function aboutSettings() {
       <div><span>Theme</span><small>明信片 / ${postcardName(currentPostcardId())}</small></div>
       <div><span>Body font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.font)?.name || "Art Serif"}</small></div>
       <div><span>Note font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.note_font)?.name || "Art Serif"}</small></div>
-      <div><span>Shortcuts</span><small>Tab</small></div>
+      <div><span>Shortcuts</span><small>Tab — Toggle categories</small></div>
       <div><span>Project</span><small><a class="about-link" href="https://github.com/CellMeet/Neotodo" data-external-link="https://github.com/CellMeet/Neotodo">github.com/CellMeet/Neotodo</a></small></div>
       <div><span>Email</span><small><a class="about-link" href="mailto:cellmeet@163.com" data-external-link="mailto:cellmeet@163.com">cellmeet@163.com</a></small></div>
       <div><span>Version</span><small>0.0.1</small></div>
