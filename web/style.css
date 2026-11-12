@@ -10853,29 +10853,39 @@ html[data-theme="postcard"] .completed-stage {
   font-style: italic;
   letter-spacing: 0.04em;
 }
-.about-coffee {
+
+
+/* About closes with a single, large, quiet Thanks. */
+.about-bottom {
+  min-height: 180px;
+  margin-top: 40px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  text-align: center;
 }
-.about-coffee-title {
-  color: var(--pc-ink, var(--ink));
-  font-family: var(--display);
-  font-size: 14px;
-  font-weight: 600;
-}
-.about-coffee img {
-  width: 170px;
-  height: auto;
-  display: block;
-  border: 1px solid rgba(var(--pc-accent-rgb), 0.25);
-  border-radius: 10px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
-}
-.about-coffee p {
+.about-thanks {
   margin: 0;
   color: var(--pc-muted, var(--muted));
-  font-size: 11px;
   font-family: var(--display);
+  font-size: 40px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  opacity: 0.18;
 }
+
+/* Dialog actions: one line of breathing room, equal button sizes. */
+.modal-actions {
+  margin-top: 22px;
+  gap: 12px;
+}
+.modal-actions .btn {
+  width: 132px;
+  min-width: 132px;
+  height: 38px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn.to-do { font-style: italic; }

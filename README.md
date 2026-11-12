@@ -56,11 +56,11 @@ https://github.com/CellMeet/Neotodo
 
 0.0.1
 
-## Buy me a coffee
+## ☕ Buy me a coffee
 
 If NeoTodo helps you, you can support its development with a small donation. Thank you.
 
-![Alipay donation QR](web/donate-alipay.png)
+<img src="web/donate-alipay-qr.png" width="180" alt="Alipay donation QR">
 
 ## Thanks
 
