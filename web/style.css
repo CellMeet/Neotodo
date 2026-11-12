@@ -10889,3 +10889,55 @@ html[data-theme="postcard"] .completed-stage {
   justify-content: center;
 }
 .btn.to-do { font-style: italic; }
+
+/* About: lift the quiet Thanks closer to the content. */
+.about-bottom {
+  min-height: 120px;
+  margin-top: 16px;
+}
+
+/* Dialog type has presence: vivid title, strong action labels, a real gap. */
+html[data-theme="postcard"] .modal h3 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  background: linear-gradient(90deg, var(--pc-accent), var(--pc-ink) 45%, var(--pc-accent-2) 74%, var(--pc-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 16px rgba(var(--pc-accent-rgb), 0.42));
+}
+html[data-postcard-dark="true"] .modal h3 {
+  background: linear-gradient(90deg, var(--pc-accent), #ffffff 38%, var(--pc-accent-2) 72%, var(--pc-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+html[data-theme="postcard"] .modal-actions {
+  margin-top: 32px;
+}
+html[data-theme="postcard"] .modal-actions .btn {
+  width: 148px;
+  min-width: 148px;
+  height: 42px;
+  padding: 0 16px;
+  color: var(--pc-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+html[data-theme="postcard"] .modal-actions .btn.primary {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+html[data-theme="postcard"] .modal-actions .btn.primary.to-do {
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+/* Move the todo title block nearer the banner icon. */
+html[data-theme="postcard"] .page-head > .page-head-title {
+  transform: translateX(calc(var(--title-offset, 0px) - 8px));
+}

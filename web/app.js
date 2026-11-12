@@ -1173,6 +1173,38 @@ const AudioFX = (() => {
     tone(783.99, now + 0.12, 0.9, 0.014);
   }
 
+  function ding() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime + 0.01;
+    tone(1567.98, now, 0.75, 0.055);
+    tone(2093.0, now + 0.01, 0.55, 0.028);
+    tone(1046.5, now, 0.9, 0.018);
+  }
+
+  function trainWhistle() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime + 0.01;
+    tone(311.13, now, 0.72, 0.024);
+    tone(369.99, now, 0.72, 0.019);
+    tone(466.16, now + 0.02, 0.75, 0.015);
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer();
+    const filter = c.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 900;
+    filter.Q.value = 0.7;
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.02, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(c.destination);
+    src.start(now, 0.1, 0.6);
+  }
+
   function unlock() {
     const c = ensure();
     if (c && c.state === "suspended") c.resume().catch(() => {});
@@ -1616,7 +1648,7 @@ const AudioFX = (() => {
     tone(88, now + 0.15, 0.22, 0.22);
   }
 
-  return { rustle, pageTurn, waterFlow, subtaskFlow, exhale, splash, writing, itemGet, bassZap, celebrationBass, cardWind, type, mechanical, carriage, unroll, paper, seal, chime, categoryTap, achievementTap, timerTap, addTap, completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle, startLeafStretch, stopLeafStretch, unlock, preloadSamples, toggle, get muted() { return muted; } };
+  return { rustle, pageTurn, waterFlow, subtaskFlow, exhale, splash, writing, itemGet, bassZap, celebrationBass, cardWind, type, mechanical, carriage, unroll, paper, seal, chime, ding, trainWhistle, categoryTap, achievementTap, timerTap, addTap, completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle, startLeafStretch, stopLeafStretch, unlock, preloadSamples, toggle, get muted() { return muted; } };
 })();
 
 const DEFAULT_SETTINGS = { theme: "postcard", postcard: "violet", resolved_postcard: "violet", light_postcard: "violet", dark_postcard: "tokyo", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 48, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", note_material: "paper", note_background: "", note_background_image: "", note_blur: 16 };
@@ -4638,10 +4670,11 @@ function cancelModal(result = null) {
   resolve(result);
 }
 
-function promptDialog({ kicker = "", title, message = "", value = "", placeholder = "", confirmLabel = "Save" }) {
+function promptDialog({ kicker = "", title, message = "", value = "", placeholder = "", confirmLabel = "Save", sound = "ding" }) {
   return new Promise((resolve) => {
     modalResolve = resolve;
-    AudioFX.paper();
+    if (sound === "train") AudioFX.trainWhistle();
+    else AudioFX.ding();
     openModal(`
       ${title ? `<h3>${esc(title)}</h3>` : ""}
       ${message ? `<p>${esc(message)}</p>` : ""}
@@ -4668,7 +4701,7 @@ function promptDialog({ kicker = "", title, message = "", value = "", placeholde
 function confirmDialog({ kicker = "Chronicle", title, message = "", confirmLabel = "Confirm", danger = false }) {
   return new Promise((resolve) => {
     modalResolve = resolve;
-    AudioFX.paper();
+    AudioFX.ding();
     openModal(`
       <div class="scroll-corner tl"></div><div class="scroll-corner tr"></div>
       <div class="scroll-corner bl"></div><div class="scroll-corner br"></div>
@@ -4984,7 +5017,7 @@ async function handleAction(actionName, element) {
   if (actionName === "add-picture") { $("#note-image-input")?.click(); return; }
   if (actionName === "show-pictures") { showNotePictures(); return; }
   if (actionName === "add-category") {
-    const name = await promptDialog({ title: "Name a new space", message: "A place for a kind of work, a kind of life.", placeholder: "e.g. Literature", confirmLabel: "Add" });
+    const name = await promptDialog({ title: "Name a new space", message: "A place for a kind of work, a kind of life.", placeholder: "e.g. Literature", confirmLabel: "Add", sound: "train" });
     if (name) await action("add_category", { name });
     return;
   }
