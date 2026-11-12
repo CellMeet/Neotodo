@@ -11006,3 +11006,6 @@ html[data-postcard-dark="true"] .modal h3 {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
+
+/* One shared sheet width across settings, postcards, and achievements. */
+.settings-panel { width: min(780px, 94vw); }
