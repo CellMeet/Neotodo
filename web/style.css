@@ -10998,3 +10998,11 @@ html[data-postcard-dark="true"] .modal h3 {
   top: -13px;
   left: -8px;
 }
+
+/* Archive opens in place like Settings/Achievements: no brown veil, no blur. */
+.archive-backdrop,
+.archive-backdrop.open {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}

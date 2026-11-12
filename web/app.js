@@ -6903,6 +6903,13 @@ function bindEvents() {
     setTimeout(() => { tree.scrollTop = 0; }, 360);
   });
 
+  $("#archive-backdrop")?.addEventListener("mousedown", () => {
+    if (archiveOpen) {
+      AudioFX.categoryTap();
+      closeArchive();
+    }
+  });
+
   const reveal = $("#notes-reveal");
   if (reveal) {
     reveal.addEventListener("pointerenter", showNotesPanel);
