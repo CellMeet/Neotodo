@@ -32,7 +32,17 @@ class DetachedPage(QWebEnginePage):
             try:
                 action = url.path().rsplit("/", 1)[-1]
                 handle = self._host_window.windowHandle()
-                if handle is not None:
+                if action == "home":
+                    for widget in QApplication.topLevelWidgets():
+                        if widget is self._host_window:
+                            continue
+                        if widget.isVisible():
+                            widget.showNormal()
+                            widget.raise_()
+                            widget.activateWindow()
+                            break
+                    self._host_window.close()
+                elif handle is not None:
                     if action == "move":
                         handle.startSystemMove()
                     elif action == "resize":

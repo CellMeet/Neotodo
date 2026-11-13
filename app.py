@@ -1675,11 +1675,35 @@ def run_gtk() -> None:
                     pass
 
             apply_view_settings(view)
+            detached_opener = [None]
+
             def decide_policy(_view, decision, decision_type):
                 # WebKitGTK keeps WebAudio suspended until a click by default.
                 # This desktop app is driven with the mouse wheel, so allow
                 # autoplay (with sound) for our own navigation.
                 if decision_type == WebKit.PolicyDecisionType.NAVIGATION_ACTION:
+                    try:
+                        uri = decision.get_navigation_action().get_request().get_uri() or ""
+                    except Exception:
+                        uri = ""
+                    parsed_uri = urlparse(uri)
+                    if parsed_uri.hostname == "neotodo.local" and parsed_uri.path == "/open":
+                        try:
+                            target = parse_qs(parsed_uri.query).get("url", [""])[0]
+                            if target and detached_opener[0]:
+                                def open_target(url=target):
+                                    opener = detached_opener[0]
+                                    if opener:
+                                        opener(url)
+                                    return False
+                                GLib.idle_add(open_target)
+                        except Exception:
+                            pass
+                        try:
+                            decision.ignore()
+                        except Exception:
+                            pass
+                        return True
                     try:
                         policies = WebKit.WebsitePolicies(
                             autoplay=WebKit.AutoplayPolicy.ALLOW
@@ -1693,8 +1717,9 @@ def run_gtk() -> None:
             view.connect("decide-policy", decide_policy)
 
             detached_windows = []
+            self.detached_windows = detached_windows
 
-            def create_detached_view(_parent_view, _navigation_action):
+            def open_detached_window(target_url=None):
                 detached_view = WebKit.WebView()
                 detached_view.set_background_color(background)
                 apply_view_settings(detached_view)
@@ -1710,6 +1735,25 @@ def run_gtk() -> None:
                         except Exception:
                             uri = ""
                         parsed_uri = urlparse(uri)
+                        if parsed_uri.hostname == "neotodo.local" and parsed_uri.path == "/home":
+                            # The handle belongs to NeoTodo: clicking it in the
+                            # detached window docks the panel back home.
+                            def dock_home():
+                                try:
+                                    window.present()
+                                except Exception:
+                                    pass
+                                try:
+                                    detached_window.destroy()
+                                except Exception:
+                                    pass
+                                return False
+                            GLib.idle_add(dock_home)
+                            try:
+                                decision.ignore()
+                            except Exception:
+                                pass
+                            return True
                         if parsed_uri.hostname == "neotodo.local":
                             try:
                                 parsed = parsed_uri
@@ -1754,6 +1798,9 @@ def run_gtk() -> None:
                     return decide_policy(_view, decision, decision_type)
 
                 detached_view.connect("decide-policy", detached_policy)
+                def on_view_close(_view, win=detached_window):
+                    win.destroy()
+                detached_view.connect("close", on_view_close)
                 def forget_window(_window, win=detached_window):
                     detached_windows[:] = [pair for pair in detached_windows if pair[0] is not win]
 
@@ -1764,16 +1811,25 @@ def run_gtk() -> None:
                 )
                 detached_windows.append((detached_window, detached_view))
                 detached_window.present()
+                if target_url:
+                    detached_view.load_uri(target_url)
                 return detached_view
 
-            view.connect("create", create_detached_view)
-            view.load_uri(f"http://127.0.0.1:{port}/")
+            detached_opener[0] = open_detached_window
+            view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
             window.set_child(view)
             window.connect("close-request", self._on_close)
             self.window = window
             window.present()
 
         def _on_close(self, window):
+            # Detached panels depend on this process; take them home with the
+            # main window instead of leaving orphaned web views behind.
+            for detached_window, _view in getattr(self, "detached_windows", []):
+                try:
+                    detached_window.destroy()
+                except Exception:
+                    pass
             return False
 
     app = NeoTodoApp()

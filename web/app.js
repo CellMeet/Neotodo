@@ -1917,10 +1917,8 @@ function hideNotesPanel(silent = false) {
     return;
   }
   notesClosing = true;
+  positionDeskHandles();
   panel.classList.add("sheet-closing");
-  const handle = $(".notes-handle-bottom");
-  handle?.style.setProperty("top", `${window.innerHeight - 20}px`, "important");
-  handle?.style.setProperty("bottom", "auto", "important");
   setTimeout(() => {
     panel.classList.remove("sheet-closing");
     notesClosing = false;
@@ -2308,6 +2306,11 @@ function updateTopClock() {
   node.textContent = `${hh}:${mm}`;
 }
 
+function categoryCountHtml(category) {
+  const completed = category.todos.filter((todo) => todo.done).length;
+  return completed ? `${completed} ${completedIcon()}` : "";
+}
+
 function renderCategories() {
   const list = $("#category-list");
   const summary = $("#category-summary");
@@ -2316,9 +2319,30 @@ function renderCategories() {
     summary.textContent = "";
     return;
   }
-  list.innerHTML = state.data.categories.map((category) => {
-    const completed = category.todos.filter((todo) => todo.done).length;
-    const count = completed ? `${completed} ${completedIcon()}` : "";
+  const categories = state.data.categories;
+  const existing = [...list.querySelectorAll(".category-item[data-category-id]")];
+  const sameRows = existing.length === categories.length
+    && existing.every((row, index) => row.dataset.categoryId === categories[index].id);
+  if (sameRows) {
+    // Patch the rows in place. Rebuilding this list on every click made the
+    // selected card blink while the press state was torn down and re-created.
+    categories.forEach((category, index) => {
+      const row = existing[index];
+      row.classList.toggle("selected", category.id === state.selectedCategoryId);
+      row.style.setProperty("--c", category.color);
+      const nameNode = row.querySelector(".cat-name");
+      if (nameNode) nameNode.textContent = category.name;
+      const countNode = row.querySelector(".cat-count");
+      if (countNode) {
+        const html = categoryCountHtml(category);
+        if (countNode.innerHTML !== html) countNode.innerHTML = html;
+      }
+    });
+    summary.textContent = "";
+    return;
+  }
+  list.innerHTML = categories.map((category) => {
+    const count = categoryCountHtml(category);
     return `<button class="category-item ${category.id === state.selectedCategoryId ? "selected" : ""}" style="--c:${esc(category.color)}" data-category-id="${esc(category.id)}">
       <span class="cat-dot"></span>
       <span class="cat-name">${esc(category.name)}</span>
@@ -4009,8 +4033,14 @@ function positionDeskHandles() {
     ? notesRect.center
     : (bothClosed && vertical ? bodyRect.left + bodyRect.width * 0.75 : futureCenter("notes"));
   const closedTop = window.innerHeight - 20;
-  const aiTop = aiRect ? aiRect.top : closedTop;
-  const notesTop = notesRect ? notesRect.top : closedTop;
+  // While the other panel is open, its neighbour's handle waits just beyond
+  // the bottom edge and slides in on strip hover.
+  const hiddenTop = window.innerHeight + 2;
+  const stripHover = document.body.classList.contains("desk-strip-hover");
+  const aiOtherHidden = !aiOpen && notesOpen && !stripHover;
+  const notesOtherHidden = !notesOpen && aiOpen && !stripHover;
+  const aiTop = aiRect ? aiRect.top : (aiOtherHidden ? hiddenTop : closedTop);
+  const notesTop = notesRect ? notesRect.top : (notesOtherHidden ? hiddenTop : closedTop);
   const setHandle = (handle, center, top) => {
     handle.style.setProperty("left", `${Math.round(center)}px`, "important");
     handle.style.setProperty("right", "auto", "important");
@@ -4312,10 +4342,8 @@ function closeAgentTerminal() {
     return;
   }
   agentClosing = true;
+  positionDeskHandles();
   panel.classList.add("sheet-closing");
-  const handle = $(".desk-handle-ai");
-  handle?.style.setProperty("top", `${window.innerHeight - 20}px`, "important");
-  handle?.style.setProperty("bottom", "auto", "important");
   setTimeout(() => {
     agentTerminalOpen = false;
     agentClosing = false;
@@ -4357,7 +4385,7 @@ function detachedNoteUrl() {
   return `${location.origin}/?${params.toString()}`;
 }
 
-function nativeWindowCommand(action, x, y) {
+function windowBridge(path, params = {}) {
   let bridge = document.getElementById("neotodo-window-bridge");
   if (!bridge) {
     bridge = document.createElement("iframe");
@@ -4365,7 +4393,19 @@ function nativeWindowCommand(action, x, y) {
     bridge.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:0;left:-10px;top:-10px";
     document.body.appendChild(bridge);
   }
-  bridge.src = `https://neotodo.local/window/${action}?x=${Math.round(x)}&y=${Math.round(y)}&t=${Date.now()}`;
+  const query = new URLSearchParams({ ...params, t: String(Date.now()) });
+  bridge.src = `https://neotodo.local/${path}?${query.toString()}`;
+}
+
+function nativeWindowCommand(action, x, y) {
+  windowBridge(`window/${action}`, { x: Math.round(x), y: Math.round(y) });
+}
+
+function dockDetachedPanel() {
+  try {
+    windowBridge("home");
+  } catch (error) {}
+  setTimeout(() => { try { window.close(); } catch (error) {} }, 500);
 }
 
 function openDetachedPanel(kind, quiet = false) {
@@ -4375,17 +4415,10 @@ function openDetachedPanel(kind, quiet = false) {
     if (!quiet) toast("Select a task before popping out", true);
     return false;
   }
-  const name = kind === "ai" ? `neotodo-ai-${agent.id}` : `neotodo-note-${activeNoteTarget()?.todo?.id || "note"}`;
-  let opened = null;
-  try {
-    opened = window.open(url, name, "popup=yes,width=960,height=760");
-  } catch (error) {
-    opened = null;
-  }
-  if (!opened) {
-    if (!quiet) toast("The detached window could not open", true);
-    return false;
-  }
+  // Ask the native shell for a real window. Using the shell bridge instead of
+  // window.open avoids WebKit's create signal, which crashed Gtk on some
+  // drivers when the detached view was constructed during a pointer gesture.
+  windowBridge("open", { url });
   if (kind === "ai") closeAgentTerminal();
   else hideNotesPanel();
   return true;
@@ -7779,8 +7812,14 @@ function bindEvents() {
     }
   });
 
+  let deskStripHovered = false;
   document.addEventListener("pointermove", (event) => {
-    document.body.classList.toggle("desk-strip-hover", event.clientY >= window.innerHeight - 36);
+    const stripHovered = event.clientY >= window.innerHeight - 36;
+    if (stripHovered !== deskStripHovered) {
+      deskStripHovered = stripHovered;
+      document.body.classList.toggle("desk-strip-hover", stripHovered);
+      positionDeskHandles();
+    }
   }, { passive: true });
 
   let panelLongPress = null;
@@ -8512,10 +8551,32 @@ async function init() {
     const grabber = document.createElement("div");
     grabber.className = "detached-grabber";
     grabber.id = "detached-grabber";
-    grabber.setAttribute("aria-label", "Drag to resize");
+    grabber.setAttribute("role", "button");
+    grabber.setAttribute("tabindex", "0");
+    grabber.setAttribute("aria-label", "Click to return home, drag to resize");
+    grabber.title = "Click to return home · drag to resize";
     grabber.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
       event.preventDefault();
-      nativeWindowCommand("resize", event.screenX, event.screenY);
+      const startX = event.screenX;
+      const startY = event.screenY;
+      let dragging = false;
+      const move = (moveEvent) => {
+        if (dragging) return;
+        if (Math.hypot(moveEvent.screenX - startX, moveEvent.screenY - startY) <= 5) return;
+        dragging = true;
+        window.removeEventListener("pointermove", move);
+        nativeWindowCommand("resize", moveEvent.screenX, moveEvent.screenY);
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        if (!dragging) dockDetachedPanel();
+      };
+      window.addEventListener("pointermove", move, { passive: true });
+      window.addEventListener("pointerup", up, { once: true });
+    });
+    grabber.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") dockDetachedPanel();
     });
     document.body.appendChild(grabber);
   }

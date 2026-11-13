@@ -7183,9 +7183,8 @@ body.focus-running .focus-timer,
 .head-exit .exit-icon { width: 24px; height: 24px; }
 .head-exit:hover { color: #b3261e; }
 
-/* A small tactile press on category rows, alongside the louder click. */
-.category-item { transition: transform .08s ease; }
-.category-item:active { transform: scale(.985); }
+/* A small tactile press on category rows, without a scale pop. */
+.category-item { transition: background-color .08s ease, color .08s ease; }
 
 /* Exit icon: no pill background, larger, tucked toward the right border. */
 .head-exit {
@@ -12831,14 +12830,6 @@ html[data-postcard-dark="true"] .agent-terminal {
   background: var(--note-ink, var(--ink));
   opacity: 1;
 }
-body.agent-terminal-open .desk-handle-ai {
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-body:not(.notes-hidden) .notes-handle-bottom {
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
 body.notes-hidden .notes-handle-bottom {
   opacity: 1 !important;
   pointer-events: auto !important;
@@ -12977,7 +12968,6 @@ body:not(.notes-hidden) .notes-handle-bottom,
 body.notes-hidden .notes-handle-bottom {
   opacity: 1 !important;
   pointer-events: auto !important;
-  transition: none !important;
 }
 
 /* Solid note panes make the split slide crisp instead of shimmering through blur. */
@@ -13075,16 +13065,7 @@ body.agent-terminal-open:not(.notes-hidden) .notes-handle-bottom {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
-body:not(.agent-terminal-open):not(.notes-hidden) .desk-handle-ai,
-body.agent-terminal-open.notes-hidden .notes-handle-bottom {
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-body.desk-strip-hover:not(.agent-terminal-open):not(.notes-hidden) .desk-handle-ai,
-body.desk-strip-hover.agent-terminal-open.notes-hidden .notes-handle-bottom {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
+/* The other door slides down; visibility is geometry-driven. */
 
 /* Slide the sheets up/down with their handles. */
 @keyframes agent-sheet-up {
@@ -13278,6 +13259,48 @@ body.detached-note #notes-half .notes-body { padding-top: 12px; }
 }
 .detached-grabber:hover {
   width: 80px;
+  background: var(--note-ink, var(--ink));
+  opacity: 1;
+}
+
+/* Door handles always live on their card; the closed-other slides into the
+   bottom border with animation instead of blinking away. */
+.notes-handle-bottom,
+.desk-handle-ai {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transition: top 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+/* Detached window handle: same line as the in-app door, click returns home. */
+.detached-grabber {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  width: 96px;
+  height: 18px;
+  z-index: 10001;
+  border: 0;
+  border-radius: 0 0 9px 9px;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.detached-grabber::before {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 5px;
+  margin: 5px auto 0;
+  border-radius: 3px;
+  background: var(--note-rule, var(--line));
+  opacity: 0.85;
+  transition: width 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+}
+.detached-grabber:hover::before {
+  width: 78px;
   background: var(--note-ink, var(--ink));
   opacity: 1;
 }
