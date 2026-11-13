@@ -1916,7 +1916,8 @@ function hideNotesPanel(silent = false) {
   notesClosing = true;
   panel.classList.add("sheet-closing");
   const handle = $(".notes-handle-bottom");
-  handle?.style.setProperty("bottom", "7px", "important");
+  handle?.style.setProperty("top", `${window.innerHeight - 20}px`, "important");
+  handle?.style.setProperty("bottom", "auto", "important");
   setTimeout(() => {
     panel.classList.remove("sheet-closing");
     notesClosing = false;
@@ -1947,10 +1948,8 @@ function showNotesPanel() {
   if (!panel) return;
   panel.classList.remove("notes-hidden");
   setupNotesPanel();
-  if (!agentTerminalOpen) {
-    panel.classList.add("sheet-opening");
-    setTimeout(() => panel.classList.remove("sheet-opening"), 320);
-  }
+  panel.classList.add("sheet-opening");
+  setTimeout(() => panel.classList.remove("sheet-opening"), 320);
   updateNotesHandle();
   positionNotesHandle();
   updateAgentSplitLayout();
@@ -3749,12 +3748,10 @@ function updateAgentSplitLayout() {
   if (vertical) {
     const body = $(".page-body");
     if (body) {
-      const deskBottom = 30;
-      const customHeight = parseFloat(getComputedStyle(root).getPropertyValue("--agent-terminal-height"));
-      const deskHeight = Number.isFinite(customHeight) && customHeight > 0 ? customHeight : body.clientHeight * 0.5 + 70;
-      const deskTop = Math.max(0, body.clientHeight - deskBottom - deskHeight);
+      const deskHeight = body.clientHeight;
+      const deskTop = 0;
       const topHeight = deskHeight * agentSplitRatio;
-      const gap = 5;
+      const gap = 0;
       const topSide = agentSplitSide === "notes-top";
       const notesHeight = Math.max(60, (topSide ? topHeight : deskHeight - topHeight) - gap);
       const notesTop = topSide ? deskTop : deskTop + topHeight + gap;
@@ -3957,9 +3954,8 @@ function agentDeskRect() {
   const body = $(".page-body");
   if (!body) return null;
   const bodyRect = body.getBoundingClientRect();
-  const customHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--agent-terminal-height"));
-  const height = Number.isFinite(customHeight) && customHeight > 0 ? customHeight : body.clientHeight * 0.5 + 70;
-  const top = bodyRect.top + Math.max(0, body.clientHeight - 30 - height);
+  const height = body.clientHeight;
+  const top = bodyRect.top;
   return {
     left: bodyRect.left,
     right: bodyRect.right,
@@ -3995,7 +3991,7 @@ function positionDeskHandles() {
     if (!element || !element.offsetWidth) return null;
     return {
       center: bodyRect.left + element.offsetLeft + element.offsetWidth / 2,
-      bottom: window.innerHeight - (bodyRect.top + element.offsetTop + element.offsetHeight) + 6,
+      top: bodyRect.top + element.offsetTop + 6,
     };
   };
   const aiRect = aiOpen ? layerGeometry(terminal) : null;
@@ -4007,16 +4003,18 @@ function positionDeskHandles() {
   const notesCenter = notesRect
     ? notesRect.center
     : (bothClosed && vertical ? bodyRect.left + bodyRect.width * 0.75 : futureCenter("notes"));
-  const aiBottom = aiRect ? aiRect.bottom : 7;
-  const notesBottom = notesRect ? notesRect.bottom : 7;
-  const setHandle = (handle, center, bottom) => {
+  const closedTop = window.innerHeight - 20;
+  const aiTop = aiRect ? aiRect.top : closedTop;
+  const notesTop = notesRect ? notesRect.top : closedTop;
+  const setHandle = (handle, center, top) => {
     handle.style.setProperty("left", `${Math.round(center)}px`, "important");
     handle.style.setProperty("right", "auto", "important");
     handle.style.setProperty("transform", "translateX(-50%)", "important");
-    handle.style.setProperty("bottom", `${Math.round(bottom)}px`, "important");
+    handle.style.setProperty("top", `${Math.round(top)}px`, "important");
+    handle.style.setProperty("bottom", "auto", "important");
   };
-  setHandle(aiHandle, aiCenter, aiBottom);
-  setHandle(notesHandle, notesCenter, notesBottom);
+  setHandle(aiHandle, aiCenter, aiTop);
+  setHandle(notesHandle, notesCenter, notesTop);
 }
 
 function bindAgentSplitHandle() {
@@ -4045,7 +4043,7 @@ function bindAgentSplitHandle() {
       document.body.classList.remove("agent-split-resizing");
       try { localStorage.setItem("neotodo.agentSplitRatio.v2", String(agentSplitRatio)); } catch (error) {}
       window.removeEventListener("pointermove", move);
-      updateAgentSplitLayout();
+      positionDeskHandles();
     };
     window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up, { once: true });
@@ -4311,7 +4309,8 @@ function closeAgentTerminal() {
   agentClosing = true;
   panel.classList.add("sheet-closing");
   const handle = $(".desk-handle-ai");
-  handle?.style.setProperty("bottom", "7px", "important");
+  handle?.style.setProperty("top", `${window.innerHeight - 20}px`, "important");
+  handle?.style.setProperty("bottom", "auto", "important");
   setTimeout(() => {
     agentTerminalOpen = false;
     agentClosing = false;

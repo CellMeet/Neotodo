@@ -12617,7 +12617,6 @@ body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
   right: auto !important;
   width: var(--agent-notes-width, 50%) !important;
   transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease !important;
-  animation: agent-split-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 body.agent-notes-split .notes-half.floating-notes .notes-handle-top,
 body.agent-notes-split .notes-half.floating-notes .notes-resize-handle {
@@ -12645,7 +12644,6 @@ body.agent-split-resizing .agent-head,
 body.agent-split-resizing .notes-half.floating-notes,
 body.agent-split-resizing .agent-split-handle {
   transition: none !important;
-  animation: none !important;
 }
 
 .agent-split-handle {
@@ -12751,7 +12749,6 @@ body.agent-split-flip .agent-main,
 body.agent-split-flip .agent-head,
 body.agent-split-flip .agent-split-handle {
   transition: none !important;
-  animation: none !important;
 }
 body.agent-split-flipping .notes-half.floating-notes,
 body.agent-split-flipping .agent-main,
@@ -13091,12 +13088,12 @@ body.desk-strip-hover.agent-terminal-open.notes-hidden .notes-handle-bottom {
 
 /* Slide the sheets up/down with their handles. */
 @keyframes agent-sheet-up {
-  from { opacity: 0.35; transform: translateY(30px); }
+  from { opacity: 0.5; transform: translateY(100%); }
   to { opacity: 1; transform: none; }
 }
 @keyframes agent-sheet-down {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(30px); }
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(100%); }
 }
 .agent-terminal.sheet-opening,
 .notes-half.floating-notes.sheet-opening {
@@ -13118,3 +13115,86 @@ body.agent-notes-axis-y .agent-terminal {
 
 /* The bottom-center door handle is the only layer grabber. */
 .notes-handle-top { display: none !important; }
+
+/* Flush tiled windows: no bottom strip, no middle gap, square AI bottom. */
+:root { --desk-bottom: 0px; }
+.agent-terminal {
+  border-radius: 16px 16px 0 0 !important;
+}
+body.agent-notes-left .agent-terminal {
+  left: var(--agent-left-pct);
+  width: calc(100% - var(--agent-left-pct));
+}
+body.agent-notes-right .agent-terminal {
+  left: 0;
+  width: var(--agent-left-pct);
+}
+body.agent-notes-left .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: var(--agent-left-pct) !important;
+  border-right: 0 !important;
+}
+body.agent-notes-right .notes-half.floating-notes:not(.notes-hidden) {
+  left: var(--agent-left-pct) !important;
+  right: auto !important;
+  width: calc(100% - var(--agent-left-pct)) !important;
+  border-left: 0 !important;
+}
+body.agent-notes-split .agent-terminal,
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
+  box-shadow: none !important;
+}
+body.agent-notes-split .agent-split-handle {
+  opacity: 0 !important;
+}
+body.agent-notes-split .agent-split-handle::before,
+body.agent-notes-split .agent-split-handle::after {
+  display: none !important;
+}
+.notes-handle-bottom,
+.desk-handle-ai {
+  transition: top 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease !important;
+}
+
+/* Opened windows fill the whole workspace, flush to the bottom. */
+.agent-terminal {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  left: 0;
+}
+.agent-terminal .agent-resize { display: none !important; }
+body.agent-notes-axis-y .agent-terminal {
+  top: var(--agent-ai-top, 0px) !important;
+  height: var(--agent-ai-height, 50%) !important;
+}
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden),
+body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
+  top: 0 !important;
+  height: 100% !important;
+}
+.agent-split-handle,
+.agent-split-chooser {
+  top: 0 !important;
+  height: 100% !important;
+}
+body.agent-notes-left .agent-terminal {
+  left: var(--agent-left-pct) !important;
+  width: calc(100% - var(--agent-left-pct)) !important;
+}
+body.agent-notes-right .agent-terminal {
+  left: 0 !important;
+  width: var(--agent-left-pct) !important;
+}
+body.agent-notes-top .notes-half.floating-notes:not(.notes-hidden),
+body.agent-notes-bottom .notes-half.floating-notes:not(.notes-hidden) {
+  top: var(--agent-notes-y-top, 0px) !important;
+  height: var(--agent-notes-y-height, 50%) !important;
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  border-radius: 0 !important;
+}
