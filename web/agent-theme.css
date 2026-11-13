@@ -56,12 +56,9 @@ html[data-postcard-dark="true"] .agent-terminal {
   color: var(--oc-ink) !important;
 }
 
-/* The robot mark keeps the exact colours it shipped with. */
+/* The robot mark uses exactly the same ink as the provider name beside it. */
 .agent-terminal .agent-provider-icon {
-  color: #7c7c83 !important;
-}
-html[data-postcard-dark="true"] .agent-terminal .agent-provider-icon {
-  color: #85858c !important;
+  color: var(--oc-ink) !important;
 }
 
 .agent-terminal .agent-compose {
