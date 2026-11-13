@@ -30,22 +30,24 @@
 }
 
 html[data-postcard-dark="true"] .agent-terminal {
-  --oc-bg: #0d0d0f;
-  --oc-soft: #141417;
+  /* A readable charcoal, not pure black: keeps OpenCode's dark mood without
+     crushing the hierarchy into one black slab. */
+  --oc-bg: #18181b;
+  --oc-soft: #232327;
   --oc-ink: #ededf0;
   --oc-ink-soft: #c9c9d2;
-  --oc-muted: #85858c;
-  --oc-faint: #55555d;
-  --oc-line: #232327;
-  --oc-line-strong: #3b3b43;
+  --oc-muted: #9a9aa2;
+  --oc-faint: #6a6a72;
+  --oc-line: #2c2c31;
+  --oc-line-strong: #45454d;
   --oc-accent: #8ab4f8;
   --oc-notice: #e08a63;
-  --oc-input-bg: #1a1a1c;
+  --oc-input-bg: #232327;
   --oc-input-border: #3a3a42;
   --oc-input-border-focus: #4a4a52;
-  --oc-input-text: #d9dde6;
-  --oc-input-placeholder: #6f7785;
-  --oc-plus: #aab2c0;
+  --oc-input-text: #e3e3e8;
+  --oc-input-placeholder: #85858d;
+  --oc-plus: #c3c3cc;
   --oc-send-bg: #4f8cff;
   --oc-send-ink: #ffffff;
   --oc-user-accent: #c9a35f;

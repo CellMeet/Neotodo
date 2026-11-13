@@ -4063,121 +4063,143 @@ DeskHandle.bindGestures = function () {
     }
   }, true);
 
-  document.addEventListener("pointerdown", (event) => {
-    const handle = event.target.closest?.(".desk-handle-ai, .notes-handle-bottom");
-    if (!handle || event.button !== 0) return;
-    const isAi = handle.classList.contains("desk-handle-ai");
-    const isOpen = isAi ? agentTerminalOpen : !notesHidden;
-    const panel = isAi ? $("#agent-terminal") : $("#notes-half");
-    const desk = agentDeskRect();
-    const canResize = Boolean(panel && desk && isOpen);
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let lastDx = 0;
-    let lastDy = 0;
-    const panelRect = panel?.getBoundingClientRect();
-    const startTop = panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0;
-    const minHeight = desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120;
-    let longPressed = false;
-    let moved = false;
-    let resizing = false;
-    const timer = setTimeout(() => {
-      if (!handle.isConnected) return;
-      longPressed = true;
-    }, 420);
-    const applyResize = (dy) => {
-      if (!panel || !desk) return;
-      const top = Math.max(0, Math.min(desk.height - minHeight, startTop + dy));
-      const height = desk.height - top;
-      panel.style.setProperty("top", `${top}px`, "important");
-      panel.style.setProperty("height", `${height}px`, "important");
-      panel.style.setProperty("bottom", "auto", "important");
-      handle.style.setProperty("top", `${desk.top + top + 6}px`, "important");
-    };
-    const move = (moveEvent) => {
-      lastDy = moveEvent.clientY - startY;
-      lastDx = moveEvent.clientX - startX;
-      if (!longPressed) {
-        const dy = lastDy;
-        const dx = Math.abs(lastDx);
-        if (dy > 16 && dy > dx) {
-          // Swipe down closes the sheet, even in a split.
-          moved = true;
-          clearTimeout(timer);
-          deskHandleSwipeSuppress = performance.now() + 600;
-          if (isAi) closeAgentTerminal();
-          else hideNotesPanel();
-          return;
-        }
-        if (dy < -16 && Math.abs(dy) > dx && !isOpen) {
-          // Swipe up opens a closed sheet.
-          moved = true;
-          clearTimeout(timer);
-          deskHandleSwipeSuppress = performance.now() + 600;
-          if (isAi) openAgentTerminal();
-          else showNotesPanel();
-          return;
-        }
-        if (Math.hypot(moveEvent.clientX - startX, dy) > 6) {
-          moved = true;
-          clearTimeout(timer);
-        }
-        return;
-      }
-      if (!canResize) return;
-      if (!resizing) {
-        resizing = true;
-        AudioFX.startLeafStretch();
-        document.body.classList.add("desk-handle-resizing");
-        panel?.classList.add("panel-handle-resizing");
-        if (panel) {
-          panel.style.setProperty("transition", "none", "important");
-          panel.style.setProperty("will-change", "top, height");
-        }
-        handle.style.setProperty("transition", "none", "important");
-      }
-      applyResize(moveEvent.clientY - startY);
-    };
-    const up = () => {
-      clearTimeout(timer);
-      window.removeEventListener("pointermove", move);
-      document.body.classList.remove("desk-handle-resizing");
-      panel?.classList.remove("panel-handle-resizing");
-      if (panel) {
-        panel.style.removeProperty("transition");
-        panel.style.removeProperty("will-change");
-      }
-      handle.style.removeProperty("transition");
-      if (resizing) {
-        AudioFX.stopLeafStretch();
-        deskHandleSwipeSuppress = performance.now() + 360;
-        positionDeskHandles();
-        return;
-      }
-      if (longPressed) {
-        deskHandleSwipeSuppress = performance.now() + 360;
-        return;
-      }
-      // A slow swipe still closes if the release crossed the line.
-      if (!resizing && lastDy > 36 && Math.abs(lastDy) > Math.abs(lastDx)) {
-        deskHandleSwipeSuppress = performance.now() + 600;
-        if (isOpen) {
-          if (isAi) closeAgentTerminal();
-          else hideNotesPanel();
-        }
-        return;
-      }
-      if (!resizing && lastDy < -36 && Math.abs(lastDy) > Math.abs(lastDx) && !isOpen) {
-        deskHandleSwipeSuppress = performance.now() + 600;
+  // Bind directly on each door handle. Window-level delegation was fragile in
+  // WebKitGTK when a native button grabbed implicit pointer capture.
+  const handles = [
+    document.querySelector(".desk-handle-ai"),
+    document.querySelector(".notes-handle-bottom"),
+  ].filter(Boolean);
+
+  handles.forEach((handle) => {
+    if (handle.dataset.deskGesture === "1") return;
+    handle.dataset.deskGesture = "1";
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const isAi = handle.classList.contains("desk-handle-ai");
+      const openNow = () => (isAi ? agentTerminalOpen : !notesHidden);
+      const startOpen = openNow();
+      const panel = isAi ? $("#agent-terminal") : $("#notes-half");
+      const desk = agentDeskRect();
+      const canResize = Boolean(panel && desk && startOpen);
+      const startX = event.clientX;
+      const startY = event.clientY;
+      let lastDx = 0;
+      let lastDy = 0;
+      const panelRect = panel?.getBoundingClientRect();
+      const startTop = panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0;
+      const minHeight = desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120;
+      let longPressed = false;
+      let moved = false;
+      let resizing = false;
+      let finished = false;
+      const timer = setTimeout(() => {
+        if (!finished && !moved) longPressed = true;
+      }, 420);
+
+      const applyResize = (dy) => {
+        if (!panel || !desk) return;
+        const top = Math.max(0, Math.min(desk.height - minHeight, startTop + dy));
+        const height = desk.height - top;
+        panel.style.setProperty("top", `${top}px`, "important");
+        panel.style.setProperty("height", `${height}px`, "important");
+        panel.style.setProperty("bottom", "auto", "important");
+        handle.style.setProperty("top", `${desk.top + top + 6}px`, "important");
+      };
+
+      const closeSheet = () => {
+        deskHandleSwipeSuppress = performance.now() + 700;
+        if (isAi) closeAgentTerminal();
+        else hideNotesPanel();
+      };
+      const openSheet = () => {
+        deskHandleSwipeSuppress = performance.now() + 700;
         if (isAi) openAgentTerminal();
         else showNotesPanel();
-        return;
-      }
-      if (moved) deskHandleSwipeSuppress = performance.now() + 360;
-    };
-    window.addEventListener("pointermove", move, { passive: true });
-    window.addEventListener("pointerup", up, { once: true });
-  }, { passive: true });
+      };
+
+      const move = (moveEvent) => {
+        if (finished) return;
+        lastDy = moveEvent.clientY - startY;
+        lastDx = moveEvent.clientX - startX;
+        if (!longPressed) {
+          if (Math.abs(lastDy) > 14 && Math.abs(lastDy) > Math.abs(lastDx)) {
+            moved = true;
+            clearTimeout(timer);
+            // Up opens, down closes; the opposite direction is a no-op.
+            if (lastDy > 0 && openNow()) closeSheet();
+            else if (lastDy < 0 && !openNow()) openSheet();
+            return;
+          }
+          if (Math.hypot(lastDx, lastDy) > 6) {
+            moved = true;
+            clearTimeout(timer);
+          }
+          return;
+        }
+        if (!canResize) return;
+        if (!resizing) {
+          resizing = true;
+          AudioFX.startLeafStretch();
+          document.body.classList.add("desk-handle-resizing");
+          panel?.classList.add("panel-handle-resizing");
+          if (panel) {
+            panel.style.setProperty("transition", "none", "important");
+            panel.style.setProperty("will-change", "top, height");
+          }
+          handle.style.setProperty("transition", "none", "important");
+        }
+        applyResize(lastDy);
+      };
+
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        document.removeEventListener("pointermove", move);
+        document.removeEventListener("pointerup", finish);
+        document.removeEventListener("pointercancel", finish);
+        document.body.classList.remove("desk-handle-resizing");
+        panel?.classList.remove("panel-handle-resizing");
+        if (panel) {
+          panel.style.removeProperty("transition");
+          panel.style.removeProperty("will-change");
+        }
+        handle.style.removeProperty("transition");
+        if (resizing) {
+          AudioFX.stopLeafStretch();
+          deskHandleSwipeSuppress = performance.now() + 400;
+          positionDeskHandles();
+          return;
+        }
+        if (longPressed) {
+          deskHandleSwipeSuppress = performance.now() + 400;
+          return;
+        }
+        // A slower swipe still counts once the release crossed the line.
+        if (Math.abs(lastDy) > 30 && Math.abs(lastDy) > Math.abs(lastDx)) {
+          if (lastDy > 0) {
+            if (openNow()) closeSheet();
+          } else if (!openNow()) {
+            openSheet();
+          }
+          return;
+        }
+        // No movement: a plain tap opens or closes.
+        if (Math.hypot(lastDx, lastDy) <= 10) {
+          deskHandleSwipeSuppress = performance.now() + 700;
+          if (isAi) toggleAgentTerminal();
+          else if (notesHidden) showNotesPanel();
+          else hideNotesPanel();
+          return;
+        }
+        deskHandleSwipeSuppress = performance.now() + 400;
+      };
+
+      document.addEventListener("pointermove", move, { passive: true });
+      document.addEventListener("pointerup", finish);
+      document.addEventListener("pointercancel", finish);
+    }, { passive: true });
+  });
 };
 
 function positionDeskHandles() {
@@ -4220,14 +4242,11 @@ function positionDeskHandles() {
     ? notesRect.center
     : (bothClosed && vertical ? bodyRect.left + bodyRect.width * 0.75 : futureCenter("notes"));
   const closedTop = window.innerHeight - 20;
-  // While the other panel is open, its neighbour's handle waits just beyond
-  // the bottom edge and slides in on strip hover.
-  const hiddenTop = window.innerHeight + 2;
-  const stripHover = document.body.classList.contains("desk-strip-hover");
-  const aiOtherHidden = !aiOpen && notesOpen && !stripHover;
-  const notesOtherHidden = !notesOpen && aiOpen && !stripHover;
-  const aiTop = aiRect ? aiRect.top : (aiOtherHidden ? hiddenTop : closedTop);
-  const notesTop = notesRect ? notesRect.top : (notesOtherHidden ? hiddenTop : closedTop);
+  // A closed door always waits at the bottom edge. It must never be parked
+  // off-screen while the other panel is open, otherwise swiping it up to open
+  // the closed panel becomes impossible.
+  const aiTop = aiRect ? aiRect.top : closedTop;
+  const notesTop = notesRect ? notesRect.top : closedTop;
   DeskHandle.place("ai", aiCenter, aiTop);
   DeskHandle.place("note", notesCenter, notesTop);
   if (performance.now() - notesSwipeLineAt > 60) refreshNotesSwipeLine();
