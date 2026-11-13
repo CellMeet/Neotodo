@@ -5,6 +5,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -890,6 +891,7 @@ class AgentStore:
     def __init__(self, path: Path):
         self.path = path
         self.lock = threading.Lock()
+        self.exec_lock = threading.Lock()
 
     def _load(self) -> dict:
         try:
@@ -1003,12 +1005,87 @@ class AgentStore:
                 raise
             raise RuntimeError(f"Agent request failed: {error}") from error
 
+    def _execute_opencode(self, agent: dict, title: str, scope: dict, message: str) -> tuple[str, str]:
+        opencode = shutil.which("opencode")
+        if not opencode:
+            raise RuntimeError(
+                "OpenCode CLI not found. Install opencode and make sure it is on PATH, or set NEOTODO_AGENT_CWD."
+            )
+        cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
+        if not cwd.exists():
+            raise RuntimeError(f"Agent project directory not found: {cwd}")
+        subtask = str(scope.get("subtask") or title)
+        todo = str(scope.get("todo") or "")
+        category = str(scope.get("category") or "")
+        context = str(scope.get("context") or "")
+        prompt = (
+            "[NeoTodo crew executor]\n"
+            f"You are the crew agent for the subtask '{subtask}'"
+            f"{f' under todo {todo}' if todo else ''}"
+            f"{f' in category {category}' if category else ''}.\n"
+            f"Project root: {cwd}\n"
+            "Complete the user's instruction for this subtask. Keep edits scoped to this subtask; "
+            "do not refactor unrelated modules or overlap other agents' work. Other agents may be handling "
+            "other subtasks, so only touch files needed for this subtask. The user has approved automatic execution.\n\n"
+            f"Current workspace: {context}\n\n"
+            f"User instruction:\n{message}"
+        )
+        session_id = str(agent.get("opencode_session") or "")
+        command = [opencode, "run", "--standalone", "--auto", "--format", "json", "--title", f"NeoTodo · {title}"]
+        if session_id:
+            command += ["--session", session_id]
+        command.append(prompt)
+        try:
+            process = subprocess.run(
+                command,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                timeout=900,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError("The crew agent timed out after 15 minutes.") from error
+        texts = []
+        new_session = session_id
+        for line in (process.stdout or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except Exception:
+                continue
+            event_session = event.get("sessionID") or event.get("sessionId")
+            if event_session:
+                new_session = str(event_session)
+            if event.get("type") == "text":
+                part = event.get("part") if isinstance(event.get("part"), dict) else {}
+                text = part.get("text")
+                if isinstance(text, str) and text.strip():
+                    texts.append(text.strip())
+        reply = "\n\n".join(texts[-6:]).strip()
+        if not reply:
+            fallback = (process.stderr or process.stdout or "").strip()
+            fallback = re.sub(r"\x1b\[[0-9;]*m", "", fallback)
+            reply = fallback[-4000:] or f"The crew agent exited with code {process.returncode}."
+        if process.returncode != 0 and not texts:
+            reply = f"{reply}\n\n(OpenCode exit code {process.returncode})"
+        return reply[-20000:], new_session
+
     def action(self, payload: dict) -> dict:
         name = payload.get("action")
         if name == "list":
             with self.lock:
                 data = self._load()
             return {"ok": True, "agents": data.get("agents", {})}
+        if name == "get":
+            agent_id = str(payload.get("agent_id") or "")
+            if not agent_id:
+                return {"ok": False, "error": "Missing agent"}
+            with self.lock:
+                data = self._load()
+                agent = data.get("agents", {}).get(agent_id) or {"messages": []}
+            return {"ok": True, "agent": agent}
         if name == "clear":
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
@@ -1028,27 +1105,56 @@ class AgentStore:
             return {"ok": False, "error": "Missing agent"}
         if not message:
             return {"ok": False, "error": "Write a message first"}
-        key, base, model = self._config()
-        if not key:
-            return {
-                "ok": False,
-                "error": "No AI key configured. Set DEEPSEEK_API_KEY (or OPENAI_API_KEY) in the environment before launching NeoTodo.",
-            }
         with self.lock:
             data = self._load()
-            agent = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+            agent = data.get("agents", {}).get(agent_id) or {"messages": []}
             history = agent.get("messages") if isinstance(agent.get("messages"), list) else []
-            try:
+        mode = "execute" if str(scope.get("kind") or "") == "subtask" else "chat"
+        try:
+            if mode == "execute":
+                if not self.exec_lock.acquire(blocking=False):
+                    return {
+                        "ok": False,
+                        "error": "Another crew agent is already editing the project. Wait for it to finish (atomic lock).",
+                    }
+                try:
+                    reply, opencode_session = self._execute_opencode(agent, title, scope, message)
+                finally:
+                    self.exec_lock.release()
+                updated = (history + [
+                    {"role": "user", "content": message},
+                    {"role": "assistant", "content": reply},
+                ])[-40:]
+            else:
+                key, base, model = self._config()
+                if not key:
+                    return {
+                        "ok": False,
+                        "error": "No AI key configured. Set DEEPSEEK_API_KEY (or OPENAI_API_KEY) in the environment before launching NeoTodo.",
+                    }
                 reply, updated = self._chat(agent_id, title, scope, history, message, key, base, model)
-            except Exception as error:
-                return {"ok": False, "error": str(error)}
-            agent["title"] = title
-            agent["messages"] = updated
-            agent["updated_at"] = datetime.now().isoformat(timespec="seconds")
-            data["agents"][agent_id] = agent
+                opencode_session = ""
+        except Exception as error:
+            return {"ok": False, "error": str(error)}
+        with self.lock:
+            data = self._load()
+            stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+            stored["title"] = title
+            stored["messages"] = updated
+            stored["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            stored["mode"] = mode
+            if opencode_session:
+                stored["opencode_session"] = opencode_session
+            data["agents"][agent_id] = stored
             self._save(data)
-            return {"ok": True, "title": title, "reply": reply, "messages": updated, "agents": data["agents"]}
-
+        return {
+            "ok": True,
+            "title": title,
+            "reply": reply,
+            "messages": updated,
+            "mode": mode,
+            "agents": data["agents"],
+        }
 
 class ApiHandler(BaseHTTPRequestHandler):
     store: Store = None

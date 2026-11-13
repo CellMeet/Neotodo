@@ -91,13 +91,14 @@ git push origin v0.0.1
 
 Click the terminal icon in the lower-left tool rail to turn the note half into a Captain & Crew console.
 
-- **Captain** is the project-level agent.
-- **Crew · TODO** is the agent for the current todo.
-- **Crew · Subtask** agents are dedicated to each subtask.
-- Every agent keeps its own thread in `agents.json` next to `NeoTodo.json`.
-- The terminal needs `DEEPSEEK_API_KEY` (or `OPENAI_API_KEY`) in the environment. Optional knobs: `NEOTODO_AGENT_MODEL`, `NEOTODO_AGENT_BASE_URL`.
+- **Captain · Architect** is the todo-level planning agent.
+- **Crew · Executor** is opened by selecting a subtask. It runs the local `opencode` CLI with `--auto`, so it can edit the project and run commands to complete that subtask.
+- Each todo and subtask keeps its own thread in `agents.json` next to `NeoTodo.json`; subtask executors also keep their own OpenCode session.
+- Only one executor runs at a time. The backend holds an atomic lock, so two agents cannot edit the project simultaneously.
+- Chat agents need `DEEPSEEK_API_KEY` (or `OPENAI_API_KEY`). Execution needs `opencode` on `PATH`; `NEOTODO_AGENT_CWD` can point at the project root (defaults to the app source directory).
+- Optional knobs: `NEOTODO_AGENT_MODEL`, `NEOTODO_AGENT_BASE_URL`.
 
-The agents return Markdown, so plans, code snippets, and checklists render in the console.
+The console renders Markdown, so plans, code snippets, and checklists stay readable. Selecting another subtask switches the lower terminal to that crew member's own thread.
 
 ## Keyboard
 

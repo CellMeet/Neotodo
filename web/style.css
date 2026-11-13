@@ -11323,3 +11323,34 @@ body.agent-terminal-open #notes-half { visibility: hidden; }
   .agent-roster { flex-basis: 170px; }
   .agent-window { height: 50%; }
 }
+
+/* Follows the selected task like the note pane: one clean console, no roster. */
+.agent-terminal {
+  background:
+    radial-gradient(ellipse at 78% 0%, rgba(var(--pc-accent-rgb, 141, 184, 255), 0.10), transparent 46%),
+    #0b0f14;
+}
+.agent-body { justify-content: center; }
+.agent-main {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: 0 20px 12px;
+}
+.agent-role {
+  color: var(--pc-accent, #8db8ff);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+.agent-role.crew { color: #f0cfa0; }
+.agent-context {
+  flex: 0 0 auto;
+  padding: 5px 20px 6px;
+  border-bottom: 1px solid rgba(var(--pc-accent-rgb, 141, 184, 255), 0.12);
+  color: #718295;
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

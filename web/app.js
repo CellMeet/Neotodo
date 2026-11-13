@@ -1818,9 +1818,10 @@ let doingPanelRect = null;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
 let agentSessions = {};
-let activeAgentId = "captain";
 let agentBusy = false;
-let agentLoaded = false;
+let agentRunningAgentId = null;
+const agentLoadedIds = new Set();
+const agentLoadingIds = new Set();
 let doingPeekSignature = "";
 let addingSubtask = false;
 let addingSubtaskTodoId = null;
@@ -2862,6 +2863,7 @@ function updateHistorySelection() {
     else row.classList.toggle("cursor", Number(row.dataset.historyIndex) === historyCursor);
   });
   updateHistoryRoll();
+  syncAgentTerminal();
 }
 
 function updateSubtaskSelection() {
@@ -2871,6 +2873,7 @@ function updateSubtaskSelection() {
   document.querySelectorAll(".history-subtask[data-history-subtask-id]").forEach((row) => {
     row.classList.toggle("selected", row.dataset.historySubtaskId === selectedSubtaskId);
   });
+  syncAgentTerminal();
 }
 
 function selectionTouchesSubtaskNames(selection) {
@@ -3516,71 +3519,83 @@ function startSubtaskRename(span, event) {
   input.addEventListener("blur", () => commit(true));
 }
 
-function agentContextString() {
+function agentContextString(target = null) {
   const category = selectedCategory();
-  const todo = currentTodo();
-  const subs = (todo?.subtasks || []).map((subtask) => `${subtask.name}${subtask.done ? " (done)" : ""}`).join(", ");
-  return `Category: ${category?.name || "none"}; Current todo: ${todo?.name || "none"}; Subtasks: ${subs || "none"}.`;
+  const todo = target?.todo || currentTodo();
+  const subtask = target?.subtask;
+  const subs = (todo?.subtasks || []).map((item) => `${item.name}${item.done ? " (done)" : ""}`).join(", ");
+  return `Category: ${category?.name || "none"}; Todo: ${todo?.name || "none"}; Selected subtask: ${subtask?.name || "none"}; Subtasks: ${subs || "none"}.`;
 }
 
-function buildAgentRoster() {
-  const context = agentContextString();
-  const captain = {
-    id: "captain",
-    title: "Captain",
-    subtitle: "NeoTodo project",
-    kind: "captain",
-    scope: { kind: "captain", context },
-  };
+function activeAgent() {
   const category = selectedCategory();
-  const todo = currentTodo();
-  if (!category || !todo) return [captain];
-  const roster = [
-    captain,
-    {
-      id: `todo:${todo.id}`,
-      title: todo.name,
-      subtitle: `${category.name} · todo`,
-      kind: "todo",
-      scope: { kind: "todo", category: category.name, todo: todo.name, context },
-    },
-  ];
-  for (const subtask of todo.subtasks || []) {
-    roster.push({
-      id: `subtask:${subtask.id}`,
-      title: subtask.name,
-      subtitle: `${todo.name} · ${subtask.done ? "done" : "subtask"}`,
+  const target = activeNoteTarget();
+  const context = agentContextString(target);
+  if (target?.subtask) {
+    return {
+      id: `subtask:${target.subtask.id}`,
       kind: "subtask",
+      role: "CREW · EXECUTOR",
+      title: target.subtask.name,
+      category: category?.name || "",
+      todo: target.todo?.name || "",
+      mode: "execute",
       scope: {
         kind: "subtask",
-        category: category.name,
-        todo: todo.name,
-        subtask: subtask.name,
-        done: Boolean(subtask.done),
+        category: category?.name || "",
+        todo: target.todo?.name || "",
+        subtask: target.subtask.name,
+        done: Boolean(target.subtask.done),
         context,
       },
-    });
+    };
   }
-  return roster;
+  if (target?.todo) {
+    return {
+      id: `todo:${target.todo.id}`,
+      kind: "todo",
+      role: "CAPTAIN · ARCHITECT",
+      title: target.todo.name,
+      category: category?.name || "",
+      todo: target.todo.name,
+      mode: "chat",
+      scope: {
+        kind: "todo",
+        category: category?.name || "",
+        todo: target.todo.name,
+        context,
+      },
+    };
+  }
+  return {
+    id: "captain",
+    kind: "captain",
+    role: "CAPTAIN · PROJECT",
+    title: "NeoTodo",
+    category: category?.name || "",
+    todo: "",
+    mode: "chat",
+    scope: { kind: "captain", context },
+  };
 }
 
 function agentTerminalMarkup() {
   return `<section class="agent-terminal ${agentTerminalOpen ? "open" : ""}" id="agent-terminal" aria-hidden="${agentTerminalOpen ? "false" : "true"}">
     <div class="agent-head">
-      <div class="agent-head-title"><span class="agent-led" aria-hidden="true"></span><span>AI Terminal</span><span class="agent-head-agent" id="agent-head-agent">Captain</span></div>
+      <div class="agent-head-title"><span class="agent-led" aria-hidden="true"></span><span class="agent-role" id="agent-role">CAPTAIN · ARCHITECT</span><span class="agent-head-agent" id="agent-head-agent">NeoTodo</span></div>
       <div class="agent-head-actions">
         <button class="agent-clear" type="button" data-action="clear-agent">Clear</button>
         <button class="plain-x" type="button" data-action="close-terminal" aria-label="Close AI terminal">×</button>
       </div>
     </div>
+    <div class="agent-context" id="agent-context"></div>
     <div class="agent-body">
-      <aside class="agent-roster" id="agent-roster" aria-label="Agents"></aside>
       <div class="agent-main">
         <div class="agent-messages" id="agent-messages"></div>
         <div class="agent-status" id="agent-status"></div>
         <form class="agent-compose" id="agent-compose">
           <span class="agent-prompt" aria-hidden="true">›</span>
-          <textarea id="agent-input" rows="1" placeholder="Ask the captain or crew..." autocomplete="off" spellcheck="false"></textarea>
+          <textarea id="agent-input" rows="1" placeholder="Ask the captain..." autocomplete="off" spellcheck="false"></textarea>
           <button class="agent-send" type="submit">Send</button>
         </form>
       </div>
@@ -3597,35 +3612,55 @@ function renderAgentTerminal() {
   panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
   if (!agentTerminalOpen) return;
 
-  const roster = buildAgentRoster();
-  if (!roster.some((agent) => agent.id === activeAgentId)) activeAgentId = roster[0]?.id || "captain";
-  const active = roster.find((agent) => agent.id === activeAgentId) || roster[0];
-  const rosterEl = $("#agent-roster");
-  if (rosterEl) {
-    rosterEl.innerHTML = roster.map((agent) => {
-      const role = agent.kind === "captain" ? "CAPTAIN" : agent.kind === "todo" ? "CREW · TODO" : "CREW · SUBTASK";
-      return `<button class="agent-roster-item ${agent.id === activeAgentId ? "active" : ""}" type="button" data-action="select-agent" data-agent-id="${esc(agent.id)}">
-        <span class="agent-roster-role">${role}</span>
-        <span class="agent-roster-name">${esc(agent.title)}</span>
-        <span class="agent-roster-sub">${esc(agent.subtitle)}</span>
-      </button>`;
-    }).join("");
+  const agent = activeAgent();
+  const roleEl = $("#agent-role");
+  if (roleEl) {
+    roleEl.textContent = agent.role;
+    roleEl.classList.toggle("crew", agent.kind === "subtask");
   }
   const heading = $("#agent-head-agent");
-  if (heading) heading.textContent = active?.kind === "captain" ? "Captain" : (active?.title || "Captain");
+  if (heading) heading.textContent = agent.title;
+  const contextEl = $("#agent-context");
+  if (contextEl) {
+    contextEl.textContent = agent.kind === "subtask"
+      ? `${agent.category} / ${agent.todo} / ${agent.title}  ·  ATOMIC LOCK · one executor at a time`
+      : agent.kind === "todo"
+        ? `${agent.category} / ${agent.title}  ·  architect`
+        : "Project bridge";
+  }
 
-  const session = agentSessions[activeAgentId] || { messages: [] };
+  if (!agentLoadedIds.has(agent.id) && !agentLoadingIds.has(agent.id)) {
+    agentLoadingIds.add(agent.id);
+    loadAgentSession(agent.id);
+  }
+  const loading = agentLoadingIds.has(agent.id);
+  const session = agentSessions[agent.id] || { messages: [] };
   const messages = Array.isArray(session.messages) ? session.messages : [];
   const messagesEl = $("#agent-messages");
   if (messagesEl) {
-    const agentLabel = active?.kind === "captain" ? "Captain" : "Crew";
+    const agentLabel = agent.kind === "subtask" ? "Crew" : "Captain";
     let html = "";
-    if (!messages.length && !agentBusy) {
-      html = `<div class="agent-empty">
-        <div class="agent-empty-title">Captain &amp; Crew</div>
-        <p>Every todo and subtask has its own agent thread. The Captain watches the whole project; each crew agent focuses on one mission.</p>
-        <p class="agent-empty-hint">Pick a crew member on the left, then ask for a plan, a fix, or a code change.</p>
-      </div>`;
+    if (loading && !messages.length) {
+      html = `<div class="agent-empty"><div class="agent-empty-title">Opening thread…</div></div>`;
+    } else if (!messages.length && !agentBusy) {
+      if (agent.kind === "subtask") {
+        html = `<div class="agent-empty">
+          <div class="agent-empty-title">Crew terminal</div>
+          <p>This crew agent can edit the project to complete this subtask. It is an executor, not a planner.</p>
+          <p class="agent-empty-hint">One crew agent runs at a time; the first run may take a minute while OpenCode starts.</p>
+        </div>`;
+      } else if (agent.kind === "todo") {
+        html = `<div class="agent-empty">
+          <div class="agent-empty-title">Captain's desk</div>
+          <p>This is the architect for the todo. Use it to shape the module, split work, and review decisions.</p>
+          <p class="agent-empty-hint">Select a subtask to open that crew member's executor terminal.</p>
+        </div>`;
+      } else {
+        html = `<div class="agent-empty">
+          <div class="agent-empty-title">Project bridge</div>
+          <p>Ask the Captain about the whole NeoTodo project, its architecture, or where to start.</p>
+        </div>`;
+      }
     } else {
       for (const message of messages) {
         const role = message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user";
@@ -3635,30 +3670,79 @@ function renderAgentTerminal() {
       }
     }
     if (agentBusy) {
-      html += `<div class="agent-msg assistant thinking"><div class="agent-msg-role">${esc(agentLabel)}</div><div class="agent-msg-body"><span class="agent-thinking-dots" aria-label="Thinking">● ● ●</span></div></div>`;
+      const runningHere = agentRunningAgentId === agent.id;
+      const runningLabel = agent.kind === "subtask" ? "Crew" : "Captain";
+      html += `<div class="agent-msg assistant thinking"><div class="agent-msg-role">${runningHere ? esc(runningLabel) : "Terminal"}</div><div class="agent-msg-body"><span class="agent-thinking-dots">● ● ●</span></div></div>`;
     }
     messagesEl.innerHTML = html;
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
+
   const status = $("#agent-status");
   if (status) {
-    status.textContent = agentBusy ? "Thinking…" : "";
-    status.classList.toggle("busy", agentBusy);
+    if (loading) status.textContent = "Opening thread…";
+    else if (agentBusy) {
+      if (agentRunningAgentId === agent.id) {
+        status.textContent = agent.mode === "execute" ? "Crew is editing the project…" : "Captain is thinking…";
+      } else {
+        status.textContent = "Another agent is working on the project…";
+      }
+    } else {
+      status.textContent = "";
+    }
+    status.classList.toggle("busy", Boolean(agentBusy || loading));
   }
   const input = $("#agent-input");
-  if (input) input.disabled = agentBusy;
+  if (input) {
+    input.placeholder = agent.mode === "execute"
+      ? "Describe the change; the crew will execute it…"
+      : agent.kind === "todo"
+        ? "Ask the architect for a plan…"
+        : "Ask the captain about the project…";
+    input.disabled = Boolean(agentBusy || loading);
+  }
   const send = $(".agent-send");
-  if (send) send.disabled = agentBusy;
+  if (send) {
+    send.textContent = agent.mode === "execute" ? "Run" : "Send";
+    send.disabled = Boolean(agentBusy || loading);
+  }
+}
+
+async function agentPost(payload) {
+  const response = await fetch("/api/agent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return response.json();
+}
+
+async function loadAgentSession(agentId) {
+  if (agentLoadedIds.has(agentId)) return;
+  agentLoadingIds.add(agentId);
+  renderAgentTerminal();
+  try {
+    const data = await agentPost({ action: "get", agent_id: agentId });
+    if (data.ok) {
+      agentSessions[agentId] = data.agent || { messages: [] };
+      agentLoadedIds.add(agentId);
+    }
+  } catch (error) {
+  } finally {
+    agentLoadingIds.delete(agentId);
+    if (agentTerminalOpen && activeAgent().id === agentId) renderAgentTerminal();
+  }
+}
+
+function syncAgentTerminal() {
+  if (!agentTerminalOpen) return;
+  renderAgentTerminal();
 }
 
 function openAgentTerminal() {
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
-  const target = activeNoteTarget();
-  if (target?.subtask) activeAgentId = `subtask:${target.subtask.id}`;
-  else if (target?.todo) activeAgentId = `todo:${target.todo.id}`;
   renderAgentTerminal();
-  if (!agentLoaded) loadAgentSessions();
   setTimeout(() => $("#agent-input")?.focus(), 80);
 }
 
@@ -3676,29 +3760,12 @@ function toggleAgentTerminal() {
   else openAgentTerminal();
 }
 
-async function loadAgentSessions() {
-  try {
-    const response = await fetch("/api/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "list" }),
-    });
-    const data = await response.json();
-    if (data.ok) {
-      agentSessions = data.agents || {};
-      agentLoaded = true;
-      renderAgentTerminal();
-    }
-  } catch (error) {}
-}
-
 async function sendAgentMessage() {
   const input = $("#agent-input");
   const message = input?.value.trim();
   if (!message || agentBusy) return;
-  const roster = buildAgentRoster();
-  const agent = roster.find((item) => item.id === activeAgentId) || roster[0];
-  if (!agent) return;
+  const agent = activeAgent();
+  if (!agentLoadedIds.has(agent.id)) await loadAgentSession(agent.id);
   const session = agentSessions[agent.id] || { title: agent.title, messages: [] };
   agentSessions[agent.id] = {
     ...session,
@@ -3706,23 +3773,20 @@ async function sendAgentMessage() {
     messages: [...(session.messages || []), { role: "user", content: message }],
   };
   agentBusy = true;
+  agentRunningAgentId = agent.id;
   if (input) input.value = "";
   renderAgentTerminal();
   try {
-    const response = await fetch("/api/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "chat",
-        agent_id: agent.id,
-        title: agent.title,
-        scope: agent.scope,
-        message,
-      }),
+    const data = await agentPost({
+      action: "chat",
+      agent_id: agent.id,
+      title: agent.title,
+      scope: agent.scope,
+      message,
     });
-    const data = await response.json();
     if (data.ok) {
       agentSessions[agent.id] = { title: data.title || agent.title, messages: data.messages || [] };
+      agentLoadedIds.add(agent.id);
     } else {
       agentSessions[agent.id] = {
         ...agentSessions[agent.id],
@@ -3736,21 +3800,19 @@ async function sendAgentMessage() {
     };
   } finally {
     agentBusy = false;
+    agentRunningAgentId = null;
     renderAgentTerminal();
     setTimeout(() => $("#agent-input")?.focus(), 40);
   }
 }
 
 async function clearAgent() {
-  const id = activeAgentId;
-  agentSessions[id] = { ...(agentSessions[id] || {}), messages: [] };
+  const agent = activeAgent();
+  agentSessions[agent.id] = { ...(agentSessions[agent.id] || {}), messages: [] };
+  agentLoadedIds.add(agent.id);
   renderAgentTerminal();
   try {
-    await fetch("/api/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "clear", agent_id: id }),
-    });
+    await agentPost({ action: "clear", agent_id: agent.id });
   } catch (error) {}
 }
 
@@ -5209,12 +5271,6 @@ async function handleAction(actionName, element) {
   if (actionName === "open-terminal") { toggleAgentTerminal(); return; }
   if (actionName === "close-terminal") { closeAgentTerminal(); return; }
   if (actionName === "clear-agent") { clearAgent(); return; }
-  if (actionName === "select-agent") {
-    activeAgentId = element?.dataset.agentId || "captain";
-    renderAgentTerminal();
-    setTimeout(() => $("#agent-input")?.focus(), 20);
-    return;
-  }
   if (actionName === "open-settings") { openSettings(); return; }
   if (actionName === "close-settings") { closeSettings(); return; }
   if (actionName === "toggle-show-clock") {
