@@ -13555,37 +13555,32 @@ body.panel-drag-mode .notes-half.panel-shrinking {
 /* Robot mark: dark ink on light paper, light ink on dark paper. */
 .agent-provider-icon { color: #3a3a3c; }
 
-/* The note keeps its own parchment ink, untouched by the theme. */
-.notes-half.floating-notes {
+/* Paper note ink only; the glass material keeps its own palette. */
+html[data-note-material="paper"] .notes-half.floating-notes {
   color: var(--note-ink, #3a2414) !important;
 }
 html[data-note-material="paper"] .notes-half.floating-notes .notes-head,
 html[data-note-material="paper"] .notes-half.floating-notes .notes-title,
-.notes-half.floating-notes .notes-title > span,
-.notes-half.floating-notes .note-block,
+html[data-note-material="paper"] .notes-half.floating-notes .notes-title > span,
+html[data-note-material="paper"] .notes-half.floating-notes .note-block,
 html[data-note-material="paper"] .notes-half.floating-notes .note-block-editor,
-.notes-half.floating-notes .note-block h1,
-.notes-half.floating-notes .note-block h2,
-.notes-half.floating-notes .note-block h3,
-.notes-half.floating-notes .notes-empty,
-.notes-half.floating-notes .note-block-placeholder {
+html[data-note-material="paper"] .notes-half.floating-notes .note-block h1,
+html[data-note-material="paper"] .notes-half.floating-notes .note-block h2,
+html[data-note-material="paper"] .notes-half.floating-notes .note-block h3,
+html[data-note-material="paper"] .notes-half.floating-notes .notes-empty,
+html[data-note-material="paper"] .notes-half.floating-notes .note-block-placeholder {
   color: var(--note-ink, #3a2414) !important;
 }
-.notes-half.floating-notes .notes-icon,
-.notes-half.floating-notes .notes-quill {
+html[data-note-material="paper"] .notes-half.floating-notes .notes-icon,
+html[data-note-material="paper"] .notes-half.floating-notes .notes-quill {
   color: var(--note-accent, #a8691f) !important;
 }
-.notes-half.floating-notes .notes-head {
+html[data-note-material="paper"] .notes-half.floating-notes .notes-head {
   border-bottom-color: rgba(74, 53, 37, 0.18) !important;
 }
-.notes-half.floating-notes .picture-link,
-.notes-half.floating-notes .note-link {
+html[data-note-material="paper"] .notes-half.floating-notes .picture-link,
+html[data-note-material="paper"] .notes-half.floating-notes .note-link {
   color: #7b4d20 !important;
-}
-
-/* The parchment note surface wins over any theme material. */
-html[data-note-material="blur"] .notes-half.floating-notes {
-  background-image: none !important;
 }
 
 /* The paper note uses the user's chosen note background, not the app theme. */
