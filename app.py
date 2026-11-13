@@ -10,8 +10,7 @@ import socket
 import subprocess
 import sys
 import threading
-import urllib.error
-import urllib.request
+import time
 import uuid
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -882,16 +881,22 @@ class Store:
 
 
 class AgentStore:
-    """Per-agent chat sessions for the AI terminal.
+    """Per-agent OpenCode sessions for the AI terminal.
 
-    Agents are independent: the project agent is the Captain, each todo/subtask
-    gets its own crew thread. Histories live beside NeoTodo.json.
+    Every todo and subtask owns an independent OpenCode session. Planning
+    agents run with the read-only plan agent; subtask executors run with
+    --auto behind a global lock so only one of them edits the project at a
+    time. Requests wait for the lock instead of being rejected.
     """
 
     def __init__(self, path: Path):
         self.path = path
         self.lock = threading.Lock()
         self.exec_lock = threading.Lock()
+        self.live_lock = threading.Lock()
+        self.live = {}
+        self.models_cache = None
+        self.models_at = 0.0
 
     def _load(self) -> dict:
         try:
@@ -912,31 +917,79 @@ class AgentStore:
         except Exception:
             pass
 
-    @staticmethod
-    def _config() -> tuple[str, str, str]:
-        key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
-        base = (
-            os.environ.get("NEOTODO_AGENT_BASE_URL")
-            or os.environ.get("DEEPSEEK_BASE_URL")
-            or os.environ.get("OPENAI_BASE_URL")
-            or "https://api.deepseek.com/v1"
-        ).rstrip("/")
-        model = (
-            os.environ.get("NEOTODO_AGENT_MODEL")
-            or os.environ.get("DEEPSEEK_MODEL")
-            or "deepseek-chat"
-        )
-        return key, base, model
+    def _available_models(self) -> list:
+        now = time.time()
+        if self.models_cache is not None and now - self.models_at < 600:
+            return self.models_cache
+        opencode = shutil.which("opencode")
+        models = []
+        if opencode:
+            try:
+                process = subprocess.run(
+                    [opencode, "models", "--standalone"],
+                    capture_output=True,
+                    text=True,
+                    timeout=40,
+                )
+                models = [
+                    line.strip()
+                    for line in (process.stdout or "").splitlines()
+                    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", line.strip())
+                ]
+            except Exception:
+                models = []
+        if not models:
+            models = ["deepseek/deepseek-flash"]
+        self.models_cache = models
+        self.models_at = now
+        return models
 
     @staticmethod
-    def _provider_name(base: str) -> str:
-        text = (base or "").lower()
-        if "deepseek" in text:
+    def _configured_model() -> str:
+        override = os.environ.get("NEOTODO_AGENT_MODEL") or ""
+        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", override):
+            return override
+        config = Path(
+            os.environ.get("OPENCODE_CONFIG")
+            or (Path.home() / ".config" / "opencode" / "opencode.jsonc")
+        )
+        try:
+            text = config.read_text(encoding="utf-8")
+            match = re.search(r'"model"\s*:\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"', text)
+            if match:
+                return match.group(1)
+        except Exception:
+            pass
+        return ""
+
+    def _default_model(self) -> str:
+        models = self._available_models()
+        configured = self._configured_model()
+        if configured and configured in models:
+            return configured
+        for model in models:
+            if model.startswith("deepseek/"):
+                return model
+        return models[0] if models else "deepseek/deepseek-flash"
+
+    @staticmethod
+    def _model_leaf(model: str) -> str:
+        value = str(model or "")
+        return value.split("/")[-1] if "/" in value else value
+
+    @classmethod
+    def _provider_for_model(cls, model: str) -> str:
+        prefix = str(model or "").split("/")[0].lower() if "/" in str(model or "") else ""
+        if prefix == "deepseek":
             return "DeepSeek"
-        if "openai" in text:
+        if prefix == "openai":
             return "OpenAI"
-        if "anthropic" in text or "claude" in text:
+        if prefix in ("anthropic", "claude"):
             return "Anthropic"
+        if prefix == "opencode":
+            return "OpenCode"
+        if prefix:
+            return prefix.capitalize()
         return "AI"
 
     @staticmethod
@@ -945,7 +998,6 @@ class AgentStore:
         category = str(scope.get("category") or "")
         todo = str(scope.get("todo") or "")
         subtask = str(scope.get("subtask") or "")
-        done = bool(scope.get("done"))
         context = str(scope.get("context") or "")
         base = (
             "You are an AI agent inside NeoTodo, a local GTK4/WebKit desktop todo app. "
@@ -953,135 +1005,226 @@ class AgentStore:
             "The interface is HTML/CSS/JS; the backend is Python; the Linux shell is GTK4 + WebKitGTK; "
             "a Windows shell uses PySide6/Qt WebEngine. "
             "Be practical and concise. Use Markdown, complete code snippets, and exact file paths. "
-            "You are part of a pirate crew: the project agent is the Captain; task and subtask agents are crew. "
-            "Each crew agent owns one task thread. Do not pretend you can edit files unless the user asks you to describe the edit."
+            "You are planning only: read what you need, but never edit files in this mode."
         )
         if kind == "captain":
-            role = "You are the Captain, responsible for the whole NeoTodo project and for coordinating the crew's work."
+            role = "You are the project architect for the whole NeoTodo project."
         elif kind == "subtask":
             role = (
-                f"You are the crew agent for the subtask '{subtask}' under todo '{todo}'"
-                f"{f' in category {category}' if category else ''}. This subtask is {'done' if done else 'pending'}. "
-                "Focus on this subtask and the smallest useful steps around it."
+                f"You are the agent for the subtask '{subtask}' under todo '{todo}'"
+                f"{f' in category {category}' if category else ''}."
             )
         else:
             role = (
-                f"You are the crew agent for the todo '{todo}'"
+                f"You are the architect for the todo '{todo}'"
                 f"{f' in category {category}' if category else ''}. "
-                "Focus on this todo and its subtasks."
+                "Plan the work and its subtasks."
             )
         return f"{base}\n\n{role}\n\nCurrent workspace: {context}"
 
-    def _chat(self, agent_id: str, title: str, scope: dict, history: list, message: str, key: str, base: str, model: str) -> tuple[str, list]:
-        messages = [{"role": "system", "content": self._system_prompt(scope, title)}]
-        messages.extend(history[-24:])
-        messages.append({"role": "user", "content": message})
-        payload = json.dumps({
-            "model": model,
-            "messages": messages,
-            "temperature": 0.4,
-            "max_tokens": 1800,
-        }).encode("utf-8")
-        request = urllib.request.Request(
-            f"{base}/chat/completions",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=90) as response:
-                data = json.loads(response.read().decode("utf-8"))
-            reply = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
-            reply = str(reply or "").strip()
-            if not reply:
-                raise ValueError("The agent returned an empty reply")
-            updated = (history + [
-                {"role": "user", "content": message},
-                {"role": "assistant", "content": reply},
-            ])[-40:]
-            return reply, updated
-        except urllib.error.HTTPError as error:
-            try:
-                detail = error.read().decode("utf-8", "replace")[:500]
-            except Exception:
-                detail = ""
-            raise RuntimeError(f"Agent API error {error.code}: {detail or error.reason}") from error
-        except urllib.error.URLError as error:
-            raise RuntimeError(f"Could not reach the agent API: {error.reason}") from error
-        except Exception as error:
-            if isinstance(error, RuntimeError):
-                raise
-            raise RuntimeError(f"Agent request failed: {error}") from error
-
-    def _execute_opencode(self, agent: dict, title: str, scope: dict, message: str) -> tuple[str, str]:
-        opencode = shutil.which("opencode")
-        if not opencode:
-            raise RuntimeError(
-                "OpenCode CLI not found. Install opencode and make sure it is on PATH, or set NEOTODO_AGENT_CWD."
-            )
-        cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
-        if not cwd.exists():
-            raise RuntimeError(f"Agent project directory not found: {cwd}")
+    @staticmethod
+    def _executor_prompt(scope: dict, title: str, message: str) -> str:
         subtask = str(scope.get("subtask") or title)
         todo = str(scope.get("todo") or "")
         category = str(scope.get("category") or "")
         context = str(scope.get("context") or "")
-        prompt = (
+        return (
             "[NeoTodo crew executor]\n"
             f"You are the crew agent for the subtask '{subtask}'"
             f"{f' under todo {todo}' if todo else ''}"
             f"{f' in category {category}' if category else ''}.\n"
-            f"Project root: {cwd}\n"
+            f"Project root: {APP_DIR}\n"
             "Complete the user's instruction for this subtask. Keep edits scoped to this subtask; "
             "do not refactor unrelated modules or overlap other agents' work. Other agents may be handling "
             "other subtasks, so only touch files needed for this subtask. The user has approved automatic execution.\n\n"
             f"Current workspace: {context}\n\n"
             f"User instruction:\n{message}"
         )
+
+    @staticmethod
+    def _session_usage(session_id: str) -> dict:
+        opencode = shutil.which("opencode")
+        if not opencode or not session_id:
+            return {}
+        try:
+            process = subprocess.run(
+                [opencode, "session", "export", session_id, "--standalone"],
+                capture_output=True,
+                text=True,
+                timeout=25,
+            )
+            data = json.loads(process.stdout or "{}")
+            info = data.get("info") if isinstance(data.get("info"), dict) else {}
+            tokens = info.get("tokens") if isinstance(info.get("tokens"), dict) else {}
+            cache = tokens.get("cache") if isinstance(tokens.get("cache"), dict) else {}
+            total = (
+                int(tokens.get("input") or 0)
+                + int(tokens.get("output") or 0)
+                + int(tokens.get("reasoning") or 0)
+            )
+            context = 0
+            for message in reversed(data.get("messages") or []):
+                if not isinstance(message, dict) or message.get("type") != "assistant":
+                    continue
+                message_tokens = message.get("tokens") if isinstance(message.get("tokens"), dict) else {}
+                message_cache = message_tokens.get("cache") if isinstance(message_tokens.get("cache"), dict) else {}
+                context = int(message_tokens.get("input") or 0) + int(message_cache.get("read") or 0)
+                break
+            if not context:
+                context = int(tokens.get("input") or 0) + int(cache.get("read") or 0)
+            return {
+                "tokens": total,
+                "cost": round(float(info.get("cost") or 0), 6),
+                "context": context,
+                "cumulative": True,
+            }
+        except Exception:
+            return {}
+
+    def _update_live(self, agent_id: str, **changes) -> None:
+        with self.live_lock:
+            current = self.live.get(agent_id)
+            if current is None:
+                return
+            current.update(changes)
+
+    def _clear_live(self, agent_id: str) -> None:
+        with self.live_lock:
+            self.live.pop(agent_id, None)
+
+    def _run_opencode(self, agent_id: str, agent: dict, title: str, scope: dict,
+                      message: str, model: str, mode: str) -> tuple[str, str, str, dict]:
+        opencode = shutil.which("opencode")
+        if not opencode:
+            raise RuntimeError(
+                "OpenCode CLI not found. Install opencode and make sure it is on PATH."
+            )
+        cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
+        if not cwd.exists():
+            raise RuntimeError(f"Agent project directory not found: {cwd}")
+        if mode == "execute":
+            prompt = self._executor_prompt(scope, title, message)
+        else:
+            prompt = f"{self._system_prompt(scope, title)}\n\nUser message:\n{message}"
         session_id = str(agent.get("opencode_session") or "")
-        command = [opencode, "run", "--standalone", "--auto", "--format", "json", "--title", f"NeoTodo · {title}"]
+        command = [
+            opencode, "run", "--standalone", "--format", "json",
+            "--title", f"NeoTodo · {title}",
+        ]
+        line_buffer = shutil.which("stdbuf")
+        if line_buffer:
+            command = [line_buffer, "-oL"] + command
+        if model and "/" in model:
+            command += ["--model", model]
+        if mode == "execute":
+            command += ["--auto"]
+        else:
+            command += ["--agent", "plan"]
         if session_id:
             command += ["--session", session_id]
         command.append(prompt)
+
+        with self.live_lock:
+            self.live[agent_id] = {
+                "process": "",
+                "text": "",
+                "usage": {"tokens": 0, "cost": 0.0, "context": 0},
+                "started": time.time(),
+                "model": model,
+                "mode": mode,
+            }
+        texts = []
+        process_lines = []
+        raw_lines = []
+        new_session = session_id
+        usage = {"tokens": 0, "cost": 0.0, "context": 0}
+        process = None
         try:
-            process = subprocess.run(
+            process = subprocess.Popen(
                 command,
                 cwd=str(cwd),
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=900,
+                bufsize=1,
             )
-        except subprocess.TimeoutExpired as error:
-            raise RuntimeError("The crew agent timed out after 15 minutes.") from error
-        texts = []
-        new_session = session_id
-        for line in (process.stdout or "").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except Exception:
-                continue
-            event_session = event.get("sessionID") or event.get("sessionId")
-            if event_session:
-                new_session = str(event_session)
-            if event.get("type") == "text":
+            deadline = time.time() + 900
+            assert process.stdout is not None
+            for line in process.stdout:
+                if time.time() > deadline:
+                    process.kill()
+                    raise RuntimeError("The agent timed out after 15 minutes.")
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except Exception:
+                    raw_lines.append(line)
+                    continue
+                event_session = event.get("sessionID") or event.get("sessionId")
+                if event_session:
+                    new_session = str(event_session)
                 part = event.get("part") if isinstance(event.get("part"), dict) else {}
-                text = part.get("text")
-                if isinstance(text, str) and text.strip():
-                    texts.append(text.strip())
-        reply = "\n\n".join(texts[-6:]).strip()
-        if not reply:
-            fallback = (process.stderr or process.stdout or "").strip()
-            fallback = re.sub(r"\x1b\[[0-9;]*m", "", fallback)
-            reply = fallback[-4000:] or f"The crew agent exited with code {process.returncode}."
-        if process.returncode != 0 and not texts:
-            reply = f"{reply}\n\n(OpenCode exit code {process.returncode})"
-        return reply[-20000:], new_session
+                event_type = event.get("type")
+                if event_type == "text":
+                    text = part.get("text")
+                    if isinstance(text, str) and text.strip():
+                        texts.append(text.strip())
+                        self._update_live(agent_id, text="\n\n".join(texts[-6:]))
+                elif event_type == "tool_use":
+                    tool = str(part.get("tool") or "tool")
+                    state = part.get("state") if isinstance(part.get("state"), dict) else {}
+                    tool_input = state.get("input") if isinstance(state.get("input"), dict) else {}
+                    command_text = tool_input.get("command")
+                    path = tool_input.get("filePath") or tool_input.get("path") or tool_input.get("file")
+                    if tool == "shell" and command_text:
+                        process_lines.append(f"$ {command_text}")
+                    elif path:
+                        process_lines.append(f"→ {tool} {path}")
+                    else:
+                        process_lines.append(f"→ {tool}")
+                    output = state.get("output")
+                    if output:
+                        clean = re.sub(r"\x1b\[[0-9;]*m", "", str(output)).strip()
+                        if clean:
+                            process_lines.append("  " + "\n  ".join(clean.splitlines()[:8])[:700])
+                    self._update_live(agent_id, process="\n".join(process_lines)[-12000:])
+                elif event_type == "step_finish":
+                    tokens = part.get("tokens") if isinstance(part.get("tokens"), dict) else {}
+                    try:
+                        usage["tokens"] += (
+                            int(tokens.get("input") or 0)
+                            + int(tokens.get("output") or 0)
+                            + int(tokens.get("reasoning") or 0)
+                        )
+                        usage["context"] = max(usage["context"], int(tokens.get("input") or 0))
+                    except (TypeError, ValueError):
+                        pass
+                    try:
+                        usage["cost"] += float(part.get("cost") or 0)
+                    except (TypeError, ValueError):
+                        pass
+                    self._update_live(agent_id, usage=dict(usage))
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+        finally:
+            reply = "\n\n".join(texts[-6:]).strip()
+            if not reply:
+                fallback = "\n".join(raw_lines).strip()
+                fallback = re.sub(r"\x1b\[[0-9;]*m", "", fallback)
+                code = process.returncode if process else "?"
+                reply = fallback[-4000:] or f"The agent exited with code {code}."
+            if process is not None and process.returncode not in (0, None) and not texts:
+                reply = f"{reply}\n\n(OpenCode exit code {process.returncode})"
+            self._clear_live(agent_id)
+        exported = self._session_usage(new_session)
+        if exported:
+            usage = exported
+        return reply[-20000:], new_session, "\n".join(process_lines)[-12000:], usage
 
     def action(self, payload: dict) -> dict:
         name = payload.get("action")
@@ -1089,6 +1232,12 @@ class AgentStore:
             with self.lock:
                 data = self._load()
             return {"ok": True, "agents": data.get("agents", {})}
+        if name == "models":
+            return {
+                "ok": True,
+                "models": self._available_models(),
+                "default_model": self._default_model(),
+            }
         if name == "get":
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
@@ -1096,9 +1245,34 @@ class AgentStore:
             with self.lock:
                 data = self._load()
                 agent = data.get("agents", {}).get(agent_id) or {"messages": []}
-            _, base, _ = self._config()
-            provider = os.environ.get("NEOTODO_AGENT_PROVIDER") or self._provider_name(base)
-            return {"ok": True, "agent": agent, "provider": provider}
+            default_model = self._default_model()
+            model = agent.get("model") or default_model
+            with self.live_lock:
+                live = dict(self.live.get(agent_id) or {})
+            return {
+                "ok": True,
+                "agent": agent,
+                "provider": self._provider_for_model(model),
+                "model": model,
+                "models": self._available_models(),
+                "default_model": default_model,
+                "live": live,
+            }
+        if name == "set_model":
+            agent_id = str(payload.get("agent_id") or "")
+            model = str(payload.get("model") or "")
+            if not agent_id or model not in self._available_models():
+                return {"ok": False, "error": "Unknown model"}
+            with self.lock:
+                data = self._load()
+                stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                stored["model"] = model
+                self._save(data)
+            return {
+                "ok": True,
+                "model": model,
+                "provider": self._provider_for_model(model),
+            }
         if name == "clear":
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
@@ -1118,31 +1292,42 @@ class AgentStore:
             return {"ok": False, "error": "Missing agent"}
         if not message:
             return {"ok": False, "error": "Write a message first"}
+        mode = "execute" if str(scope.get("kind") or "") == "subtask" else "chat"
         with self.lock:
             data = self._load()
             agent = data.get("agents", {}).get(agent_id) or {"messages": []}
             history = agent.get("messages") if isinstance(agent.get("messages"), list) else []
-        mode = "execute" if str(scope.get("kind") or "") == "subtask" else "chat"
+        requested = str(payload.get("model") or agent.get("model") or "").strip()
+        models = self._available_models()
+        model = requested if requested in models else self._default_model()
         try:
             if mode == "execute":
                 self.exec_lock.acquire()
                 try:
-                    reply, opencode_session = self._execute_opencode(agent, title, scope, message)
+                    reply, opencode_session, process_text, usage = self._run_opencode(
+                        agent_id, agent, title, scope, message, model, mode
+                    )
                 finally:
                     self.exec_lock.release()
-                updated = (history + [
-                    {"role": "user", "content": message},
-                    {"role": "assistant", "content": reply},
-                ])[-40:]
             else:
-                key, base, model = self._config()
-                if not key:
-                    return {
-                        "ok": False,
-                        "error": "No AI key configured. Set DEEPSEEK_API_KEY (or OPENAI_API_KEY) in the environment before launching NeoTodo.",
-                    }
-                reply, updated = self._chat(agent_id, title, scope, history, message, key, base, model)
-                opencode_session = ""
+                reply, opencode_session, process_text, usage = self._run_opencode(
+                    agent_id, agent, title, scope, message, model, mode
+                )
+            assistant = {
+                "role": "assistant",
+                "content": reply,
+                "process": process_text,
+                "model": model,
+                "usage": {
+                    "tokens": int(usage.get("tokens") or 0),
+                    "cost": round(float(usage.get("cost") or 0), 6),
+                    "context": int(usage.get("context") or 0),
+                },
+            }
+            updated = (history + [
+                {"role": "user", "content": message},
+                assistant,
+            ])[-40:]
         except Exception as error:
             return {"ok": False, "error": str(error)}
         with self.lock:
@@ -1152,21 +1337,43 @@ class AgentStore:
             stored["messages"] = updated
             stored["updated_at"] = datetime.now().isoformat(timespec="seconds")
             stored["mode"] = mode
+            stored["model"] = model
             if opencode_session:
                 stored["opencode_session"] = opencode_session
+            previous = stored.get("usage") if isinstance(stored.get("usage"), dict) else {}
+            if usage.get("cumulative"):
+                stored["usage"] = {
+                    "tokens": int(usage.get("tokens") or 0),
+                    "cost": round(float(usage.get("cost") or 0), 6),
+                    "context": int(usage.get("context") or 0),
+                }
+            else:
+                try:
+                    total_tokens = int(previous.get("tokens") or 0) + int(usage.get("tokens") or 0)
+                    total_cost = float(previous.get("cost") or 0) + float(usage.get("cost") or 0)
+                except (TypeError, ValueError):
+                    total_tokens, total_cost = usage.get("tokens", 0), usage.get("cost", 0)
+                stored["usage"] = {
+                    "tokens": total_tokens,
+                    "cost": round(total_cost, 6),
+                    "context": usage.get("context") or previous.get("context") or 0,
+                }
             data["agents"][agent_id] = stored
             self._save(data)
-        _, base, _ = self._config()
-        provider = os.environ.get("NEOTODO_AGENT_PROVIDER") or self._provider_name(base)
+            session_usage = dict(stored["usage"])
         return {
             "ok": True,
             "title": title,
             "reply": reply,
             "messages": updated,
             "mode": mode,
-            "provider": provider,
+            "provider": self._provider_for_model(model),
+            "model": model,
+            "usage": session_usage,
+            "live": {},
             "agents": data["agents"],
         }
+
 
 class ApiHandler(BaseHTTPRequestHandler):
     store: Store = None

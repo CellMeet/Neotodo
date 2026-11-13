@@ -1821,9 +1821,13 @@ let agentSessions = {};
 const agentBusyIds = new Set();
 const agentExecQueue = [];
 let agentExecutingId = null;
-let agentProviderName = "DeepSeek";
+let agentModels = [];
+let agentDefaultModel = "deepseek/deepseek-flash";
+let agentModelsLoading = null;
 const agentLoadedIds = new Set();
 const agentLoadingIds = new Set();
+const agentLive = {};
+const agentPollTimers = new Map();
 let doingPeekSignature = "";
 let addingSubtask = false;
 let addingSubtaskTodoId = null;
@@ -3578,22 +3582,68 @@ function activeAgent() {
   };
 }
 
+function agentModelLeaf(model) {
+  const value = String(model || "");
+  return value.includes("/") ? value.split("/").pop() : value;
+}
+
+function agentModelProvider(model) {
+  const prefix = String(model || "").split("/")[0].toLowerCase();
+  if (prefix === "deepseek") return "DeepSeek";
+  if (prefix === "openai") return "OpenAI";
+  if (prefix === "anthropic" || prefix === "claude") return "Anthropic";
+  if (prefix === "opencode") return "OpenCode";
+  return prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : "AI";
+}
+
+function currentAgentModel(agent) {
+  return agentSessions[agent.id]?.model || agentDefaultModel;
+}
+
+function formatAgentTokens(value) {
+  const tokens = Number(value) || 0;
+  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
+  return String(Math.round(tokens));
+}
+
+function formatAgentCost(value) {
+  const cost = Number(value) || 0;
+  if (!cost) return "$0";
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
+function agentProcessHtml(text) {
+  if (!text) return "";
+  return `<div class="agent-process">${esc(String(text))}</div>`;
+}
+
 function agentTerminalMarkup() {
   return `<section class="agent-terminal ${agentTerminalOpen ? "open" : ""}" id="agent-terminal" aria-hidden="${agentTerminalOpen ? "false" : "true"}">
     <div class="agent-resize" data-agent-resize aria-label="Resize terminal"></div>
     <div class="agent-head">
-      <span class="agent-provider" id="agent-provider">DeepSeek</span>
-      <span class="agent-head-agent" id="agent-head-agent">NeoTodo</span>
+      <div class="agent-head-left">
+        <span class="agent-provider" id="agent-provider">DeepSeek</span>
+        <span class="agent-model" id="agent-model">deepseek-flash</span>
+        <span class="agent-head-sep" aria-hidden="true">/</span>
+        <span class="agent-head-agent" id="agent-head-agent">NeoTodo</span>
+      </div>
+      <button class="agent-close" type="button" data-action="close-terminal" aria-label="Close terminal">
+        <svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#close-circle"></use></svg>
+      </button>
     </div>
     <div class="agent-body">
       <div class="agent-main">
         <div class="agent-messages" id="agent-messages"></div>
-        <div class="agent-status" id="agent-status"></div>
         <form class="agent-compose" id="agent-compose">
-          <span class="agent-prompt" aria-hidden="true">›</span>
           <textarea id="agent-input" rows="3" placeholder="" autocomplete="off" spellcheck="false"></textarea>
-          <button class="agent-send" type="submit">Send</button>
         </form>
+        <div class="agent-meta" id="agent-meta">
+          <span class="agent-meta-state" id="agent-meta-state"></span>
+          <span class="agent-meta-usage" id="agent-meta-usage"></span>
+          <span class="agent-keyhint">ctrl+p</span>
+        </div>
       </div>
     </div>
   </section>`;
@@ -3609,17 +3659,22 @@ function renderAgentTerminal() {
   if (!agentTerminalOpen) return;
 
   const agent = activeAgent();
+  const model = currentAgentModel(agent);
   const provider = $("#agent-provider");
-  if (provider) provider.textContent = agentProviderName;
+  if (provider) provider.textContent = agentModelProvider(model);
+  const modelEl = $("#agent-model");
+  if (modelEl) modelEl.textContent = agentModelLeaf(model);
   const heading = $("#agent-head-agent");
   if (heading) heading.textContent = agent.title;
 
+  if (!agentModels.length) loadAgentModels();
   if (!agentLoadedIds.has(agent.id) && !agentLoadingIds.has(agent.id)) {
     agentLoadingIds.add(agent.id);
     loadAgentSession(agent.id);
   }
   const loading = agentLoadingIds.has(agent.id);
   const busy = agentBusyIds.has(agent.id);
+  const queued = agent.mode === "execute" && agentExecutingId && agentExecutingId !== agent.id;
   const session = agentSessions[agent.id] || { messages: [] };
   const messages = Array.isArray(session.messages) ? session.messages : [];
   const messagesEl = $("#agent-messages");
@@ -3627,47 +3682,111 @@ function renderAgentTerminal() {
     let html = "";
     for (const message of messages) {
       const role = message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user";
-      const body = role === "assistant" ? renderMarkdown(message.content) : esc(message.content);
-      html += `<div class="agent-msg ${role}"><div class="agent-msg-body">${body}</div></div>`;
+      if (role === "user") {
+        html += `<div class="agent-line user"><span class="agent-line-mark" aria-hidden="true">›</span><span class="agent-line-text">${esc(message.content || "")}</span></div>`;
+      } else if (role === "system") {
+        html += `<div class="agent-notice">${esc(message.content || "")}</div>`;
+      } else {
+        html += `<div class="agent-run">${agentProcessHtml(message.process)}<div class="agent-reply">${renderMarkdown(message.content || "")}</div></div>`;
+      }
     }
+    const live = agentLive[agent.id] || {};
     if (busy) {
-      html += `<div class="agent-msg assistant working"><div class="agent-msg-body"><span class="agent-working-cursor"></span></div></div>`;
+      html += `<div class="agent-live">${agentProcessHtml(live.process)}`;
+      if (live.text) html += `<div class="agent-reply">${renderMarkdown(live.text)}</div>`;
+      html += `<span class="agent-working-cursor" aria-hidden="true"></span></div>`;
     }
     messagesEl.innerHTML = html;
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  const status = $("#agent-status");
-  if (status) {
-    let text = "";
-    if (loading) text = "…";
-    else if (busy) {
-      if (agent.mode === "execute") {
-        text = agentExecutingId && agentExecutingId !== agent.id ? "queued…" : "working…";
-      } else text = "thinking…";
+  const live = agentLive[agent.id] || {};
+  const usage = (busy && live.usage?.tokens ? live.usage : session.usage) || {};
+  const stateEl = $("#agent-meta-state");
+  if (stateEl) {
+    stateEl.textContent = loading ? "…" : busy ? (queued ? "queued…" : "working…") : "";
+    stateEl.classList.toggle("busy", Boolean(busy));
+  }
+  const usageEl = $("#agent-meta-usage");
+  if (usageEl) {
+    const bits = [model];
+    if (usage.tokens) bits.push(`${formatAgentTokens(usage.tokens)} tokens`);
+    if (usage.cost) bits.push(formatAgentCost(usage.cost));
+    if (usage.context) {
+      const pct = Math.max(1, Math.min(100, Math.round(Number(usage.context) / 1280)));
+      bits.push(`${pct}% context`);
     }
-    status.textContent = text;
+    usageEl.textContent = bits.join("  ·  ");
   }
   const input = $("#agent-input");
   if (input) {
     input.disabled = Boolean(busy || loading);
-    input.placeholder = "";
     if (input.value === "" && !input.disabled) input.style.height = "";
-  }
-  const send = $(".agent-send");
-  if (send) {
-    send.textContent = agent.mode === "execute" ? "Run" : "Send";
-    send.disabled = Boolean(busy || loading);
   }
 }
 
-async function agentPost(payload) {
-  const response = await fetch("/api/agent", {
+async function loadAgentModels() {
+  if (agentModels.length) return agentModels;
+  if (agentModelsLoading) return agentModelsLoading;
+  agentModelsLoading = (async () => {
+    try {
+      const data = await agentPost({ action: "models" });
+      if (data.ok) {
+        agentModels = Array.isArray(data.models) ? data.models : [];
+        if (data.default_model) agentDefaultModel = data.default_model;
+      }
+    } catch (error) {
+    } finally {
+      agentModelsLoading = null;
+    }
+    return agentModels;
+  })();
+  return agentModelsLoading;
+}
+
+function agentPost(payload) {
+  return fetch("/api/agent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  });
-  return response.json();
+  }).then((response) => response.json());
+}
+
+function stopAgentPoll(agentId) {
+  const timer = agentPollTimers.get(agentId);
+  if (timer) clearTimeout(timer);
+  agentPollTimers.delete(agentId);
+  delete agentLive[agentId];
+}
+
+function startAgentPoll(agentId) {
+  if (agentPollTimers.has(agentId)) return;
+  const tick = async () => {
+    if (!agentBusyIds.has(agentId)) {
+      stopAgentPoll(agentId);
+      return;
+    }
+    try {
+      const data = await agentPost({ action: "get", agent_id: agentId });
+      if (data.ok) {
+        agentLive[agentId] = data.live || {};
+        if (!agentModels.length && Array.isArray(data.models)) agentModels = data.models;
+        if (data.default_model) agentDefaultModel = data.default_model;
+        if (data.model) {
+          const session = agentSessions[agentId] || { messages: [] };
+          agentSessions[agentId] = { ...session, model: data.model };
+        }
+        if (agentTerminalOpen && activeAgent().id === agentId) renderAgentTerminal();
+      }
+    } catch (error) {
+    }
+    if (agentBusyIds.has(agentId)) {
+      agentPollTimers.set(agentId, setTimeout(tick, 900));
+    } else {
+      stopAgentPoll(agentId);
+    }
+  };
+  agentPollTimers.set(agentId, setTimeout(tick, 900));
 }
 
 async function loadAgentSession(agentId) {
@@ -3678,8 +3797,12 @@ async function loadAgentSession(agentId) {
     const data = await agentPost({ action: "get", agent_id: agentId });
     if (data.ok) {
       agentSessions[agentId] = data.agent || { messages: [] };
-      if (data.provider) agentProviderName = data.provider;
+      if (data.model) agentSessions[agentId].model = data.model;
+      if (Array.isArray(data.models) && data.models.length) agentModels = data.models;
+      if (data.default_model) agentDefaultModel = data.default_model;
+      agentLive[agentId] = data.live || {};
       agentLoadedIds.add(agentId);
+      if (data.live?.started) startAgentPoll(agentId);
     }
   } catch (error) {
   } finally {
@@ -3714,6 +3837,23 @@ function toggleAgentTerminal() {
   else openAgentTerminal();
 }
 
+async function cycleAgentModel() {
+  if (!agentTerminalOpen) return;
+  await loadAgentModels();
+  if (!agentModels.length) return;
+  const agent = activeAgent();
+  const current = currentAgentModel(agent);
+  const index = agentModels.indexOf(current);
+  const next = agentModels[(index + 1) % agentModels.length];
+  const session = agentSessions[agent.id] || { messages: [] };
+  agentSessions[agent.id] = { ...session, model: next };
+  renderAgentTerminal();
+  try {
+    await agentPost({ action: "set_model", agent_id: agent.id, model: next });
+  } catch (error) {
+  }
+}
+
 async function sendAgentMessage() {
   const input = $("#agent-input");
   const message = input?.value.trim();
@@ -3722,12 +3862,15 @@ async function sendAgentMessage() {
   if (agentBusyIds.has(agent.id)) return;
   if (!agentLoadedIds.has(agent.id)) await loadAgentSession(agent.id);
   const session = agentSessions[agent.id] || { title: agent.title, messages: [] };
+  const model = currentAgentModel(agent);
   agentSessions[agent.id] = {
     ...session,
     title: agent.title,
+    model,
     messages: [...(session.messages || []), { role: "user", content: message }],
   };
   agentBusyIds.add(agent.id);
+  agentLive[agent.id] = {};
   if (agent.mode === "execute") {
     if (!agentExecutingId) agentExecutingId = agent.id;
     else if (!agentExecQueue.includes(agent.id)) agentExecQueue.push(agent.id);
@@ -3737,6 +3880,7 @@ async function sendAgentMessage() {
     input.style.height = "";
   }
   renderAgentTerminal();
+  startAgentPoll(agent.id);
   try {
     const data = await agentPost({
       action: "chat",
@@ -3744,10 +3888,16 @@ async function sendAgentMessage() {
       title: agent.title,
       scope: agent.scope,
       message,
+      model,
     });
     if (data.ok) {
-      agentSessions[agent.id] = { title: data.title || agent.title, messages: data.messages || [] };
-      if (data.provider) agentProviderName = data.provider;
+      agentSessions[agent.id] = {
+        title: data.title || agent.title,
+        messages: data.messages || [],
+        model: data.model || model,
+        usage: data.usage || {},
+      };
+      if (!agentModels.length && Array.isArray(data.models)) agentModels = data.models;
       agentLoadedIds.add(agent.id);
     } else {
       agentSessions[agent.id] = {
@@ -3762,6 +3912,7 @@ async function sendAgentMessage() {
     };
   } finally {
     agentBusyIds.delete(agent.id);
+    stopAgentPoll(agent.id);
     if (agent.mode === "execute") {
       if (agentExecutingId === agent.id) agentExecutingId = agentExecQueue.shift() || null;
       else {
@@ -6939,7 +7090,7 @@ function bindEvents() {
     if (event.target.id === "agent-input") {
       const input = event.target;
       input.style.height = "auto";
-      input.style.height = `${Math.min(160, Math.max(58, input.scrollHeight))}px`;
+      input.style.height = `${Math.min(170, Math.max(66, input.scrollHeight))}px`;
     }
   });
 
@@ -6951,6 +7102,13 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "p") {
+      if (agentTerminalOpen) {
+        event.preventDefault();
+        cycleAgentModel();
+        return;
+      }
+    }
     if (event.target.id === "agent-input") {
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
