@@ -428,19 +428,54 @@ const AudioFX = (() => {
   let noise = null;
   let muted = false;
   try { muted = localStorage.getItem("neotodo.muted") === "1"; } catch (error) {}
+  let volume = 0.8;
+  try {
+    const rawVolume = localStorage.getItem("neotodo.volume");
+    if (rawVolume !== null) {
+      const savedVolume = Number(rawVolume);
+      if (Number.isFinite(savedVolume)) volume = Math.max(0, Math.min(1, savedVolume));
+    }
+    // Recover from the old default bug that could persist a silent 0 before
+    // the user ever touched the slider.
+    if (localStorage.getItem("neotodo.volumeSet") !== "1" && volume < 0.02) volume = 0.8;
+  } catch (error) {}
+
+  // One short-lived gain per sound, created at playback time. A single shared
+  // master node could go silent after the AudioContext was resumed; per-sound
+  // gains keep the original, known-good routing while applying the volume.
+  function masterOutput(c) {
+    if (volume >= 0.999) return c.destination;
+    const gain = c.createGain();
+    gain.gain.value = volume;
+    gain.connect(c.destination);
+    return gain;
+  }
+
+  function setVolume(next) {
+    volume = Math.max(0, Math.min(1, Number(next) || 0));
+    try {
+      localStorage.setItem("neotodo.volume", String(volume));
+      localStorage.setItem("neotodo.volumeSet", "1");
+    } catch (error) {}
+    return volume;
+  }
+
+  function getVolume() {
+    return volume;
+  }
   const AC = window.AudioContext || window.webkitAudioContext;
   const sampleBuffers = {};
   const sampleLoading = {};
   const SAMPLE_URLS = {
-    type: "/sounds/keyany.wav",
-    enter: "/sounds/keyenter.wav",
-    drawerOpen: "/sounds/drawer-open.mp3",
-    drawerClose: "/sounds/drawer-close.mp3",
+    type: "/user-sounds/keyany.wav",
+    enter: "/user-sounds/keyenter.wav",
+    drawerOpen: "/user-sounds/drawer-open.mp3",
+    drawerClose: "/user-sounds/drawer-close.mp3",
     // Gentle flowing-water loop for scrolling (CC0); see sounds/CREDITS.txt.
-    waterFlow: "/sounds/water-flow.wav",
-    trickle: "/sounds/water-trickle.wav",
-    windScroll: "/sounds/wind-scroll.wav",
-    train: "/sounds/train-whistle.mp3",
+    waterFlow: "/user-sounds/water-flow.wav",
+    trickle: "/user-sounds/water-trickle.wav",
+    windScroll: "/user-sounds/wind-scroll.wav",
+    train: "/user-sounds/train-whistle.mp3",
   };
 
   function preloadSamples() {
@@ -472,7 +507,7 @@ const AudioFX = (() => {
     const gain = c.createGain();
     gain.gain.setValueAtTime(volume, c.currentTime);
     src.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start();
   }
 
@@ -536,7 +571,7 @@ const AudioFX = (() => {
     src.connect(band);
     band.connect(high);
     high.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, Math.random() * 0.28, 0.16);
     src.stop(now + 0.18);
   }
@@ -564,7 +599,7 @@ const AudioFX = (() => {
       src.connect(band);
       band.connect(high);
       high.connect(gain);
-      gain.connect(c.destination);
+      gain.connect(masterOutput(c));
       src.start(now + delay, Math.random() * 0.25, duration);
       src.stop(now + delay + duration + 0.02);
     };
@@ -584,7 +619,7 @@ const AudioFX = (() => {
     bedGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.1);
     bed.connect(low);
     low.connect(bedGain);
-    bedGain.connect(c.destination);
+    bedGain.connect(masterOutput(c));
     bed.start(now, 0.1, 1.14);
     bed.stop(now + 1.16);
   }
@@ -618,7 +653,7 @@ const AudioFX = (() => {
     src.connect(band);
     band.connect(low);
     low.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now);
     breeze.start(now);
     stretchVoice = { src, gain, breeze, breezeDepth };
@@ -663,7 +698,7 @@ const AudioFX = (() => {
     src.connect(band);
     band.connect(high);
     high.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, Math.random() * 0.2, 0.26);
     src.stop(now + 0.27);
   }
@@ -686,7 +721,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
     src.connect(band);
     band.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, 0, 0.95);
     src.stop(now + 1);
   }
@@ -708,7 +743,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
     src.connect(filter);
     filter.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, 0.05, 0.5);
     src.stop(now + 0.55);
   }
@@ -744,7 +779,7 @@ const AudioFX = (() => {
     src.connect(high);
     high.connect(low);
     low.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now);
     src.stop(now + 0.42);
   }
@@ -786,7 +821,7 @@ const AudioFX = (() => {
       src.connect(high);
       high.connect(low);
       low.connect(gain);
-      gain.connect(c.destination);
+      gain.connect(masterOutput(c));
       src.start(now);
       waterVoice = { src, gain };
     }
@@ -841,7 +876,7 @@ const AudioFX = (() => {
       src.connect(high);
       high.connect(low);
       low.connect(gain);
-      gain.connect(c.destination);
+      gain.connect(masterOutput(c));
       src.start(now);
       trickleVoice = { src, gain };
     }
@@ -894,7 +929,7 @@ const AudioFX = (() => {
       src.connect(high);
       high.connect(low);
       low.connect(gain);
-      gain.connect(c.destination);
+      gain.connect(masterOutput(c));
       src.start(now, Math.random() * Math.max(0.01, buffer.duration - 0.05));
       windVoice = { src, gain };
     }
@@ -943,7 +978,7 @@ const AudioFX = (() => {
     src.connect(high);
     high.connect(low);
     low.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now);
     src.stop(now + 0.38);
   }
@@ -976,7 +1011,7 @@ const AudioFX = (() => {
     src.connect(high);
     high.connect(band);
     band.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, Math.random() * 0.1, 0.47);
     src.stop(now + 0.48);
 
@@ -994,7 +1029,7 @@ const AudioFX = (() => {
     waveGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
     waveSrc.connect(waveLow);
     waveLow.connect(waveGain);
-    waveGain.connect(c.destination);
+    waveGain.connect(masterOutput(c));
     waveSrc.start(now, Math.random() * 0.06, 0.44);
     waveSrc.stop(now + 0.45);
 
@@ -1007,7 +1042,7 @@ const AudioFX = (() => {
     body.gain.linearRampToValueAtTime(0.06, now + 0.008);
     body.gain.exponentialRampToValueAtTime(0.0001, now + 0.27);
     osc.connect(body);
-    body.connect(c.destination);
+    body.connect(masterOutput(c));
     osc.start(now);
     osc.stop(now + 0.29);
 
@@ -1023,7 +1058,7 @@ const AudioFX = (() => {
       bg.gain.linearRampToValueAtTime(0.022, start + 0.005);
       bg.gain.exponentialRampToValueAtTime(0.0001, start + 0.075);
       bubble.connect(bg);
-      bg.connect(c.destination);
+      bg.connect(masterOutput(c));
       bubble.start(start);
       bubble.stop(start + 0.085);
     }
@@ -1061,7 +1096,7 @@ const AudioFX = (() => {
     src.connect(high);
     high.connect(band);
     band.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, Math.random() * 0.2, 0.6);
     src.stop(now + 0.6);
   }
@@ -1084,7 +1119,7 @@ const AudioFX = (() => {
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
         src.connect(band);
         band.connect(gain);
-        gain.connect(c.destination);
+        gain.connect(masterOutput(c));
         src.start(now, Math.random() * 0.12, 0.07);
         src.stop(now + 0.08);
       }
@@ -1112,7 +1147,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
     src.connect(band);
     band.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, Math.random() * 0.16, 0.08);
     src.stop(now + 0.09);
     tone(132, now + 0.01, 0.1, 0.035);
@@ -1151,9 +1186,47 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(volume, when + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
     osc.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     osc.start(when);
     osc.stop(when + duration + 0.02);
+  }
+
+  function tetrisMove() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const osc = c.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(262, now);
+    osc.frequency.setValueAtTime(392, now + 0.028);
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.055, now + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+    osc.connect(gain);
+    gain.connect(masterOutput(c));
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
+  function tetrisClear() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((freq, index) => {
+      const osc = c.createOscillator();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      const gain = c.createGain();
+      const at = now + index * 0.055;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.linearRampToValueAtTime(0.065, at + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+      osc.connect(gain);
+      gain.connect(masterOutput(c));
+      osc.start(at);
+      osc.stop(at + 0.14);
+    });
   }
 
   function seal() {
@@ -1172,7 +1245,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
     src.connect(filter);
     filter.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, 0.12, 0.1);
   }
 
@@ -1223,7 +1296,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.05);
     src.connect(filter);
     filter.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, 0.1, 0.95);
   }
 
@@ -1261,7 +1334,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
     src.connect(high);
     high.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now, 0, 0.08);
     src.stop(now + 0.09);
     tone(180, now, 0.09, 0.03);
@@ -1311,7 +1384,7 @@ const AudioFX = (() => {
     bus.ratio.value = 7;
     bus.attack.value = 0.002;
     bus.release.value = 0.18;
-    bus.connect(c.destination);
+    bus.connect(masterOutput(c));
 
     const src = c.createBufferSource();
     src.buffer = buffer;
@@ -1361,7 +1434,7 @@ const AudioFX = (() => {
       gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
       osc.connect(filter);
       filter.connect(gain);
-      gain.connect(c.destination);
+      gain.connect(masterOutput(c));
       osc.start(now);
       osc.stop(now + duration + 0.02);
     };
@@ -1380,7 +1453,7 @@ const AudioFX = (() => {
     pick.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
     src.connect(high);
     high.connect(pick);
-    pick.connect(c.destination);
+    pick.connect(masterOutput(c));
     src.start(now, 0, 0.07);
     src.stop(now + 0.08);
   }
@@ -1403,7 +1476,7 @@ const AudioFX = (() => {
       gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
       osc.connect(filter);
       filter.connect(gain);
-      gain.connect(c.destination);
+      gain.connect(masterOutput(c));
       osc.start(at);
       osc.stop(at + duration + 0.02);
     };
@@ -1433,7 +1506,7 @@ const AudioFX = (() => {
       gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.11);
       osc.connect(filter);
       filter.connect(gain);
-      gain.connect(c.destination);
+      gain.connect(masterOutput(c));
       osc.start(at);
       osc.stop(at + 0.11);
     });
@@ -1458,7 +1531,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.66);
     growl.connect(filter);
     filter.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     growl.start(now);
     growl.stop(now + 0.68);
 
@@ -1471,7 +1544,7 @@ const AudioFX = (() => {
     buzzGain.gain.exponentialRampToValueAtTime(0.014, now + 0.03);
     buzzGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.54);
     buzz.connect(buzzGain);
-    buzzGain.connect(c.destination);
+    buzzGain.connect(masterOutput(c));
     buzz.start(now);
     buzz.stop(now + 0.56);
   }
@@ -1487,7 +1560,7 @@ const AudioFX = (() => {
     bus.ratio.value = 5;
     bus.attack.value = 0.003;
     bus.release.value = 0.22;
-    bus.connect(c.destination);
+    bus.connect(masterOutput(c));
 
     const pluck = (freq, at, duration, volume = 0.075) => {
       const osc = c.createOscillator();
@@ -1621,7 +1694,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
     src.connect(sparkle);
     sparkle.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     src.start(now + 0.18, Math.random() * 0.2, 0.5);
     src.stop(now + 0.7);
     tone(130.81, now, 0.18, 0.028);
@@ -1646,7 +1719,7 @@ const AudioFX = (() => {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
     osc.connect(band);
     band.connect(gain);
-    gain.connect(c.destination);
+    gain.connect(masterOutput(c));
     osc.start(now);
     osc.stop(now + 0.52);
     const src = c.createBufferSource();
@@ -1663,14 +1736,30 @@ const AudioFX = (() => {
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
     src.connect(slide);
     slide.connect(noiseGain);
-    noiseGain.connect(c.destination);
+    noiseGain.connect(masterOutput(c));
     src.start(now, 0, 0.52);
     src.stop(now + 0.53);
     tone(55, now + 0.15, 0.42, 0.4);
     tone(88, now + 0.15, 0.22, 0.22);
   }
 
-  return { rustle, pageTurn, waterFlow, subtaskFlow, exhale, splash, writing, itemGet, bassZap, celebrationBass, cardWind, type, mechanical, carriage, confirmCarriage, unroll, paper, seal, chime, ding, trainWhistle, categoryTap, achievementTap, timerTap, addTap, completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle, startLeafStretch, stopLeafStretch, unlock, preloadSamples, toggle, get muted() { return muted; } };
+  return {
+    rustle, pageTurn, waterFlow, subtaskFlow, exhale, splash, writing, itemGet, bassZap,
+    celebrationBass, cardWind, type, mechanical, carriage, confirmCarriage, unroll, paper,
+    seal, chime, ding, trainWhistle, categoryTap, achievementTap, timerTap, addTap,
+    completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle,
+    startLeafStretch, stopLeafStretch, unlock, preloadSamples, toggle,
+    tetrisMove, tetrisClear,
+    setVolume, getVolume,
+    sampleFiles: () => ({ ...SAMPLE_URLS }),
+    audition: (name) => {
+      const wasMuted = muted;
+      muted = false;
+      playSample(name, 0.85);
+      muted = wasMuted;
+    },
+    get muted() { return muted; },
+  };
 })();
 
 const DEFAULT_SETTINGS = { theme: "postcard", postcard: "violet", resolved_postcard: "violet", light_postcard: "violet", dark_postcard: "tokyo", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 48, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", note_material: "paper", note_background: "", note_background_image: "", note_blur: 16 };
@@ -2025,21 +2114,39 @@ function normalizedCaretColor() {
 }
 
 function hideCustomCaret() {
-  const caret = document.getElementById("custom-caret");
-  if (caret) caret.style.display = "none";
+  for (const id of ["custom-caret", "agent-custom-caret"]) {
+    const caret = document.getElementById(id);
+    if (caret) caret.style.display = "none";
+  }
 }
 
-function ensureCustomCaret() {
-  const live = document.querySelector("#note-live");
-  if (!live) return null;
-  let caret = document.getElementById("custom-caret");
-  if (!caret || caret.parentElement !== live) {
+function ensureCustomCaret(host = document.querySelector("#note-live"), id = "custom-caret") {
+  if (!host) return null;
+  let caret = document.getElementById(id);
+  if (!caret || caret.parentElement !== host) {
     caret = document.createElement("i");
-    caret.id = "custom-caret";
+    caret.id = id;
     caret.setAttribute("aria-hidden", "true");
-    live.appendChild(caret);
+    host.appendChild(caret);
   }
   return caret;
+}
+
+function activeCaretTarget() {
+  const active = document.activeElement;
+  if (!active) return null;
+  if (active.id === "agent-input") {
+    const host = active.closest(".agent-compose");
+    if (!host) return null;
+    return { editor: active, host, caretId: "agent-custom-caret", internalScroll: true };
+  }
+  const editor = active.closest?.("[data-note-block-editor]");
+  if (editor && !notesHidden) {
+    const host = document.querySelector("#note-live");
+    if (!host) return null;
+    return { editor, host, caretId: "custom-caret", internalScroll: false };
+  }
+  return null;
 }
 
 function caretMirrorFor(editor) {
@@ -2072,20 +2179,24 @@ function scheduleCustomCaret() {
 }
 
 function updateCustomCaret() {
-  const editor = document.activeElement?.closest?.("[data-note-block-editor]");
-  const live = document.querySelector("#note-live");
-  if (!editor || document.activeElement !== editor || notesHidden || !live || !editor.isConnected) {
+  const target = activeCaretTarget();
+  if (!target || !target.editor.isConnected) {
     hideCustomCaret();
     return;
   }
+  const { editor, host, caretId, internalScroll } = target;
   const start = editor.selectionStart ?? 0;
   const end = editor.selectionEnd ?? start;
   if (start !== end) {
     hideCustomCaret();
     return;
   }
-  const caret = ensureCustomCaret();
+  const caret = ensureCustomCaret(host, caretId);
   if (!caret) return;
+  // Only one custom caret is visible at a time.
+  const otherId = caretId === "custom-caret" ? "agent-custom-caret" : "custom-caret";
+  const other = document.getElementById(otherId);
+  if (other) other.style.display = "none";
   const mirror = caretMirrorFor(editor);
   const value = editor.value || "";
   mirror.textContent = "";
@@ -2108,12 +2219,14 @@ function updateCustomCaret() {
   const markerRect = marker.getBoundingClientRect();
   const probeRect = probe.getBoundingClientRect();
   const editorRect = editor.getBoundingClientRect();
-  const liveRect = live.getBoundingClientRect();
+  const hostRect = host.getBoundingClientRect();
   const block = settings.caret_shape === "block";
-  const left = editorRect.left - liveRect.left - live.clientLeft
-    + (markerRect.left - mirrorRect.left) + live.scrollLeft;
-  const top = editorRect.top - liveRect.top - live.clientTop
-    + (markerRect.top - mirrorRect.top) + live.scrollTop
+  const left = editorRect.left - hostRect.left - host.clientLeft
+    + (markerRect.left - mirrorRect.left)
+    + (internalScroll ? -editor.scrollLeft : host.scrollLeft);
+  const top = editorRect.top - hostRect.top - host.clientTop
+    + (markerRect.top - mirrorRect.top)
+    + (internalScroll ? -editor.scrollTop : host.scrollTop)
     + (lineHeight - caretHeight) / 2;
   const width = block ? Math.max(4, Math.round(probeRect.width)) : 1.5;
   caret.style.display = "block";
@@ -2127,22 +2240,26 @@ function updateCustomCaret() {
   caret.classList.toggle("blink", settings.caret_blink === true);
 }
 
+function isCaretEditor(node) {
+  return Boolean(node?.matches?.("[data-note-block-editor]") || node?.id === "agent-input");
+}
+
 function setupCustomCaret() {
   document.body.classList.add("custom-caret");
   document.addEventListener("focusin", (event) => {
-    if (event.target.matches?.("[data-note-block-editor]")) scheduleCustomCaret();
+    if (isCaretEditor(event.target)) scheduleCustomCaret();
   });
   document.addEventListener("focusout", (event) => {
-    if (!event.target.matches?.("[data-note-block-editor]")) return;
+    if (!isCaretEditor(event.target)) return;
     setTimeout(() => {
-      if (!document.activeElement?.matches?.("[data-note-block-editor]")) hideCustomCaret();
+      if (!isCaretEditor(document.activeElement)) hideCustomCaret();
     }, 0);
   });
   document.addEventListener("selectionchange", () => {
-    if (document.activeElement?.matches?.("[data-note-block-editor]")) scheduleCustomCaret();
+    if (isCaretEditor(document.activeElement)) scheduleCustomCaret();
   });
   document.addEventListener("input", (event) => {
-    if (event.target.matches?.("[data-note-block-editor]")) scheduleCustomCaret();
+    if (isCaretEditor(event.target)) scheduleCustomCaret();
   });
   document.addEventListener("keydown", (event) => {
     if (event.target.matches?.("[data-note-block-editor]")) scheduleCustomCaret();
@@ -2264,15 +2381,52 @@ async function silentAction(name, payload = {}) {
   }
 }
 
-async function chooseProjectFolder() {
+function chooseProjectFolder() {
   const target = activeNoteTarget();
-  if (!target?.todo) return;
-  const picked = await silentAction("choose_project_folder");
-  if (!picked?.path) return;
-  const bound = await action("bind_project_folder", { id: target.todo.id, path: picked.path });
-  if (bound?.ok) {
-    setStatus(`Project folder linked · ${(bound.files || []).length} files`);
+  if (!target?.todo) {
+    toast("Open a todo first");
+    return;
   }
+  const todo = target.todo;
+  const root = $("#modal-root");
+  root.innerHTML = `<div class="project-folder-stage">
+    <div class="project-folder-card">
+      <h3>Project folder</h3>
+      <input id="project-folder-path" type="text" spellcheck="false" placeholder="/home/you/project" value="${esc(todo.project_folder || "")}">
+      <div class="project-folder-actions">
+        <button class="btn small" type="button" data-project-folder-browse>Browse…</button>
+        <span class="project-folder-spacer"></span>
+        <button class="btn small" type="button" data-project-folder-cancel>Cancel</button>
+        <button class="btn small primary" type="button" data-project-folder-link>Link</button>
+      </div>
+    </div>
+  </div>`;
+  const input = $("#project-folder-path");
+  const close = () => { root.innerHTML = ""; };
+  const link = async () => {
+    const path = input?.value.trim() || "";
+    if (!path) { toast("Type or choose a folder"); return; }
+    const bound = await action("bind_project_folder", { id: todo.id, path });
+    if (bound?.ok) {
+      close();
+      setStatus(`Project folder linked · ${(bound.files || []).length} files`);
+    }
+  };
+  $("[data-project-folder-link]", root)?.addEventListener("click", link);
+  $("[data-project-folder-cancel]", root)?.addEventListener("click", close);
+  $("[data-project-folder-browse]", root)?.addEventListener("click", async () => {
+    const picked = await silentAction("choose_project_folder");
+    if (picked?.path && input) input.value = picked.path;
+  });
+  input?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); link(); }
+    if (event.key === "Escape") { event.preventDefault(); close(); }
+  });
+  const stage = $(".project-folder-stage", root);
+  stage?.addEventListener("mousedown", (event) => {
+    if (event.target === stage) close();
+  });
+  setTimeout(() => input?.focus(), 30);
 }
 
 async function clearProjectFolder() {
@@ -6342,6 +6496,13 @@ async function handleAction(actionName, element) {
   if (actionName === "open-settings") { openSettings(); return; }
   if (actionName === "choose-project-folder") { chooseProjectFolder(); return; }
   if (actionName === "clear-project-folder") { clearProjectFolder(); return; }
+  if (actionName === "toggle-sound") { AudioFX.toggle(); updateSoundToggle(); renderSettings(); return; }
+  if (actionName === "preview-sound") {
+    AudioFX.unlock();
+    if (element?.dataset.soundKey) AudioFX.audition(element.dataset.soundKey);
+    return;
+  }
+  if (actionName === "open-sounds-folder") { silentAction("open_sounds_folder"); return; }
   if (actionName === "close-settings") { closeSettings(); return; }
   if (actionName === "toggle-show-clock") {
     settings.show_clock = !settings.show_clock;
@@ -6624,6 +6785,9 @@ function renderPostcard() {
       <div class="postcard-deck">
         ${postcardArticleHtml(card)}
       </div>
+      <button class="postcard-nav prev" type="button" data-action="prev-postcard" aria-label="Previous postcard">‹</button>
+      <button class="postcard-close" type="button" data-action="close-postcard" aria-label="Close postcard"></button>
+      <button class="postcard-nav next" type="button" data-action="next-postcard" aria-label="Next postcard">›</button>
     </div>`;
   silentAction("mark_seen", { card_id: card.id });
 }
@@ -6919,69 +7083,6 @@ function appearanceSettings() {
   return `<div class="settings-head"><h2>Appearance</h2><p>Choose the paper NeoTodo lives on.</p></div>
     ${styleGrid}
     <div class="settings-section">
-      <div class="settings-label">Task details</div>
-      <button class="settings-toggle ${settings.show_time_cost ? "active" : ""}" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>Time cost</strong><small>Show how long each completed task took.</small></span>
-      </button>
-      <button class="settings-toggle ${settings.show_clock ? "active" : ""}" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>Current time</strong><small>Show the clock at the top centre.</small></span>
-      </button>
-    </div>
-    <div class="settings-section">
-      <div class="settings-label">Task title <span>header</span></div>
-      <div class="title-adjust-row">
-        <label class="title-adjust-label">Position <span id="title-offset-value">${settings.title_offset} px</span></label>
-        <input id="title-offset-range" type="range" min="-320" max="320" step="8" value="${settings.title_offset}">
-        <label class="title-adjust-label">Icon size <span id="title-icon-value">${settings.title_icon_size} px</span></label>
-        <input id="title-icon-range" type="range" min="24" max="96" step="2" value="${settings.title_icon_size}">
-      </div>
-    </div>
-    <div class="settings-section">
-      <div class="settings-label">Preview</div>
-      <div class="settings-preview">A quiet place for the next thing.</div>
-    </div>`;
-}
-
-function typographySettings() {
-  return `<div class="settings-head"><h2>Typography</h2><p>Make the page feel like yours.</p></div>
-    <div class="settings-section">
-      <button class="font-collapse-row ${fontPanelsOpen.body ? "open" : ""}" type="button" data-font-panel="body" aria-expanded="${fontPanelsOpen.body ? "true" : "false"}">
-        <span class="font-sample" style="font-family:${FONT_STACKS[settings.font]}">Aa</span>
-        <span class="font-copy"><strong>Body font</strong><small>${FONT_OPTIONS.find((font) => font.id === settings.font)?.name || "Art Serif"}</small></span>
-        <svg class="font-collapse-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      ${fontPanelsOpen.body ? `<div class="font-grid font-choice-list">
-        ${FONT_OPTIONS.map((font) => `<button class="font-choice ${settings.font === font.id ? "active" : ""}" data-font-choice="${font.id}">
-          <span class="font-sample" style="font-family:${FONT_STACKS[font.id]}">Aa</span>
-          <span class="font-copy"><strong>${font.name}</strong><small>${font.desc}</small></span>
-        </button>`).join("")}
-      </div>` : ""}
-    </div>
-    <div class="settings-section">
-      <button class="font-collapse-row ${fontPanelsOpen.note ? "open" : ""}" type="button" data-font-panel="note" aria-expanded="${fontPanelsOpen.note ? "true" : "false"}">
-        <span class="font-sample" style="font-family:${FONT_STACKS[settings.note_font]}">Aa</span>
-        <span class="font-copy"><strong>Note font</strong><small>${FONT_OPTIONS.find((font) => font.id === settings.note_font)?.name || "Art Serif"}</small></span>
-        <svg class="font-collapse-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      ${fontPanelsOpen.note ? `<div class="font-grid font-choice-list">
-        ${FONT_OPTIONS.map((font) => `<button class="font-choice ${settings.note_font === font.id ? "active" : ""}" data-note-font-choice="${font.id}">
-          <span class="font-sample" style="font-family:${FONT_STACKS[font.id]}">Aa</span>
-          <span class="font-copy"><strong>${font.name}</strong><small>${font.desc}</small></span>
-        </button>`).join("")}
-      </div>` : ""}
-    </div>
-    <div class="settings-section">
-      <div class="settings-label">Font size <span id="font-size-value">${Math.round(settings.scale * 100)}%</span></div>
-      <div class="font-size-row">
-        <button class="font-step" data-font-step="-5">A−</button>
-        <input id="font-size-range" type="range" min="85" max="125" step="5" value="${Math.round(settings.scale * 100)}">
-        <button class="font-step" data-font-step="5">A+</button>
-      </div>
-      <div class="settings-preview">The next thing is already waiting.</div>
-    </div>
-    <div class="settings-section">
       <div class="settings-label">Note material <span>surface</span></div>
       <div class="font-grid">
         <button class="font-choice ${settings.note_material !== "blur" ? "active" : ""}" data-note-material-choice="paper">
@@ -7045,6 +7146,100 @@ function typographySettings() {
         <input id="caret-color-hex" type="text" maxlength="7" spellcheck="false" value="${settings.caret_color}" aria-label="Caret colour hex">
         <span class="caret-live-sample" style="--sample:${settings.caret_color};--shape:${settings.caret_shape === "block" ? "block" : "line"}"></span>
       </div>
+    </div>    <div class="settings-section">
+      <div class="settings-label">Task details</div>
+      <button class="settings-toggle ${settings.show_time_cost ? "active" : ""}" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-copy"><strong>Time cost</strong><small>Show how long each completed task took.</small></span>
+      </button>
+      <button class="settings-toggle ${settings.show_clock ? "active" : ""}" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-copy"><strong>Current time</strong><small>Show the clock at the top centre.</small></span>
+      </button>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Task title <span>header</span></div>
+      <div class="title-adjust-row">
+        <label class="title-adjust-label">Position <span id="title-offset-value">${settings.title_offset} px</span></label>
+        <input id="title-offset-range" type="range" min="-320" max="320" step="8" value="${settings.title_offset}">
+        <label class="title-adjust-label">Icon size <span id="title-icon-value">${settings.title_icon_size} px</span></label>
+        <input id="title-icon-range" type="range" min="24" max="96" step="2" value="${settings.title_icon_size}">
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Preview</div>
+      <div class="settings-preview">A quiet place for the next thing.</div>
+    </div>`;
+}
+
+function typographySettings() {
+  return `<div class="settings-head"><h2>Typography</h2><p>Make the page feel like yours.</p></div>
+    <div class="settings-section">
+      <button class="font-collapse-row ${fontPanelsOpen.body ? "open" : ""}" type="button" data-font-panel="body" aria-expanded="${fontPanelsOpen.body ? "true" : "false"}">
+        <span class="font-sample" style="font-family:${FONT_STACKS[settings.font]}">Aa</span>
+        <span class="font-copy"><strong>Body font</strong><small>${FONT_OPTIONS.find((font) => font.id === settings.font)?.name || "Art Serif"}</small></span>
+        <svg class="font-collapse-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      ${fontPanelsOpen.body ? `<div class="font-grid font-choice-list">
+        ${FONT_OPTIONS.map((font) => `<button class="font-choice ${settings.font === font.id ? "active" : ""}" data-font-choice="${font.id}">
+          <span class="font-sample" style="font-family:${FONT_STACKS[font.id]}">Aa</span>
+          <span class="font-copy"><strong>${font.name}</strong><small>${font.desc}</small></span>
+        </button>`).join("")}
+      </div>` : ""}
+    </div>
+    <div class="settings-section">
+      <button class="font-collapse-row ${fontPanelsOpen.note ? "open" : ""}" type="button" data-font-panel="note" aria-expanded="${fontPanelsOpen.note ? "true" : "false"}">
+        <span class="font-sample" style="font-family:${FONT_STACKS[settings.note_font]}">Aa</span>
+        <span class="font-copy"><strong>Note font</strong><small>${FONT_OPTIONS.find((font) => font.id === settings.note_font)?.name || "Art Serif"}</small></span>
+        <svg class="font-collapse-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      ${fontPanelsOpen.note ? `<div class="font-grid font-choice-list">
+        ${FONT_OPTIONS.map((font) => `<button class="font-choice ${settings.note_font === font.id ? "active" : ""}" data-note-font-choice="${font.id}">
+          <span class="font-sample" style="font-family:${FONT_STACKS[font.id]}">Aa</span>
+          <span class="font-copy"><strong>${font.name}</strong><small>${font.desc}</small></span>
+        </button>`).join("")}
+      </div>` : ""}
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Font size <span id="font-size-value">${Math.round(settings.scale * 100)}%</span></div>
+      <div class="font-size-row">
+        <button class="font-step" data-font-step="-5">A−</button>
+        <input id="font-size-range" type="range" min="85" max="125" step="5" value="${Math.round(settings.scale * 100)}">
+        <button class="font-step" data-font-step="5">A+</button>
+      </div>
+      <div class="settings-preview">The next thing is already waiting.</div>
+    </div>
+`;
+}
+
+function soundSettings() {
+  const on = !AudioFX.muted;
+  const volume = Math.round(AudioFX.getVolume() * 100);
+  const files = Object.entries(AudioFX.sampleFiles())
+    .map(([key, url]) => {
+      const name = String(url).split("/").pop();
+      return `<button class="sound-file" type="button" data-action="preview-sound" data-sound-key="${esc(key)}">
+        <span class="sound-file-play" aria-hidden="true">▶</span>
+        <span class="sound-file-name">${esc(name)}</span>
+      </button>`;
+    })
+    .join("");
+  return `<div class="settings-head"><h2>Sound</h2></div>
+    <div class="settings-section">
+      <div class="settings-label">Sound</div>
+      <button class="settings-toggle ${on ? "active" : ""}" data-action="toggle-sound" aria-pressed="${on ? "true" : "false"}">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-copy"><strong>${on ? "On" : "Off"}</strong></span>
+      </button>
+      <div class="title-adjust-row">
+        <label class="title-adjust-label">Volume <span id="sound-volume-value">${volume}%</span></label>
+        <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-settings-volume>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Audio files</div>
+      <div class="sound-settings-list">${files}</div>
+      <button class="btn small" type="button" data-action="open-sounds-folder">Open sounds folder</button>
     </div>`;
 }
 
@@ -7070,12 +7265,14 @@ function renderSettings() {
   if (!panel) return;
   const previousScroll = $(".settings-scroll")?.scrollTop || 0;
   const view = settingsTab === "typography" ? typographySettings()
+    : settingsTab === "sound" ? soundSettings()
     : settingsTab === "about" ? aboutSettings()
     : appearanceSettings();
   panel.innerHTML = `<aside class="settings-nav">
       <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
       <button class="settings-nav-item ${settingsTab === "appearance" ? "active" : ""}" data-settings-tab="appearance">Appearance</button>
       <button class="settings-nav-item ${settingsTab === "typography" ? "active" : ""}" data-settings-tab="typography">Typography</button>
+      <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Sound</button>
       <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
     </aside>
     <section class="settings-main">
@@ -7414,12 +7611,13 @@ function bindEvents() {
       const row = doneFan.closest(".history-subtask, .current-subtask");
       const rotor = doneFan.querySelector(".fan-rotor") || doneFan.querySelector("svg");
       if (row && rotor) {
-        const turned = !row.classList.contains("turned");
-        row.classList.toggle("turned", turned);
+        // Always spin clockwise. Rapid clicks must never play the old reverse
+        // animation; restart the same forward spin instead.
+        row.classList.remove("turned");
         rotor.classList.remove("spinning", "spinning-back");
         void rotor.getBoundingClientRect();
-        rotor.classList.add(turned ? "spinning" : "spinning-back");
-        setTimeout(() => rotor.classList.remove("spinning", "spinning-back"), 700);
+        rotor.classList.add("spinning");
+        setTimeout(() => rotor.classList.remove("spinning"), 700);
       }
       AudioFX.categoryTap();
       return;
@@ -7642,10 +7840,6 @@ function bindEvents() {
       expandedArchiveCardId = expandedArchiveCardId === id ? null : id;
       renderArchive();
       if (expandedArchiveCardId) {
-        requestAnimationFrame(() => {
-          const row = [...document.querySelectorAll(".week-line")].find((node) => node.dataset.cardId === id);
-          row?.scrollIntoView({ block: "start", behavior: "smooth" });
-        });
         silentAction("mark_seen", { card_id: id }).then((result) => {
           if (result?.state) state.data = result.state;
         });
@@ -8045,6 +8239,13 @@ function bindEvents() {
   }, { passive: false });
 
   document.addEventListener("input", (event) => {
+    if (event.target.matches("[data-settings-volume]")) {
+      const value = Number(event.target.value) || 0;
+      AudioFX.setVolume(value / 100);
+      const label = document.querySelector("#sound-volume-value");
+      if (label) label.textContent = `${Math.round(value)}%`;
+      return;
+    }
     if (event.target.id === "agent-input") {
       const input = event.target;
       input.style.height = "auto";
@@ -8177,8 +8378,12 @@ function bindEvents() {
     if (event.target.id === "agent-input") {
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
+        AudioFX.tetrisClear();
         sendAgentMessage();
         return;
+      }
+      if (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete") {
+        AudioFX.tetrisMove();
       }
       if (event.key === "Escape") {
         event.preventDefault();
@@ -8638,7 +8843,52 @@ function bindEvents() {
   document.addEventListener("wheel", primeAudio, { capture: true, passive: true });
   document.addEventListener("touchstart", primeAudio, { capture: true, passive: true });
   setupCustomCaret();
-  AudioFX.preloadSamples();
+
+  const soundPanel = $("#sound-panel");
+  $("#sound-toggle")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    AudioFX.toggle();
+    updateSoundToggle();
+  });
+  $("#sound-toggle")?.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    openSoundPanel();
+  });
+  soundPanel?.addEventListener("click", (event) => {
+    if (event.target === soundPanel || event.target.closest("[data-sound-close]")) {
+      closeSoundPanel();
+      return;
+    }
+    if (event.target.closest("[data-sound-toggle]")) {
+      AudioFX.toggle();
+      updateSoundToggle();
+      renderSoundPanel();
+      return;
+    }
+    const play = event.target.closest("[data-sound-play]");
+    if (play) {
+      AudioFX.unlock();
+      AudioFX.audition(play.dataset.soundPlay);
+    }
+  });
+  soundPanel?.addEventListener("input", (event) => {
+    if (!event.target.matches("[data-sound-volume]")) return;
+    const value = Number(event.target.value) || 0;
+    AudioFX.setVolume(value / 100);
+    const label = soundPanel.querySelector(".sound-volume-value");
+    if (label) label.textContent = `${Math.round(value)}%`;
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!soundPanel || soundPanel.hidden) return;
+    if (event.target.closest("#sound-panel, #sound-toggle")) return;
+    closeSoundPanel();
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && soundPanel && !soundPanel.hidden) closeSoundPanel();
+  });
+  window.addEventListener("resize", () => {
+    if (soundPanel && !soundPanel.hidden) positionSoundPanel();
+  });
 }
 
 function updateSoundToggle() {
@@ -8646,6 +8896,68 @@ function updateSoundToggle() {
   if (!button) return;
   button.classList.toggle("muted", AudioFX.muted);
   button.setAttribute("aria-pressed", String(!AudioFX.muted));
+  button.setAttribute("title", AudioFX.muted ? "Sounds off" : "Sounds on");
+  const panel = $("#sound-panel");
+  if (panel && !panel.hidden) renderSoundPanel();
+}
+
+function soundPanelMarkup() {
+  const off = AudioFX.muted;
+  const volume = Math.round(AudioFX.getVolume() * 100);
+  const files = Object.entries(AudioFX.sampleFiles())
+    .map(([name, url]) => `<button class="sound-file" type="button" data-sound-play="${esc(name)}">
+      <span class="sound-file-play" aria-hidden="true">▶</span>
+      <span class="sound-file-name">${esc(String(url).split("/").pop())}</span>
+    </button>`)
+    .join("");
+  return `<div class="sound-card">
+    <div class="sound-panel-head">
+      <span class="sound-panel-title">Sounds</span>
+      <div class="sound-panel-head-actions">
+        <button class="sound-switch ${off ? "off" : "on"}" type="button" data-sound-toggle aria-pressed="${off ? "false" : "true"}" aria-label="${off ? "Turn sounds on" : "Turn sounds off"}"><span class="sound-switch-knob"></span></button>
+        <button class="sound-close" type="button" data-sound-close aria-label="Close sound settings">×</button>
+      </div>
+    </div>
+    <div class="sound-volume-row">
+      <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-sound-volume aria-label="Sound volume">
+      <span class="sound-volume-value">${volume}%</span>
+    </div>
+    <div class="sound-files">${files}</div>
+  </div>`;
+}
+
+function renderSoundPanel() {
+  const panel = $("#sound-panel");
+  if (!panel) return;
+  panel.innerHTML = soundPanelMarkup();
+}
+
+function positionSoundPanel() {
+  // The panel is a centred settings-style stage; nothing to position.
+}
+
+function openSoundPanel() {
+  const panel = $("#sound-panel");
+  if (!panel) return;
+  AudioFX.unlock();
+  renderSoundPanel();
+  panel.hidden = false;
+  positionSoundPanel();
+  $("#sound-toggle")?.setAttribute("aria-expanded", "true");
+}
+
+function closeSoundPanel() {
+  const panel = $("#sound-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  $("#sound-toggle")?.setAttribute("aria-expanded", "false");
+}
+
+function toggleSoundPanel() {
+  const panel = $("#sound-panel");
+  if (!panel) return;
+  if (panel.hidden) openSoundPanel();
+  else closeSoundPanel();
 }
 
 
@@ -8761,7 +9073,13 @@ async function init() {
   if (!clockTimer) clockTimer = setInterval(() => { updateHeaderStamp(); updateTopClock(); }, 1000);
   updateTopClock();
   document.body.classList.add("app-ready");
+  window.__APP_READY_MS__ = performance.now();
   document.documentElement.classList.remove("booting");
+  // Samples are not needed for the first paint; load them after the app is
+  // visible so startup stays fast.
+  const preload = () => AudioFX.preloadSamples();
+  if (window.requestIdleCallback) requestIdleCallback(preload, { timeout: 1200 });
+  else setTimeout(preload, 250);
   if (params.get("confirm") === "1") {
     confirmDialog({
       kicker: "A small completion",

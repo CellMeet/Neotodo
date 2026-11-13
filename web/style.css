@@ -7836,11 +7836,6 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
 /* Keep the tavern/app shell invisible until final settings are applied. */
 .app-shell { visibility: hidden; }
 body.app-ready .app-shell { visibility: visible; }
-html.booting,
-.booting body {
-  background: #120b06 !important;
-  background-image: none !important;
-}
 .booting .notes-handle-bottom,
 .booting .brand-subtitle { visibility: hidden; }
 
@@ -8979,11 +8974,8 @@ html[data-theme="postcard"] .history-subtask {
 .current-subtask.turned .fan-rotor { transform: rotate(180deg); }
 .history-subtask .fan-rotor.spinning,
 .current-subtask.done .fan-rotor.spinning {
-  animation: fan-wheel-spin 0.45s cubic-bezier(0.35, 0.8, 0.3, 1);
-}
-.history-subtask .fan-rotor.spinning-back,
-.current-subtask.done .fan-rotor.spinning-back {
-  animation: fan-wheel-spin 0.45s cubic-bezier(0.35, 0.8, 0.3, 1) reverse;
+  /* Full clockwise turn; repeated clicks simply restart it. */
+  animation: fan-spin 0.55s cubic-bezier(0.35, 0.8, 0.3, 1);
 }
 
 /* Completed rows keep a clickable fan that only turns its wheel. */
@@ -13681,4 +13673,313 @@ body.agent-split-resizing .notes-half.floating-notes {
 html[data-theme="postcard"] .doing-peek,
 html[data-theme="postcard"] .doing-peek.open {
   z-index: 120 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Sound panel: the music icon opens an on/off switch, master volume and the
+   list of sampled source files. No helper text, just controls.
+   -------------------------------------------------------------------------- */
+.sound-toggle { position: relative; }
+.sound-toggle.muted {
+  opacity: 0.55;
+  text-decoration: none;
+}
+.sound-toggle.muted::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
+.sound-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(12, 9, 6, 0.24);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.sound-panel[hidden] { display: none !important; }
+.sound-card {
+  width: 392px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 14px;
+  border: 1px solid var(--pc-border, rgba(104, 76, 38, 0.3));
+  border-radius: 15px;
+  background: var(--pc-paper, #f7efe3);
+  color: var(--pc-ink, #2c261d);
+  box-shadow: 0 28px 70px rgba(20, 14, 6, 0.34), 0 4px 14px rgba(20, 14, 6, 0.16);
+  font-family: var(--display);
+}
+.sound-panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sound-close {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pc-muted, rgba(44, 38, 29, 0.6));
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sound-close:hover { color: var(--pc-ink, #2c261d); }
+
+.sound-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sound-panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.sound-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--pc-border, rgba(104, 76, 38, 0.4));
+  border-radius: 999px;
+  background: rgba(104, 76, 38, 0.12);
+  color: var(--pc-ink, #2c261d);
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+.sound-switch.on {
+  background: color-mix(in srgb, var(--pc-accent, #b8872f) 30%, transparent);
+  border-color: var(--pc-accent, #b8872f);
+}
+.sound-switch.off { opacity: 0.55; }
+.sound-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  transition: left 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sound-switch.on .sound-switch-knob { left: 19px; }
+
+.sound-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 11px 0 8px;
+}
+.sound-volume {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--pc-accent, #b8872f);
+}
+.sound-volume-value {
+  flex: 0 0 34px;
+  text-align: right;
+  font-family: var(--mono, monospace);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.sound-files {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: min(46vh, 300px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-top: 1px solid var(--pc-line, rgba(104, 76, 38, 0.16));
+  padding-top: 6px;
+}
+.sound-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--mono, "DejaVu Sans Mono", monospace);
+  font-size: 11px;
+}
+.sound-file:hover {
+  background: color-mix(in srgb, var(--pc-accent, #b8872f) 12%, transparent);
+}
+.sound-file-play {
+  flex: 0 0 12px;
+  font-size: 9px;
+  opacity: 0.6;
+}
+.sound-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   Overlay alignment: postcards, settings, the completed/headphone sheet and
+   the pomodoro sheet all start at the same top edge. No upward translate.
+   -------------------------------------------------------------------------- */
+:root { --overlay-top: clamp(18px, 3vh, 40px); }
+.postcard-stage,
+.settings-stage,
+.completed-stage {
+  align-items: flex-start !important;
+  padding-top: var(--overlay-top) !important;
+}
+.postcard { transform: none !important; }
+.postcard-deck { max-height: calc(100vh - var(--overlay-top) - 18px) !important; }
+.postcard { max-height: calc(100vh - var(--overlay-top) - 44px) !important; }
+
+/* Postcard viewer controls follow the active postcard theme. */
+.postcard-close,
+.postcard-nav {
+  background: var(--pc-paper, #f7efe3) !important;
+  color: var(--pc-ink, #2c261d) !important;
+  border-color: var(--pc-border, rgba(104, 76, 38, 0.3)) !important;
+}
+.postcard-close:hover,
+.postcard-nav:hover {
+  background: var(--pc-paper, #f7efe3) !important;
+  color: var(--pc-accent, #b8872f) !important;
+  border-color: var(--pc-accent, #b8872f) !important;
+}
+
+/* Light-mode sun a little larger, and the header headphone +4px. */
+.theme-mode-ico-sun {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+}
+/* Music toggle: no faded look when off, just a thicker diagonal slash. */
+.sound-toggle.muted {
+  opacity: 1 !important;
+  text-decoration: none !important;
+}
+.sound-toggle.muted::after {
+  height: 2.5px !important;
+  border-radius: 2px !important;
+  transform: rotate(45deg) !important;
+}
+
+/* Restore the top-right achievement headphone; enlarge the category counter. */
+html[data-theme="postcard"] .head-right .trophy-glyph {
+  width: 54px !important;
+  height: 54px !important;
+}
+.category-item .cat-count {
+  font-size: 16px !important;
+  gap: 4px !important;
+}
+.category-item .cat-count .moon-icon,
+.category-item .cat-count .chalice-icon {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* All overlay sheets share a slightly lower top border, matching the
+   postcard viewer's frame. */
+:root { --overlay-top: clamp(40px, 6vh, 72px); }
+
+/* In-app project folder dialog, so the napkin icon always reacts. */
+.project-folder-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(12, 9, 6, 0.28);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.project-folder-card {
+  width: min(540px, 92vw);
+  padding: 20px 22px 18px;
+  border: 1px solid var(--pc-border, rgba(104, 76, 38, 0.3));
+  border-radius: 14px;
+  background: var(--pc-paper, #f7efe3);
+  color: var(--pc-ink, #2c261d);
+  box-shadow: 0 28px 70px rgba(20, 14, 6, 0.34);
+}
+.project-folder-card h3 {
+  margin: 0 0 12px;
+  font-family: var(--display);
+  font-size: 17px;
+}
+.project-folder-card input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--pc-border, rgba(104, 76, 38, 0.3));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--pc-paper, #f7efe3) 88%, #000 4%);
+  color: inherit;
+  font-family: var(--mono, monospace);
+  font-size: 12px;
+  outline: none;
+}
+.project-folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.project-folder-spacer { flex: 1 1 auto; }
+
+/* AI composer uses the same custom note caret. */
+.agent-compose { position: relative; }
+#agent-input { caret-color: transparent !important; }
+#agent-custom-caret {
+  position: absolute;
+  display: none;
+  z-index: 6;
+  pointer-events: none;
+  opacity: var(--caret-alpha, 1);
+  border-radius: 0.5px;
+}
+#agent-custom-caret.block { border-radius: 2px; }
+#agent-custom-caret.blink { animation: custom-caret-blink 1.06s steps(1, end) infinite; }
+
+/* Settings → Sound file list. */
+.sound-settings-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px 12px;
+  margin: 6px 0 12px;
+}
+@media (max-width: 720px) {
+  .sound-settings-list { grid-template-columns: 1fr; }
+}
+.sound-settings-list .sound-file {
+  padding: 7px 5px;
 }

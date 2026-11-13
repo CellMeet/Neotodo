@@ -9,6 +9,8 @@ import re
 import shutil
 import socket
 import subprocess
+
+import startup
 import sys
 import threading
 import time
@@ -39,6 +41,9 @@ DATA_FILE = DATA_DIR / "NeoTodo.json"
 LEGACY_FILE = DATA_DIR / "data.json"
 AGENT_FILE = DATA_DIR / "agents.json"
 AGENT_FILES_DIR = DATA_DIR / "agent-files"
+PAGE_CACHE_FILE = DATA_DIR / "last-page.html"
+SOUNDS_DIR = DATA_DIR / "sounds"
+SNAPSHOT_FILE = DATA_DIR / "last-page.png"
 
 PALETTE = [
     "#89b4fa", "#a6e3a1", "#f9e2af", "#fab387", "#cba6f7", "#94e2d5",
@@ -51,10 +56,48 @@ THEMES = [
     "violet", "tokyo", "space", "aurora", "ocean",
     "forest", "vintage", "alpine", "desert", "emerald",
 ]
+
+# Paper colours used before the first CSS paint, so the window never flashes
+# black, white or yellow while WebKit starts.
+POSTCARD_PAPERS = {
+    "violet": "#f4ecfa", "alpine": "#f7efe3", "ocean": "#eef5f6",
+    "tokyo": "#17131f", "desert": "#f6e7cf", "forest": "#eef1e6",
+    "aurora": "#0f1d23", "vintage": "#f4e7d7", "space": "#0d1322",
+    "rain": "#e8eef4", "field": "#f6edcc", "deco": "#17141b",
+    "bauhaus": "#f2efe7", "emerald": "#eef1e6",
+}
 QUIT_CALLBACK = None
 FOLDER_PICK_CALLBACK = None
 
 PROJECT_FILE_LIMIT = 160
+
+
+def ensure_sounds_dir() -> Path:
+    """Create a user-editable sounds folder and seed it with bundled files."""
+    try:
+        SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
+        bundled = WEB_DIR / "sounds"
+        if bundled.is_dir():
+            for src in bundled.iterdir():
+                if not src.is_file():
+                    continue
+                dest = SOUNDS_DIR / src.name
+                if not dest.exists():
+                    shutil.copy2(src, dest)
+    except Exception:
+        pass
+    return SOUNDS_DIR
+
+
+def sound_file_names() -> list:
+    ensure_sounds_dir()
+    try:
+        return sorted(
+            item.name for item in SOUNDS_DIR.iterdir()
+            if item.is_file() and item.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac", ".m4a"}
+        )
+    except Exception:
+        return []
 
 
 def list_folder_files(folder: str, limit: int = PROJECT_FILE_LIMIT) -> list:
@@ -390,6 +433,13 @@ class Store:
                 continue
             count += len(card.get("items", []))
         return count
+
+    def boot_colors(self) -> dict:
+        settings = self.data.get("settings") if isinstance(self.data, dict) else {}
+        if not isinstance(settings, dict):
+            settings = {}
+        theme = settings.get("resolved_postcard") or settings.get("postcard") or "violet"
+        return {"paper": POSTCARD_PAPERS.get(str(theme), "#f7efe3")}
 
     def state(self) -> dict:
         with self.lock:
@@ -777,6 +827,39 @@ class Store:
                     error = "Todo not found"
                 else:
                     result["files"] = list_folder_files(todo.get("project_folder") or "")
+            elif name == "open_sounds_folder":
+                ensure_sounds_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(SOUNDS_DIR))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(SOUNDS_DIR)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(SOUNDS_DIR)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(SOUNDS_DIR)
+            elif name == "sound_files":
+                result["files"] = sound_file_names()
+                result["folder"] = str(SOUNDS_DIR)
+            elif name == "save_page_cache":
+                html = payload.get("html")
+                if not isinstance(html, str) or len(html) > 4_000_000:
+                    error = "Invalid page cache"
+                else:
+                    try:
+                        PAGE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        tmp = PAGE_CACHE_FILE.with_suffix(".tmp")
+                        tmp.write_text(html, encoding="utf-8")
+                        tmp.replace(PAGE_CACHE_FILE)
+                    except Exception as cache_error:
+                        error = f"Could not save page cache: {cache_error}"
+            elif name == "clear_page_cache":
+                try:
+                    PAGE_CACHE_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
             elif name == "save_note":
                 _, todo = self._find_todo(payload.get("id"))
                 subtask_id = payload.get("subtask_id")
@@ -1646,6 +1729,33 @@ class ApiHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/user-sounds/"):
+            name = unquote(parsed.path.rsplit("/", 1)[-1])
+            if not name or Path(name).name != name:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            ensure_sounds_dir()
+            candidate = SOUNDS_DIR / name
+            if not candidate.is_file():
+                candidate = WEB_DIR / "sounds" / name
+            try:
+                body = candidate.read_bytes()
+            except Exception:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+            self._send(200, body, content_type)
+            return
+        if parsed.path == "/page-cache":
+            try:
+                if not PAGE_CACHE_FILE.exists() or PAGE_CACHE_FILE.stat().st_size > 4_000_000:
+                    raise ValueError
+                body = PAGE_CACHE_FILE.read_bytes()
+            except Exception:
+                self._json(404, {"ok": False, "error": "No page cache"})
+                return
+            self._send(200, body, "text/html; charset=utf-8")
+            return
         if parsed.path == "/api/state":
             self._json(200, self.store.state())
             return
@@ -1662,6 +1772,17 @@ class ApiHandler(BaseHTTPRequestHandler):
                 or resolved == (APP_DIR / "icon.svg").resolve()
             ):
                 raise ValueError
+            if parsed.path == "/":
+                raw = resolved.read_text(encoding="utf-8")
+                colors = self.store.boot_colors()
+                # Keep the HTML tiny: the state is fetched after the first
+                # paint instead of inlining a 1.2 MB snapshot that delayed
+                # DOMContentLoaded and the window reveal.
+                inject = f'<script>window.__BOOT_PAPER__={json.dumps(colors["paper"])};</script>'
+                raw = raw.replace("<!-- BOOT_DATA -->", inject, 1)
+                body = raw.encode("utf-8")
+                self._send(200, body, "text/html; charset=utf-8")
+                return
             body = resolved.read_bytes()
         except Exception:
             self._json(404, {"ok": False, "error": "Not found"})
@@ -1689,6 +1810,7 @@ class ApiHandler(BaseHTTPRequestHandler):
 
 
 def start_server(store: Store):
+    ensure_sounds_dir()
     server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
     ApiHandler.store = store
     ApiHandler.agent_store = AgentStore(AGENT_FILE)
@@ -1714,15 +1836,18 @@ def run_gtk() -> None:
         Gtk.Window.set_default_icon_name("io.github.neotodo")
     except Exception:
         pass
+    store = Store(DATA_FILE)
+    boot_paper = store.boot_colors().get("paper", "#f7efe3")
     try:
         provider = Gtk.CssProvider()
-        provider.load_from_data(b"window, window.background { background-color: #120b06; }")
+        provider.load_from_data(
+            f"window, window.background {{ background-color: {boot_paper}; }}".encode("utf-8")
+        )
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
     except Exception:
         pass
-    store = Store(DATA_FILE)
     server, port = start_server(store)
 
     class NeoTodoApp(Gtk.Application):
@@ -1752,6 +1877,12 @@ def run_gtk() -> None:
                 def show_dialog():
                     dialog = Gtk.FileDialog()
                     dialog.set_title("Choose project folder")
+                    try:
+                        dialog.set_modal(True)
+                    except Exception:
+                        pass
+                    # Keep a strong reference until the async callback fires.
+                    window._project_folder_dialog = dialog
 
                     def finished(source, result, _data=None):
                         try:
@@ -1759,9 +1890,10 @@ def run_gtk() -> None:
                             chosen["path"] = folder.get_path() if folder else None
                         except Exception:
                             chosen["path"] = None
+                        window._project_folder_dialog = None
                         done.set()
 
-                    dialog.select_folder(window, None, finished)
+                    dialog.select_folder(window, None, finished, None)
                     return False
 
                 GLib.idle_add(show_dialog)
@@ -1772,7 +1904,7 @@ def run_gtk() -> None:
             FOLDER_PICK_CALLBACK = pick_project_folder
 
             background = Gdk.RGBA()
-            background.parse("#120b06")
+            background.parse(boot_paper)
             view = WebKit.WebView()
             view.set_background_color(background)
             def apply_view_settings(target):
@@ -1956,19 +2088,46 @@ def run_gtk() -> None:
                 return detached_view
 
             detached_opener[0] = open_detached_window
-            view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
-            window.set_child(view)
-            window.connect("close-request", self._on_close)
+            self.view = view
             self.window = window
-
-            # Do not present the window until the page has painted the real
-            # app, so the yellow boot frame / white WebKit frame never show.
+            window.connect("close-request", self._on_close)
+            window.connect("notify::is-active", self._on_active_changed)
+            started_at = time.monotonic()
             revealed = {"done": False}
+            overlay = Gtk.Overlay()
+            overlay.set_child(view)
+            preview = startup.make_preview(SNAPSHOT_FILE)
+            if preview is not None:
+                overlay.add_overlay(preview)
 
-            def reveal_window():
-                if not revealed["done"]:
-                    revealed["done"] = True
-                    window.present()
+            window.set_child(overlay)
+            self._active_once = False
+            if preview is not None:
+                # The last screen is a local PNG, so it appears immediately.
+                # The live WebView keeps loading underneath it.
+                revealed["done"] = True
+                window.present()
+                print("[startup] last-page preview shown immediately", flush=True)
+
+            def drop_preview():
+                nonlocal preview
+                if preview is None:
+                    return
+                try:
+                    overlay.remove_overlay(preview)
+                except Exception:
+                    pass
+                preview = None
+
+            def reveal_window(reason="ready"):
+                if revealed["done"]:
+                    return False
+                revealed["done"] = True
+                window.present()
+                try:
+                    print(f"[startup] window shown after {(time.monotonic() - started_at) * 1000:.0f} ms ({reason})", flush=True)
+                except Exception:
+                    pass
                 return False
 
             def poll_ready():
@@ -1976,23 +2135,32 @@ def run_gtk() -> None:
                     return False
 
                 def evaluated(target, result, _data=None):
-                    ready = False
+                    state = 0
                     try:
                         value = target.evaluate_javascript_finish(result)
-                        ready = bool(value.to_boolean()) if value is not None else False
+                        state = int(value.to_int32()) if value is not None else 0
                     except Exception:
-                        ready = False
-                    if ready:
-                        GLib.idle_add(reveal_window)
-                    elif not revealed["done"]:
+                        state = 0
+                    if state:
+                        GLib.idle_add(drop_preview)
+                        GLib.idle_add(reveal_window, "cache" if state == 1 else "app")
+                    else:
                         GLib.timeout_add(16, poll_ready)
                     return False
 
+                script = (
+                    "(() => {"
+                    "  const f = document.getElementById('boot-preview');"
+                    "  if (f) { try {"
+                    "    const d = f.contentDocument;"
+                    "    if (d && d.readyState === 'complete' && d.body && d.body.scrollHeight > 0) return 1;"
+                    "  } catch (e) {} }"
+                    "  if (document.body && document.body.classList.contains('app-ready')) return 2;"
+                    "  return 0;"
+                    "})()"
+                )
                 try:
-                    view.evaluate_javascript(
-                        "Boolean(document.body && document.body.classList.contains('app-ready'))",
-                        -1, None, None, None, evaluated, None,
-                    )
+                    view.evaluate_javascript(script, -1, None, None, None, evaluated, None)
                 except Exception:
                     GLib.timeout_add(16, poll_ready)
                 return False
@@ -2000,27 +2168,56 @@ def run_gtk() -> None:
             def on_load_changed(_view, event):
                 if event == WebKit.LoadEvent.FINISHED:
                     GLib.timeout_add(0, poll_ready)
-                    # Hard backstop: even if the JS probe is unavailable, the
-                    # first painted frame is ready by now.
-                    GLib.timeout_add(350, reveal_window)
+                    GLib.timeout_add(300, lambda: (drop_preview(), reveal_window("load-fallback")))
                 return False
 
             view.connect("load-changed", on_load_changed)
-            GLib.timeout_add(1500, reveal_window)
+            GLib.timeout_add(1200, lambda: (drop_preview(), reveal_window("global-fallback")))
+            view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
 
-        def _on_close(self, window):
-            # Detached panels depend on this process; take them home with the
-            # main window instead of leaving orphaned web views behind.
+        def _shutdown(self):
             for detached_window, _view in getattr(self, "detached_windows", []):
                 try:
                     detached_window.destroy()
                 except Exception:
                     pass
-            return False
+            self.quit()
+
+        def capture_and_quit(self):
+            if getattr(self, "_closing", False):
+                return
+            self._closing = True
+            view = getattr(self, "view", None)
+            if view is None:
+                self._shutdown()
+                return
+            startup.capture_view(view, SNAPSHOT_FILE, self._shutdown)
+
+        def _on_close(self, window):
+            if getattr(self, "_closing", False):
+                return False
+            self._closing = True
+            view = getattr(self, "view", None)
+            if view is None:
+                self._shutdown()
+                return False
+            startup.capture_view(view, SNAPSHOT_FILE, self._shutdown)
+            return True
+
+        def _on_active_changed(self, window, _pspec):
+            if window.get_property("is-active"):
+                self._active_once = True
+                return
+            # Ignore the initial inactive notification before the app is up.
+            if not getattr(self, "_active_once", False):
+                return
+            view = getattr(self, "view", None)
+            if view is not None and not getattr(self, "_closing", False):
+                startup.capture_view(view, SNAPSHOT_FILE)
 
     app = NeoTodoApp()
     global QUIT_CALLBACK
-    QUIT_CALLBACK = lambda: GLib.idle_add(app.quit)
+    QUIT_CALLBACK = lambda: GLib.idle_add(app.capture_and_quit)
     app.run(None)
 
 

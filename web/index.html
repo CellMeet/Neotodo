@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NeoTodo</title>
   <link rel="icon" href="/icon.svg">
+  <link rel="stylesheet" href="/startup.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/note-theme.css">
   <link rel="stylesheet" href="/agent-theme.css">
   <link rel="stylesheet" href="/note-shape.css">
   <link rel="stylesheet" href="/agent-shape.css">
   <link rel="stylesheet" href="/desk-handle.css">
+  <!-- BOOT_DATA -->
   <script>
     document.documentElement.classList.add("booting");
     try {
@@ -19,6 +21,7 @@
       root.dataset.theme = "postcard";
       root.dataset.font = s.font || "serif";
       root.style.setProperty("--user-scale", String(s.scale || 1));
+      root.style.setProperty("--boot-paper", window.__BOOT_PAPER__ || "#f7efe3");
     } catch (error) {}
   </script>
 </head>
@@ -710,6 +713,7 @@
       <svg class="exit-icon" aria-hidden="true"><use href="#exit"></use></svg>
     </button>
   </div>
+  <div id="sound-panel" class="sound-panel" hidden aria-label="Sound settings"></div>
 
   <div class="tool-rail" id="tool-rail" aria-label="Tools">
     <button class="tool-button" data-action="open-timer" aria-label="Focus timer">

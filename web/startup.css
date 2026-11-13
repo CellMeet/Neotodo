@@ -1,0 +1,12 @@
+/* ==========================================================================
+   Startup-only styles: the pre-paint background and the last-page preview.
+   Kept in its own file so startup never inherits half of the app theme.
+   ========================================================================== */
+html.booting,
+.booting body {
+  background: var(--boot-paper, #f7efe3) !important;
+  background-image: none !important;
+}
+.startup-preview {
+  background: var(--boot-paper, #f7efe3);
+}
