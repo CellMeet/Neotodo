@@ -1818,6 +1818,7 @@ let doingPanelRect = null;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
 let panelPreview = null;
+let deskHandleSwipeSuppress = 0;
 let singleDock = null;
 let detachedMode = "";
 let detachedAgentOverride = null;
@@ -4050,6 +4051,104 @@ const DeskHandle = {
     const handle = this.ensure()[kind];
     return Boolean(handle && handle.classList.contains("handle-vanish"));
   },
+};
+
+DeskHandle.bindGestures = function () {
+  document.addEventListener("click", (event) => {
+    if (performance.now() < deskHandleSwipeSuppress
+      && event.target.closest?.(".desk-handle-ai, .notes-handle-bottom")) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+
+  document.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest?.(".desk-handle-ai, .notes-handle-bottom");
+    if (!handle || event.button !== 0) return;
+    const isAi = handle.classList.contains("desk-handle-ai");
+    const isOpen = isAi ? agentTerminalOpen : !notesHidden;
+    const panel = isAi ? $("#agent-terminal") : $("#notes-half");
+    const desk = agentDeskRect();
+    const canResize = Boolean(panel && desk && isOpen);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const panelRect = panel?.getBoundingClientRect();
+    const startTop = panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0;
+    const minHeight = desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120;
+    let longPressed = false;
+    let moved = false;
+    let resizing = false;
+    const timer = setTimeout(() => {
+      if (!handle.isConnected) return;
+      longPressed = true;
+    }, 340);
+    const applyResize = (dy) => {
+      if (!panel || !desk) return;
+      const top = Math.max(0, Math.min(desk.height - minHeight, startTop + dy));
+      const height = desk.height - top;
+      panel.style.setProperty("top", `${top}px`, "important");
+      panel.style.setProperty("height", `${height}px`, "important");
+      panel.style.setProperty("bottom", "auto", "important");
+      handle.style.setProperty("top", `${desk.top + top + 6}px`, "important");
+    };
+    const move = (moveEvent) => {
+      if (!longPressed) {
+        const dy = moveEvent.clientY - startY;
+        const dx = Math.abs(moveEvent.clientX - startX);
+        if (dy > 24 && dy > dx) {
+          // Quick swipe down closes the sheet, even in a split.
+          moved = true;
+          clearTimeout(timer);
+          deskHandleSwipeSuppress = performance.now() + 600;
+          if (isAi) closeAgentTerminal();
+          else hideNotesPanel();
+          return;
+        }
+        if (Math.hypot(moveEvent.clientX - startX, dy) > 6) {
+          moved = true;
+          clearTimeout(timer);
+        }
+        return;
+      }
+      if (!canResize) return;
+      if (!resizing) {
+        resizing = true;
+        AudioFX.startLeafStretch();
+        document.body.classList.add("desk-handle-resizing");
+        panel?.classList.add("panel-handle-resizing");
+        if (panel) {
+          panel.style.setProperty("transition", "none", "important");
+          panel.style.setProperty("will-change", "top, height");
+        }
+        handle.style.setProperty("transition", "none", "important");
+      }
+      applyResize(moveEvent.clientY - startY);
+    };
+    const up = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", move);
+      document.body.classList.remove("desk-handle-resizing");
+      panel?.classList.remove("panel-handle-resizing");
+      if (panel) {
+        panel.style.removeProperty("transition");
+        panel.style.removeProperty("will-change");
+      }
+      handle.style.removeProperty("transition");
+      if (resizing) {
+        AudioFX.stopLeafStretch();
+        deskHandleSwipeSuppress = performance.now() + 360;
+        positionDeskHandles();
+        return;
+      }
+      if (longPressed) {
+        deskHandleSwipeSuppress = performance.now() + 360;
+        return;
+      }
+      if (moved) deskHandleSwipeSuppress = performance.now() + 360;
+    };
+    window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("pointerup", up, { once: true });
+  }, { passive: true });
 };
 
 function positionDeskHandles() {
@@ -8165,101 +8264,7 @@ function bindEvents() {
     }
   }, true);
 
-  let deskHandleSwipeSuppress = 0;
-  document.addEventListener("click", (event) => {
-    if (performance.now() < deskHandleSwipeSuppress && event.target.closest?.(".desk-handle-ai, .notes-handle-bottom")) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }, true);
-  document.addEventListener("pointerdown", (event) => {
-    const handle = event.target.closest?.(".desk-handle-ai, .notes-handle-bottom");
-    if (!handle || event.button !== 0) return;
-    const isAi = handle.classList.contains("desk-handle-ai");
-    const isOpen = isAi ? agentTerminalOpen : !notesHidden;
-    const panel = isAi ? $("#agent-terminal") : $("#notes-half");
-    const desk = agentDeskRect();
-    const canResize = Boolean(panel && desk && isOpen);
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const panelRect = panel?.getBoundingClientRect();
-    const startTop = panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0;
-    const minHeight = desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120;
-    let longPressed = false;
-    let moved = false;
-    let resizing = false;
-    const timer = setTimeout(() => {
-      if (!handle.isConnected) return;
-      longPressed = true;
-    }, 340);
-    const applyResize = (dy) => {
-      if (!panel || !desk) return;
-      const top = Math.max(0, Math.min(desk.height - minHeight, startTop + dy));
-      const height = desk.height - top;
-      panel.style.setProperty("top", `${top}px`, "important");
-      panel.style.setProperty("height", `${height}px`, "important");
-      panel.style.setProperty("bottom", "auto", "important");
-      handle.style.setProperty("top", `${desk.top + top + 6}px`, "important");
-    };
-    const move = (moveEvent) => {
-      if (!longPressed) {
-        const dy = moveEvent.clientY - startY;
-        const dx = Math.abs(moveEvent.clientX - startX);
-        if (dy > 24 && dy > dx) {
-          // A quick downward swipe closes the panel, in any split state.
-          moved = true;
-          clearTimeout(timer);
-          deskHandleSwipeSuppress = performance.now() + 600;
-          if (isAi) closeAgentTerminal();
-          else hideNotesPanel();
-          return;
-        }
-        if (Math.hypot(moveEvent.clientX - startX, dy) > 6) {
-          moved = true;
-          clearTimeout(timer);
-        }
-        return;
-      }
-      if (!canResize) return;
-      if (!resizing) {
-        resizing = true;
-        AudioFX.startLeafStretch();
-        document.body.classList.add("desk-handle-resizing");
-        panel?.classList.add("panel-handle-resizing");
-        if (panel) {
-          panel.style.setProperty("transition", "none", "important");
-          panel.style.setProperty("will-change", "top, height");
-        }
-        handle.style.setProperty("transition", "none", "important");
-      }
-      applyResize(moveEvent.clientY - startY);
-    };
-    const up = () => {
-      clearTimeout(timer);
-      window.removeEventListener("pointermove", move);
-      document.body.classList.remove("desk-handle-resizing");
-      panel?.classList.remove("panel-handle-resizing");
-      if (panel) {
-        panel.style.removeProperty("transition");
-        panel.style.removeProperty("will-change");
-      }
-      handle.style.removeProperty("transition");
-      if (resizing) {
-        AudioFX.stopLeafStretch();
-        // Suppress only the click that belongs to this same gesture.
-        deskHandleSwipeSuppress = performance.now() + 360;
-        positionDeskHandles();
-        return;
-      }
-      if (longPressed) {
-        deskHandleSwipeSuppress = performance.now() + 360;
-        return;
-      }
-      if (moved) deskHandleSwipeSuppress = performance.now() + 360;
-    };
-    window.addEventListener("pointermove", move, { passive: true });
-    window.addEventListener("pointerup", up, { once: true });
-  }, { passive: true });
+  DeskHandle.bindGestures();
 
   document.addEventListener("submit", (event) => {
     if (event.target.id === "agent-compose") {

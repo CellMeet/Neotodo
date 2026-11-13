@@ -7300,8 +7300,8 @@ html[data-theme="postcard"] .top-tools .archive-button:hover { color: var(--pc-i
   transition: background .15s ease, width .15s ease;
 }
 .notes-handle:hover::before { width: 56px; background: rgba(60, 40, 20, 0.68); }
-html[data-theme="postcard"] .notes-handle::before { background: rgba(0, 0, 0, 0.28); }
-html[data-theme="postcard"] .notes-handle:hover::before { background: rgba(0, 0, 0, 0.5); }
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle::before { background: rgba(0, 0, 0, 0.28); }
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle:hover::before { background: rgba(0, 0, 0, 0.5); }
 
 /* Artistic subtitle in the lower-right corner. */
 .notes-half.floating-notes > .brand-subtitle {
@@ -7357,10 +7357,10 @@ html[data-theme="postcard"] .top-tools .settings-button .gear-icon {
   width: 82px;
   background-image: repeating-linear-gradient(90deg, rgba(60, 40, 20, 0.62) 0 3px, transparent 3px 12px);
 }
-html[data-theme="postcard"] .notes-handle::before {
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle::before {
   background-image: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.22) 0 3px, transparent 3px 12px);
 }
-html[data-theme="postcard"] .notes-handle:hover::before {
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle:hover::before {
   background-image: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.46) 0 3px, transparent 3px 12px);
 }
 
@@ -7413,8 +7413,8 @@ html[data-theme="postcard"] .notes-handle:hover::before {
   width: 84px;
   background: rgba(60, 40, 20, 0.58);
 }
-html[data-theme="postcard"] .notes-handle::before { background: rgba(0, 0, 0, 0.24); }
-html[data-theme="postcard"] .notes-handle:hover::before { background: rgba(0, 0, 0, 0.46); }
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle::before { background: rgba(0, 0, 0, 0.24); }
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle:hover::before { background: rgba(0, 0, 0, 0.46); }
 
 /* Headphone marks in completed rows and category counts are a little larger. */
 .history-row .h-trophy svg,
@@ -7456,8 +7456,8 @@ html[data-theme="postcard"] .category-item .cat-count svg {
   width: 80px;
   background: rgba(60, 40, 20, 0.58);
 }
-html[data-theme="postcard"] .notes-handle::before { background: rgba(0, 0, 0, 0.24); }
-html[data-theme="postcard"] .notes-handle:hover::before { background: rgba(0, 0, 0, 0.46); }
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle::before { background: rgba(0, 0, 0, 0.24); }
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle:hover::before { background: rgba(0, 0, 0, 0.46); }
 
 .notes-handle-bottom {
   position: fixed;
@@ -13311,10 +13311,10 @@ body.detached-note #notes-half .notes-body { padding-top: 12px; }
 }
 
 /* Both door handles share the notes handle's colour. */
-html[data-theme="postcard"] .desk-handle-ai::before {
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .desk-handle-ai::before {
   background: rgba(0, 0, 0, 0.24);
 }
-html[data-theme="postcard"] .desk-handle-ai:hover::before {
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .desk-handle-ai:hover::before {
   background: rgba(0, 0, 0, 0.46);
 }
 
@@ -13402,10 +13402,10 @@ body.panel-drag-mode .agent-split-drop.active {
 }
 
 /* Detached door uses the same paper ink as the in-app handles. */
-html[data-theme="postcard"] .detached-grabber::before {
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .detached-grabber::before {
   background: rgba(0, 0, 0, 0.24);
 }
-html[data-theme="postcard"] .detached-grabber:hover::before {
+html[data-theme="postcard"]:not([data-postcard-dark="true"]) .detached-grabber:hover::before {
   background: rgba(0, 0, 0, 0.46);
 }
 
