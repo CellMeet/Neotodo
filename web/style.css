@@ -13587,33 +13587,26 @@ body.panel-drag-mode .notes-half.panel-shrinking {
    Door lines, final rules. Light and dark each get their own line, and the
    line disappears instantly: no fade, no slide, no transition.
    -------------------------------------------------------------------------- */
+/* One dark-grey door line for both light and dark themes. A faint light
+   halo keeps it readable when it floats over a dark card. */
 html[data-postcard-dark="false"] .notes-handle-bottom::before,
 html[data-postcard-dark="false"] .desk-handle-ai::before,
-html[data-postcard-dark="false"] .detached-grabber::before {
-  background: rgba(58, 36, 20, 0.52) !important;
-  box-shadow: none !important;
+html[data-postcard-dark="false"] .detached-grabber::before,
+html[data-postcard-dark="true"] .notes-handle-bottom::before,
+html[data-postcard-dark="true"] .desk-handle-ai::before,
+html[data-postcard-dark="true"] .detached-grabber::before {
+  background: rgba(62, 62, 68, 0.70) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.20) !important;
   opacity: 0.95 !important;
 }
 html[data-postcard-dark="false"] .notes-handle-bottom:hover::before,
 html[data-postcard-dark="false"] .desk-handle-ai:hover::before,
-html[data-postcard-dark="false"] .detached-grabber:hover::before {
-  background: rgba(58, 36, 20, 0.82) !important;
-  opacity: 1 !important;
-}
-
-html[data-postcard-dark="true"] .notes-handle-bottom::before,
-html[data-postcard-dark="true"] .desk-handle-ai::before,
-html[data-postcard-dark="true"] .detached-grabber::before {
-  background: rgba(255, 255, 255, 0.62) !important;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.30),
-    0 1px 4px rgba(0, 0, 0, 0.35) !important;
-  opacity: 0.95 !important;
-}
+html[data-postcard-dark="false"] .detached-grabber:hover::before,
 html[data-postcard-dark="true"] .notes-handle-bottom:hover::before,
 html[data-postcard-dark="true"] .desk-handle-ai:hover::before,
 html[data-postcard-dark="true"] .detached-grabber:hover::before {
-  background: rgba(255, 255, 255, 0.92) !important;
+  background: rgba(38, 38, 44, 0.92) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.30) !important;
   opacity: 1 !important;
 }
 
