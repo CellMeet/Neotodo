@@ -7183,8 +7183,9 @@ body.focus-running .focus-timer,
 .head-exit .exit-icon { width: 24px; height: 24px; }
 .head-exit:hover { color: #b3261e; }
 
-/* A small tactile press on category rows, without a scale pop. */
-.category-item { transition: background-color .08s ease, color .08s ease; }
+/* A small tactile press on category rows, alongside the louder click. */
+.category-item { transition: transform .08s ease; }
+.category-item:active { transform: scale(.985); }
 
 /* Exit icon: no pill background, larger, tucked toward the right border. */
 .head-exit {
@@ -13303,4 +13304,65 @@ body.detached-note #notes-half .notes-body { padding-top: 12px; }
   width: 78px;
   background: var(--note-ink, var(--ink));
   opacity: 1;
+}
+
+/* Both door handles share the notes handle's colour. */
+html[data-theme="postcard"] .desk-handle-ai::before {
+  background: rgba(0, 0, 0, 0.24);
+}
+html[data-theme="postcard"] .desk-handle-ai:hover::before {
+  background: rgba(0, 0, 0, 0.46);
+}
+
+/* A stage re-render must not flash the closed note sheet. */
+body.notes-hidden .notes-half.floating-notes {
+  display: none !important;
+}
+
+/* Closing doors fade where they are, then re-emerge from the bottom edge. */
+.notes-handle-bottom.handle-retiring,
+.desk-handle-ai.handle-retiring {
+  opacity: 0 !important;
+  transition: opacity 0.14s ease !important;
+}
+
+/* A held door shows its grip instead of acting like a click. */
+.notes-handle-bottom.handle-longpress::before,
+.desk-handle-ai.handle-longpress::before {
+  width: 82px;
+  background: var(--note-ink, var(--ink));
+  opacity: 1;
+}
+.notes-handle-bottom.handle-longpress,
+.desk-handle-ai.handle-longpress {
+  cursor: ns-resize;
+}
+.detached-grabber.handle-longpress {
+  cursor: ns-resize;
+}
+.detached-grabber.handle-longpress::before {
+  width: 82px;
+  background: var(--note-ink, var(--ink));
+  opacity: 1;
+}
+
+/* Detached panels lift off the NeoTodo page and settle into the new window. */
+@keyframes detached-float-in {
+  0% { opacity: 0; transform: translateY(9%) scale(0.965); }
+  55% { opacity: 1; transform: translateY(-1.2%) scale(1.003); }
+  100% { opacity: 1; transform: none; }
+}
+body.detached-arriving.detached-ai #agent-terminal,
+body.detached-arriving.detached-note #notes-half {
+  animation: detached-float-in 0.56s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 50% 100%;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.3) !important;
+  will-change: transform, opacity;
+}
+
+/* While a closed door waits below the border, keep it out of layout churn. */
+.notes-handle-bottom.handle-emerging,
+.desk-handle-ai.handle-emerging {
+  opacity: 1 !important;
+  transition: none !important;
 }

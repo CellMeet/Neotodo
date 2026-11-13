@@ -1912,17 +1912,29 @@ function followPageLayout(duration = 360) {
 function hideNotesPanel(silent = false) {
   if (notesHidden || notesClosing) return;
   const panel = $("#notes-half");
+  const handle = $(".notes-handle-bottom");
   if (!panel || silent) {
     hideNotesPanelNow(silent);
     return;
   }
   notesClosing = true;
-  positionDeskHandles();
+  handle?.classList.add("handle-retiring");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
     panel.classList.remove("sheet-closing");
     notesClosing = false;
     hideNotesPanelNow(silent);
+    if (handle) {
+      // Fade out in place, then rise out of the bottom border at the closed slot.
+      handle.classList.remove("handle-retiring");
+      handle.classList.add("handle-emerging");
+      handle.style.setProperty("top", `${window.innerHeight + 2}px`, "important");
+      handle.getBoundingClientRect();
+      setTimeout(() => {
+        handle.classList.remove("handle-emerging");
+        positionDeskHandles();
+      }, 110);
+    }
   }, 240);
 }
 
@@ -4048,8 +4060,10 @@ function positionDeskHandles() {
     handle.style.setProperty("top", `${Math.round(top)}px`, "important");
     handle.style.setProperty("bottom", "auto", "important");
   };
-  setHandle(aiHandle, aiCenter, aiTop);
-  setHandle(notesHandle, notesCenter, notesTop);
+  // A retiring door fades where it is; its next position is applied only
+  // after it has disappeared, so it never travels diagonally.
+  if (!aiHandle.classList.contains("handle-retiring") && !aiHandle.classList.contains("handle-emerging")) setHandle(aiHandle, aiCenter, aiTop);
+  if (!notesHandle.classList.contains("handle-retiring") && !notesHandle.classList.contains("handle-emerging")) setHandle(notesHandle, notesCenter, notesTop);
 }
 
 function bindAgentSplitHandle() {
@@ -4342,7 +4356,8 @@ function closeAgentTerminal() {
     return;
   }
   agentClosing = true;
-  positionDeskHandles();
+  const handle = $(".desk-handle-ai");
+  handle?.classList.add("handle-retiring");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
     agentTerminalOpen = false;
@@ -4354,6 +4369,17 @@ function closeAgentTerminal() {
     panel.setAttribute("aria-hidden", "true");
     document.querySelector(".terminal-tool")?.classList.remove("active");
     updateAgentSplitLayout();
+    if (handle) {
+      // Fade out in place, then rise out of the bottom border at the closed slot.
+      handle.classList.remove("handle-retiring");
+      handle.classList.add("handle-emerging");
+      handle.style.setProperty("top", `${window.innerHeight + 2}px`, "important");
+      handle.getBoundingClientRect();
+      setTimeout(() => {
+        handle.classList.remove("handle-emerging");
+        positionDeskHandles();
+      }, 110);
+    }
   }, 240);
 }
 
@@ -4408,7 +4434,7 @@ function dockDetachedPanel() {
   setTimeout(() => { try { window.close(); } catch (error) {} }, 500);
 }
 
-function openDetachedPanel(kind, quiet = false) {
+function openDetachedPanel(kind, quiet = false, follow = false) {
   const agent = kind === "ai" ? activeAgent() : null;
   const url = kind === "ai" ? detachedAgentUrl(agent) : detachedNoteUrl();
   if (!url) {
@@ -4418,7 +4444,7 @@ function openDetachedPanel(kind, quiet = false) {
   // Ask the native shell for a real window. Using the shell bridge instead of
   // window.open avoids WebKit's create signal, which crashed Gtk on some
   // drivers when the detached view was constructed during a pointer gesture.
-  windowBridge("open", { url });
+  windowBridge("open", { url, follow: follow ? "1" : "0" });
   if (kind === "ai") closeAgentTerminal();
   else hideNotesPanel();
   return true;
@@ -4651,7 +4677,7 @@ function renderStage() {
           <div class="current-half"></div>
           <div class="history-half"><div class="history-empty"></div></div>
         </section>
-        <section class="notes-half" id="notes-half">${notesHtml()}</section>
+        <section class="notes-half floating-notes ${notesHidden ? "notes-hidden" : ""}" id="notes-half">${notesHtml()}</section>
         ${agentTerminalMarkup()}
         ${agentSplitUiMarkup()}
       </div>`;
@@ -4756,7 +4782,7 @@ function renderStage() {
         <div class="history-half">${history}</div>
         <div class="current-half">${metaHtml}</div>
       </section>
-      <section class="notes-half" id="notes-half">${notesHtml()}</section>
+      <section class="notes-half floating-notes ${notesHidden ? "notes-hidden" : ""}" id="notes-half">${notesHtml()}</section>
       ${agentTerminalMarkup()}
       ${agentSplitUiMarkup()}
     </div>`;
@@ -5598,7 +5624,7 @@ function refreshDoingZone() {
   doingZone = {
     left: rect.right - 28,
     right: rect.right,
-    top: rect.top + rect.height / 2,
+    top: rect.top + rect.height / 4,
     bottom: Math.min(rect.bottom, window.innerHeight - 8),
   };
 }
@@ -7846,7 +7872,7 @@ function bindEvents() {
         nativeWindowCommand("move", startX, startY);
       } else {
         state.panel.classList.add("window-lifting");
-        if (openDetachedPanel(state.kind, true)) state.detachedStarted = true;
+        if (openDetachedPanel(state.kind, true, true)) state.detachedStarted = true;
       }
     }, 380);
     state.timer = timer;
@@ -7871,7 +7897,7 @@ function bindEvents() {
     state.panel.classList.remove("window-lifting");
     if (!state.activated) return;
     if (detachedMode || state.detachedStarted) return;
-    openDetachedPanel(state.kind);
+    openDetachedPanel(state.kind, false, true);
   }, { passive: true });
 
   document.addEventListener("click", (event) => {
@@ -7890,30 +7916,58 @@ function bindEvents() {
   }, true);
   document.addEventListener("pointerdown", (event) => {
     const handle = event.target.closest?.(".desk-handle-ai, .notes-handle-bottom");
-    if (!handle) return;
+    if (!handle || event.button !== 0) return;
     const isAi = handle.classList.contains("desk-handle-ai");
     const isOpen = isAi ? agentTerminalOpen : !notesHidden;
-    if (!isOpen) return;
+    const startX = event.clientX;
     const startY = event.clientY;
     let swiped = false;
     let detachRequested = false;
+    let longPressed = false;
+    let moved = false;
+    const timer = setTimeout(() => {
+      if (!handle.isConnected) return;
+      longPressed = true;
+      handle.classList.add("handle-longpress");
+      // A held door is a grip, not a click. Keep the click from arriving.
+      deskHandleSwipeSuppress = performance.now() + 900;
+    }, 340);
     const move = (moveEvent) => {
       if (swiped || detachRequested) return;
+      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 6) {
+        moved = true;
+        if (!longPressed) clearTimeout(timer);
+      }
+      if (!isOpen) return;
       if (startY - moveEvent.clientY > 36) {
         detachRequested = true;
+        clearTimeout(timer);
+        handle.classList.remove("handle-longpress");
         deskHandleSwipeSuppress = performance.now() + 700;
         return;
       }
       if (moveEvent.clientY - startY > 24) {
         swiped = true;
+        clearTimeout(timer);
+        handle.classList.remove("handle-longpress");
         deskHandleSwipeSuppress = performance.now() + 500;
         if (isAi) closeAgentTerminal();
         else hideNotesPanel();
       }
     };
     const up = () => {
+      clearTimeout(timer);
       window.removeEventListener("pointermove", move);
-      if (detachRequested) openDetachedPanel(isAi ? "ai" : "note");
+      handle.classList.remove("handle-longpress");
+      if (detachRequested) {
+        openDetachedPanel(isAi ? "ai" : "note", false, true);
+        return;
+      }
+      if (swiped) return;
+      if (longPressed && !moved) {
+        // Long-press stays a grip; the toggle click is suppressed.
+        deskHandleSwipeSuppress = performance.now() + 320;
+      }
     };
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerup", up, { once: true });
@@ -8548,6 +8602,8 @@ async function init() {
     document.title = "NeoTodo · Note";
   }
   if (detachedMode) {
+    document.body.classList.add("detached-arriving");
+    setTimeout(() => document.body.classList.remove("detached-arriving"), 760);
     const grabber = document.createElement("div");
     grabber.className = "detached-grabber";
     grabber.id = "detached-grabber";
@@ -8561,16 +8617,26 @@ async function init() {
       const startX = event.screenX;
       const startY = event.screenY;
       let dragging = false;
+      let longPressed = false;
+      const timer = setTimeout(() => {
+        longPressed = true;
+        grabber.classList.add("handle-longpress");
+      }, 340);
       const move = (moveEvent) => {
         if (dragging) return;
         if (Math.hypot(moveEvent.screenX - startX, moveEvent.screenY - startY) <= 5) return;
         dragging = true;
+        clearTimeout(timer);
+        grabber.classList.remove("handle-longpress");
         window.removeEventListener("pointermove", move);
         nativeWindowCommand("resize", moveEvent.screenX, moveEvent.screenY);
       };
       const up = () => {
+        clearTimeout(timer);
+        grabber.classList.remove("handle-longpress");
         window.removeEventListener("pointermove", move);
-        if (!dragging) dockDetachedPanel();
+        // A short click goes home; a held grip or a resize drag does not.
+        if (!dragging && !longPressed) dockDetachedPanel();
       };
       window.addEventListener("pointermove", move, { passive: true });
       window.addEventListener("pointerup", up, { once: true });

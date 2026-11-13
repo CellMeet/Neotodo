@@ -1689,12 +1689,14 @@ def run_gtk() -> None:
                     parsed_uri = urlparse(uri)
                     if parsed_uri.hostname == "neotodo.local" and parsed_uri.path == "/open":
                         try:
-                            target = parse_qs(parsed_uri.query).get("url", [""])[0]
+                            query = parse_qs(parsed_uri.query)
+                            target = query.get("url", [""])[0]
+                            follow = query.get("follow", ["0"])[0] == "1"
                             if target and detached_opener[0]:
-                                def open_target(url=target):
+                                def open_target(url=target, should_follow=follow):
                                     opener = detached_opener[0]
                                     if opener:
-                                        opener(url)
+                                        opener(url, should_follow)
                                     return False
                                 GLib.idle_add(open_target)
                         except Exception:
@@ -1719,7 +1721,7 @@ def run_gtk() -> None:
             detached_windows = []
             self.detached_windows = detached_windows
 
-            def open_detached_window(target_url=None):
+            def open_detached_window(target_url=None, follow=False):
                 detached_view = WebKit.WebView()
                 detached_view.set_background_color(background)
                 apply_view_settings(detached_view)
@@ -1813,6 +1815,23 @@ def run_gtk() -> None:
                 detached_window.present()
                 if target_url:
                     detached_view.load_uri(target_url)
+                if follow:
+                    def begin_initial_move():
+                        surface = detached_window.get_surface()
+                        display = Gdk.Display.get_default()
+                        seat = display.get_default_seat() if display else None
+                        device = seat.get_pointer() if seat else None
+                        if not isinstance(surface, Gdk.Toplevel) or device is None:
+                            return False
+                        try:
+                            ok, px, py, _mask = surface.get_device_position(device)
+                            if not ok:
+                                px, py = 0, 0
+                            surface.begin_move(device, 1, int(px), int(py), Gdk.CURRENT_TIME)
+                        except Exception:
+                            pass
+                        return False
+                    GLib.timeout_add(90, begin_initial_move)
                 return detached_view
 
             detached_opener[0] = open_detached_window
