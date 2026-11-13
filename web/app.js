@@ -6882,15 +6882,15 @@ function readableAccent(theme, accent) {
 function notePalette(_theme) {
   // The note is its own parchment object, intentionally independent of the
   // app's postcard theme, so switching themes never tints the paper.
-  const paper = "#f7f1e4";
-  const ink = "#4b371f";
+  const paper = "#e8d3a6";
+  const ink = "#3a2414";
   return {
     paper,
     ink,
-    muted: "rgba(75, 55, 31, 0.62)",
-    rule: "rgba(74, 53, 37, 0.15)",
-    accent: "#b8872f",
-    accent2: "#8d6a3f",
+    muted: "rgba(58, 36, 20, 0.62)",
+    rule: "rgba(58, 36, 20, 0.16)",
+    accent: "#a8691f",
+    accent2: "#8a5a2a",
   };
 }
 

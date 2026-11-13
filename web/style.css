@@ -5496,10 +5496,10 @@ html[data-theme="postcard"] {
   font-weight: 500;
   line-height: 1.5;
 }
-.notes-half.floating-notes .note-block h2,
-.notes-half.floating-notes .note-block h3,
+html[data-note-material="paper"] .notes-half.floating-notes .note-block h2,
+html[data-note-material="paper"] .notes-half.floating-notes .note-block h3,
 .notes-half.floating-notes .note-block h4 { color: var(--note-ink, var(--ink)); }
-.notes-half.floating-notes .note-block-placeholder { color: var(--note-muted, var(--faint)); }
+html[data-note-material="paper"] .notes-half.floating-notes .note-block-placeholder { color: var(--note-muted, var(--faint)); }
 .notes-half.floating-notes .note-block-editor {
   color: var(--note-ink, var(--ink));
   font-family: var(--note-font, var(--display));
@@ -5525,7 +5525,7 @@ html[data-theme="postcard"] .notes-half.floating-notes {
 }
 html[data-theme="postcard"] .notes-half.floating-notes .notes-head { border-bottom-color: var(--note-rule); }
 html[data-theme="postcard"] .notes-half.floating-notes .notes-title { color: var(--note-ink); }
-html[data-theme="postcard"] .notes-half.floating-notes .note-block,
+html[data-theme="postcard"] html[data-note-material="paper"] .notes-half.floating-notes .note-block,
 html[data-theme="postcard"] .notes-half.floating-notes .note-block h2,
 html[data-theme="postcard"] .notes-half.floating-notes .note-block h3,
 html[data-theme="postcard"] .notes-half.floating-notes .note-block h4 { color: var(--note-ink); }
@@ -6250,7 +6250,7 @@ html[data-theme] .page-body .notes-half.floating-notes .note-link { color: #7b4d
 html[data-theme] .page-body .notes-half.floating-notes .picture-link:hover,
 html[data-theme] .page-body .notes-half.floating-notes .note-link:hover { color: #2f1d0e; }
 html[data-theme] .page-body .notes-half.floating-notes .picture-link span { color: #8d6a45; }
-html[data-theme] .page-body .notes-half.floating-notes .notes-empty,
+html[data-theme] .page-body html[data-note-material="paper"] .notes-half.floating-notes .notes-empty,
 html[data-theme] .page-body .notes-half.floating-notes .note-block-placeholder { color: #8b6a45; }
 html[data-theme] .page-body .notes-half.floating-notes .note-hide { color: #7d5937; }
 html[data-theme] .page-body .notes-half.floating-notes .note-hide:hover { color: #2f1d0e; }
@@ -9907,7 +9907,7 @@ html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-bloc
   color: #eaf3fa !important;
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.55);
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h1,
+html[data-note-material="blur"] .page-body html[data-note-material="paper"] .notes-half.floating-notes .note-block h1,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h2,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h3,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h4 {
@@ -13511,10 +13511,24 @@ body.doing-peek-open .agent-split-drop {
   opacity: 0 !important;
 }
 
-/* Restore the original paper-textured AI surface. */
+/* AI is its own OpenCode surface, never tinted by the NeoTodo theme. */
 .agent-terminal {
-  background: var(--pc-paper, var(--paper)) !important;
-  background-image: none !important;
+  --oc-bg: #ffffff !important;
+  --oc-soft: #f4f4f5 !important;
+  --oc-ink: #171718 !important;
+  --oc-muted: #7c7c83 !important;
+  --oc-faint: #b4b4bb !important;
+  --oc-line: #ececee !important;
+  --oc-input-bg: #ececee !important;
+  --oc-input-border: #d7d7dd !important;
+  --oc-input-border-focus: #c2c2ca !important;
+  --oc-input-text: #3d4757 !important;
+  --oc-input-placeholder: #98a2b2 !important;
+  --oc-plus: #47505f !important;
+  --oc-send-bg: #3b82f6 !important;
+  --oc-send-ink: #ffffff !important;
+  --oc-user-accent: #b8872f !important;
+  background: var(--oc-bg) !important;
 }
 
 /* The door line must stay visible on dark paper. */
@@ -13539,34 +13553,27 @@ body.panel-drag-mode .notes-half.panel-shrinking {
 }
 
 /* Robot mark: dark ink on light paper, light ink on dark paper. */
-.agent-provider-icon { color: #2a2a2c; }
-html[data-postcard-dark="true"] .agent-provider-icon { color: #f2f2f4; }
+.agent-provider-icon { color: #3a3a3c; }
 
-/* The paper note is always parchment yellow with warm brown ink. */
+/* The note keeps its own parchment ink, untouched by the theme. */
 .notes-half.floating-notes {
-  background: #f7f1e4 !important;
-  background-image: none !important;
-  color: #4b371f !important;
+  color: var(--note-ink, #3a2414) !important;
 }
-.notes-half.floating-notes::before,
-.notes-half.floating-notes::after {
-  background-image: none !important;
-}
-.notes-half.floating-notes .notes-head,
-.notes-half.floating-notes .notes-title,
+html[data-note-material="paper"] .notes-half.floating-notes .notes-head,
+html[data-note-material="paper"] .notes-half.floating-notes .notes-title,
 .notes-half.floating-notes .notes-title > span,
 .notes-half.floating-notes .note-block,
-.notes-half.floating-notes .note-block-editor,
+html[data-note-material="paper"] .notes-half.floating-notes .note-block-editor,
 .notes-half.floating-notes .note-block h1,
 .notes-half.floating-notes .note-block h2,
 .notes-half.floating-notes .note-block h3,
 .notes-half.floating-notes .notes-empty,
 .notes-half.floating-notes .note-block-placeholder {
-  color: #4b371f !important;
+  color: var(--note-ink, #3a2414) !important;
 }
 .notes-half.floating-notes .notes-icon,
 .notes-half.floating-notes .notes-quill {
-  color: #6b4a24 !important;
+  color: var(--note-accent, #a8691f) !important;
 }
 .notes-half.floating-notes .notes-head {
   border-bottom-color: rgba(74, 53, 37, 0.18) !important;
@@ -13579,4 +13586,17 @@ html[data-postcard-dark="true"] .agent-provider-icon { color: #f2f2f4; }
 /* The parchment note surface wins over any theme material. */
 html[data-note-material="blur"] .notes-half.floating-notes {
   background-image: none !important;
+}
+
+/* The paper note uses the user's chosen note background, not the app theme. */
+html[data-note-material="paper"] .notes-half.floating-notes {
+  background-color: var(--note-paper, #e8d3a6) !important;
+  background-image:
+    var(--note-bg-image, none),
+    radial-gradient(ellipse at 12% 8%, rgba(120, 80, 30, 0.055), transparent 44%),
+    radial-gradient(ellipse at 88% 92%, rgba(120, 80, 30, 0.045), transparent 48%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E") !important;
+  background-size: cover, auto, auto, 240px 240px !important;
+  background-position: center, 0 0, 0 0, 0 0 !important;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat !important;
 }
