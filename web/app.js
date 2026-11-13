@@ -4470,16 +4470,12 @@ function startPanelPreview(kind, panel, clientX, clientY) {
   if (doingPeekOpen) closeDoingPeek();
   panel.classList.remove("sheet-opening", "sheet-closing");
   const rect = panel.getBoundingClientRect();
-  const scale = Math.min(0.34, Math.min(320 / Math.max(1, rect.width), 210 / Math.max(1, rect.height)));
+  const scale = Math.min(0.46, Math.min(430 / Math.max(1, rect.width), 290 / Math.max(1, rect.height)));
   panel.classList.add("panel-shrinking");
   panel.style.setProperty("--card-scale", scale.toFixed(4));
   document.body.classList.add("panel-drag-mode");
-  const hint = document.createElement("div");
-  hint.className = "panel-drag-hint";
-  hint.hidden = true;
-  document.body.appendChild(hint);
   panelPreview = {
-    kind, panel, hint,
+    kind, panel,
     baseLeft: rect.left, baseTop: rect.top,
     width: rect.width, height: rect.height, scale,
     zone: "", outside: false,
@@ -4496,18 +4492,14 @@ function pointerOutsideWorkspace(clientX, clientY) {
   return clientX < desk.left || clientX > desk.right || clientY < desk.top || clientY > desk.bottom;
 }
 
-const PANEL_ZONE_LABELS = { left: "靠左", right: "靠右", top: "靠上", bottom: "靠下" };
-
 function updatePanelPreview(clientX, clientY) {
   const preview = panelPreview;
   if (!preview) return;
-  const { panel, hint, baseLeft, baseTop, width, height, scale } = preview;
+  const { panel, baseLeft, baseTop, width, height, scale } = preview;
   const cardWidth = width * scale;
   const cardHeight = height * scale;
   panel.style.setProperty("--card-x", `${(clientX - cardWidth / 2) - baseLeft}px`);
   panel.style.setProperty("--card-y", `${(clientY - cardHeight / 2) - baseTop}px`);
-  hint.style.left = `${Math.max(8, Math.min(window.innerWidth - 200, clientX + 24))}px`;
-  hint.style.top = `${Math.max(8, Math.min(window.innerHeight - 36, clientY + 26))}px`;
 
   if (!preview.moved
     && Math.hypot(clientX - preview.startX, clientY - preview.startY) > 12) {
@@ -4536,13 +4528,6 @@ function updatePanelPreview(clientX, clientY) {
   document.querySelectorAll(".agent-split-drop").forEach((drop) => {
     drop.classList.toggle("active", !outside && drop.dataset.agentSplitDrop === zone);
   });
-  const bothOpen = agentTerminalOpen && !notesHidden;
-  let text = "";
-  if (outside) text = "独立窗口";
-  else if (zone) text = bothOpen ? "分屏" : (PANEL_ZONE_LABELS[zone] || "");
-  else if (preview.wasDocked && preview.moved) text = "全屏";
-  hint.textContent = text;
-  hint.hidden = !text;
 }
 
 function panelPreviewNextSide(kind, zone) {
@@ -4573,8 +4558,7 @@ function endPanelPreview(confirmDrop = false) {
   const preview = panelPreview;
   if (!preview) return;
   panelPreview = null;
-  const { kind, panel, hint, zone, outside, wasDocked } = preview;
-  hint.remove();
+  const { kind, panel, zone, outside, wasDocked } = preview;
   document.body.classList.remove("panel-drag-mode", "panel-drag-detach");
   document.querySelectorAll(".agent-split-drop").forEach((drop) => drop.classList.remove("active"));
   const clearShrink = () => {
@@ -4589,11 +4573,19 @@ function endPanelPreview(confirmDrop = false) {
     setTimeout(() => panel.classList.remove("panel-unshrinking"), 280);
     return;
   }
-  clearShrink();
   if (outside) {
+    // Leave the card as a card and fade it out as the detached window opens.
+    panel.classList.add("panel-drag-out");
     openDetachedPanel(kind, false, true);
+    setTimeout(() => {
+      panel.classList.remove("panel-shrinking", "panel-drag-out");
+      panel.style.removeProperty("--card-x");
+      panel.style.removeProperty("--card-y");
+      panel.style.removeProperty("--card-scale");
+    }, 220);
     return;
   }
+  clearShrink();
   if (zone) {
     applyPanelPreviewDrop(kind, zone);
     return;
@@ -8091,8 +8083,7 @@ function bindEvents() {
     const isOpen = isAi ? agentTerminalOpen : !notesHidden;
     const panel = isAi ? $("#agent-terminal") : $("#notes-half");
     const desk = agentDeskRect();
-    const canResize = Boolean(panel && desk && isOpen && !singleDock
-      && (isAi ? notesHidden : !agentTerminalOpen));
+    const canResize = Boolean(panel && desk && isOpen);
     const startX = event.clientX;
     const startY = event.clientY;
     const panelRect = panel?.getBoundingClientRect();
@@ -8720,8 +8711,7 @@ async function init() {
     grabber.id = "detached-grabber";
     grabber.setAttribute("role", "button");
     grabber.setAttribute("tabindex", "0");
-    grabber.setAttribute("aria-label", "Click to return home, drag to resize");
-    grabber.title = "Click to return home · drag to resize";
+    grabber.setAttribute("aria-label", "Move panel");
     grabber.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
       event.preventDefault();

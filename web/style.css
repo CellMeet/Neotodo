@@ -12760,7 +12760,7 @@ body.agent-split-flipping .agent-split-handle {
 
 /* Rounded AI layer, plugin-red send button, quieter focus/selection. */
 .agent-terminal {
-  border-radius: 16px 16px 0 0;
+  border-radius: 16px;
   --oc-send-bg: #e5a0a0;
   --oc-send-ink: #ffffff;
 }
@@ -12838,12 +12838,12 @@ body.notes-hidden .notes-handle-bottom {
 .notes-reveal { display: none !important; }
 
 @keyframes agent-sheet-up {
-  from { opacity: 0.4; transform: translateY(22px); }
+  from { opacity: 0; transform: translateY(28px) scale(0.996); }
   to { opacity: 1; transform: none; }
 }
 .agent-terminal.sheet-opening,
 .notes-half.floating-notes.sheet-opening {
-  animation: agent-sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: agent-sheet-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
@@ -13005,13 +13005,15 @@ body.agent-notes-axis-y .agent-terminal {
   height: var(--agent-ai-height, 50%);
   padding: 0 !important;
 }
-body.agent-notes-split .agent-terminal .agent-head,
 body.agent-notes-split .agent-terminal .agent-main {
   margin-left: 0 !important;
   margin-right: 0 !important;
   width: auto !important;
   max-width: none !important;
   flex: 1 1 auto;
+}
+body.agent-notes-split .agent-terminal .agent-head {
+  flex: 0 0 46px !important;
 }
 
 .notes-half.floating-notes { border-radius: 0 !important; }
@@ -13070,20 +13072,20 @@ body.agent-terminal-open:not(.notes-hidden) .notes-handle-bottom {
 
 /* Slide the sheets up/down with their handles. */
 @keyframes agent-sheet-up {
-  from { opacity: 0.5; transform: translateY(100%); }
+  from { opacity: 0; transform: translateY(28px) scale(0.996); }
   to { opacity: 1; transform: none; }
 }
 @keyframes agent-sheet-down {
   from { opacity: 1; transform: none; }
-  to { opacity: 0; transform: translateY(100%); }
+  to { opacity: 0; transform: translateY(22px) scale(0.996); }
 }
 .agent-terminal.sheet-opening,
 .notes-half.floating-notes.sheet-opening {
-  animation: agent-sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: agent-sheet-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .agent-terminal.sheet-closing,
 .notes-half.floating-notes.sheet-closing {
-  animation: agent-sheet-down 0.24s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  animation: agent-sheet-down 0.26s cubic-bezier(0.4, 0, 0.6, 1) forwards !important;
 }
 
 /* Vertical AI card: use the computed pane box, never the old full-height hack. */
@@ -13101,7 +13103,9 @@ body.agent-notes-axis-y .agent-terminal {
 /* Flush tiled windows: no bottom strip, no middle gap, square AI bottom. */
 :root { --desk-bottom: 0px; }
 .agent-terminal {
-  border-radius: 16px 16px 0 0 !important;
+  border-radius: 16px !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 body.agent-notes-left .agent-terminal {
   left: var(--agent-left-pct);
@@ -13360,18 +13364,26 @@ body.panel-drag-mode {
   user-select: none;
 }
 body.panel-drag-mode .panel-shrinking {
-  transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) scale(var(--card-scale, 0.34)) !important;
+  translate: var(--card-x, 0px) var(--card-y, 0px);
+  scale: var(--card-scale, 0.46);
   transform-origin: top left;
-  transition: transform 0.14s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+  transition: scale 0.18s cubic-bezier(0.2, 0.9, 0.2, 1);
   pointer-events: none !important;
   z-index: 60 !important;
-  border-radius: 16px !important;
-  box-shadow: 0 24px 56px rgba(20, 12, 6, 0.34) !important;
-  will-change: transform;
+  border-radius: 18px !important;
+  border: 0 !important;
+  box-shadow: 0 0 0 1px rgba(120, 95, 55, 0.16), 0 28px 64px rgba(20, 12, 6, 0.36) !important;
+  will-change: translate, scale;
 }
 body.panel-drag-mode .panel-unshrinking {
-  transition: transform 0.26s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
-  transform: none !important;
+  transform-origin: top left;
+  scale: 1 !important;
+  translate: 0 0 !important;
+  transition: scale 0.28s cubic-bezier(0.2, 0.9, 0.2, 1), translate 0.28s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+}
+.panel-drag-out {
+  opacity: 0 !important;
+  transition: opacity 0.18s ease !important;
 }
 
 /* Dock previews reuse the existing four split zones, now in rose tones. */
@@ -13423,18 +13435,12 @@ body.single-note-bottom .notes-half.floating-notes:not(.notes-hidden) {
   top: 50% !important; left: 0 !important; width: 100% !important; height: 50% !important;
 }
 
-/* Minimal action hint that follows the pointer. */
-.panel-drag-hint {
-  position: fixed;
-  z-index: 70;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: rgba(30, 20, 12, 0.78);
-  color: #f7efe3;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-  white-space: nowrap;
-  transition: left 0.045s linear, top 0.045s linear;
+/* Smoothly expand the remaining panel when its neighbour closes. */
+.agent-terminal,
+.notes-half.floating-notes {
+  transition:
+    left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
