@@ -13198,3 +13198,59 @@ body.agent-notes-bottom .notes-half.floating-notes:not(.notes-hidden) {
   width: 100% !important;
   border-radius: 0 !important;
 }
+
+/* Detached OS windows: only the AI console or the note editor remains. */
+body.detached-mode {
+  overflow: hidden !important;
+}
+body.detached-mode .notebook-head,
+body.detached-mode .index,
+body.detached-mode .page-head,
+body.detached-mode .todos-section,
+body.detached-mode .tool-rail,
+body.detached-mode .top-tools,
+body.detached-mode .top-edge,
+body.detached-mode .desk-handle,
+body.detached-mode .notes-handle,
+body.detached-mode .notes-reveal,
+body.detached-mode .foot-right,
+body.detached-mode .archive-drawer,
+body.detached-mode .archive-backdrop,
+body.detached-mode .trash-drawer,
+body.detached-mode #archive-backdrop {
+  display: none !important;
+}
+body.detached-ai .notes-half { display: none !important; }
+body.detached-ai #agent-terminal {
+  position: fixed !important;
+  inset: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  box-shadow: none !important;
+}
+body.detached-ai #agent-terminal .agent-resize { display: none !important; }
+body.detached-ai #agent-terminal .agent-head { flex-basis: 52px; }
+body.detached-ai #agent-terminal .agent-main { width: min(1080px, 100%); margin: 0 auto; }
+
+body.detached-note #notes-half {
+  position: fixed !important;
+  inset: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  box-shadow: none !important;
+}
+body.detached-note #notes-half .notes-handle-top { display: none !important; }
+body.detached-note #notes-half .notes-head { flex-basis: 54px; }
+body.detached-note #notes-half .notes-body { padding-top: 12px; }

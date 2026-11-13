@@ -1659,18 +1659,22 @@ def run_gtk() -> None:
             background.parse("#120b06")
             view = WebKit.WebView()
             view.set_background_color(background)
-            try:
-                settings = view.get_settings()
-                settings.set_enable_developer_extras(True)
-                settings.set_enable_webaudio(True)
-                # Scrolling with the wheel is the first interaction in this
-                # app, and WebKit otherwise keeps WebAudio suspended until a
-                # click. This is a local desktop window, so allow audio to
-                # start without a gesture.
-                settings.set_media_playback_requires_user_gesture(False)
-                settings.set_media_playback_allows_inline(True)
-            except Exception:
-                pass
+            def apply_view_settings(target):
+                try:
+                    target_settings = target.get_settings()
+                    target_settings.set_enable_developer_extras(True)
+                    target_settings.set_enable_webaudio(True)
+                    # Scrolling with the wheel is the first interaction in this
+                    # app, and WebKit otherwise keeps WebAudio suspended until a
+                    # click. This is a local desktop window, so allow audio to
+                    # start without a gesture.
+                    target_settings.set_media_playback_requires_user_gesture(False)
+                    target_settings.set_media_playback_allows_inline(True)
+                    target_settings.set_javascript_can_open_windows_automatically(True)
+                except Exception:
+                    pass
+
+            apply_view_settings(view)
             def decide_policy(_view, decision, decision_type):
                 # WebKitGTK keeps WebAudio suspended until a click by default.
                 # This desktop app is driven with the mouse wheel, so allow
@@ -1687,6 +1691,31 @@ def run_gtk() -> None:
                 return False
 
             view.connect("decide-policy", decide_policy)
+
+            detached_windows = []
+
+            def create_detached_view(_parent_view, _navigation_action):
+                detached_view = WebKit.WebView()
+                detached_view.set_background_color(background)
+                apply_view_settings(detached_view)
+                detached_view.connect("decide-policy", decide_policy)
+                detached_window = Gtk.Window()
+                detached_window.set_title("NeoTodo")
+                detached_window.set_default_size(960, 760)
+                detached_window.set_child(detached_view)
+                def forget_window(_window, win=detached_window):
+                    detached_windows[:] = [pair for pair in detached_windows if pair[0] is not win]
+
+                detached_window.connect("destroy", forget_window)
+                detached_view.connect(
+                    "notify::title",
+                    lambda target, _pspec, win=detached_window: win.set_title(target.get_title() or "NeoTodo"),
+                )
+                detached_windows.append((detached_window, detached_view))
+                detached_window.present()
+                return detached_view
+
+            view.connect("create", create_detached_view)
             view.load_uri(f"http://127.0.0.1:{port}/")
             window.set_child(view)
             window.connect("close-request", self._on_close)

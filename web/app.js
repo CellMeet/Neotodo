@@ -1817,6 +1817,9 @@ let doingCardHeight = 600;
 let doingPanelRect = null;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
+let detachedMode = "";
+let detachedAgentOverride = null;
+let detachedNoteTargetOverride = null;
 let agentSessions = {};
 const agentBusyIds = new Set();
 const agentExecQueue = [];
@@ -2375,6 +2378,7 @@ function noteImages(target) {
 }
 
 function activeNoteTarget() {
+  if (detachedNoteTargetOverride) return detachedNoteTargetOverride;
   const category = selectedCategory();
   if (!category) return null;
   if (selectedSubtaskId) {
@@ -3571,6 +3575,7 @@ function agentContextString(target = null) {
 }
 
 function activeAgent() {
+  if (detachedAgentOverride) return detachedAgentOverride;
   const category = selectedCategory();
   const target = activeNoteTarget();
   const context = agentContextString(target);
@@ -4322,6 +4327,57 @@ function closeAgentTerminal() {
     document.querySelector(".terminal-tool")?.classList.remove("active");
     updateAgentSplitLayout();
   }, 240);
+}
+
+function detachedAgentUrl(agent) {
+  const params = new URLSearchParams({
+    detached: "ai",
+    agent_id: agent.id,
+    kind: agent.kind || "todo",
+    title: agent.title || "AI",
+    category: agent.category || "",
+    todo: agent.todo || "",
+    subtask: agent.scope?.subtask || "",
+    done: agent.scope?.done ? "1" : "0",
+    context: agent.scope?.context || "",
+  });
+  return `${location.origin}/?${params.toString()}`;
+}
+
+function detachedNoteUrl() {
+  const target = activeNoteTarget();
+  const category = selectedCategory();
+  if (!target?.todo || !category) return "";
+  const params = new URLSearchParams({
+    detached: "note",
+    category_id: category.id,
+    todo_id: target.todo.id,
+    subtask_id: target.subtask?.id || "",
+  });
+  return `${location.origin}/?${params.toString()}`;
+}
+
+function openDetachedPanel(kind) {
+  const agent = kind === "ai" ? activeAgent() : null;
+  const url = kind === "ai" ? detachedAgentUrl(agent) : detachedNoteUrl();
+  if (!url) {
+    toast("Select a task before popping out", true);
+    return false;
+  }
+  const name = kind === "ai" ? `neotodo-ai-${agent.id}` : `neotodo-note-${activeNoteTarget()?.todo?.id || "note"}`;
+  let opened = null;
+  try {
+    opened = window.open(url, name, "popup=yes,width=960,height=760");
+  } catch (error) {
+    opened = null;
+  }
+  if (!opened) {
+    toast("The detached window could not open", true);
+    return false;
+  }
+  if (kind === "ai") closeAgentTerminal();
+  else hideNotesPanel();
+  return true;
 }
 
 function toggleAgentTerminal() {
@@ -7731,15 +7787,24 @@ function bindEvents() {
     if (!isOpen) return;
     const startY = event.clientY;
     let swiped = false;
+    let detachRequested = false;
     const move = (moveEvent) => {
-      if (swiped || moveEvent.clientY - startY <= 24) return;
-      swiped = true;
-      deskHandleSwipeSuppress = performance.now() + 500;
-      if (isAi) closeAgentTerminal();
-      else hideNotesPanel();
+      if (swiped || detachRequested) return;
+      if (startY - moveEvent.clientY > 36) {
+        detachRequested = true;
+        deskHandleSwipeSuppress = performance.now() + 700;
+        return;
+      }
+      if (moveEvent.clientY - startY > 24) {
+        swiped = true;
+        deskHandleSwipeSuppress = performance.now() + 500;
+        if (isAi) closeAgentTerminal();
+        else hideNotesPanel();
+      }
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
+      if (detachRequested) openDetachedPanel(isAi ? "ai" : "note");
     };
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerup", up, { once: true });
@@ -8330,8 +8395,53 @@ async function init() {
     const match = state.data.categories.find((category) => category.id === requestedCategory || category.name === requestedCategory);
     if (match) state.selectedCategoryId = match.id;
   }
+  const detachedParam = params.get("detached");
+  if (detachedParam === "ai" && params.get("agent_id")) {
+    detachedMode = "ai";
+    const kind = params.get("kind") || "todo";
+    const context = params.get("context") || "";
+    detachedAgentOverride = {
+      id: params.get("agent_id"),
+      kind,
+      title: params.get("title") || "AI",
+      category: params.get("category") || "",
+      todo: params.get("todo") || "",
+      mode: kind === "subtask" ? "build" : "chat",
+      scope: {
+        kind,
+        category: params.get("category") || "",
+        todo: params.get("todo") || "",
+        subtask: params.get("subtask") || "",
+        done: params.get("done") === "1",
+        context,
+      },
+    };
+    agentTerminalOpen = true;
+    notesHidden = true;
+    document.body.classList.add("detached-mode", "detached-ai");
+    document.title = `NeoTodo · ${detachedAgentOverride.title}`;
+  } else if (detachedParam === "note") {
+    detachedMode = "note";
+    const category = state.data.categories.find((item) => item.id === params.get("category_id"));
+    const todo = category?.todos?.find((item) => item.id === params.get("todo_id"));
+    const subtask = todo?.subtasks?.find((item) => item.id === params.get("subtask_id"));
+    if (category && todo) {
+      state.selectedCategoryId = category.id;
+      detachedNoteTargetOverride = {
+        todo,
+        subtask: subtask || null,
+        kind: subtask ? "subtask" : "todo",
+        completed: Boolean(todo.done),
+      };
+      notesHidden = false;
+    }
+    document.body.classList.add("detached-mode", "detached-note");
+    document.title = "NeoTodo · Note";
+  }
   render();
-  if (!notesHidden) hideNotesPanel(true);
+  if (detachedMode !== "note" && !notesHidden) hideNotesPanel(true);
+  if (detachedMode === "ai") setTimeout(() => $("#agent-input")?.focus(), 250);
+  if (detachedMode === "note") setTimeout(() => $("#note-live")?.scrollIntoView({ block: "nearest" }), 200);
   positionNotesHandle();
   updateNotesHandle();
   updateHeaderStamp();
@@ -8347,18 +8457,20 @@ async function init() {
       confirmLabel: "Complete",
     });
   }
-  const view = params.get("view");
-  const requestedCard = params.get("card");
-  if (view === "archive") openArchive();
-  else if (view === "completed") openCompletedLog();
-  else if (view === "card" || requestedCard) {
-    const cards = [...(state.data.archive || [])].sort((a, b) => String(a.week_start).localeCompare(String(b.week_start)));
-    if (cards.length) {
-      const card = requestedCard ? cards.find((item) => item.id === requestedCard || item.theme === requestedCard) : cards[cards.length - 1];
-      if (card) openPostcard(card.id, { auto: true });
+  if (!detachedMode) {
+    const view = params.get("view");
+    const requestedCard = params.get("card");
+    if (view === "archive") openArchive();
+    else if (view === "completed") openCompletedLog();
+    else if (view === "card" || requestedCard) {
+      const cards = [...(state.data.archive || [])].sort((a, b) => String(a.week_start).localeCompare(String(b.week_start)));
+      if (cards.length) {
+        const card = requestedCard ? cards.find((item) => item.id === requestedCard || item.theme === requestedCard) : cards[cards.length - 1];
+        if (card) openPostcard(card.id, { auto: true });
+      }
+    } else if (view !== "app") {
+      maybeAutoPostcard();
     }
-  } else if (view !== "app") {
-    maybeAutoPostcard();
   }
 }
 
