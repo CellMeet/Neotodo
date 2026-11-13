@@ -13254,3 +13254,30 @@ body.detached-note #notes-half {
 body.detached-note #notes-half .notes-handle-top { display: none !important; }
 body.detached-note #notes-half .notes-head { flex-basis: 54px; }
 body.detached-note #notes-half .notes-body { padding-top: 12px; }
+
+.window-lifting {
+  transform: translateY(-4px) scale(1.006) !important;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.32) !important;
+  transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+  z-index: 10000 !important;
+}
+.detached-grabber {
+  position: fixed;
+  top: 5px;
+  left: 50%;
+  width: 64px;
+  height: 5px;
+  z-index: 10001;
+  border-radius: 3px;
+  background: var(--note-rule, var(--line));
+  opacity: 0.85;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+  touch-action: none;
+  transition: background 0.15s ease, opacity 0.15s ease, width 0.15s ease;
+}
+.detached-grabber:hover {
+  width: 80px;
+  background: var(--note-ink, var(--ink));
+  opacity: 1;
+}

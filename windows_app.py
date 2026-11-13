@@ -14,10 +14,33 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QApplication, QMainWindow
-from PySide6.QtWebEngineCore import QWebEngineSettings
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 import app as backend
+
+
+class DetachedPage(QWebEnginePage):
+    """Handle the webview's native window-move/resize bridge."""
+
+    def __init__(self, profile, window, parent=None):
+        super().__init__(profile, parent)
+        self._host_window = window
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        if url.host() == "neotodo.local":
+            try:
+                action = url.path().rsplit("/", 1)[-1]
+                handle = self._host_window.windowHandle()
+                if handle is not None:
+                    if action == "move":
+                        handle.startSystemMove()
+                    elif action == "resize":
+                        handle.startSystemResize(Qt.Edge.TopEdge)
+            except Exception:
+                pass
+            return False
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
 
 class NeoTodoWebView(QWebEngineView):
@@ -42,6 +65,8 @@ class NeoTodoWebView(QWebEngineView):
         window = QMainWindow()
         window.setWindowTitle("NeoTodo")
         window.setWindowIcon(QIcon(str(backend.APP_DIR / "icon-check.png")))
+        page = DetachedPage(view.page().profile(), window, view)
+        view.setPage(page)
         window.setCentralWidget(view)
         window.resize(960, 760)
         view.titleChanged.connect(lambda title, win=window: win.setWindowTitle(title or "NeoTodo"))

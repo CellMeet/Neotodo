@@ -16,7 +16,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 if getattr(sys, "frozen", False):
     APP_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
@@ -1698,11 +1698,62 @@ def run_gtk() -> None:
                 detached_view = WebKit.WebView()
                 detached_view.set_background_color(background)
                 apply_view_settings(detached_view)
-                detached_view.connect("decide-policy", decide_policy)
                 detached_window = Gtk.Window()
                 detached_window.set_title("NeoTodo")
                 detached_window.set_default_size(960, 760)
                 detached_window.set_child(detached_view)
+
+                def detached_policy(_view, decision, decision_type):
+                    if decision_type == WebKit.PolicyDecisionType.NAVIGATION_ACTION:
+                        try:
+                            uri = decision.get_navigation_action().get_request().get_uri() or ""
+                        except Exception:
+                            uri = ""
+                        parsed_uri = urlparse(uri)
+                        if parsed_uri.hostname == "neotodo.local":
+                            try:
+                                parsed = parsed_uri
+                                params = parse_qs(parsed.query)
+                                x = int(float(params.get("x", ["0"])[0] or 0))
+                                y = int(float(params.get("y", ["0"])[0] or 0))
+                                action = parsed.path.rsplit("/", 1)[-1]
+
+                                def begin_window_drag(resize=False):
+                                    surface = detached_window.get_surface()
+                                    display = Gdk.Display.get_default()
+                                    seat = display.get_default_seat() if display else None
+                                    device = seat.get_pointer() if seat else None
+                                    if not isinstance(surface, Gdk.Toplevel) or device is None:
+                                        return False
+                                    if resize:
+                                        surface.begin_resize(
+                                            Gdk.SurfaceEdge.NORTH,
+                                            device,
+                                            1,
+                                            x,
+                                            y,
+                                            Gdk.CURRENT_TIME,
+                                        )
+                                    else:
+                                        surface.begin_move(
+                                            device, 1, x, y, Gdk.CURRENT_TIME
+                                        )
+                                    return False
+
+                                if action == "move":
+                                    GLib.idle_add(begin_window_drag, False)
+                                elif action == "resize":
+                                    GLib.idle_add(begin_window_drag, True)
+                            except Exception:
+                                pass
+                            try:
+                                decision.ignore()
+                            except Exception:
+                                pass
+                            return True
+                    return decide_policy(_view, decision, decision_type)
+
+                detached_view.connect("decide-policy", detached_policy)
                 def forget_window(_window, win=detached_window):
                     detached_windows[:] = [pair for pair in detached_windows if pair[0] is not win]
 

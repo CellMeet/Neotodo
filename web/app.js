@@ -4357,11 +4357,22 @@ function detachedNoteUrl() {
   return `${location.origin}/?${params.toString()}`;
 }
 
-function openDetachedPanel(kind) {
+function nativeWindowCommand(action, x, y) {
+  let bridge = document.getElementById("neotodo-window-bridge");
+  if (!bridge) {
+    bridge = document.createElement("iframe");
+    bridge.id = "neotodo-window-bridge";
+    bridge.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:0;left:-10px;top:-10px";
+    document.body.appendChild(bridge);
+  }
+  bridge.src = `https://neotodo.local/window/${action}?x=${Math.round(x)}&y=${Math.round(y)}&t=${Date.now()}`;
+}
+
+function openDetachedPanel(kind, quiet = false) {
   const agent = kind === "ai" ? activeAgent() : null;
   const url = kind === "ai" ? detachedAgentUrl(agent) : detachedNoteUrl();
   if (!url) {
-    toast("Select a task before popping out", true);
+    if (!quiet) toast("Select a task before popping out", true);
     return false;
   }
   const name = kind === "ai" ? `neotodo-ai-${agent.id}` : `neotodo-note-${activeNoteTarget()?.todo?.id || "note"}`;
@@ -4372,7 +4383,7 @@ function openDetachedPanel(kind) {
     opened = null;
   }
   if (!opened) {
-    toast("The detached window could not open", true);
+    if (!quiet) toast("The detached window could not open", true);
     return false;
   }
   if (kind === "ai") closeAgentTerminal();
@@ -7772,6 +7783,65 @@ function bindEvents() {
     document.body.classList.toggle("desk-strip-hover", event.clientY >= window.innerHeight - 36);
   }, { passive: true });
 
+  let panelLongPress = null;
+  let panelLongPressSuppress = 0;
+  document.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || panelLongPress) return;
+    const panel = event.target.closest?.("#agent-terminal, #notes-half");
+    if (!panel) return;
+    const kind = panel.id === "agent-terminal" ? "ai" : "note";
+    const open = kind === "ai" ? agentTerminalOpen : !notesHidden;
+    if (!open) return;
+    if (event.target.closest?.("button, a, input, textarea, select, .agent-compose, .note-block, .note-block-editor, .note-pictures, .notes-resize-handle, .desk-handle, .notes-handle, .detached-grabber")) return;
+    if (!detachedMode && event.target.closest?.(".agent-head, .notes-head")) return;
+    const startX = event.screenX;
+    const startY = event.screenY;
+    const viewX = event.clientX;
+    const viewY = event.clientY;
+    const state = { kind, panel, startX, startY, activated: false, cancelled: false, x: viewX, y: viewY };
+    const timer = setTimeout(() => {
+      if (state.cancelled || !state.panel.isConnected) return;
+      state.activated = true;
+      panelLongPressSuppress = performance.now() + 900;
+      if (detachedMode) {
+        nativeWindowCommand("move", startX, startY);
+      } else {
+        state.panel.classList.add("window-lifting");
+        if (openDetachedPanel(state.kind, true)) state.detachedStarted = true;
+      }
+    }, 380);
+    state.timer = timer;
+    panelLongPress = state;
+  }, { passive: true });
+
+  document.addEventListener("pointermove", (event) => {
+    if (!panelLongPress || panelLongPress.activated) return;
+    if (Math.hypot(event.screenX - panelLongPress.startX, event.screenY - panelLongPress.startY) > 9) {
+      panelLongPress.cancelled = true;
+      clearTimeout(panelLongPress.timer);
+      panelLongPress = null;
+    }
+  }, { passive: true });
+
+  document.addEventListener("pointerup", (event) => {
+    if (!panelLongPress) return;
+    const state = panelLongPress;
+    panelLongPress = null;
+    clearTimeout(state.timer);
+    if (state.cancelled) return;
+    state.panel.classList.remove("window-lifting");
+    if (!state.activated) return;
+    if (detachedMode || state.detachedStarted) return;
+    openDetachedPanel(state.kind);
+  }, { passive: true });
+
+  document.addEventListener("click", (event) => {
+    if (performance.now() < panelLongPressSuppress) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+
   let deskHandleSwipeSuppress = 0;
   document.addEventListener("click", (event) => {
     if (performance.now() < deskHandleSwipeSuppress && event.target.closest?.(".desk-handle-ai, .notes-handle-bottom")) {
@@ -8437,6 +8507,17 @@ async function init() {
     }
     document.body.classList.add("detached-mode", "detached-note");
     document.title = "NeoTodo · Note";
+  }
+  if (detachedMode) {
+    const grabber = document.createElement("div");
+    grabber.className = "detached-grabber";
+    grabber.id = "detached-grabber";
+    grabber.setAttribute("aria-label", "Drag to resize");
+    grabber.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      nativeWindowCommand("resize", event.screenX, event.screenY);
+    });
+    document.body.appendChild(grabber);
   }
   render();
   if (detachedMode !== "note" && !notesHidden) hideNotesPanel(true);
