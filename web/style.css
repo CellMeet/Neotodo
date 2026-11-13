@@ -13325,26 +13325,6 @@ body.notes-hidden .notes-half.floating-notes {
   display: none !important;
 }
 
-/* A held door shows its grip instead of acting like a click. */
-.notes-handle-bottom.handle-longpress::before,
-.desk-handle-ai.handle-longpress::before {
-  width: 82px;
-  background: var(--note-ink, var(--ink));
-  opacity: 1;
-}
-.notes-handle-bottom.handle-longpress,
-.desk-handle-ai.handle-longpress {
-  cursor: ns-resize;
-}
-.detached-grabber.handle-longpress {
-  cursor: ns-resize;
-}
-.detached-grabber.handle-longpress::before {
-  width: 82px;
-  background: var(--note-ink, var(--ink));
-  opacity: 1;
-}
-
 /* Detached panels lift off the NeoTodo page and settle into the new window. */
 @keyframes detached-float-in {
   0% { opacity: 0; transform: translateY(9%) scale(0.965); }
@@ -13361,8 +13341,7 @@ body.detached-arriving.detached-note #notes-half {
 
 
 
-/* Long-press door resize: the bar becomes a grip, the sheet follows the drag. */
-body.desk-handle-grip,
+/* Long-press door resize: the sheet follows the drag; the bar stays unchanged. */
 body.desk-handle-resizing {
   cursor: ns-resize;
   user-select: none;
@@ -13375,143 +13354,24 @@ body.desk-handle-resizing * {
   will-change: top, height;
 }
 
-/* Floating panel card that follows the pointer before a drop. */
+/* The panel itself shrinks into a floating card that follows the pointer. */
 body.panel-drag-mode {
   cursor: grabbing;
   user-select: none;
 }
-.panel-drag-source {
-  opacity: 0.42 !important;
-  transform: scale(0.992) !important;
-  filter: saturate(0.82);
-  transition: opacity 0.18s ease, transform 0.18s ease, filter 0.18s ease !important;
+body.panel-drag-mode .panel-shrinking {
+  transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) scale(var(--card-scale, 0.22)) !important;
+  transform-origin: top left;
+  transition: none !important;
+  pointer-events: none !important;
+  z-index: 60 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 20px 50px rgba(20, 12, 6, 0.32) !important;
+  will-change: transform;
 }
-.panel-drag-card {
-  position: fixed;
-  z-index: 220;
-  width: 190px;
-  height: 118px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 9px 11px;
-  border: 1px solid rgba(40, 28, 16, 0.12);
-  border-radius: 14px;
-  background: var(--pc-paper, var(--paper, #f7efe3));
-  color: var(--pc-ink, var(--ink, #2a1c10));
-  box-shadow: 0 18px 46px rgba(20, 12, 6, 0.34), 0 2px 8px rgba(20, 12, 6, 0.16);
-  pointer-events: none;
-  overflow: hidden;
-  will-change: left, top, transform;
-  transition: left 0.045s linear, top 0.045s linear, transform 0.18s cubic-bezier(0.2, 0.9, 0.2, 1);
-  animation: panel-card-in 0.24s cubic-bezier(0.2, 0.9, 0.2, 1) both;
-}
-.panel-drag-card-top {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-.panel-drag-card-icon {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--pc-accent, var(--gold, #b8872f));
-}
-.panel-drag-card-icon svg { width: 100%; height: 100%; display: block; }
-.panel-drag-card-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--note-font, var(--display));
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-.panel-drag-card-sheet {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 7px 8px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.035);
-}
-.panel-drag-line {
-  display: block;
-  height: 5px;
-  border-radius: 3px;
-  background: currentColor;
-  opacity: 0.12;
-}
-.panel-drag-line.w1 { width: 68%; }
-.panel-drag-line.w2 { width: 88%; }
-.panel-drag-line.w3 { width: 58%; }
-.panel-drag-line.w4 { width: 78%; }
-.panel-drag-card-foot {
-  flex: 0 0 auto;
-  text-align: right;
-  color: currentColor;
-  opacity: 0.45;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-html[data-postcard-dark="true"] .panel-drag-card {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: #1c1a18;
-  color: #efe5d6;
-  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.5);
-}
-html[data-postcard-dark="true"] .panel-drag-card-sheet {
-  background: rgba(255, 255, 255, 0.055);
-}
-.panel-drag-hint {
-  position: fixed;
-  z-index: 221;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: rgba(30, 20, 12, 0.84);
-  color: #f7efe3;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  pointer-events: none;
-  transition: left 0.045s linear, top 0.045s linear;
-  animation: panel-hint-in 0.2s ease both;
-}
-body.panel-drag-detach .panel-drag-card {
-  transform: scale(1.045);
-  box-shadow: 0 24px 60px rgba(20, 12, 6, 0.42);
-}
-body.panel-drag-detach .panel-drag-hint {
-  background: rgba(126, 58, 58, 0.92);
-}
-@keyframes panel-card-in {
-  from { opacity: 0; transform: scale(0.82) translateY(10px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes panel-hint-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
-.panel-drag-card-out {
-  animation: panel-card-out 0.2s cubic-bezier(0.4, 0, 0.6, 1) forwards;
-}
-@keyframes panel-card-out {
-  to { opacity: 0; transform: scale(0.86) translateY(6px); }
-}
-.panel-drag-hint-out {
-  animation: panel-hint-out 0.16s ease forwards;
-}
-@keyframes panel-hint-out {
-  to { opacity: 0; }
+body.panel-drag-mode .panel-unshrinking {
+  transition: transform 0.26s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+  transform: none !important;
 }
 
 /* Dock previews reuse the existing four split zones, now in rose tones. */

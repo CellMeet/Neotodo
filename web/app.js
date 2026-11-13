@@ -4440,33 +4440,22 @@ function openDetachedPanel(kind, quiet = false, follow = false) {
   return true;
 }
 
-function panelPreviewIcon(kind) {
-  return kind === "ai" ? "#terminal-icon" : "#notebook";
-}
-
-function panelPreviewTitle(kind) {
-  if (kind === "ai") {
-    return document.querySelector(".agent-head-agent")?.textContent?.trim() || "AI";
-  }
-  return document.querySelector(".notes-title span")?.textContent?.trim() || "Note";
-}
-
 function startPanelPreview(kind, panel, clientX, clientY) {
   if (panelPreview || !panel) return;
   if (doingPeekOpen) closeDoingPeek();
-  const card = document.createElement("div");
-  card.className = `panel-drag-card panel-drag-card-${kind}`;
-  card.innerHTML = `<div class="panel-drag-card-top"><span class="panel-drag-card-icon"><svg aria-hidden="true"><use href="${panelPreviewIcon(kind)}"></use></svg></span><span class="panel-drag-card-title">${esc(panelPreviewTitle(kind))}</span></div>
-    <div class="panel-drag-card-sheet"><span class="panel-drag-line w1"></span><span class="panel-drag-line w2"></span><span class="panel-drag-line w3"></span><span class="panel-drag-line w4"></span></div>
-    <div class="panel-drag-card-foot">松手确认</div>`;
-  const hint = document.createElement("div");
-  hint.className = "panel-drag-hint";
-  hint.textContent = "拖到边缘分屏 · 拖出工作区成为独立窗口";
-  document.body.appendChild(card);
-  document.body.appendChild(hint);
-  panel.classList.add("panel-drag-source");
+  panel.classList.remove("sheet-opening", "sheet-closing");
+  const rect = panel.getBoundingClientRect();
+  const scale = Math.min(0.22, Math.min(220 / Math.max(1, rect.width), 150 / Math.max(1, rect.height)));
+  panel.classList.add("panel-shrinking");
+  panel.style.setProperty("--card-scale", scale.toFixed(4));
   document.body.classList.add("panel-drag-mode");
-  panelPreview = { kind, panel, card, hint, zone: "", outside: false, startX: clientX, startY: clientY, moved: false };
+  panelPreview = {
+    kind, panel,
+    baseLeft: rect.left, baseTop: rect.top,
+    width: rect.width, height: rect.height, scale,
+    zone: "", outside: false,
+    startX: clientX, startY: clientY, moved: false,
+  };
   updatePanelPreview(clientX, clientY);
 }
 
@@ -4480,13 +4469,11 @@ function pointerOutsideWorkspace(clientX, clientY) {
 function updatePanelPreview(clientX, clientY) {
   const preview = panelPreview;
   if (!preview) return;
-  const { card, hint } = preview;
-  const left = Math.max(8, Math.min(window.innerWidth - 208, clientX + 18));
-  const top = Math.max(8, Math.min(window.innerHeight - 170, clientY + 18));
-  card.style.left = `${left}px`;
-  card.style.top = `${top}px`;
-  hint.style.left = `${Math.max(8, Math.min(window.innerWidth - 260, clientX + 18))}px`;
-  hint.style.top = `${Math.min(window.innerHeight - 34, top + 126)}px`;
+  const { panel, baseLeft, baseTop, width, height, scale } = preview;
+  const cardWidth = width * scale;
+  const cardHeight = height * scale;
+  panel.style.setProperty("--card-x", `${(clientX - cardWidth / 2) - baseLeft}px`);
+  panel.style.setProperty("--card-y", `${(clientY - cardHeight / 2) - baseTop}px`);
 
   if (!preview.moved
     && Math.hypot(clientX - preview.startX, clientY - preview.startY) > 12) {
@@ -4515,11 +4502,6 @@ function updatePanelPreview(clientX, clientY) {
   document.querySelectorAll(".agent-split-drop").forEach((drop) => {
     drop.classList.toggle("active", !outside && drop.dataset.agentSplitDrop === zone);
   });
-  hint.textContent = outside
-    ? "松手成为独立窗口"
-    : zone
-      ? "松手分屏"
-      : "拖到边缘分屏 · 拖出工作区成为独立窗口";
 }
 
 function panelPreviewNextSide(kind, zone) {
@@ -4558,14 +4540,22 @@ function endPanelPreview(confirmDrop = false) {
   const preview = panelPreview;
   if (!preview) return;
   panelPreview = null;
-  const { kind, panel, card, hint, zone, outside } = preview;
-  preview.panel?.classList.remove("panel-drag-source");
+  const { kind, panel, zone, outside } = preview;
   document.body.classList.remove("panel-drag-mode", "panel-drag-detach");
   document.querySelectorAll(".agent-split-drop").forEach((drop) => drop.classList.remove("active"));
-  card.classList.add("panel-drag-card-out");
-  hint.classList.add("panel-drag-hint-out");
-  setTimeout(() => { card.remove(); hint.remove(); }, 220);
-  if (!confirmDrop) return;
+  const clearShrink = () => {
+    panel.classList.remove("panel-shrinking");
+    panel.style.removeProperty("--card-x");
+    panel.style.removeProperty("--card-y");
+    panel.style.removeProperty("--card-scale");
+  };
+  if (!confirmDrop) {
+    clearShrink();
+    panel.classList.add("panel-unshrinking");
+    setTimeout(() => panel.classList.remove("panel-unshrinking"), 280);
+    return;
+  }
+  clearShrink();
   if (outside) {
     openDetachedPanel(kind, false, true);
     return;
@@ -5739,21 +5729,21 @@ function doingPeekStateKey(entries) {
 
 function refreshDoingZone() {
   const half = $(".current-half");
+  const body = $(".page-body");
   if (!half) { doingZone = null; return; }
   const rect = half.getBoundingClientRect();
-  const area = $(".current-inner") || half;
-  const areaRect = area.getBoundingClientRect();
-  const zoneRect = areaRect.width > 20 ? areaRect : rect;
+  const bodyRect = body ? body.getBoundingClientRect() : rect;
   doingCardWidth = Math.round(Math.min(420, Math.max(320, rect.width * 0.5)));
   doingCardTop = Math.max(8, rect.top - 40);
   doingCardHeight = Math.min(560, Math.max(280, window.innerHeight - doingCardTop - 12));
-  // The subtask column's full width is the trigger; its lower three quarters
-  // keep the card away from the very top of the task area.
+  // A narrow strip at the subtask column's right edge, but its height spans
+  // the lower three quarters of the task board and continues down the whole
+  // workspace so the card stays reachable below the seven task rows.
   doingZone = {
-    left: zoneRect.left,
-    right: zoneRect.right,
-    top: zoneRect.top + zoneRect.height / 4,
-    bottom: Math.min(zoneRect.bottom, window.innerHeight - 8),
+    left: rect.right - 28,
+    right: rect.right,
+    top: rect.top + rect.height / 4,
+    bottom: Math.min(bodyRect.bottom, window.innerHeight - 8),
   };
 }
 
@@ -5894,6 +5884,7 @@ function closeDoingPeek() {
   clearTimeout(doingPeekOpenTimer);
   if (!doingPeekOpen) return;
   doingPeekOpen = false;
+  doingPeekCooldownUntil = performance.now() + 650;
   doingExpandedTodoIds.clear();
   const panel = $("#doing-peek");
   if (panel) panel.classList.remove("open");
@@ -7887,7 +7878,8 @@ function bindEvents() {
 
   const doingPeekSuppressed = () => Boolean(panelPreview)
     || document.body.classList.contains("panel-drag-mode")
-    || document.body.classList.contains("agent-split-drag");
+    || document.body.classList.contains("agent-split-drag")
+    || performance.now() < doingPeekCooldownUntil;
 
   const processDoingPointer = () => {
     if (!doingZone || doingPeekOpen || doingPeekSuppressed()) return;
@@ -8075,12 +8067,9 @@ function bindEvents() {
     let longPressed = false;
     let moved = false;
     let resizing = false;
-    let raf = 0;
     const timer = setTimeout(() => {
       if (!handle.isConnected) return;
       longPressed = true;
-      handle.classList.add("handle-longpress");
-      document.body.classList.add("desk-handle-grip");
     }, 340);
     const applyResize = (dy) => {
       if (!panel || !desk) return;
@@ -8110,20 +8099,12 @@ function bindEvents() {
         }
         handle.style.setProperty("transition", "none", "important");
       }
-      const dy = moveEvent.clientY - startY;
-      if (!raf) {
-        raf = requestAnimationFrame(() => {
-          raf = 0;
-          applyResize(dy);
-        });
-      }
+      applyResize(moveEvent.clientY - startY);
     };
     const up = () => {
       clearTimeout(timer);
-      if (raf) { cancelAnimationFrame(raf); raf = 0; }
       window.removeEventListener("pointermove", move);
-      handle.classList.remove("handle-longpress");
-      document.body.classList.remove("desk-handle-grip", "desk-handle-resizing");
+      document.body.classList.remove("desk-handle-resizing");
       panel?.classList.remove("panel-handle-resizing");
       if (panel) {
         panel.style.removeProperty("transition");
@@ -8716,20 +8697,17 @@ async function init() {
       let longPressed = false;
       const timer = setTimeout(() => {
         longPressed = true;
-        grabber.classList.add("handle-longpress");
       }, 340);
       const move = (moveEvent) => {
         if (dragging) return;
         if (Math.hypot(moveEvent.screenX - startX, moveEvent.screenY - startY) <= 5) return;
         dragging = true;
         clearTimeout(timer);
-        grabber.classList.remove("handle-longpress");
         window.removeEventListener("pointermove", move);
         nativeWindowCommand("resize", moveEvent.screenX, moveEvent.screenY);
       };
       const up = () => {
         clearTimeout(timer);
-        grabber.classList.remove("handle-longpress");
         window.removeEventListener("pointermove", move);
         // A short click goes home; a held grip or a resize drag does not.
         if (!dragging && !longPressed) dockDetachedPanel();
