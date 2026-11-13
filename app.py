@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
 import os
@@ -9,6 +10,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -1042,6 +1044,47 @@ class AgentStore:
         )
 
     @staticmethod
+    def _write_attachments(attachments: list) -> tuple[Path | None, list, list]:
+        if not isinstance(attachments, list) or not attachments:
+            return None, [], []
+        try:
+            folder = Path(tempfile.mkdtemp(prefix="neotodo-agent-"))
+        except Exception:
+            return None, [], []
+        files = []
+        names = []
+        total_bytes = 0
+        for index, item in enumerate(attachments[:8]):
+            if not isinstance(item, dict):
+                continue
+            name = Path(str(item.get("name") or f"file-{index + 1}").replace("\\", "/")).name.strip()
+            data = item.get("data")
+            if not name or not isinstance(data, str) or not data:
+                continue
+            try:
+                raw = base64.b64decode(data)
+            except Exception:
+                continue
+            if not raw or len(raw) > 15_000_000:
+                continue
+            if total_bytes + len(raw) > 30_000_000:
+                break
+            total_bytes += len(raw)
+            target = folder / name
+            if target.exists():
+                target = folder / f"{index + 1}-{name}"
+            try:
+                target.write_bytes(raw)
+            except Exception:
+                continue
+            files += ["--file", str(target)]
+            names.append(name)
+        if not names:
+            shutil.rmtree(folder, ignore_errors=True)
+            return None, [], []
+        return folder, files, names
+
+    @staticmethod
     def _session_usage(session_id: str) -> dict:
         opencode = shutil.which("opencode")
         if not opencode or not session_id:
@@ -1093,7 +1136,8 @@ class AgentStore:
             self.live.pop(agent_id, None)
 
     def _run_opencode(self, agent_id: str, agent: dict, title: str, scope: dict,
-                      message: str, model: str, mode: str) -> tuple[str, str, str, dict]:
+                      message: str, model: str, mode: str,
+                      file_args: list | None = None) -> tuple[str, str, str, dict]:
         opencode = shutil.which("opencode")
         if not opencode:
             raise RuntimeError(
@@ -1122,6 +1166,8 @@ class AgentStore:
             command += ["--agent", "plan"]
         if session_id:
             command += ["--session", session_id]
+        if file_args:
+            command += list(file_args)
         command.append(prompt)
 
         with self.live_lock:
@@ -1300,18 +1346,20 @@ class AgentStore:
         requested = str(payload.get("model") or agent.get("model") or "").strip()
         models = self._available_models()
         model = requested if requested in models else self._default_model()
+        attachments = payload.get("attachments") if isinstance(payload.get("attachments"), list) else []
+        attachment_dir, file_args, attachment_names = self._write_attachments(attachments)
         try:
             if mode == "execute":
                 self.exec_lock.acquire()
                 try:
                     reply, opencode_session, process_text, usage = self._run_opencode(
-                        agent_id, agent, title, scope, message, model, mode
+                        agent_id, agent, title, scope, message, model, mode, file_args
                     )
                 finally:
                     self.exec_lock.release()
             else:
                 reply, opencode_session, process_text, usage = self._run_opencode(
-                    agent_id, agent, title, scope, message, model, mode
+                    agent_id, agent, title, scope, message, model, mode, file_args
                 )
             assistant = {
                 "role": "assistant",
@@ -1324,12 +1372,18 @@ class AgentStore:
                     "context": int(usage.get("context") or 0),
                 },
             }
+            user_entry = {"role": "user", "content": message}
+            if attachment_names:
+                user_entry["attachments"] = attachment_names
             updated = (history + [
-                {"role": "user", "content": message},
+                user_entry,
                 assistant,
             ])[-40:]
         except Exception as error:
             return {"ok": False, "error": str(error)}
+        finally:
+            if attachment_dir:
+                shutil.rmtree(attachment_dir, ignore_errors=True)
         with self.lock:
             data = self._load()
             stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
@@ -1371,6 +1425,7 @@ class AgentStore:
             "model": model,
             "usage": session_usage,
             "live": {},
+            "attachments": attachment_names,
             "agents": data["agents"],
         }
 

@@ -96,9 +96,10 @@ Click the terminal icon in the lower-left tool rail to turn the note half into a
 - Each todo and subtask keeps its own thread in `agents.json` next to `NeoTodo.json`; every agent also keeps its own OpenCode session.
 - Executions are queued: if another crew agent is working, a new request waits and starts automatically when the current one finishes. The backend holds an atomic lock, so two agents never edit the project simultaneously.
 - The terminal follows the selected todo/subtask; drag its top border to resize it. The provider and current model sit next to the task name.
-- Press `Ctrl+P` inside the terminal to cycle through the models reported by `opencode models`. The choice is remembered per todo/subtask.
-- The footer shows the active model, session tokens, cost, and context usage. Tool calls appear as a compact process log above each answer.
-- The OpenCode terminal uses its own neutral light/dark palette rather than the postcard theme.
+- Press `Ctrl+P` or use the model picker under the input to switch between the models reported by `opencode models`. The choice is remembered per todo/subtask.
+- The `+` button attaches up to five files (10 MB each). Attachments are handed to OpenCode with `--file` for that turn, so the agent can read them.
+- The footer shows session tokens with context usage and cost. Tool calls appear as a compact process log above each answer.
+- The OpenCode terminal uses its own neutral light/dark palette rather than the postcard theme, with a purple session bar and the Copilot-style input row.
 
 The console renders Markdown, so plans, code snippets, and checklists stay readable. Selecting another subtask switches the lower terminal to that crew member's own thread.
 

@@ -1828,6 +1828,8 @@ const agentLoadedIds = new Set();
 const agentLoadingIds = new Set();
 const agentLive = {};
 const agentPollTimers = new Map();
+const agentAttachments = {};
+let agentModelMenuOpen = false;
 let doingPeekSignature = "";
 let addingSubtask = false;
 let addingSubtaskTodoId = null;
@@ -3619,6 +3621,60 @@ function agentProcessHtml(text) {
   return `<div class="agent-process">${esc(String(text))}</div>`;
 }
 
+function agentModelLeaf(model) {
+  const value = String(model || "");
+  return value.includes("/") ? value.split("/").pop() : value;
+}
+
+function agentModelProvider(model) {
+  const prefix = String(model || "").split("/")[0].toLowerCase();
+  if (prefix === "deepseek") return "DeepSeek";
+  if (prefix === "openai") return "OpenAI";
+  if (prefix === "anthropic" || prefix === "claude") return "Anthropic";
+  if (prefix === "opencode") return "OpenCode";
+  return prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : "AI";
+}
+
+function currentAgentModel(agent) {
+  return agentSessions[agent.id]?.model || agentDefaultModel;
+}
+
+function formatAgentTokens(value) {
+  const tokens = Number(value) || 0;
+  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
+  return String(Math.round(tokens));
+}
+
+function formatAgentCost(value) {
+  const cost = Number(value) || 0;
+  if (!cost) return "$0";
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
+function formatAgentBytes(value) {
+  const size = Number(value) || 0;
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  if (size >= 1024) return `${Math.round(size / 1024)} KB`;
+  return `${size} B`;
+}
+
+function agentProcessHtml(text) {
+  if (!text) return "";
+  return `<div class="agent-process">${esc(String(text))}</div>`;
+}
+
+function agentAttachmentsFor(agentId) {
+  if (!agentAttachments[agentId]) agentAttachments[agentId] = [];
+  return agentAttachments[agentId];
+}
+
+function agentAttachedChips(names) {
+  if (!Array.isArray(names) || !names.length) return "";
+  return `<div class="agent-attached-files">${names.map((name) => `<span class="agent-attached-file">${esc(name)}</span>`).join("")}</div>`;
+}
+
 function agentTerminalMarkup() {
   return `<section class="agent-terminal ${agentTerminalOpen ? "open" : ""}" id="agent-terminal" aria-hidden="${agentTerminalOpen ? "false" : "true"}">
     <div class="agent-resize" data-agent-resize aria-label="Resize terminal"></div>
@@ -3636,17 +3692,78 @@ function agentTerminalMarkup() {
     <div class="agent-body">
       <div class="agent-main">
         <div class="agent-messages" id="agent-messages"></div>
-        <form class="agent-compose" id="agent-compose">
-          <textarea id="agent-input" rows="3" placeholder="" autocomplete="off" spellcheck="false"></textarea>
-        </form>
+        <div class="agent-input-shell">
+          <form class="agent-compose" id="agent-compose">
+            <div class="agent-attach-chips" id="agent-attach-chips"></div>
+            <textarea id="agent-input" rows="3" placeholder="Ask anything…" autocomplete="off" spellcheck="false"></textarea>
+            <div class="agent-compose-foot">
+              <button class="agent-attach" type="button" data-agent-attach aria-label="Attach files" title="Attach files">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <button class="agent-model-pick" type="button" data-agent-model-toggle aria-label="Choose model" title="Choose model (Ctrl+P)">
+                <span id="agent-model-label">DeepSeek/deepseek-flash</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <span class="agent-mode" id="agent-mode">Auto</span>
+              <button class="agent-send" type="submit" aria-label="Send">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <input class="agent-file" type="file" id="agent-file" multiple>
+            <div class="agent-model-menu" id="agent-model-menu" hidden></div>
+          </form>
+        </div>
         <div class="agent-meta" id="agent-meta">
           <span class="agent-meta-state" id="agent-meta-state"></span>
           <span class="agent-meta-usage" id="agent-meta-usage"></span>
-          <span class="agent-keyhint">ctrl+p</span>
         </div>
       </div>
     </div>
   </section>`;
+}
+
+function bindAgentCompose() {
+  const compose = $("#agent-compose");
+  if (!compose || compose.dataset.agentBound === "1") return;
+  compose.dataset.agentBound = "1";
+  compose.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const attach = event.target.closest("[data-agent-attach]");
+    if (attach) {
+      event.preventDefault();
+      $("#agent-file")?.click();
+      return;
+    }
+    const remove = event.target.closest("[data-agent-attachment-remove]");
+    if (remove) {
+      event.preventDefault();
+      const agent = activeAgent();
+      const list = agentAttachmentsFor(agent.id);
+      list.splice(Number(remove.dataset.agentAttachmentRemove), 1);
+      renderAgentTerminal();
+      return;
+    }
+    const toggle = event.target.closest("[data-agent-model-toggle]");
+    if (toggle) {
+      event.preventDefault();
+      if (agentBusyIds.has(activeAgent().id)) return;
+      agentModelMenuOpen = !agentModelMenuOpen;
+      if (agentModelMenuOpen) loadAgentModels();
+      renderAgentTerminal();
+      return;
+    }
+    const choice = event.target.closest("[data-agent-model-choice]");
+    if (choice) {
+      event.preventDefault();
+      setAgentModel(choice.dataset.agentModelChoice);
+    }
+  });
+  compose.addEventListener("change", (event) => {
+    if (event.target.id === "agent-file") {
+      handleAgentFiles(Array.from(event.target.files || []));
+      event.target.value = "";
+    }
+  });
 }
 
 function renderAgentTerminal() {
@@ -3657,6 +3774,7 @@ function renderAgentTerminal() {
   panel.classList.toggle("open", agentTerminalOpen);
   panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
   if (!agentTerminalOpen) return;
+  bindAgentCompose();
 
   const agent = activeAgent();
   const model = currentAgentModel(agent);
@@ -3683,7 +3801,7 @@ function renderAgentTerminal() {
     for (const message of messages) {
       const role = message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user";
       if (role === "user") {
-        html += `<div class="agent-line user"><span class="agent-line-mark" aria-hidden="true">›</span><span class="agent-line-text">${esc(message.content || "")}</span></div>`;
+        html += `<div class="agent-line user"><div class="agent-line-text">${esc(message.content || "")}</div>${agentAttachedChips(message.attachments)}</div>`;
       } else if (role === "system") {
         html += `<div class="agent-notice">${esc(message.content || "")}</div>`;
       } else {
@@ -3700,6 +3818,29 @@ function renderAgentTerminal() {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  const label = `${agentModelProvider(model)}/${agentModelLeaf(model)}`;
+  const modelLabel = $("#agent-model-label");
+  if (modelLabel) modelLabel.textContent = label;
+  const modeEl = $("#agent-mode");
+  if (modeEl) modeEl.textContent = agent.mode === "execute" ? "Auto" : "Plan";
+
+  const attachments = agentAttachmentsFor(agent.id);
+  const chips = $("#agent-attach-chips");
+  if (chips) {
+    chips.innerHTML = attachments.map((file, index) => `<span class="agent-chip"><span class="agent-chip-name">${esc(file.name)}</span><span class="agent-chip-size">${formatAgentBytes(file.size)}</span><button type="button" class="agent-chip-remove" data-agent-attachment-remove="${index}" aria-label="Remove ${esc(file.name)}">×</button></span>`).join("");
+    chips.classList.toggle("has-files", attachments.length > 0);
+  }
+
+  const menu = $("#agent-model-menu");
+  if (menu) {
+    menu.hidden = !agentModelMenuOpen;
+    if (agentModelMenuOpen) {
+      menu.innerHTML = agentModels.length
+        ? agentModels.map((item) => `<button type="button" class="agent-model-option ${item === model ? "active" : ""}" data-agent-model-choice="${esc(item)}"><span>${esc(agentModelProvider(item))}/${esc(agentModelLeaf(item))}</span>${item === model ? `<span class="agent-model-check">✓</span>` : ""}</button>`).join("")
+        : `<div class="agent-model-empty">Loading models…</div>`;
+    }
+  }
+
   const live = agentLive[agent.id] || {};
   const usage = (busy && live.usage?.tokens ? live.usage : session.usage) || {};
   const stateEl = $("#agent-meta-state");
@@ -3709,20 +3850,27 @@ function renderAgentTerminal() {
   }
   const usageEl = $("#agent-meta-usage");
   if (usageEl) {
-    const bits = [model];
-    if (usage.tokens) bits.push(`${formatAgentTokens(usage.tokens)} tokens`);
-    if (usage.cost) bits.push(formatAgentCost(usage.cost));
-    if (usage.context) {
-      const pct = Math.max(1, Math.min(100, Math.round(Number(usage.context) / 1280)));
-      bits.push(`${pct}% context`);
+    const bits = [];
+    if (usage.tokens || usage.cost) {
+      const pct = usage.context ? Math.max(1, Math.min(100, Math.round(Number(usage.context) / 1280))) : 0;
+      bits.push(`${formatAgentTokens(usage.tokens)} (${pct}%)`);
+      bits.push(formatAgentCost(usage.cost));
     }
     usageEl.textContent = bits.join("  ·  ");
   }
+
   const input = $("#agent-input");
   if (input) {
     input.disabled = Boolean(busy || loading);
+    input.placeholder = agent.mode === "execute" ? "Describe this subtask…" : "Ask anything…";
     if (input.value === "" && !input.disabled) input.style.height = "";
   }
+  const attach = $(".agent-attach");
+  if (attach) attach.disabled = Boolean(busy || loading);
+  const pick = $(".agent-model-pick");
+  if (pick) pick.disabled = Boolean(busy || loading);
+  const send = $(".agent-send");
+  if (send) send.disabled = Boolean(busy || loading);
 }
 
 async function loadAgentModels() {
@@ -3739,6 +3887,7 @@ async function loadAgentModels() {
     } finally {
       agentModelsLoading = null;
     }
+    if (agentTerminalOpen) renderAgentTerminal();
     return agentModels;
   })();
   return agentModelsLoading;
@@ -3825,6 +3974,7 @@ function openAgentTerminal() {
 
 function closeAgentTerminal() {
   agentTerminalOpen = false;
+  agentModelMenuOpen = false;
   document.body.classList.remove("agent-terminal-open");
   const panel = $("#agent-terminal");
   panel?.classList.remove("open");
@@ -3837,21 +3987,60 @@ function toggleAgentTerminal() {
   else openAgentTerminal();
 }
 
+async function setAgentModel(model) {
+  if (!agentTerminalOpen || !model) return;
+  const agent = activeAgent();
+  if (agentBusyIds.has(agent.id)) return;
+  const session = agentSessions[agent.id] || { messages: [] };
+  agentSessions[agent.id] = { ...session, model };
+  agentModelMenuOpen = false;
+  renderAgentTerminal();
+  try {
+    await agentPost({ action: "set_model", agent_id: agent.id, model });
+  } catch (error) {
+  }
+}
+
 async function cycleAgentModel() {
   if (!agentTerminalOpen) return;
+  const agent = activeAgent();
+  if (agentBusyIds.has(agent.id)) return;
   await loadAgentModels();
   if (!agentModels.length) return;
-  const agent = activeAgent();
   const current = currentAgentModel(agent);
   const index = agentModels.indexOf(current);
   const next = agentModels[(index + 1) % agentModels.length];
-  const session = agentSessions[agent.id] || { messages: [] };
-  agentSessions[agent.id] = { ...session, model: next };
-  renderAgentTerminal();
-  try {
-    await agentPost({ action: "set_model", agent_id: agent.id, model: next });
-  } catch (error) {
+  await setAgentModel(next);
+}
+
+async function handleAgentFiles(files) {
+  const agent = activeAgent();
+  const list = agentAttachmentsFor(agent.id);
+  for (const file of files) {
+    if (list.length >= 5) break;
+    const total = list.reduce((sum, item) => sum + (Number(item.size) || 0), 0);
+    if (file.size > 10 * 1024 * 1024 || total + file.size > 25 * 1024 * 1024) {
+      const session = agentSessions[agent.id] || { messages: [] };
+      agentSessions[agent.id] = {
+        ...session,
+        messages: [...(session.messages || []), { role: "system", content: `${file.name} is too large and was not attached (10 MB per file, 25 MB total).` }],
+      };
+      continue;
+    }
+    const data = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        resolve(result.includes(",") ? result.split(",").pop() : "");
+      };
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+    if (!data) continue;
+    list.push({ name: file.name, type: file.type || "", size: file.size, data });
   }
+  renderAgentTerminal();
+  setTimeout(() => $("#agent-input")?.focus(), 40);
 }
 
 async function sendAgentMessage() {
@@ -3863,12 +4052,15 @@ async function sendAgentMessage() {
   if (!agentLoadedIds.has(agent.id)) await loadAgentSession(agent.id);
   const session = agentSessions[agent.id] || { title: agent.title, messages: [] };
   const model = currentAgentModel(agent);
+  const pendingFiles = agentAttachmentsFor(agent.id).slice();
+  const attachments = pendingFiles.map((file) => ({ name: file.name, type: file.type, data: file.data }));
   agentSessions[agent.id] = {
     ...session,
     title: agent.title,
     model,
-    messages: [...(session.messages || []), { role: "user", content: message }],
+    messages: [...(session.messages || []), { role: "user", content: message, attachments: pendingFiles.map((file) => file.name) }],
   };
+  agentAttachments[agent.id] = [];
   agentBusyIds.add(agent.id);
   agentLive[agent.id] = {};
   if (agent.mode === "execute") {
@@ -3889,6 +4081,7 @@ async function sendAgentMessage() {
       scope: agent.scope,
       message,
       model,
+      attachments,
     });
     if (data.ok) {
       agentSessions[agent.id] = {
@@ -3900,12 +4093,14 @@ async function sendAgentMessage() {
       if (!agentModels.length && Array.isArray(data.models)) agentModels = data.models;
       agentLoadedIds.add(agent.id);
     } else {
+      if (pendingFiles.length) agentAttachments[agent.id] = pendingFiles;
       agentSessions[agent.id] = {
         ...agentSessions[agent.id],
         messages: [...(agentSessions[agent.id]?.messages || []), { role: "system", content: data.error || "The agent could not answer." }],
       };
     }
   } catch (error) {
+    if (pendingFiles.length) agentAttachments[agent.id] = pendingFiles;
     agentSessions[agent.id] = {
       ...agentSessions[agent.id],
       messages: [...(agentSessions[agent.id]?.messages || []), { role: "system", content: "Could not reach the local agent service." }],
@@ -7091,6 +7286,13 @@ function bindEvents() {
       const input = event.target;
       input.style.height = "auto";
       input.style.height = `${Math.min(170, Math.max(66, input.scrollHeight))}px`;
+    }
+  });
+
+  document.addEventListener("click", () => {
+    if (agentModelMenuOpen) {
+      agentModelMenuOpen = false;
+      renderAgentTerminal();
     }
   });
 
