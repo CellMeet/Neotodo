@@ -1809,7 +1809,6 @@ let suppressCategoryClickUntil = 0;
 let doingPeekOpen = false;
 let doingExpandedTodoIds = new Set();
 let doingPeekOpenTimer = 0;
-let doingPeekCooldownUntil = 0;
 let doingPeekPoint = { x: 0, y: 0 };
 let doingZone = null;
 let doingCardWidth = 380;
@@ -1819,6 +1818,7 @@ let doingPanelRect = null;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
 let panelPreview = null;
+let singleDock = null;
 let detachedMode = "";
 let detachedAgentOverride = null;
 let detachedNoteTargetOverride = null;
@@ -1913,6 +1913,7 @@ function followPageLayout(duration = 360) {
 
 function hideNotesPanel(silent = false) {
   if (notesHidden || notesClosing) return;
+  if (singleDock?.kind === "note") clearSingleDock();
   const panel = $("#notes-half");
   const handle = $(".notes-handle-bottom");
   if (!panel || silent) {
@@ -1949,6 +1950,7 @@ function hideNotesPanelNow(silent = false) {
 function showNotesPanel() {
   if (!notesHidden) return;
   notesClosing = false;
+  clearSingleDock();
   $(".notes-handle-bottom")?.classList.remove("handle-vanished");
   notesHidden = false;
   document.body.classList.remove("notes-hidden");
@@ -4335,6 +4337,7 @@ function syncAgentTerminal() {
 
 function openAgentTerminal() {
   agentClosing = false;
+  clearSingleDock();
   $(".desk-handle-ai")?.classList.remove("handle-vanished");
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
@@ -4348,6 +4351,7 @@ function openAgentTerminal() {
 
 function closeAgentTerminal() {
   if (!agentTerminalOpen || agentClosing) return;
+  if (singleDock?.kind === "ai") clearSingleDock();
   const panel = $("#agent-terminal");
   if (!panel) {
     agentTerminalOpen = false;
@@ -4441,21 +4445,46 @@ function openDetachedPanel(kind, quiet = false, follow = false) {
   return true;
 }
 
+function singleDockClass(kind, side) {
+  return `single-${kind}-${side}`;
+}
+
+function setSingleDock(kind, side) {
+  if (singleDock) document.body.classList.remove(singleDockClass(singleDock.kind, singleDock.side));
+  singleDock = { kind, side };
+  document.body.classList.add(singleDockClass(kind, side));
+  updateAgentSplitLayout();
+  positionDeskHandles();
+}
+
+function clearSingleDock() {
+  if (!singleDock) return;
+  document.body.classList.remove(singleDockClass(singleDock.kind, singleDock.side));
+  singleDock = null;
+  updateAgentSplitLayout();
+  positionDeskHandles();
+}
+
 function startPanelPreview(kind, panel, clientX, clientY) {
   if (panelPreview || !panel) return;
   if (doingPeekOpen) closeDoingPeek();
   panel.classList.remove("sheet-opening", "sheet-closing");
   const rect = panel.getBoundingClientRect();
-  const scale = Math.min(0.22, Math.min(220 / Math.max(1, rect.width), 150 / Math.max(1, rect.height)));
+  const scale = Math.min(0.34, Math.min(320 / Math.max(1, rect.width), 210 / Math.max(1, rect.height)));
   panel.classList.add("panel-shrinking");
   panel.style.setProperty("--card-scale", scale.toFixed(4));
   document.body.classList.add("panel-drag-mode");
+  const hint = document.createElement("div");
+  hint.className = "panel-drag-hint";
+  hint.hidden = true;
+  document.body.appendChild(hint);
   panelPreview = {
-    kind, panel,
+    kind, panel, hint,
     baseLeft: rect.left, baseTop: rect.top,
     width: rect.width, height: rect.height, scale,
     zone: "", outside: false,
     startX: clientX, startY: clientY, moved: false,
+    wasDocked: Boolean(singleDock && singleDock.kind === kind),
   };
   updatePanelPreview(clientX, clientY);
 }
@@ -4467,14 +4496,18 @@ function pointerOutsideWorkspace(clientX, clientY) {
   return clientX < desk.left || clientX > desk.right || clientY < desk.top || clientY > desk.bottom;
 }
 
+const PANEL_ZONE_LABELS = { left: "靠左", right: "靠右", top: "靠上", bottom: "靠下" };
+
 function updatePanelPreview(clientX, clientY) {
   const preview = panelPreview;
   if (!preview) return;
-  const { panel, baseLeft, baseTop, width, height, scale } = preview;
+  const { panel, hint, baseLeft, baseTop, width, height, scale } = preview;
   const cardWidth = width * scale;
   const cardHeight = height * scale;
   panel.style.setProperty("--card-x", `${(clientX - cardWidth / 2) - baseLeft}px`);
   panel.style.setProperty("--card-y", `${(clientY - cardHeight / 2) - baseTop}px`);
+  hint.style.left = `${Math.max(8, Math.min(window.innerWidth - 200, clientX + 24))}px`;
+  hint.style.top = `${Math.max(8, Math.min(window.innerHeight - 36, clientY + 26))}px`;
 
   if (!preview.moved
     && Math.hypot(clientX - preview.startX, clientY - preview.startY) > 12) {
@@ -4503,6 +4536,13 @@ function updatePanelPreview(clientX, clientY) {
   document.querySelectorAll(".agent-split-drop").forEach((drop) => {
     drop.classList.toggle("active", !outside && drop.dataset.agentSplitDrop === zone);
   });
+  const bothOpen = agentTerminalOpen && !notesHidden;
+  let text = "";
+  if (outside) text = "独立窗口";
+  else if (zone) text = bothOpen ? "分屏" : (PANEL_ZONE_LABELS[zone] || "");
+  else if (preview.wasDocked && preview.moved) text = "全屏";
+  hint.textContent = text;
+  hint.hidden = !text;
 }
 
 function panelPreviewNextSide(kind, zone) {
@@ -4517,22 +4557,14 @@ function panelPreviewNextSide(kind, zone) {
 
 function applyPanelPreviewDrop(kind, zone) {
   if (!zone) return false;
-  const nextSide = panelPreviewNextSide(kind, zone);
-  let justOpened = false;
-  if (kind === "ai" && notesHidden) {
-    showNotesPanel();
-    justOpened = true;
-  }
-  if (kind === "note" && !agentTerminalOpen) {
-    openAgentTerminal();
-    justOpened = true;
-  }
-  if (!justOpened && agentTerminalOpen && !notesHidden && agentSplitSide !== nextSide) {
-    swapAgentSplitSide(nextSide);
+  const bothOpen = agentTerminalOpen && !notesHidden;
+  if (bothOpen) {
+    const nextSide = panelPreviewNextSide(kind, zone);
+    if (agentSplitSide !== nextSide) swapAgentSplitSide(nextSide);
+    else updateAgentSplitLayout();
   } else {
-    agentSplitSide = nextSide;
-    try { localStorage.setItem("neotodo.agentSplitSide.v2", agentSplitSide); } catch (error) {}
-    updateAgentSplitLayout();
+    // Independent card: pin it to that side without opening the other card.
+    setSingleDock(kind, zone);
   }
   return true;
 }
@@ -4541,7 +4573,8 @@ function endPanelPreview(confirmDrop = false) {
   const preview = panelPreview;
   if (!preview) return;
   panelPreview = null;
-  const { kind, panel, zone, outside } = preview;
+  const { kind, panel, hint, zone, outside, wasDocked } = preview;
+  hint.remove();
   document.body.classList.remove("panel-drag-mode", "panel-drag-detach");
   document.querySelectorAll(".agent-split-drop").forEach((drop) => drop.classList.remove("active"));
   const clearShrink = () => {
@@ -4561,7 +4594,12 @@ function endPanelPreview(confirmDrop = false) {
     openDetachedPanel(kind, false, true);
     return;
   }
-  applyPanelPreviewDrop(kind, zone);
+  if (zone) {
+    applyPanelPreviewDrop(kind, zone);
+    return;
+  }
+  // Center release: a docked card returns to fullscreen; a full card stays put.
+  if (wasDocked) clearSingleDock();
 }
 
 function toggleAgentTerminal() {
@@ -5730,21 +5768,18 @@ function doingPeekStateKey(entries) {
 
 function refreshDoingZone() {
   const half = $(".current-half");
-  const body = $(".page-body");
   if (!half) { doingZone = null; return; }
   const rect = half.getBoundingClientRect();
-  const bodyRect = body ? body.getBoundingClientRect() : rect;
   doingCardWidth = Math.round(Math.min(420, Math.max(320, rect.width * 0.5)));
   doingCardTop = Math.max(8, rect.top - 40);
   doingCardHeight = Math.min(560, Math.max(280, window.innerHeight - doingCardTop - 12));
-  // A narrow strip at the subtask column's right edge, but its height spans
-  // the lower three quarters of the task board and continues down the whole
-  // workspace so the card stays reachable below the seven task rows.
+  // Only the subtask column's right border, and only within its own height:
+  // the lower three quarters, never below the column's bottom line.
   doingZone = {
     left: rect.right - 28,
     right: rect.right,
     top: rect.top + rect.height / 4,
-    bottom: Math.min(bodyRect.bottom, window.innerHeight - 8),
+    bottom: rect.bottom,
   };
 }
 
@@ -5885,7 +5920,6 @@ function closeDoingPeek() {
   clearTimeout(doingPeekOpenTimer);
   if (!doingPeekOpen) return;
   doingPeekOpen = false;
-  doingPeekCooldownUntil = performance.now() + 650;
   doingExpandedTodoIds.clear();
   const panel = $("#doing-peek");
   if (panel) panel.classList.remove("open");
@@ -7879,8 +7913,7 @@ function bindEvents() {
 
   const doingPeekSuppressed = () => Boolean(panelPreview)
     || document.body.classList.contains("panel-drag-mode")
-    || document.body.classList.contains("agent-split-drag")
-    || performance.now() < doingPeekCooldownUntil;
+    || document.body.classList.contains("agent-split-drag");
 
   const processDoingPointer = () => {
     if (!doingZone || doingPeekOpen || doingPeekSuppressed()) return;
@@ -7999,7 +8032,7 @@ function bindEvents() {
         try { document.getSelection()?.removeAllRanges(); } catch (error) {}
         startPanelPreview(state.kind, state.panel, state.x, state.y);
       }
-    }, 380);
+    }, 100);
     state.timer = timer;
     panelLongPress = state;
   }, { passive: true });
@@ -8058,7 +8091,7 @@ function bindEvents() {
     const isOpen = isAi ? agentTerminalOpen : !notesHidden;
     const panel = isAi ? $("#agent-terminal") : $("#notes-half");
     const desk = agentDeskRect();
-    const canResize = Boolean(panel && desk && isOpen
+    const canResize = Boolean(panel && desk && isOpen && !singleDock
       && (isAi ? notesHidden : !agentTerminalOpen));
     const startX = event.clientX;
     const startY = event.clientY;

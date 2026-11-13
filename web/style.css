@@ -11954,10 +11954,10 @@ html[data-postcard-dark="true"] .agent-terminal {
 /* OpenCode + Obsidian Copilot input: purple session bar, rose box, attach row. */
 .agent-terminal {
   --oc-ink-soft: #4a4a52;
-  --oc-user-accent: #c98d8d;
+  --oc-user-accent: #b8872f;
   --oc-input-bg: #fffdfd;
-  --oc-input-border: #e3a1a1;
-  --oc-input-border-focus: #cf8585;
+  --oc-input-border: #d7d7dd;
+  --oc-input-border-focus: #c2c2ca;
   --oc-input-text: #3d4757;
   --oc-input-placeholder: #98a2b2;
   --oc-plus: #47505f;
@@ -11966,10 +11966,10 @@ html[data-postcard-dark="true"] .agent-terminal {
 }
 html[data-postcard-dark="true"] .agent-terminal {
   --oc-ink-soft: #c9c9d2;
-  --oc-user-accent: #c08a90;
+  --oc-user-accent: #c9a35f;
   --oc-input-bg: #151517;
-  --oc-input-border: #704f57;
-  --oc-input-border-focus: #a87680;
+  --oc-input-border: #3a3a42;
+  --oc-input-border-focus: #4a4a52;
   --oc-input-text: #d9dde6;
   --oc-input-placeholder: #6f7785;
   --oc-plus: #aab2c0;
@@ -12054,10 +12054,10 @@ html[data-postcard-dark="true"] .agent-terminal {
 }
 .agent-compose:focus-within {
   border-color: var(--oc-input-border-focus);
-  box-shadow: 0 0 0 1px rgba(200, 122, 122, 0.12);
+  box-shadow: none;
 }
 html[data-postcard-dark="true"] .agent-compose:focus-within {
-  box-shadow: 0 0 0 1px rgba(168, 118, 128, 0.18);
+  box-shadow: none;
 }
 .agent-compose textarea {
   width: 100%;
@@ -12439,22 +12439,22 @@ body.agent-terminal-open .notes-reveal {
 /* Neutral input border, plain mode dropdown, and swapped header colors. */
 .agent-terminal {
   --oc-input-border: #cfcfd6;
-  --oc-input-border-focus: #cf8585;
+  --oc-input-border-focus: #c2c2ca;
   --oc-send-bg: #e5a0a0;
   --oc-send-ink: #ffffff;
 }
 html[data-postcard-dark="true"] .agent-terminal {
   --oc-input-border: #3a3a42;
-  --oc-input-border-focus: #a87680;
+  --oc-input-border-focus: #4a4a52;
   --oc-send-bg: #b3757d;
 }
 .agent-compose { border-color: var(--oc-input-border); }
 .agent-compose:focus-within {
   border-color: var(--oc-input-border-focus);
-  box-shadow: 0 0 0 1px rgba(207, 133, 133, 0.14);
+  box-shadow: none;
 }
 html[data-postcard-dark="true"] .agent-compose:focus-within {
-  box-shadow: 0 0 0 1px rgba(168, 118, 128, 0.2);
+  box-shadow: none;
 }
 
 .agent-provider {
@@ -12578,7 +12578,7 @@ html[data-postcard-dark="true"] .agent-compose:focus-within {
 
 .agent-compose.drag-over {
   border-color: var(--oc-user-accent);
-  box-shadow: 0 0 0 1px rgba(207, 133, 133, 0.18);
+  box-shadow: 0 0 0 1px rgba(184, 135, 47, 0.18);
 }
 .agent-compose.drag-over::after {
   content: "Drop files to attach";
@@ -12718,13 +12718,13 @@ body.agent-split-drag .agent-split-chooser {
   flex: 1 1 50%;
   border: 1px dashed var(--oc-user-accent);
   border-radius: 9px;
-  background: rgba(207, 133, 133, 0.05);
+  background: rgba(184, 135, 47, 0.05);
   opacity: 0.28;
   transition: opacity 0.15s ease, background 0.15s ease;
 }
 .agent-split-drop.active {
   opacity: 1;
-  background: rgba(207, 133, 133, 0.16);
+  background: rgba(184, 135, 47, 0.16);
 }
 body.agent-split-drag,
 body.agent-split-resizing {
@@ -12778,7 +12778,7 @@ html[data-postcard-dark="true"] .agent-terminal {
   outline: none !important;
 }
 ::selection {
-  background: rgba(207, 133, 133, 0.22);
+  background: rgba(184, 135, 47, 0.22);
   color: inherit;
 }
 .agent-meta { padding-right: 22px; }
@@ -13360,13 +13360,13 @@ body.panel-drag-mode {
   user-select: none;
 }
 body.panel-drag-mode .panel-shrinking {
-  transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) scale(var(--card-scale, 0.22)) !important;
+  transform: translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) scale(var(--card-scale, 0.34)) !important;
   transform-origin: top left;
-  transition: none !important;
+  transition: transform 0.14s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
   pointer-events: none !important;
   z-index: 60 !important;
-  border-radius: 14px !important;
-  box-shadow: 0 20px 50px rgba(20, 12, 6, 0.32) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 56px rgba(20, 12, 6, 0.34) !important;
   will-change: transform;
 }
 body.panel-drag-mode .panel-unshrinking {
@@ -13382,11 +13382,11 @@ body.panel-drag-mode .agent-split-chooser {
 body.panel-drag-mode .agent-split-drop {
   opacity: 0.1;
   border-color: var(--oc-user-accent);
-  background: rgba(207, 133, 133, 0.04);
+  background: rgba(184, 135, 47, 0.04);
 }
 body.panel-drag-mode .agent-split-drop.active {
   opacity: 0.62;
-  background: rgba(207, 133, 133, 0.15);
+  background: rgba(184, 135, 47, 0.15);
 }
 
 /* Detached door uses the same paper ink as the in-app handles. */
@@ -13395,4 +13395,46 @@ html[data-theme="postcard"] .detached-grabber::before {
 }
 html[data-theme="postcard"] .detached-grabber:hover::before {
   background: rgba(0, 0, 0, 0.46);
+}
+
+/* Single-panel docking: one independent card pinned to a half, other side free. */
+body.single-ai-left .agent-terminal {
+  top: 0 !important; left: 0 !important; width: 50% !important; height: 100% !important;
+}
+body.single-ai-right .agent-terminal {
+  top: 0 !important; left: 50% !important; width: 50% !important; height: 100% !important;
+}
+body.single-ai-top .agent-terminal {
+  top: 0 !important; left: 0 !important; width: 100% !important; height: 50% !important;
+}
+body.single-ai-bottom .agent-terminal {
+  top: 50% !important; left: 0 !important; width: 100% !important; height: 50% !important;
+}
+body.single-note-left .notes-half.floating-notes:not(.notes-hidden) {
+  top: 0 !important; left: 0 !important; width: 50% !important; height: 100% !important;
+}
+body.single-note-right .notes-half.floating-notes:not(.notes-hidden) {
+  top: 0 !important; left: 50% !important; width: 50% !important; height: 100% !important;
+}
+body.single-note-top .notes-half.floating-notes:not(.notes-hidden) {
+  top: 0 !important; left: 0 !important; width: 100% !important; height: 50% !important;
+}
+body.single-note-bottom .notes-half.floating-notes:not(.notes-hidden) {
+  top: 50% !important; left: 0 !important; width: 100% !important; height: 50% !important;
+}
+
+/* Minimal action hint that follows the pointer. */
+.panel-drag-hint {
+  position: fixed;
+  z-index: 70;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(30, 20, 12, 0.78);
+  color: #f7efe3;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: left 0.045s linear, top 0.045s linear;
 }
