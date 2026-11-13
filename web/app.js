@@ -1833,8 +1833,10 @@ const agentUploadingIds = new Set();
 let agentModelMenuOpen = false;
 let agentModeMenuOpen = false;
 let agentSplitSide = (() => {
-  try { return localStorage.getItem("neotodo.agentSplitSide") === "notes-right" ? "notes-right" : "notes-left"; }
-  catch (error) { return "notes-left"; }
+  try {
+    const saved = localStorage.getItem("neotodo.agentSplitSide");
+    return ["notes-left", "notes-right", "notes-top", "notes-bottom"].includes(saved) ? saved : "notes-left";
+  } catch (error) { return "notes-left"; }
 })();
 let agentSplitRatio = (() => {
   try {
@@ -1930,6 +1932,10 @@ function showNotesPanel() {
   if (!panel) return;
   panel.classList.remove("notes-hidden");
   setupNotesPanel();
+  if (!agentTerminalOpen) {
+    panel.classList.add("sheet-opening");
+    setTimeout(() => panel.classList.remove("sheet-opening"), 320);
+  }
   updateNotesHandle();
   positionNotesHandle();
   updateAgentSplitLayout();
@@ -3703,22 +3709,60 @@ function agentSplitUiMarkup() {
     <div class="agent-split-chooser" id="agent-split-chooser" aria-hidden="true">
       <div class="agent-split-drop" data-agent-split-drop="left"></div>
       <div class="agent-split-drop" data-agent-split-drop="right"></div>
+      <div class="agent-split-drop" data-agent-split-drop="top"></div>
+      <div class="agent-split-drop" data-agent-split-drop="bottom"></div>
     </div>`;
 }
 
 function updateAgentSplitLayout() {
   const active = agentTerminalOpen && !notesHidden && Boolean($("#notes-half"));
+  const vertical = active && (agentSplitSide === "notes-top" || agentSplitSide === "notes-bottom");
+  agentSplitRatio = clamp(agentSplitRatio, vertical ? 0.4 : 0.28, vertical ? 0.6 : 0.72);
   document.body.classList.toggle("agent-notes-split", active);
   document.body.classList.toggle("agent-notes-left", active && agentSplitSide === "notes-left");
   document.body.classList.toggle("agent-notes-right", active && agentSplitSide === "notes-right");
+  document.body.classList.toggle("agent-notes-top", active && agentSplitSide === "notes-top");
+  document.body.classList.toggle("agent-notes-bottom", active && agentSplitSide === "notes-bottom");
+  document.body.classList.toggle("agent-notes-axis-y", vertical);
   const left = (agentSplitRatio * 100).toFixed(2);
   const right = (100 - agentSplitRatio * 100).toFixed(2);
   const root = document.documentElement;
   root.style.setProperty("--agent-left-pct", `${left}%`);
-  root.style.setProperty("--agent-notes-left", agentSplitSide === "notes-left" ? "0%" : `${left}%`);
-  root.style.setProperty("--agent-notes-width", agentSplitSide === "notes-left" ? `${left}%` : `${right}%`);
-  root.style.setProperty("--agent-ai-left", agentSplitSide === "notes-left" ? `${left}%` : "0%");
-  root.style.setProperty("--agent-ai-right", agentSplitSide === "notes-left" ? "0%" : `${right}%`);
+  if (vertical) {
+    root.style.setProperty("--agent-ai-left", "0%");
+    root.style.setProperty("--agent-ai-right", "0%");
+    root.style.setProperty("--agent-notes-left", "0%");
+    root.style.setProperty("--agent-notes-width", "100%");
+    const body = $(".page-body");
+    const terminal = $("#agent-terminal");
+    if (body && terminal) {
+      const bodyRect = body.getBoundingClientRect();
+      const terminalRect = terminal.getBoundingClientRect();
+      const deskTop = terminalRect.top - bodyRect.top;
+      const deskHeight = terminalRect.height;
+      const topHeight = deskHeight * agentSplitRatio;
+      const topSide = agentSplitSide === "notes-top";
+      const notesHeight = topSide ? topHeight : deskHeight - topHeight;
+      const notesTop = topSide ? deskTop : deskTop + topHeight;
+      const boundary = deskTop + topHeight;
+      root.style.setProperty("--agent-desk-top", `${deskTop}px`);
+      root.style.setProperty("--agent-desk-height", `${deskHeight}px`);
+      root.style.setProperty("--agent-notes-y-top", `${notesTop}px`);
+      root.style.setProperty("--agent-notes-y-height", `${notesHeight}px`);
+      root.style.setProperty("--agent-split-y", `${boundary}px`);
+      root.style.setProperty("--agent-ai-pad-top", topSide ? `${topHeight}px` : "0px");
+      root.style.setProperty("--agent-ai-pad-bottom", topSide ? "0px" : `${notesHeight}px`);
+    }
+  } else {
+    root.style.setProperty("--agent-ai-pad-top", "0px");
+    root.style.setProperty("--agent-ai-pad-bottom", "0px");
+    root.style.setProperty("--agent-notes-y-top", "0px");
+    root.style.setProperty("--agent-notes-y-height", "0px");
+    root.style.setProperty("--agent-notes-left", agentSplitSide === "notes-left" ? "0%" : `${left}%`);
+    root.style.setProperty("--agent-notes-width", agentSplitSide === "notes-left" ? `${left}%` : `${right}%`);
+    root.style.setProperty("--agent-ai-left", agentSplitSide === "notes-left" ? `${left}%` : "0%");
+    root.style.setProperty("--agent-ai-right", agentSplitSide === "notes-left" ? "0%" : `${right}%`);
+  }
   const handle = $("#agent-split-handle");
   if (handle) handle.hidden = !active;
   const chooser = $("#agent-split-chooser");
@@ -3844,6 +3888,57 @@ function bindAgentCompose() {
   });
 }
 
+function swapAgentSplitSide(nextSide) {
+  if (!nextSide || nextSide === agentSplitSide) return;
+  const currentVertical = agentSplitSide === "notes-top" || agentSplitSide === "notes-bottom";
+  const nextVertical = nextSide === "notes-top" || nextSide === "notes-bottom";
+  if (currentVertical !== nextVertical) {
+    agentSplitRatio = 0.5;
+    try { localStorage.setItem("neotodo.agentSplitRatio", "0.5"); } catch (error) {}
+  }
+  const notes = $("#notes-half");
+  const terminal = $("#agent-terminal");
+  const main = $(".agent-main");
+  const head = $(".agent-head");
+  const handle = $("#agent-split-handle");
+  const snap = (element) => {
+    const rect = element?.getBoundingClientRect();
+    return rect ? { left: rect.left, top: rect.top } : null;
+  };
+  const before = { notes: snap(notes), main: snap(main), head: snap(head), handle: snap(handle) };
+  notes?.classList.remove("split-lifted");
+  terminal?.classList.remove("split-lifted");
+  document.body.classList.remove("agent-split-drag");
+  document.body.classList.add("agent-split-flip");
+  agentSplitSide = nextSide;
+  try { localStorage.setItem("neotodo.agentSplitSide", agentSplitSide); } catch (error) {}
+  updateAgentSplitLayout();
+  const after = { notes: snap(notes), main: snap(main), head: snap(head), handle: snap(handle) };
+  const invert = (element, from, to) => {
+    if (!element || !from || !to) return;
+    element.style.transform = `translate(${from.left - to.left}px, ${from.top - to.top}px)`;
+  };
+  invert(notes, before.notes, after.notes);
+  invert(main, before.main, after.main);
+  invert(head, before.head, after.head);
+  if (handle && before.handle && after.handle) {
+    handle.style.transform = `translate(${before.handle.left - after.handle.left}px, 0) translateX(-50%)`;
+  }
+  void document.body.offsetWidth;
+  document.body.classList.add("agent-split-flipping");
+  requestAnimationFrame(() => {
+    [notes, main, head, handle].forEach((element) => {
+      if (element) element.style.transform = "";
+    });
+  });
+  setTimeout(() => {
+    document.body.classList.remove("agent-split-flip", "agent-split-flipping");
+    [notes, main, head, handle].forEach((element) => {
+      if (element) element.style.transform = "";
+    });
+  }, 360);
+}
+
 function bindAgentSplitHandle() {
   const handle = $("#agent-split-handle");
   if (!handle || handle.dataset.bound === "1") return;
@@ -3855,10 +3950,15 @@ function bindAgentSplitHandle() {
     event.preventDefault();
     event.stopPropagation();
     const rect = body.getBoundingClientRect();
+    const terminal = $("#agent-terminal");
     document.body.classList.add("agent-split-resizing");
     try { handle.setPointerCapture?.(event.pointerId); } catch (error) {}
     const move = (moveEvent) => {
-      const ratio = clamp((moveEvent.clientX - rect.left) / Math.max(1, rect.width), 0.28, 0.72);
+      const vertical = document.body.classList.contains("agent-notes-axis-y");
+      const desk = vertical ? terminal?.getBoundingClientRect() : null;
+      const ratio = vertical && desk
+        ? clamp((moveEvent.clientY - desk.top) / Math.max(1, desk.height), 0.4, 0.6)
+        : clamp((moveEvent.clientX - rect.left) / Math.max(1, rect.width), 0.28, 0.72);
       agentSplitRatio = ratio;
       updateAgentSplitLayout();
     };
@@ -3871,6 +3971,23 @@ function bindAgentSplitHandle() {
     window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up, { once: true });
   });
+}
+
+function positionAgentMenus() {
+  const compose = $("#agent-compose");
+  if (!compose) return;
+  const composeRect = compose.getBoundingClientRect();
+  const place = (menu, button) => {
+    if (!menu || menu.hidden || !button) return;
+    const rect = button.getBoundingClientRect();
+    const width = menu.offsetWidth || 170;
+    const left = Math.max(8, Math.min(rect.left - composeRect.left, composeRect.width - width - 8));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.right = "auto";
+    menu.style.bottom = `${Math.round(composeRect.bottom - rect.top + 6)}px`;
+  };
+  place($("#agent-model-menu"), $(".agent-model-pick"));
+  place($("#agent-mode-menu"), $(".agent-mode-pick"));
 }
 
 function renderAgentTerminal() {
@@ -3938,6 +4055,8 @@ function renderAgentTerminal() {
       modeMenu.innerHTML = ["chat", "build"].map((item) => `<button type="button" class="agent-mode-option ${item === mode ? "active" : ""}" data-agent-mode-choice="${item}"><span>${item === "build" ? "Build" : "Chat"}</span>${item === mode ? `<span class="agent-model-check">✓</span>` : ""}</button>`).join("");
     }
   }
+
+  positionAgentMenus();
 
   const attachments = agentAttachmentsFor(agent.id);
   const chips = $("#agent-attach-chips");
@@ -4093,10 +4212,12 @@ function syncAgentTerminal() {
 }
 
 function openAgentTerminal() {
-  if (!notesHidden) hideNotesPanel(true);
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
   renderAgentTerminal();
+  const panel = $("#agent-terminal");
+  panel?.classList.add("sheet-opening");
+  setTimeout(() => panel?.classList.remove("sheet-opening"), 320);
   setTimeout(() => $("#agent-input")?.focus(), 80);
 }
 
@@ -7457,6 +7578,7 @@ function bindEvents() {
     refreshNotesSwipeLine();
     if (doingPeekOpen) positionDoingPeek();
     updateAgentSplitLayout();
+    if (agentModelMenuOpen || agentModeMenuOpen) positionAgentMenus();
   });
 
   document.addEventListener("pointerdown", (event) => {
@@ -7471,7 +7593,7 @@ function bindEvents() {
     const startHeight = panel.getBoundingClientRect().height;
     try { handle.setPointerCapture?.(event.pointerId); } catch (error) {}
     const move = (moveEvent) => {
-      const height = Math.max(220, Math.min(bodyRect.height - 40, startHeight + (startY - moveEvent.clientY)));
+      const height = Math.max(220, Math.min(bodyRect.height - 70, startHeight + (startY - moveEvent.clientY)));
       document.documentElement.style.setProperty("--agent-terminal-height", `${Math.round(height)}px`);
       updateAgentSplitLayout();
     };
@@ -7513,11 +7635,18 @@ function bindEvents() {
     let moved = false;
     let side = "left";
     let timer = 0;
-    const setSide = (x) => {
-      const body = $(".page-body");
-      if (!body) return;
-      const rect = body.getBoundingClientRect();
-      side = x < rect.left + rect.width / 2 ? "left" : "right";
+    const setSide = (x, y) => {
+      const terminal = $("#agent-terminal");
+      if (!terminal) return;
+      const rect = terminal.getBoundingClientRect();
+      const distances = [
+        { side: "left", value: x - rect.left },
+        { side: "right", value: rect.right - x },
+        { side: "top", value: y - rect.top },
+        { side: "bottom", value: rect.bottom - y },
+      ];
+      distances.sort((a, b) => a.value - b.value);
+      side = distances[0].side;
       document.querySelectorAll(".agent-split-drop").forEach((drop) => {
         drop.classList.toggle("active", drop.dataset.agentSplitDrop === side);
       });
@@ -7538,7 +7667,7 @@ function bindEvents() {
       }
       if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 12) moved = true;
       moveEvent.preventDefault();
-      setSide(moveEvent.clientX);
+      setSide(moveEvent.clientX, moveEvent.clientY);
     };
     const up = (upEvent) => {
       if (activated && moved) {
@@ -7550,14 +7679,13 @@ function bindEvents() {
           const inArea = upEvent.clientX >= bodyRect.left && upEvent.clientX <= bodyRect.right
             && upEvent.clientY >= terminalRect.top && upEvent.clientY <= terminalRect.bottom;
           if (inArea) {
-            setSide(upEvent.clientX);
-            if (source === "notes") {
-              agentSplitSide = side === "left" ? "notes-left" : "notes-right";
-            } else {
-              agentSplitSide = side === "left" ? "notes-right" : "notes-left";
-            }
-            try { localStorage.setItem("neotodo.agentSplitSide", agentSplitSide); } catch (error) {}
-            updateAgentSplitLayout();
+            setSide(upEvent.clientX, upEvent.clientY);
+            const nextSide = source === "notes"
+              ? `notes-${side}`
+              : (side === "left" ? "notes-right" : side === "right" ? "notes-left" : side === "top" ? "notes-bottom" : "notes-top");
+            cleanup();
+            swapAgentSplitSide(nextSide);
+            return;
           }
         }
       }
@@ -7568,7 +7696,7 @@ function bindEvents() {
       document.body.classList.add("agent-split-drag");
       sourcePane?.classList.add("split-lifted");
       agentSplitDrag = { source };
-      setSide(startX);
+      setSide(startX, startY);
     }, 380);
     window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up, { once: true });
@@ -8083,6 +8211,7 @@ async function init() {
     if (match) state.selectedCategoryId = match.id;
   }
   render();
+  if (!notesHidden) hideNotesPanel(true);
   positionNotesHandle();
   updateNotesHandle();
   updateHeaderStamp();

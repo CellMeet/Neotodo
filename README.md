@@ -95,13 +95,13 @@ Click the terminal icon in the lower-left tool rail to turn the note half into a
 - **Crew · Executor** is opened by selecting a subtask. It runs the local `opencode` CLI with `--auto`, so it can edit the project and run commands to complete that subtask.
 - Each todo and subtask keeps its own thread in `agents.json` next to `NeoTodo.json`; every agent also keeps its own OpenCode session.
 - Executions are queued: if another crew agent is working, a new request waits and starts automatically when the current one finishes. The backend holds an atomic lock, so two agents never edit the project simultaneously.
-- The terminal follows the selected todo/subtask; drag its top border to resize it. The header shows the provider in dark type and the task title in a softer gray.
+- The AI console and the note card are independent bottom layers. Both start hidden. Two pill handles sit in the bottom strip: **AI on the left**, **notes on the right**. Click a handle to slide that layer up; one layer fills the available width, both share the workspace, and closing one lets the other fill it again.
 - Press `Ctrl+P` or use the model picker under the input to switch between the models reported by `opencode models`. The choice is remembered per todo/subtask.
 - The mode picker beside the model opens a small menu with **Chat** (OpenCode's read-only plan agent) and **Build** (the `--auto` agent that can edit the project). The choice is remembered per todo/subtask.
 - The `+` button and drag-and-drop both add files to the thread. Files are kept permanently as context for that todo/subtask: up to 20 files, 10 MB each, 50 MB total. They are passed to OpenCode with `--file` on every turn until you press the `×` on their chip. They survive app restarts.
 - The footer always shows session tokens with context usage and cost, for example `176.0K (17%) · $10.74`. Tool calls appear as a compact process log above each answer.
-- The OpenCode terminal uses its own neutral light/dark palette rather than the postcard theme, with a purple session bar and the Copilot-style input row.
-- Opening the AI terminal closes the note card. The note card can be reopened while chatting: it becomes a 50/50 split pane beside the AI console with a smooth slide. Drag the divider to change the widths. Long-press the AI or note header, then drop it on the left or right half to swap the split sides.
+- The terminal uses its own neutral light/dark palette, rounded layer corners, and the plugin-red send button.
+- Long-press the AI or note header and drop it on the left, right, top, or bottom edge to dock the panes. Left/right splits stay in the lower workspace; top/bottom splits use the full workspace height. Drag the divider to resize. Side swaps slide with a FLIP animation so text does not reflow during the move.
 - The Doing card only reacts near the lower half of the current-task area, so it no longer pops up from casual pointer movement near the top.
 
 The console renders Markdown, so plans, code snippets, and checklists stay readable. Selecting another subtask switches the lower terminal to that crew member's own thread.

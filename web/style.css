@@ -12598,7 +12598,7 @@ html[data-postcard-dark="true"] .agent-compose:focus-within {
 /* Split view: notes and the AI console share the lower desk with a divider. */
 body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
   position: absolute !important;
-  top: calc(100% - var(--agent-terminal-height, calc(50% + 70px))) !important;
+  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px))) !important;
   bottom: auto !important;
   height: var(--agent-terminal-height, calc(50% + 70px)) !important;
   z-index: 13 !important;
@@ -12616,7 +12616,7 @@ body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
   left: var(--agent-notes-left, 0%) !important;
   right: auto !important;
   width: var(--agent-notes-width, 50%) !important;
-  transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease !important;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease !important;
   animation: agent-split-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 body.agent-notes-split .notes-half.floating-notes .notes-handle-top,
@@ -12632,7 +12632,6 @@ body.agent-notes-split .agent-terminal .agent-head-left { min-width: 0; }
 body.agent-notes-split .agent-terminal .agent-head {
   margin-left: var(--agent-ai-left, 0%);
   margin-right: var(--agent-ai-right, 0%);
-  transition: margin-left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), margin-right 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 body.agent-notes-split .agent-terminal .agent-main {
   flex: 1 1 auto;
@@ -12640,7 +12639,6 @@ body.agent-notes-split .agent-terminal .agent-main {
   max-width: none;
   margin-left: var(--agent-ai-left, 0%);
   margin-right: var(--agent-ai-right, 0%);
-  transition: margin-left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), margin-right 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 body.agent-split-resizing .agent-main,
 body.agent-split-resizing .agent-head,
@@ -12652,7 +12650,7 @@ body.agent-split-resizing .agent-split-handle {
 
 .agent-split-handle {
   position: absolute;
-  top: calc(100% - var(--agent-terminal-height, calc(50% + 70px)));
+  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px)));
   left: var(--agent-left-pct);
   width: 10px;
   height: var(--agent-terminal-height, calc(50% + 70px));
@@ -12661,7 +12659,6 @@ body.agent-split-resizing .agent-split-handle {
   cursor: col-resize;
   touch-action: none;
   transform: translateX(-50%);
-  transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 body.agent-notes-split .agent-split-handle { display: block; }
 .agent-split-handle::before {
@@ -12702,7 +12699,7 @@ body.agent-split-resizing .agent-split-handle::after {
 
 .agent-split-chooser {
   position: absolute;
-  top: calc(100% - var(--agent-terminal-height, calc(50% + 70px)));
+  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px)));
   left: 0;
   right: 0;
   height: var(--agent-terminal-height, calc(50% + 70px));
@@ -12746,4 +12743,250 @@ body.agent-split-resizing {
 }
 .notes-half.split-lifted {
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26) !important;
+}
+
+/* FLIP swap: keep the pane widths fixed and slide them with transforms. */
+body.agent-split-flip .notes-half.floating-notes,
+body.agent-split-flip .agent-main,
+body.agent-split-flip .agent-head,
+body.agent-split-flip .agent-split-handle {
+  transition: none !important;
+  animation: none !important;
+}
+body.agent-split-flipping .notes-half.floating-notes,
+body.agent-split-flipping .agent-main,
+body.agent-split-flipping .agent-head,
+body.agent-split-flipping .agent-split-handle {
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+  will-change: transform;
+}
+
+/* Rounded AI layer, plugin-red send button, quieter focus/selection. */
+.agent-terminal {
+  border-radius: 16px 16px 0 0;
+  --oc-send-bg: #e5a0a0;
+  --oc-send-ink: #ffffff;
+}
+html[data-postcard-dark="true"] .agent-terminal {
+  --oc-send-bg: #b3757d;
+}
+.agent-send { background: var(--oc-send-bg); }
+.agent-terminal * { -webkit-tap-highlight-color: transparent; }
+.agent-terminal button:focus,
+.agent-terminal button:focus-visible,
+.agent-terminal input:focus,
+.agent-terminal input:focus-visible,
+.agent-terminal textarea:focus,
+.agent-terminal textarea:focus-visible {
+  outline: none !important;
+}
+::selection {
+  background: rgba(139, 108, 255, 0.22);
+  color: inherit;
+}
+.agent-meta { padding-right: 22px; }
+
+/* Independent bottom layers: two door handles, one layer full width. */
+:root { --desk-bottom: 30px; }
+.agent-terminal {
+  bottom: var(--desk-bottom, 30px);
+  border-radius: 16px;
+  max-height: calc(100% - var(--desk-bottom, 30px) - 16px);
+}
+.notes-handle-bottom,
+.desk-handle-ai {
+  position: fixed;
+  bottom: 7px !important;
+  z-index: 92;
+  width: 96px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+.notes-handle-bottom {
+  left: auto !important;
+  right: 8% !important;
+  transform: none !important;
+}
+.desk-handle-ai {
+  left: 8%;
+  right: auto;
+}
+.notes-handle-bottom::before,
+.desk-handle-ai::before {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 5px;
+  margin: 5px auto;
+  border-radius: 3px;
+  background: var(--note-rule, var(--line));
+  opacity: 0.85;
+  transition: width 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+}
+.notes-handle-bottom:hover::before,
+.desk-handle-ai:hover::before {
+  width: 78px;
+  background: var(--note-ink, var(--ink));
+  opacity: 1;
+}
+body.agent-terminal-open .desk-handle-ai {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+body:not(.notes-hidden) .notes-handle-bottom {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+body.notes-hidden .notes-handle-bottom {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.notes-reveal { display: none !important; }
+
+@keyframes agent-sheet-up {
+  from { opacity: 0.4; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+.agent-terminal.sheet-opening,
+.notes-half.floating-notes.sheet-opening {
+  animation: agent-sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
+  position: absolute !important;
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px))) !important;
+  height: var(--agent-terminal-height, calc(50% + 70px)) !important;
+  z-index: 12 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 -20px 44px rgba(20, 20, 24, 0.14) !important;
+}
+body:not(.agent-terminal-open) .notes-half.floating-notes .notes-resize-handle {
+  display: none !important;
+}
+
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
+  border-radius: 16px !important;
+}
+body.agent-notes-left .notes-half.floating-notes:not(.notes-hidden) {
+  border-radius: 16px 0 0 16px !important;
+}
+body.agent-notes-right .notes-half.floating-notes:not(.notes-hidden) {
+  border-radius: 0 16px 16px 0 !important;
+}
+
+/* Four-way docking: vertical notes/AI split and four edge drop zones. */
+body.agent-notes-top .notes-half.floating-notes:not(.notes-hidden),
+body.agent-notes-bottom .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  width: 100% !important;
+  top: var(--agent-notes-y-top, 0px) !important;
+  height: var(--agent-notes-y-height, 50%) !important;
+}
+body.agent-notes-top .notes-half.floating-notes:not(.notes-hidden) {
+  border-radius: 16px 16px 0 0 !important;
+  border-bottom: 1px solid var(--note-rule, var(--line)) !important;
+}
+body.agent-notes-bottom .notes-half.floating-notes:not(.notes-hidden) {
+  border-radius: 0 0 16px 16px !important;
+  border-top: 1px solid var(--note-rule, var(--line)) !important;
+}
+body.agent-notes-axis-y .agent-terminal {
+  padding-top: var(--agent-ai-pad-top, 0px);
+  padding-bottom: var(--agent-ai-pad-bottom, 0px);
+}
+body.agent-notes-axis-y .agent-split-handle {
+  top: var(--agent-split-y, 50%) !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 10px !important;
+  transform: none !important;
+  cursor: row-resize;
+}
+body.agent-notes-axis-y .agent-split-handle::before {
+  left: 0;
+  top: 4px;
+  bottom: auto;
+  width: 100%;
+  height: 1px;
+}
+body.agent-notes-axis-y .agent-split-handle:hover::before,
+body.agent-notes-axis-y.agent-split-resizing .agent-split-handle::before {
+  width: 100%;
+  height: 2px;
+}
+body.agent-notes-axis-y .agent-split-handle::after {
+  left: 50%;
+  top: 1px;
+  width: 38px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 4px;
+}
+
+.agent-split-chooser { display: block; }
+.agent-split-drop {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.agent-split-drop[data-agent-split-drop="left"] {
+  left: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: calc(50% - 12px);
+}
+.agent-split-drop[data-agent-split-drop="right"] {
+  right: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: calc(50% - 12px);
+}
+.agent-split-drop[data-agent-split-drop="top"] {
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  height: calc(50% - 12px);
+}
+.agent-split-drop[data-agent-split-drop="bottom"] {
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  height: calc(50% - 12px);
+}
+body.agent-split-drag .agent-split-drop.active { opacity: 1; }
+
+/* Vertical docking uses the full workspace height so both panes stay usable. */
+body.agent-notes-axis-y .agent-terminal {
+  height: calc(100% - var(--desk-bottom, 30px) - 16px) !important;
+  max-height: none;
+}
+body.agent-notes-axis-y .agent-resize { display: none; }
+body.agent-notes-axis-y .agent-split-chooser {
+  top: var(--agent-desk-top, 16px);
+  height: var(--agent-desk-height, calc(100% - 46px));
+}
+
+/* The two bottom handles stay available as open/close door handles. */
+body.agent-terminal-open .desk-handle-ai,
+body:not(.notes-hidden) .notes-handle-bottom,
+body.notes-hidden .notes-handle-bottom {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transition: none !important;
+}
+
+/* Solid note panes make the split slide crisp instead of shimmering through blur. */
+body.agent-notes-split .notes-half.floating-notes,
+body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-color: var(--pc-paper, var(--paper, #f7efe3)) !important;
 }
