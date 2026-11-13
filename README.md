@@ -95,11 +95,13 @@ Click the terminal icon in the lower-left tool rail to turn the note half into a
 - **Crew · Executor** is opened by selecting a subtask. It runs the local `opencode` CLI with `--auto`, so it can edit the project and run commands to complete that subtask.
 - Each todo and subtask keeps its own thread in `agents.json` next to `NeoTodo.json`; every agent also keeps its own OpenCode session.
 - Executions are queued: if another crew agent is working, a new request waits and starts automatically when the current one finishes. The backend holds an atomic lock, so two agents never edit the project simultaneously.
-- The terminal follows the selected todo/subtask; drag its top border to resize it. The provider and current model sit next to the task name.
+- The terminal follows the selected todo/subtask; drag its top border to resize it. The header shows only the provider and the task title; the model and mode live in the input row.
 - Press `Ctrl+P` or use the model picker under the input to switch between the models reported by `opencode models`. The choice is remembered per todo/subtask.
-- The `+` button attaches up to five files (10 MB each). Attachments are handed to OpenCode with `--file` for that turn, so the agent can read them.
-- The footer shows session tokens with context usage and cost. Tool calls appear as a compact process log above each answer.
+- The mode button beside the model switches between **Chat** (OpenCode's read-only plan agent) and **Build** (the `--auto` agent that can edit the project). The choice is remembered per todo/subtask.
+- The `+` button attaches up to five files (10 MB each). Attachments are handed to OpenCode with `--file` for that turn, so the agent can read them. The vertical **Files** tab on the right slides out a drawer listing every file added to that thread.
+- The footer always shows session tokens with context usage and cost, for example `176.0K (17%) · $10.74`. Tool calls appear as a compact process log above each answer.
 - The OpenCode terminal uses its own neutral light/dark palette rather than the postcard theme, with a purple session bar and the Copilot-style input row.
+- Opening the AI terminal closes the note card. You can still open the note card while chatting; it floats above the console on the upper right so the two never overlap.
 
 The console renders Markdown, so plans, code snippets, and checklists stay readable. Selecting another subtask switches the lower terminal to that crew member's own thread.
 

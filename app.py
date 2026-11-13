@@ -995,7 +995,7 @@ class AgentStore:
         return "AI"
 
     @staticmethod
-    def _system_prompt(scope: dict, title: str) -> str:
+    def _system_prompt(scope: dict, title: str, allow_edits: bool = False) -> str:
         kind = str(scope.get("kind") or "captain")
         category = str(scope.get("category") or "")
         todo = str(scope.get("todo") or "")
@@ -1007,7 +1007,11 @@ class AgentStore:
             "The interface is HTML/CSS/JS; the backend is Python; the Linux shell is GTK4 + WebKitGTK; "
             "a Windows shell uses PySide6/Qt WebEngine. "
             "Be practical and concise. Use Markdown, complete code snippets, and exact file paths. "
-            "You are planning only: read what you need, but never edit files in this mode."
+            + (
+                "You may read and edit files in the project to complete the instruction. Keep changes scoped."
+                if allow_edits else
+                "You are planning only: read what you need, but never edit files in this mode."
+            )
         )
         if kind == "captain":
             role = "You are the project architect for the whole NeoTodo project."
@@ -1023,6 +1027,16 @@ class AgentStore:
                 "Plan the work and its subtasks."
             )
         return f"{base}\n\n{role}\n\nCurrent workspace: {context}"
+
+    @classmethod
+    def _build_prompt(cls, scope: dict, title: str, message: str) -> str:
+        context = str(scope.get("context") or "")
+        return (
+            f"{cls._system_prompt(scope, title, True)}\n\n"
+            f"Project root: {APP_DIR}\n"
+            f"Current workspace: {context}\n\n"
+            f"User instruction:\n{message}"
+        )
 
     @staticmethod
     def _executor_prompt(scope: dict, title: str, message: str) -> str:
@@ -1052,7 +1066,7 @@ class AgentStore:
         except Exception:
             return None, [], []
         files = []
-        names = []
+        metas = []
         total_bytes = 0
         for index, item in enumerate(attachments[:8]):
             if not isinstance(item, dict):
@@ -1078,11 +1092,11 @@ class AgentStore:
             except Exception:
                 continue
             files += ["--file", str(target)]
-            names.append(name)
-        if not names:
+            metas.append({"name": name, "size": len(raw)})
+        if not metas:
             shutil.rmtree(folder, ignore_errors=True)
             return None, [], []
-        return folder, files, names
+        return folder, files, metas
 
     @staticmethod
     def _session_usage(session_id: str) -> dict:
@@ -1135,6 +1149,15 @@ class AgentStore:
         with self.live_lock:
             self.live.pop(agent_id, None)
 
+    @staticmethod
+    def _normalize_mode(value, kind: str) -> str:
+        text = str(value or "")
+        if text == "execute":
+            text = "build"
+        if text in ("chat", "build"):
+            return text
+        return "build" if kind == "subtask" else "chat"
+
     def _run_opencode(self, agent_id: str, agent: dict, title: str, scope: dict,
                       message: str, model: str, mode: str,
                       file_args: list | None = None) -> tuple[str, str, str, dict]:
@@ -1146,8 +1169,11 @@ class AgentStore:
         cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
         if not cwd.exists():
             raise RuntimeError(f"Agent project directory not found: {cwd}")
-        if mode == "execute":
-            prompt = self._executor_prompt(scope, title, message)
+        if mode == "build":
+            if str(scope.get("kind") or "") == "subtask":
+                prompt = self._executor_prompt(scope, title, message)
+            else:
+                prompt = self._build_prompt(scope, title, message)
         else:
             prompt = f"{self._system_prompt(scope, title)}\n\nUser message:\n{message}"
         session_id = str(agent.get("opencode_session") or "")
@@ -1160,7 +1186,7 @@ class AgentStore:
             command = [line_buffer, "-oL"] + command
         if model and "/" in model:
             command += ["--model", model]
-        if mode == "execute":
+        if mode == "build":
             command += ["--auto"]
         else:
             command += ["--agent", "plan"]
@@ -1293,13 +1319,31 @@ class AgentStore:
                 agent = data.get("agents", {}).get(agent_id) or {"messages": []}
             default_model = self._default_model()
             model = agent.get("model") or default_model
+            kind = "subtask" if agent_id.startswith("subtask:") else "captain"
+            mode = self._normalize_mode(agent.get("mode"), kind)
             with self.live_lock:
                 live = dict(self.live.get(agent_id) or {})
+            if not agent.get("usage") and agent.get("opencode_session") and not live:
+                exported = self._session_usage(str(agent.get("opencode_session") or ""))
+                if exported:
+                    agent["usage"] = {
+                        "tokens": int(exported.get("tokens") or 0),
+                        "cost": round(float(exported.get("cost") or 0), 6),
+                        "context": int(exported.get("context") or 0),
+                    }
+                    with self.lock:
+                        fresh = self._load()
+                        stored = fresh.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                        if not stored.get("usage"):
+                            stored["usage"] = agent["usage"]
+                            fresh["agents"][agent_id] = stored
+                            self._save(fresh)
             return {
                 "ok": True,
                 "agent": agent,
                 "provider": self._provider_for_model(model),
                 "model": model,
+                "mode": mode,
                 "models": self._available_models(),
                 "default_model": default_model,
                 "live": live,
@@ -1319,6 +1363,17 @@ class AgentStore:
                 "model": model,
                 "provider": self._provider_for_model(model),
             }
+        if name == "set_mode":
+            agent_id = str(payload.get("agent_id") or "")
+            mode = str(payload.get("mode") or "")
+            if not agent_id or mode not in ("chat", "build"):
+                return {"ok": False, "error": "Unknown mode"}
+            with self.lock:
+                data = self._load()
+                stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                stored["mode"] = mode
+                self._save(data)
+            return {"ok": True, "mode": mode}
         if name == "clear":
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
@@ -1338,18 +1393,19 @@ class AgentStore:
             return {"ok": False, "error": "Missing agent"}
         if not message:
             return {"ok": False, "error": "Write a message first"}
-        mode = "execute" if str(scope.get("kind") or "") == "subtask" else "chat"
+        kind = str(scope.get("kind") or "")
         with self.lock:
             data = self._load()
             agent = data.get("agents", {}).get(agent_id) or {"messages": []}
             history = agent.get("messages") if isinstance(agent.get("messages"), list) else []
+        mode = self._normalize_mode(payload.get("mode") or agent.get("mode"), kind)
         requested = str(payload.get("model") or agent.get("model") or "").strip()
         models = self._available_models()
         model = requested if requested in models else self._default_model()
         attachments = payload.get("attachments") if isinstance(payload.get("attachments"), list) else []
-        attachment_dir, file_args, attachment_names = self._write_attachments(attachments)
+        attachment_dir, file_args, attachment_metas = self._write_attachments(attachments)
         try:
-            if mode == "execute":
+            if mode == "build":
                 self.exec_lock.acquire()
                 try:
                     reply, opencode_session, process_text, usage = self._run_opencode(
@@ -1373,8 +1429,8 @@ class AgentStore:
                 },
             }
             user_entry = {"role": "user", "content": message}
-            if attachment_names:
-                user_entry["attachments"] = attachment_names
+            if attachment_metas:
+                user_entry["attachments"] = attachment_metas
             updated = (history + [
                 user_entry,
                 assistant,
@@ -1425,7 +1481,7 @@ class AgentStore:
             "model": model,
             "usage": session_usage,
             "live": {},
-            "attachments": attachment_names,
+            "attachments": attachment_metas,
             "agents": data["agents"],
         }
 

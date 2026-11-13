@@ -1830,6 +1830,7 @@ const agentLive = {};
 const agentPollTimers = new Map();
 const agentAttachments = {};
 let agentModelMenuOpen = false;
+let agentFilesOpen = false;
 let doingPeekSignature = "";
 let addingSubtask = false;
 let addingSubtaskTodoId = null;
@@ -1894,9 +1895,9 @@ function followPageLayout(duration = 360) {
   requestAnimationFrame(step);
 }
 
-function hideNotesPanel() {
+function hideNotesPanel(silent = false) {
   if (notesHidden) return;
-  AudioFX.leafRustle();
+  if (!silent) AudioFX.leafRustle();
   saveActiveNoteCaret();
   notesHidden = true;
   document.body.classList.add("notes-hidden");
@@ -3546,7 +3547,7 @@ function activeAgent() {
       title: target.subtask.name,
       category: category?.name || "",
       todo: target.todo?.name || "",
-      mode: "execute",
+      mode: "build",
       scope: {
         kind: "subtask",
         category: category?.name || "",
@@ -3600,6 +3601,12 @@ function agentModelProvider(model) {
 
 function currentAgentModel(agent) {
   return agentSessions[agent.id]?.model || agentDefaultModel;
+}
+
+function currentAgentMode(agent) {
+  const mode = agentSessions[agent.id]?.mode;
+  if (mode === "build" || mode === "chat") return mode;
+  return agent.kind === "subtask" ? "build" : "chat";
 }
 
 function formatAgentTokens(value) {
@@ -3670,9 +3677,33 @@ function agentAttachmentsFor(agentId) {
   return agentAttachments[agentId];
 }
 
-function agentAttachedChips(names) {
-  if (!Array.isArray(names) || !names.length) return "";
+function agentAttachedChips(items) {
+  if (!Array.isArray(items) || !items.length) return "";
+  const names = items.map((item) => (typeof item === "string" ? item : String(item?.name || ""))).filter(Boolean);
+  if (!names.length) return "";
   return `<div class="agent-attached-files">${names.map((name) => `<span class="agent-attached-file">${esc(name)}</span>`).join("")}</div>`;
+}
+
+function agentFileItems(agent, messages) {
+  const files = [];
+  const seen = new Set();
+  for (const file of agentAttachmentsFor(agent.id)) {
+    if (!file?.name || seen.has(file.name)) continue;
+    seen.add(file.name);
+    files.push({ name: file.name, size: Number(file.size) || 0, pending: true });
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "user" || !Array.isArray(message.attachments)) continue;
+    for (const item of message.attachments) {
+      const name = typeof item === "string" ? item : String(item?.name || "");
+      const size = typeof item === "object" && item ? Number(item.size) || 0 : 0;
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      files.push({ name, size, pending: false });
+    }
+  }
+  return files;
 }
 
 function agentTerminalMarkup() {
@@ -3681,13 +3712,9 @@ function agentTerminalMarkup() {
     <div class="agent-head">
       <div class="agent-head-left">
         <span class="agent-provider" id="agent-provider">DeepSeek</span>
-        <span class="agent-model" id="agent-model">deepseek-flash</span>
         <span class="agent-head-sep" aria-hidden="true">/</span>
         <span class="agent-head-agent" id="agent-head-agent">NeoTodo</span>
       </div>
-      <button class="agent-close" type="button" data-action="close-terminal" aria-label="Close terminal">
-        <svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#close-circle"></use></svg>
-      </button>
     </div>
     <div class="agent-body">
       <div class="agent-main">
@@ -3704,7 +3731,9 @@ function agentTerminalMarkup() {
                 <span id="agent-model-label">DeepSeek/deepseek-flash</span>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <span class="agent-mode" id="agent-mode">Auto</span>
+              <button class="agent-mode-pick" type="button" data-agent-mode-toggle aria-label="Switch work mode" title="Switch between Chat and Build">
+                <span id="agent-mode">Chat</span>
+              </button>
               <button class="agent-send" type="submit" aria-label="Send">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
@@ -3719,6 +3748,11 @@ function agentTerminalMarkup() {
         </div>
       </div>
     </div>
+    <aside class="agent-files-drawer ${agentFilesOpen ? "open" : ""}" id="agent-files-drawer" aria-hidden="${agentFilesOpen ? "false" : "true"}">
+      <div class="agent-files-head"><span>Files</span><button class="agent-files-close" type="button" data-agent-files-close aria-label="Close files"><svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
+      <div class="agent-files-list" id="agent-files-list"></div>
+    </aside>
+    <button class="agent-files-tab" type="button" data-agent-files-toggle aria-label="Show files">Files</button>
   </section>`;
 }
 
@@ -3756,12 +3790,42 @@ function bindAgentCompose() {
     if (choice) {
       event.preventDefault();
       setAgentModel(choice.dataset.agentModelChoice);
+      return;
+    }
+    const modeToggle = event.target.closest("[data-agent-mode-toggle]");
+    if (modeToggle) {
+      event.preventDefault();
+      const agent = activeAgent();
+      setAgentMode(currentAgentMode(agent) === "build" ? "chat" : "build");
     }
   });
   compose.addEventListener("change", (event) => {
     if (event.target.id === "agent-file") {
       handleAgentFiles(Array.from(event.target.files || []));
       event.target.value = "";
+    }
+  });
+}
+
+function bindAgentFileDrawer() {
+  const panel = $("#agent-terminal");
+  if (!panel || panel.dataset.filesBound === "1") return;
+  panel.dataset.filesBound = "1";
+  panel.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-agent-files-toggle]");
+    if (toggle) {
+      event.preventDefault();
+      event.stopPropagation();
+      agentFilesOpen = true;
+      renderAgentTerminal();
+      return;
+    }
+    const close = event.target.closest("[data-agent-files-close]");
+    if (close) {
+      event.preventDefault();
+      event.stopPropagation();
+      agentFilesOpen = false;
+      renderAgentTerminal();
     }
   });
 }
@@ -3775,13 +3839,13 @@ function renderAgentTerminal() {
   panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
   if (!agentTerminalOpen) return;
   bindAgentCompose();
+  bindAgentFileDrawer();
 
   const agent = activeAgent();
   const model = currentAgentModel(agent);
+  const mode = currentAgentMode(agent);
   const provider = $("#agent-provider");
   if (provider) provider.textContent = agentModelProvider(model);
-  const modelEl = $("#agent-model");
-  if (modelEl) modelEl.textContent = agentModelLeaf(model);
   const heading = $("#agent-head-agent");
   if (heading) heading.textContent = agent.title;
 
@@ -3792,7 +3856,7 @@ function renderAgentTerminal() {
   }
   const loading = agentLoadingIds.has(agent.id);
   const busy = agentBusyIds.has(agent.id);
-  const queued = agent.mode === "execute" && agentExecutingId && agentExecutingId !== agent.id;
+  const queued = mode === "build" && agentExecutingId && agentExecutingId !== agent.id;
   const session = agentSessions[agent.id] || { messages: [] };
   const messages = Array.isArray(session.messages) ? session.messages : [];
   const messagesEl = $("#agent-messages");
@@ -3822,7 +3886,7 @@ function renderAgentTerminal() {
   const modelLabel = $("#agent-model-label");
   if (modelLabel) modelLabel.textContent = label;
   const modeEl = $("#agent-mode");
-  if (modeEl) modeEl.textContent = agent.mode === "execute" ? "Auto" : "Plan";
+  if (modeEl) modeEl.textContent = mode === "build" ? "Build" : "Chat";
 
   const attachments = agentAttachmentsFor(agent.id);
   const chips = $("#agent-attach-chips");
@@ -3841,8 +3905,31 @@ function renderAgentTerminal() {
     }
   }
 
+  const fileItems = agentFileItems(agent, messages);
+  panel.classList.toggle("files-open", agentFilesOpen);
+  const fileDrawer = $("#agent-files-drawer");
+  if (fileDrawer) {
+    fileDrawer.classList.toggle("open", agentFilesOpen);
+    fileDrawer.setAttribute("aria-hidden", agentFilesOpen ? "false" : "true");
+  }
+  const fileList = $("#agent-files-list");
+  if (fileList) {
+    fileList.innerHTML = fileItems.length
+      ? fileItems.map((file) => `<div class="agent-file-row"><span class="agent-file-name" title="${esc(file.name)}">${esc(file.name)}</span><span class="agent-file-size">${file.size ? formatAgentBytes(file.size) : ""}</span></div>`).join("")
+      : `<div class="agent-files-empty">No files yet.</div>`;
+  }
+
   const live = agentLive[agent.id] || {};
-  const usage = (busy && live.usage?.tokens ? live.usage : session.usage) || {};
+  let usage = (busy && live.usage?.tokens ? live.usage : session.usage) || {};
+  if (!usage.tokens && !usage.cost) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index]?.usage;
+      if (candidate && (candidate.tokens || candidate.cost || candidate.context)) {
+        usage = candidate;
+        break;
+      }
+    }
+  }
   const stateEl = $("#agent-meta-state");
   if (stateEl) {
     stateEl.textContent = loading ? "…" : busy ? (queued ? "queued…" : "working…") : "";
@@ -3850,25 +3937,24 @@ function renderAgentTerminal() {
   }
   const usageEl = $("#agent-meta-usage");
   if (usageEl) {
-    const bits = [];
-    if (usage.tokens || usage.cost) {
-      const pct = usage.context ? Math.max(1, Math.min(100, Math.round(Number(usage.context) / 1280))) : 0;
-      bits.push(`${formatAgentTokens(usage.tokens)} (${pct}%)`);
-      bits.push(formatAgentCost(usage.cost));
-    }
-    usageEl.textContent = bits.join("  ·  ");
+    const tokens = Number(usage.tokens) || 0;
+    const cost = Number(usage.cost) || 0;
+    const pct = usage.context ? Math.max(1, Math.min(100, Math.round(Number(usage.context) / 1280))) : 0;
+    usageEl.textContent = `${formatAgentTokens(tokens)} (${pct}%)  ·  ${formatAgentCost(cost)}`;
   }
 
   const input = $("#agent-input");
   if (input) {
     input.disabled = Boolean(busy || loading);
-    input.placeholder = agent.mode === "execute" ? "Describe this subtask…" : "Ask anything…";
+    input.placeholder = mode === "build" ? "Describe the work…" : "Ask anything…";
     if (input.value === "" && !input.disabled) input.style.height = "";
   }
   const attach = $(".agent-attach");
   if (attach) attach.disabled = Boolean(busy || loading);
   const pick = $(".agent-model-pick");
   if (pick) pick.disabled = Boolean(busy || loading);
+  const modePick = $(".agent-mode-pick");
+  if (modePick) modePick.disabled = Boolean(busy || loading);
   const send = $(".agent-send");
   if (send) send.disabled = Boolean(busy || loading);
 }
@@ -3923,7 +4009,7 @@ function startAgentPoll(agentId) {
         if (data.default_model) agentDefaultModel = data.default_model;
         if (data.model) {
           const session = agentSessions[agentId] || { messages: [] };
-          agentSessions[agentId] = { ...session, model: data.model };
+          agentSessions[agentId] = { ...session, model: data.model, mode: data.mode || session.mode };
         }
         if (agentTerminalOpen && activeAgent().id === agentId) renderAgentTerminal();
       }
@@ -3947,6 +4033,7 @@ async function loadAgentSession(agentId) {
     if (data.ok) {
       agentSessions[agentId] = data.agent || { messages: [] };
       if (data.model) agentSessions[agentId].model = data.model;
+      if (data.mode) agentSessions[agentId].mode = data.mode;
       if (Array.isArray(data.models) && data.models.length) agentModels = data.models;
       if (data.default_model) agentDefaultModel = data.default_model;
       agentLive[agentId] = data.live || {};
@@ -3966,6 +4053,7 @@ function syncAgentTerminal() {
 }
 
 function openAgentTerminal() {
+  if (!notesHidden) hideNotesPanel(true);
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
   renderAgentTerminal();
@@ -3975,6 +4063,7 @@ function openAgentTerminal() {
 function closeAgentTerminal() {
   agentTerminalOpen = false;
   agentModelMenuOpen = false;
+  agentFilesOpen = false;
   document.body.classList.remove("agent-terminal-open");
   const panel = $("#agent-terminal");
   panel?.classList.remove("open");
@@ -3997,6 +4086,19 @@ async function setAgentModel(model) {
   renderAgentTerminal();
   try {
     await agentPost({ action: "set_model", agent_id: agent.id, model });
+  } catch (error) {
+  }
+}
+
+async function setAgentMode(mode) {
+  if (!agentTerminalOpen || !["chat", "build"].includes(mode)) return;
+  const agent = activeAgent();
+  if (agentBusyIds.has(agent.id)) return;
+  const session = agentSessions[agent.id] || { messages: [] };
+  agentSessions[agent.id] = { ...session, mode };
+  renderAgentTerminal();
+  try {
+    await agentPost({ action: "set_mode", agent_id: agent.id, mode });
   } catch (error) {
   }
 }
@@ -4052,18 +4154,20 @@ async function sendAgentMessage() {
   if (!agentLoadedIds.has(agent.id)) await loadAgentSession(agent.id);
   const session = agentSessions[agent.id] || { title: agent.title, messages: [] };
   const model = currentAgentModel(agent);
+  const mode = currentAgentMode(agent);
   const pendingFiles = agentAttachmentsFor(agent.id).slice();
   const attachments = pendingFiles.map((file) => ({ name: file.name, type: file.type, data: file.data }));
   agentSessions[agent.id] = {
     ...session,
     title: agent.title,
     model,
-    messages: [...(session.messages || []), { role: "user", content: message, attachments: pendingFiles.map((file) => file.name) }],
+    mode,
+    messages: [...(session.messages || []), { role: "user", content: message, attachments: pendingFiles.map((file) => ({ name: file.name, size: file.size })) }],
   };
   agentAttachments[agent.id] = [];
   agentBusyIds.add(agent.id);
   agentLive[agent.id] = {};
-  if (agent.mode === "execute") {
+  if (mode === "build") {
     if (!agentExecutingId) agentExecutingId = agent.id;
     else if (!agentExecQueue.includes(agent.id)) agentExecQueue.push(agent.id);
   }
@@ -4081,6 +4185,7 @@ async function sendAgentMessage() {
       scope: agent.scope,
       message,
       model,
+      mode,
       attachments,
     });
     if (data.ok) {
@@ -4088,6 +4193,7 @@ async function sendAgentMessage() {
         title: data.title || agent.title,
         messages: data.messages || [],
         model: data.model || model,
+        mode: data.mode || mode,
         usage: data.usage || {},
       };
       if (!agentModels.length && Array.isArray(data.models)) agentModels = data.models;
@@ -4108,7 +4214,7 @@ async function sendAgentMessage() {
   } finally {
     agentBusyIds.delete(agent.id);
     stopAgentPoll(agent.id);
-    if (agent.mode === "execute") {
+    if (mode === "build") {
       if (agentExecutingId === agent.id) agentExecutingId = agentExecQueue.shift() || null;
       else {
         const queued = agentExecQueue.indexOf(agent.id);
@@ -7607,6 +7713,7 @@ function bindEvents() {
   }
 
   document.addEventListener("mousemove", (event) => {
+    if (agentTerminalOpen) return;
     if (!notesHidden) return;
     if (event.clientX <= 55 && event.clientY >= window.innerHeight - 110) showNotesPanel();
   });
