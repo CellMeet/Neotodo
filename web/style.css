@@ -5446,6 +5446,7 @@ html[data-theme="postcard"] .settings-gear { color: var(--pc-accent); }
 @font-face {
   font-family: "Caveat";
   src: url("/fonts/Caveat-400.ttf") format("truetype");
+  font-display: swap;
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -5453,6 +5454,7 @@ html[data-theme="postcard"] .settings-gear { color: var(--pc-accent); }
 @font-face {
   font-family: "Caveat";
   src: url("/fonts/Caveat-600.ttf") format("truetype");
+  font-display: swap;
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -5460,6 +5462,7 @@ html[data-theme="postcard"] .settings-gear { color: var(--pc-accent); }
 @font-face {
   font-family: "Caveat";
   src: url("/fonts/Caveat-700.ttf") format("truetype");
+  font-display: swap;
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -13533,4 +13536,47 @@ body.panel-drag-mode .page-body {
 body.panel-drag-mode .agent-terminal.panel-shrinking,
 body.panel-drag-mode .notes-half.panel-shrinking {
   z-index: 10000 !important;
+}
+
+/* Robot mark: dark ink on light paper, light ink on dark paper. */
+.agent-provider-icon { color: #2a2a2c; }
+html[data-postcard-dark="true"] .agent-provider-icon { color: #f2f2f4; }
+
+/* The paper note is always parchment yellow with warm brown ink. */
+.notes-half.floating-notes {
+  background: #f7f1e4 !important;
+  background-image: none !important;
+  color: #4b371f !important;
+}
+.notes-half.floating-notes::before,
+.notes-half.floating-notes::after {
+  background-image: none !important;
+}
+.notes-half.floating-notes .notes-head,
+.notes-half.floating-notes .notes-title,
+.notes-half.floating-notes .notes-title > span,
+.notes-half.floating-notes .note-block,
+.notes-half.floating-notes .note-block-editor,
+.notes-half.floating-notes .note-block h1,
+.notes-half.floating-notes .note-block h2,
+.notes-half.floating-notes .note-block h3,
+.notes-half.floating-notes .notes-empty,
+.notes-half.floating-notes .note-block-placeholder {
+  color: #4b371f !important;
+}
+.notes-half.floating-notes .notes-icon,
+.notes-half.floating-notes .notes-quill {
+  color: #6b4a24 !important;
+}
+.notes-half.floating-notes .notes-head {
+  border-bottom-color: rgba(74, 53, 37, 0.18) !important;
+}
+.notes-half.floating-notes .picture-link,
+.notes-half.floating-notes .note-link {
+  color: #7b4d20 !important;
+}
+
+/* The parchment note surface wins over any theme material. */
+html[data-note-material="blur"] .notes-half.floating-notes {
+  background-image: none !important;
 }

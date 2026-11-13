@@ -4081,7 +4081,7 @@ DeskHandle.bindGestures = function () {
     const timer = setTimeout(() => {
       if (!handle.isConnected) return;
       longPressed = true;
-    }, 340);
+    }, 420);
     const applyResize = (dy) => {
       if (!panel || !desk) return;
       const top = Math.max(0, Math.min(desk.height - minHeight, startTop + dy));
@@ -4096,12 +4096,21 @@ DeskHandle.bindGestures = function () {
         const dy = moveEvent.clientY - startY;
         const dx = Math.abs(moveEvent.clientX - startX);
         if (dy > 24 && dy > dx) {
-          // Quick swipe down closes the sheet, even in a split.
+          // Swipe down closes the sheet, even in a split.
           moved = true;
           clearTimeout(timer);
           deskHandleSwipeSuppress = performance.now() + 600;
           if (isAi) closeAgentTerminal();
           else hideNotesPanel();
+          return;
+        }
+        if (dy < -24 && Math.abs(dy) > dx && !isOpen) {
+          // Swipe up opens a closed sheet.
+          moved = true;
+          clearTimeout(timer);
+          deskHandleSwipeSuppress = performance.now() + 600;
+          if (isAi) openAgentTerminal();
+          else showNotesPanel();
           return;
         }
         if (Math.hypot(moveEvent.clientX - startX, dy) > 6) {
@@ -6870,19 +6879,18 @@ function readableAccent(theme, accent) {
   return accent;
 }
 
-function notePalette(theme) {
-  const base = theme.paper2 || theme.paper || "#f3e7d2";
-  const dark = hexLuminance(base) < 0.48;
-  const paper = dark ? mixHex(base, "#f6ecd9", 0.87) : mixHex(base, "#fbf3e4", 0.72);
-  const ink = dark ? "#3b2c28" : (hexLuminance(theme.ink) < 0.5 ? theme.ink : "#3b2c28");
-  const accent = dark ? mixHex(theme.accent, "#3b2c28", 0.3) : (hexLuminance(theme.accent) > 0.62 ? mixHex(theme.accent, "#3b2c28", 0.28) : theme.accent);
+function notePalette(_theme) {
+  // The note is its own parchment object, intentionally independent of the
+  // app's postcard theme, so switching themes never tints the paper.
+  const paper = "#f7f1e4";
+  const ink = "#4b371f";
   return {
     paper,
     ink,
-    muted: mixHex(ink, paper, 0.46),
-    rule: `rgba(${hexToRgb(ink)}, .15)`,
-    accent,
-    accent2: dark ? mixHex(theme.accent2, "#3b2c28", 0.28) : theme.accent2,
+    muted: "rgba(75, 55, 31, 0.62)",
+    rule: "rgba(74, 53, 37, 0.15)",
+    accent: "#b8872f",
+    accent2: "#8d6a3f",
   };
 }
 
