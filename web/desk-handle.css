@@ -1,0 +1,83 @@
+/* ==========================================================================
+   DESK HANDLE — the door line's look and motion.
+   --------------------------------------------------------------------------
+   This file owns the two door lines (.desk-handle-ai / .notes-handle-bottom)
+   and the detached grabber's line. Everything else in the app must leave
+   these alone.
+     - one dark-grey line in both themes, with a faint light halo
+     - a taller invisible hit area for easy swipes
+     - instant vanish (no fade, no slide) when its panel opens/closes
+     - the closed neighbour tucks below the bottom border and slides up on
+       bottom-strip hover (handle-tucked)
+   ========================================================================== */
+
+.desk-handle-ai,
+.notes-handle-bottom {
+  position: fixed !important;
+  z-index: 92 !important;
+  width: 96px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  touch-action: none !important;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: none !important;
+  animation: none !important;
+}
+
+.desk-handle-ai::before,
+.notes-handle-bottom::before {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 5px;
+  margin: 12px auto 0;
+  border-radius: 3px;
+  background: rgba(62, 62, 68, 0.70);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.20);
+  opacity: 0.95;
+}
+
+.desk-handle-ai:hover::before,
+.notes-handle-bottom:hover::before {
+  background: rgba(38, 38, 44, 0.92);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.30);
+  opacity: 1;
+}
+
+/* Instant vanish: the line is gone the moment its panel moves. */
+html body .desk-handle-ai.handle-vanish,
+html body .notes-handle-bottom.handle-vanish {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+html body .desk-handle-ai.handle-vanish::before,
+html body .notes-handle-bottom.handle-vanish::before {
+  opacity: 0 !important;
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Reappearance is instant as well: no bar pop keyframes. */
+.desk-handle-ai.handle-appear-above::before,
+.desk-handle-ai.handle-appear-below::before,
+.notes-handle-bottom.handle-appear-above::before,
+.notes-handle-bottom.handle-appear-below::before {
+  animation: none !important;
+}
+
+/* Tucked state: the closed neighbour rests just below the bottom border and
+   slides up into the bottom slot while the pointer visits the strip. Only
+   this state animates top; the normal position is always instant. */
+.desk-handle-ai.handle-tucked,
+.notes-handle-bottom.handle-tucked {
+  transition: top 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+  will-change: top;
+}

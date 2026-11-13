@@ -8476,33 +8476,33 @@ html[data-theme="postcard"] .todos-section {
   box-shadow: none;
 }
 
-/* Idle scrollbar: painted on the column, never interactive. */
+/* No idle full-height bar on the subtask column. Only a real thin thumb is
+   drawn when the rows actually overflow. */
 html[data-theme="postcard"] .current-half { position: relative; }
-html[data-theme="postcard"] .current-half::after {
-  content: "";
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  right: 2px;
-  width: 6px;
-  border-radius: 3px;
-  background: var(--pc-line);
-  opacity: 0.8;
-  pointer-events: none;
-  z-index: 3;
-}
-html[data-theme="postcard"] .current-half.task-has-overflow::after { display: none; }
-/* A real scrollbar appears only when the rows actually overflow. */
+html[data-theme="postcard"] .current-half::after { display: none !important; }
+/* No native overlay scrollbar: a slim static thumb is drawn by JS instead. */
 html[data-theme="postcard"] .current-inner.task-scrollable {
-  scrollbar-width: thin;
-  scrollbar-color: var(--pc-line) transparent;
+  scrollbar-width: none;
 }
-html[data-theme="postcard"] .current-inner.task-scrollable::-webkit-scrollbar { width: 6px; }
-html[data-theme="postcard"] .current-inner.task-scrollable::-webkit-scrollbar-track { background: transparent; }
-html[data-theme="postcard"] .current-inner.task-scrollable::-webkit-scrollbar-thumb {
-  background: var(--pc-line);
-  border-radius: 3px;
+html[data-theme="postcard"] .current-inner.task-scrollable::-webkit-scrollbar {
+  display: none !important;
+  width: 0;
+  height: 0;
 }
+
+/* One fixed grey progress thumb. No track, no hover growth. */
+.slim-scrollbar {
+  position: absolute;
+  right: 2px;
+  width: 4px;
+  min-height: 24px;
+  border-radius: 2px;
+  background: rgba(90, 90, 98, 0.42);
+  pointer-events: none;
+  z-index: 4;
+  display: none;
+}
+.slim-scrollbar.on { display: block; }
 
 
 /* The subtask column owns exactly seven 40px rows: no bottom padding, no clip. */
@@ -8834,9 +8834,10 @@ html[data-theme="postcard"] .history-row > .h-date {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  /* Native overlay scrollbar is hidden; a slim static thumb is drawn by JS. */
   scrollbar-width: none;
 }
-.doing-list::-webkit-scrollbar { display: none; }
+.doing-list::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
 .doing-item {
   border-top: 1px solid var(--pc-line, rgba(104, 76, 38, 0.22));
 }
@@ -11361,24 +11362,16 @@ html[data-postcard-dark="true"] .modal h3 {
   text-overflow: ellipsis;
 }
 
-/* Categories spine: a faint paper texture so the empty column reads as paper
-   rather than a flat block. Both layers use the postcard ink, so the grain
-   stays quiet in light themes and softly lifts in dark ones. */
+/* Categories spine: clean paper, no dotted/grid texture. */
 .index {
   background-color: var(--pc-paper, var(--paper, #f7efe3)) !important;
   background-image:
-    radial-gradient(circle at 50% 50%,
-      color-mix(in srgb, var(--pc-ink, var(--ink)) 7%, transparent) 0.7px,
-      transparent 1.15px),
-    repeating-linear-gradient(90deg,
-      color-mix(in srgb, var(--pc-ink, var(--ink)) 3.5%, transparent) 0 1px,
-      transparent 1px 54px),
     linear-gradient(180deg,
       color-mix(in srgb, #ffffff 5%, transparent),
       transparent 26%) !important;
-  background-size: 12px 12px, 100% 100%, 100% 100% !important;
-  background-repeat: repeat, repeat, no-repeat !important;
-  background-position: 0 0, 0 0, 0 0 !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+  background-position: 0 0 !important;
 }
 
 /* OpenCode-inspired terminal: theme paper, thin rules, mono, no chrome. */
@@ -13672,4 +13665,19 @@ html body .desk-handle-ai.handle-vanish::before {
 .notes-handle-bottom::before,
 .desk-handle-ai::before {
   margin: 12px auto !important;
+}
+
+
+/* Divider drag: no CSS transition on the panes, so fast drags never open a
+   visible seam between the note and the AI. */
+body.agent-split-resizing .agent-terminal,
+body.agent-split-resizing .notes-half.floating-notes {
+  transition: none !important;
+}
+
+/* The right-side Doing card sits above the door lines; a grey line must never
+   float over the card. */
+html[data-theme="postcard"] .doing-peek,
+html[data-theme="postcard"] .doing-peek.open {
+  z-index: 120 !important;
 }

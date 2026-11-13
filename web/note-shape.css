@@ -1,0 +1,55 @@
+/* ==========================================================================
+   NOTE SHAPE ONLY
+   --------------------------------------------------------------------------
+   This file owns the note card's shape and its split geometry. Do not put AI
+   rules here. The note is a square sheet: no rounded corners anywhere, and it
+   sits flush against the AI pane with no gap.
+   ========================================================================== */
+
+/* Square card, paper and glass alike. */
+.notes-half,
+.notes-half.floating-notes,
+html[data-note-material="paper"] .notes-half.floating-notes,
+html[data-note-material="blur"] .notes-half.floating-notes {
+  border-radius: 0 !important;
+}
+
+/* The inner frosted page is square too. */
+html[data-note-material="blur"] .notes-half.floating-notes::before {
+  border-radius: 0 !important;
+}
+
+/* A split note has no divider gap: drop the edge border and the edge shadow. */
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Horizontal split: exactly half (or the dragged ratio), touching the AI. */
+body.agent-notes-left .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: var(--agent-left-px, var(--agent-left-pct)) !important;
+}
+body.agent-notes-right .notes-half.floating-notes:not(.notes-hidden) {
+  left: var(--agent-left-px, var(--agent-left-pct)) !important;
+  right: auto !important;
+  width: calc(100% - var(--agent-left-px, var(--agent-left-pct))) !important;
+}
+
+/* Vertical split: the two heights meet exactly at the divider. */
+body.agent-notes-top .notes-half.floating-notes:not(.notes-hidden),
+body.agent-notes-bottom .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  top: var(--agent-notes-y-top, 0px) !important;
+  height: var(--agent-notes-y-height, 50%) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Single-panel dock and the normal floating card stay square. */
+body[class*="single-note-"] .notes-half.floating-notes:not(.notes-hidden) {
+  border-radius: 0 !important;
+}

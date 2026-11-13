@@ -1,0 +1,48 @@
+/* ==========================================================================
+   AI SHAPE ONLY
+   --------------------------------------------------------------------------
+   This file owns the AI console's shape and its split geometry. Do not put
+   note rules here. The AI card is rounded only at the top, square at the
+   bottom, and it sits flush against the note pane with no gap.
+   ========================================================================== */
+
+/* Top corners rounded, bottom corners square. */
+.agent-terminal {
+  border-radius: 16px 16px 0 0 !important;
+  border: 0 !important;
+}
+
+/* A detached OS window is a full window, not a card. */
+body.detached-ai #agent-terminal {
+  border-radius: 0 !important;
+}
+
+/* A split AI has no divider gap. */
+body.agent-notes-split .agent-terminal {
+  box-shadow: none !important;
+}
+
+/* Horizontal split: exactly the remaining width, touching the note. */
+body.agent-notes-left .agent-terminal {
+  left: var(--agent-left-px, var(--agent-left-pct)) !important;
+  width: calc(100% - var(--agent-left-px, var(--agent-left-pct))) !important;
+}
+body.agent-notes-right .agent-terminal {
+  left: 0 !important;
+  width: var(--agent-left-px, var(--agent-left-pct)) !important;
+}
+
+/* Vertical split: the two heights meet exactly at the divider. */
+body.agent-notes-top .agent-terminal,
+body.agent-notes-bottom .agent-terminal {
+  left: 0 !important;
+  width: 100% !important;
+  top: var(--agent-ai-top, 0px) !important;
+  height: var(--agent-ai-height, 50%) !important;
+  max-height: none !important;
+}
+
+/* Single-panel dock keeps the same top-rounded shape. */
+body[class*="single-ai-"] .agent-terminal {
+  border-radius: 16px 16px 0 0 !important;
+}

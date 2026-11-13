@@ -1818,7 +1818,6 @@ let doingPanelRect = null;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
 let panelPreview = null;
-let deskHandleSwipeSuppress = 0;
 let singleDock = null;
 let detachedMode = "";
 let detachedAgentOverride = null;
@@ -1952,6 +1951,7 @@ function showNotesPanel() {
   if (!notesHidden) return;
   notesClosing = false;
   clearSingleDock();
+  protectDeskHandles(420);
   $(".notes-handle-bottom")?.classList.remove("handle-vanished", "handle-closing");
   notesHidden = false;
   document.body.classList.remove("notes-hidden");
@@ -1966,10 +1966,10 @@ function showNotesPanel() {
   updateNotesHandle();
   positionNotesHandle();
   updateAgentSplitLayout();
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     positionDeskHandles();
     DeskHandle.appear("note", "above");
-  }, 190);
+  });
 }
 let noteBlocks = [];
 let noteBlockKey = null;
@@ -3266,9 +3266,47 @@ class NotesDock {
 let taskBoard = null;
 const notesDock = new NotesDock();
 
+// A static slim progress thumb for a scroller. The native overlay scrollbar
+// is hidden in CSS, so this is the only vertical bar the user ever sees.
+function bindSlimScrollbar(scroller, host) {
+  if (!scroller || !host) return null;
+  let bar = host.querySelector(":scope > .slim-scrollbar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.className = "slim-scrollbar";
+    host.appendChild(bar);
+  }
+  const update = () => {
+    const maxScroll = scroller.scrollHeight - scroller.clientHeight;
+    if (maxScroll <= 1 || !scroller.clientHeight) {
+      bar.classList.remove("on");
+      return;
+    }
+    const hostRect = host.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const trackTop = scrollerRect.top - hostRect.top;
+    const trackHeight = scroller.clientHeight;
+    const thumbHeight = Math.max(24, Math.round(trackHeight * trackHeight / scroller.scrollHeight));
+    const maxTop = Math.max(0, trackHeight - thumbHeight);
+    const top = trackTop + Math.round((scroller.scrollTop / maxScroll) * maxTop);
+    bar.style.top = `${Math.round(top)}px`;
+    bar.style.height = `${thumbHeight}px`;
+    bar.classList.add("on");
+  };
+  if (scroller.dataset.slimBound !== "1") {
+    scroller.dataset.slimBound = "1";
+    scroller.addEventListener("scroll", () => scroller._slimUpdate?.(), { passive: true });
+    if (window.ResizeObserver) new ResizeObserver(() => scroller._slimUpdate?.()).observe(scroller);
+  }
+  scroller._slimUpdate = update;
+  update();
+  return update;
+}
+
 function refreshTaskBoard() {
   taskBoard = new TaskBoard();
   notesDock.attach(taskBoard);
+  bindSlimScrollbar($(".current-inner"), $(".current-half"));
   return taskBoard;
 }
 
@@ -3785,7 +3823,10 @@ function updateAgentSplitLayout() {
   document.body.classList.toggle("agent-notes-axis-y", vertical);
   const left = (agentSplitRatio * 100).toFixed(2);
   const root = document.documentElement;
+  const bodyRect = $(".page-body")?.getBoundingClientRect();
+  const leftPx = bodyRect ? Math.round(bodyRect.width * agentSplitRatio) : 0;
   root.style.setProperty("--agent-left-pct", `${left}%`);
+  root.style.setProperty("--agent-left-px", `${leftPx}px`);
   root.style.setProperty("--agent-ai-left", "0%");
   root.style.setProperty("--agent-ai-right", "0%");
   root.style.setProperty("--agent-ai-pad-top", "0px");
@@ -3824,9 +3865,13 @@ function updateAgentSplitLayout() {
   const chooser = $("#agent-split-chooser");
   if (chooser) chooser.setAttribute("aria-hidden", active ? "false" : "true");
   positionDeskHandles();
-  // The panes animate for ~0.3s; let the door line ride their real edges
-  // every frame instead of jumping once and then lagging behind.
-  followPageLayout(380);
+  // While dragging the divider, panes and lines must follow every frame with
+  // no CSS transition. Otherwise fast drags open a visible gap.
+  if (document.body.classList.contains("agent-split-resizing")) {
+    positionDeskHandles();
+  } else {
+    followPageLayout(380);
+  }
 }
 
 function agentTerminalMarkup() {
@@ -4011,181 +4056,6 @@ function agentDeskRect() {
     width: bodyRect.width,
     height,
   };
-}
-
-// Door handles are their own small module: they own position, the magic
-// vanish/reappear motion, and the gesture surface. Nothing else should move
-// them directly.
-const DeskHandle = {
-  elements: {},
-  ensure() {
-    this.elements.ai = this.elements.ai || document.querySelector(".desk-handle-ai");
-    this.elements.note = this.elements.note || document.querySelector(".notes-handle-bottom");
-    return this.elements;
-  },
-  place(kind, center, top) {
-    const handle = this.ensure()[kind];
-    if (!handle) return;
-    handle.style.setProperty("left", `${Math.round(center)}px`, "important");
-    handle.style.setProperty("right", "auto", "important");
-    handle.style.setProperty("margin-left", "-48px", "important");
-    handle.style.setProperty("transform", "none", "important");
-    handle.style.setProperty("top", `${Math.round(top)}px`, "important");
-    handle.style.setProperty("bottom", "auto", "important");
-  },
-  vanish(kind) {
-    const handle = this.ensure()[kind];
-    if (!handle) return;
-    handle.classList.remove("handle-appear-above", "handle-appear-below");
-    handle.classList.add("handle-vanish");
-  },
-  appear(kind, from = "below") {
-    const handle = this.ensure()[kind];
-    if (!handle) return;
-    handle.classList.remove("handle-vanish");
-    handle.classList.remove("handle-appear-above", "handle-appear-below");
-    void handle.offsetWidth;
-    handle.classList.add(from === "above" ? "handle-appear-above" : "handle-appear-below");
-    setTimeout(() => handle.classList.remove("handle-appear-above", "handle-appear-below"), 240);
-  },
-  isVanished(kind) {
-    const handle = this.ensure()[kind];
-    return Boolean(handle && handle.classList.contains("handle-vanish"));
-  },
-};
-
-DeskHandle.bindGestures = function () {
-  document.addEventListener("click", (event) => {
-    if (performance.now() < deskHandleSwipeSuppress
-      && event.target.closest?.(".desk-handle-ai, .notes-handle-bottom")) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }, true);
-
-  // Bind directly on each door handle. The line is swipe-only now: dragging
-  // up/down always opens/closes, a press-and-release toggles, and resizing is
-  // done by the panel's own top-edge grip.
-  const handles = [
-    document.querySelector(".desk-handle-ai"),
-    document.querySelector(".notes-handle-bottom"),
-  ].filter(Boolean);
-
-  handles.forEach((handle) => {
-    if (handle.dataset.deskGesture === "1") return;
-    handle.dataset.deskGesture = "1";
-    handle.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      const isAi = handle.classList.contains("desk-handle-ai");
-      const openNow = () => (isAi ? agentTerminalOpen : !notesHidden);
-      const startX = event.clientX;
-      const startY = event.clientY;
-      let lastDx = 0;
-      let lastDy = 0;
-      let finished = false;
-
-      const closeSheet = () => {
-        deskHandleSwipeSuppress = performance.now() + 700;
-        if (isAi) closeAgentTerminal();
-        else hideNotesPanel();
-      };
-      const openSheet = () => {
-        deskHandleSwipeSuppress = performance.now() + 700;
-        if (isAi) openAgentTerminal();
-        else showNotesPanel();
-      };
-
-      const move = (moveEvent) => {
-        if (finished) return;
-        lastDy = moveEvent.clientY - startY;
-        lastDx = moveEvent.clientX - startX;
-        if (Math.abs(lastDy) > 12 && Math.abs(lastDy) > Math.abs(lastDx)) {
-          // A vertical drag is always a swipe, even if the pointer was held
-          // for a while before moving.
-          if (lastDy > 0 && openNow()) closeSheet();
-          else if (lastDy < 0 && !openNow()) openSheet();
-        }
-      };
-
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        document.removeEventListener("pointermove", move);
-        document.removeEventListener("pointerup", finish);
-        document.removeEventListener("pointercancel", finish);
-        if (Math.abs(lastDy) > 24 && Math.abs(lastDy) > Math.abs(lastDx)) {
-          if (lastDy > 0) {
-            if (openNow()) closeSheet();
-          } else if (!openNow()) {
-            openSheet();
-          }
-          return;
-        }
-        if (Math.hypot(lastDx, lastDy) <= 12) {
-          deskHandleSwipeSuppress = performance.now() + 700;
-          if (isAi) toggleAgentTerminal();
-          else if (notesHidden) showNotesPanel();
-          else hideNotesPanel();
-          return;
-        }
-        deskHandleSwipeSuppress = performance.now() + 400;
-      };
-
-      document.addEventListener("pointermove", move, { passive: true });
-      document.addEventListener("pointerup", finish);
-      document.addEventListener("pointercancel", finish);
-    }, { passive: true });
-  });
-};
-
-function positionDeskHandles() {
-  const body = $(".page-body");
-  const aiHandle = $(".desk-handle-ai");
-  const notesHandle = $(".notes-handle-bottom");
-  const terminal = $("#agent-terminal");
-  const notes = $("#notes-half");
-  if (!body || !aiHandle || !notesHandle) return;
-  const bodyRect = body.getBoundingClientRect();
-  const ratio = agentSplitRatio;
-  const side = agentSplitSide;
-  const vertical = side === "notes-top" || side === "notes-bottom";
-  const futureCenter = (which) => {
-    // A closed door always hides at its own side, even in a top/bottom split;
-    // it should never slide toward the middle just because the other opened.
-    if (vertical) return bodyRect.left + bodyRect.width * (which === "ai" ? 0.25 : 0.75);
-    const aiLeft = side !== "notes-left";
-    if (which === "ai") {
-      return bodyRect.left + bodyRect.width * (aiLeft ? ratio / 2 : (1 + ratio) / 2);
-    }
-    return bodyRect.left + bodyRect.width * (aiLeft ? (1 + ratio) / 2 : ratio / 2);
-  };
-  const aiOpen = agentTerminalOpen && !agentClosing;
-  const notesOpen = !notesHidden && !notesClosing;
-  const layerGeometry = (element) => {
-    if (!element || !element.offsetWidth) return null;
-    return {
-      center: bodyRect.left + element.offsetLeft + element.offsetWidth / 2,
-      top: bodyRect.top + element.offsetTop + 6,
-    };
-  };
-  const aiRect = aiOpen ? layerGeometry(terminal) : null;
-  const notesRect = notesOpen ? layerGeometry(notes) : null;
-  const bothClosed = !aiOpen && !notesOpen;
-  const aiCenter = aiRect
-    ? aiRect.center
-    : (bothClosed && vertical ? bodyRect.left + bodyRect.width * 0.25 : futureCenter("ai"));
-  const notesCenter = notesRect
-    ? notesRect.center
-    : (bothClosed && vertical ? bodyRect.left + bodyRect.width * 0.75 : futureCenter("notes"));
-  const closedTop = window.innerHeight - 34;
-  // A closed door always waits at the bottom edge. It must never be parked
-  // off-screen while the other panel is open, otherwise swiping it up to open
-  // the closed panel becomes impossible.
-  const aiTop = aiRect ? aiRect.top : closedTop;
-  const notesTop = notesRect ? notesRect.top : closedTop;
-  DeskHandle.place("ai", aiCenter, aiTop);
-  DeskHandle.place("note", notesCenter, notesTop);
-  if (performance.now() - notesSwipeLineAt > 60) refreshNotesSwipeLine();
 }
 
 function bindAgentSplitHandle() {
@@ -4462,6 +4332,7 @@ function syncAgentTerminal() {
 function openAgentTerminal() {
   agentClosing = false;
   clearSingleDock();
+  protectDeskHandles(420);
   AudioFX.drawer();
   $(".desk-handle-ai")?.classList.remove("handle-vanished", "handle-closing");
   agentTerminalOpen = true;
@@ -4473,10 +4344,10 @@ function openAgentTerminal() {
   panel?.classList.add("sheet-opening");
   setTimeout(() => panel?.classList.remove("sheet-opening"), 200);
   setTimeout(() => $("#agent-input")?.focus(), 80);
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     positionDeskHandles();
     DeskHandle.appear("ai", "above");
-  }, 190);
+  });
 }
 
 function closeAgentTerminal() {
@@ -4707,6 +4578,7 @@ function endPanelPreview(confirmDrop = false) {
   const preview = panelPreview;
   if (!preview) return;
   panelPreview = null;
+  protectDeskHandles(420);
   const { kind, panel, zone, outside, wasDocked } = preview;
   document.body.classList.remove("panel-drag-mode", "panel-drag-detach");
   document.querySelectorAll(".agent-split-drop").forEach((drop) => drop.classList.remove("active"));
@@ -5933,7 +5805,7 @@ function refreshDoingZone() {
   // Only the subtask column's right border, and only within its own height:
   // the lower three quarters, never below the column's bottom line.
   doingZone = {
-    left: rect.right - 28,
+    left: rect.right - 48,
     right: rect.right,
     top: rect.top + rect.height / 4,
     bottom: rect.bottom,
@@ -6059,6 +5931,7 @@ function updateDoingPeek(force = false) {
   panel.classList.toggle("open", doingPeekOpen);
   const list = panel.querySelector(".doing-list");
   bindDoingCard(list);
+  bindSlimScrollbar(list, panel);
   positionDoingPeek();
 }
 
@@ -8088,7 +7961,7 @@ function bindEvents() {
         if (doingPeekSuppressed()) return;
         if (!pointInDoingZone(doingPeekPoint.x, doingPeekPoint.y)) return;
         openDoingPeek();
-      }, 130);
+      }, 30);
     }
   };
 
@@ -8158,7 +8031,9 @@ function bindEvents() {
 
   let deskStripHovered = false;
   document.addEventListener("pointermove", (event) => {
-    const stripHovered = event.clientY >= window.innerHeight - 36;
+    const latched = document.body.classList.contains("desk-handle-strip-drag")
+      || document.body.classList.contains("desk-handle-strip-latch");
+    const stripHovered = event.clientY >= window.innerHeight - 36 || latched;
     if (stripHovered !== deskStripHovered) {
       deskStripHovered = stripHovered;
       document.body.classList.toggle("desk-strip-hover", stripHovered);
@@ -8248,7 +8123,6 @@ function bindEvents() {
     }
   }, true);
 
-  DeskHandle.bindGestures();
   window.addEventListener("pagehide", () => { flushSettingsSave(); });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flushSettingsSave();
@@ -8445,11 +8319,10 @@ function bindEvents() {
       const currentIndexWidth = indexRect?.width || 0;
       const targetIndexWidth = collapsing ? 0 : indexOpenWidth;
       document.body.classList.toggle("categories-collapsed");
-      if (currentCenter !== null) {
-        const targetCenter = currentCenter + (targetIndexWidth - currentIndexWidth) / 2;
-        const handle = $(".notes-handle-bottom");
-        if (handle) handle.style.left = `${Math.round(targetCenter)}px`;
-      }
+      // Let positionDeskHandles own both lines; setting one line by hand left
+      // the other stale and briefly painted a grey bar near the top-left.
+      positionDeskHandles();
+      followPageLayout(420);
       AudioFX.drawer(!document.body.classList.contains("categories-collapsed"));
       setTimeout(() => {
         positionNotesHandle();
