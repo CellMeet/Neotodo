@@ -171,3 +171,67 @@ html[data-theme] body .page-body .notes-half.floating-notes ::selection {
   background: rgba(168, 105, 31, 0.22) !important;
   color: var(--note-ink) !important;
 }
+
+/* --------------------------------------------------------------------------
+   Project folder link: the napkin/note icon is the button. Clicking it binds
+   the current todo to a folder that its subtasks can read.
+   -------------------------------------------------------------------------- */
+.notes-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.notes-icon-button:hover .notes-icon {
+  color: var(--note-accent) !important;
+}
+.project-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 150px;
+  min-width: 0;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--note-rule);
+  border-radius: 999px;
+  background: rgba(168, 105, 31, 0.08);
+  color: var(--note-muted);
+  font-family: var(--note-font, var(--display));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.project-folder-chip:hover {
+  background: rgba(168, 105, 31, 0.16);
+  color: var(--note-ink);
+}
+.project-folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-folder-count {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+.project-folder-clear {
+  flex: 0 0 auto;
+  margin-left: 3px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: var(--note-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.project-folder-clear:hover { color: var(--note-ink); }

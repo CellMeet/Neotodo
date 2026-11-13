@@ -2264,6 +2264,23 @@ async function silentAction(name, payload = {}) {
   }
 }
 
+async function chooseProjectFolder() {
+  const target = activeNoteTarget();
+  if (!target?.todo) return;
+  const picked = await silentAction("choose_project_folder");
+  if (!picked?.path) return;
+  const bound = await action("bind_project_folder", { id: target.todo.id, path: picked.path });
+  if (bound?.ok) {
+    setStatus(`Project folder linked · ${(bound.files || []).length} files`);
+  }
+}
+
+async function clearProjectFolder() {
+  const target = activeNoteTarget();
+  if (!target?.todo) return;
+  await action("clear_project_folder", { id: target.todo.id });
+}
+
 function selectedCategory() {
   if (!state.data) return null;
   return state.data.categories.find((category) => category.id === state.selectedCategoryId)
@@ -2895,12 +2912,19 @@ function notesHtml() {
   const noteSubtitle = '<div class="brand-subtitle" aria-hidden="true">— to do, to remember.</div>';
   const category = selectedCategory();
   const active = activeNoteTarget();
-  const notesIcon = `<svg class="notes-icon" aria-hidden="true"><use href="#${themeSymbol("notes")}"></use></svg>`;
+  const projectFolder = active?.todo?.project_folder || "";
+  const projectFolderName = projectFolder ? projectFolder.split(/[\\/]/).filter(Boolean).pop() : "";
+  const projectFileCount = Math.max(0, Number(active?.todo?.project_file_count) || 0);
+  const notesIconSvg = `<svg class="notes-icon" aria-hidden="true"><use href="#${themeSymbol("notes")}"></use></svg>`;
+  const notesIcon = `<button class="notes-icon-button" type="button" data-action="choose-project-folder" title="${projectFolder ? esc(`Project folder: ${projectFolder}`) : "Link a project folder"}" aria-label="Link project folder">${notesIconSvg}</button>`;
+  const folderChip = projectFolder
+    ? `<button class="project-folder-chip" type="button" data-action="choose-project-folder" title="${esc(projectFolder)}"><span class="project-folder-name">${esc(projectFolderName)}</span><span class="project-folder-count">${projectFileCount}</span></button><button class="project-folder-clear" type="button" data-action="clear-project-folder" title="Unlink project folder" aria-label="Unlink project folder">×</button>`
+    : "";
   const quill = '<div class="notes-quill" aria-hidden="true"><svg><use href="#feather"></use></svg></div>';
   const topHandle = '<button class="notes-handle notes-handle-top" data-action="notes-button" type="button" aria-label="Hide note"></button>';
   if (!active) {
     const message = category ? "Add a todo to start a note..." : "Create a category to begin...";
-    return `${topHandle}${quill}<div class="notes-head"><div class="notes-title">${notesIcon}<span>No note</span></div></div>
+    return `${topHandle}${quill}<div class="notes-head"><div class="notes-title">${notesIcon}<span>No note</span>${folderChip}</div></div>
       <div class="notes-empty">${message}</div>${noteSubtitle}`;
   }
   const { todo, subtask, kind, completed } = active;
@@ -2923,7 +2947,7 @@ function notesHtml() {
   const notePlaceholder = noteBlocks.length === 1 && !String(noteBlocks[0]?.raw || "").trim()
     ? '<span class="note-empty-placeholder" aria-hidden="true">Write something ...</span>'
     : "";
-  return `${topHandle}${quill}<div class="notes-head"><div class="notes-title">${notesIcon}<span>${esc(noteTitle)}</span></div></div>
+  return `${topHandle}${quill}<div class="notes-head"><div class="notes-title">${notesIcon}<span>${esc(noteTitle)}</span>${folderChip}</div></div>
     <div class="notes-body"><div class="note-live" id="note-live">${notePlaceholder}${blocks}</div><div class="note-pictures">${pictures}</div></div>${noteSubtitle}`;
 }
 
@@ -3669,6 +3693,8 @@ function activeAgent() {
         kind: "subtask",
         category: category?.name || "",
         todo: target.todo?.name || "",
+        todo_id: target.todo?.id || "",
+        project_folder: target.todo?.project_folder || "",
         subtask: target.subtask.name,
         done: Boolean(target.subtask.done),
         context,
@@ -3687,6 +3713,8 @@ function activeAgent() {
         kind: "todo",
         category: category?.name || "",
         todo: target.todo.name,
+        todo_id: target.todo.id,
+        project_folder: target.todo.project_folder || "",
         context,
       },
     };
@@ -4389,6 +4417,7 @@ function detachedAgentUrl(agent) {
     todo: agent.todo || "",
     subtask: agent.scope?.subtask || "",
     done: agent.scope?.done ? "1" : "0",
+    folder: agent.scope?.project_folder || "",
     context: agent.scope?.context || "",
   });
   return `${location.origin}/?${params.toString()}`;
@@ -6311,6 +6340,8 @@ async function handleAction(actionName, element) {
   if (actionName === "close-terminal") { closeAgentTerminal(); return; }
   if (actionName === "clear-agent") { clearAgent(); return; }
   if (actionName === "open-settings") { openSettings(); return; }
+  if (actionName === "choose-project-folder") { chooseProjectFolder(); return; }
+  if (actionName === "clear-project-folder") { clearProjectFolder(); return; }
   if (actionName === "close-settings") { closeSettings(); return; }
   if (actionName === "toggle-show-clock") {
     settings.show_clock = !settings.show_clock;
@@ -8653,6 +8684,7 @@ async function init() {
         todo: params.get("todo") || "",
         subtask: params.get("subtask") || "",
         done: params.get("done") === "1",
+        project_folder: params.get("folder") || "",
         context,
       },
     };

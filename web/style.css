@@ -7836,8 +7836,9 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
 /* Keep the tavern/app shell invisible until final settings are applied. */
 .app-shell { visibility: hidden; }
 body.app-ready .app-shell { visibility: visible; }
+html.booting,
 .booting body {
-  background: #f6e7cf !important;
+  background: #120b06 !important;
   background-image: none !important;
 }
 .booting .notes-handle-bottom,

@@ -52,6 +52,34 @@ THEMES = [
     "forest", "vintage", "alpine", "desert", "emerald",
 ]
 QUIT_CALLBACK = None
+FOLDER_PICK_CALLBACK = None
+
+PROJECT_FILE_LIMIT = 160
+
+
+def list_folder_files(folder: str, limit: int = PROJECT_FILE_LIMIT) -> list:
+    """Relative files in a linked project folder, skipping noisy directories."""
+    try:
+        root = Path(folder).expanduser()
+        if not root.is_dir():
+            return []
+        skip = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", "venv",
+                "dist", "build", ".next", ".cache", ".idea", ".vscode"}
+        files = []
+        for path in sorted(root.rglob("*")):
+            if len(files) >= limit:
+                break
+            try:
+                rel = path.relative_to(root)
+            except ValueError:
+                continue
+            if any(part in skip or part.startswith(".") for part in rel.parts):
+                continue
+            if path.is_file():
+                files.append(str(rel))
+        return files
+    except Exception:
+        return []
 
 
 def new_id() -> str:
@@ -440,6 +468,13 @@ class Store:
         return todo, subtask or todo, None
 
     def action(self, payload: dict) -> dict:
+        # The native folder picker is async on the GTK main loop; never hold
+        # the store lock while the user is choosing a directory.
+        if payload.get("action") == "choose_project_folder":
+            if FOLDER_PICK_CALLBACK is None:
+                return {"ok": False, "error": "Folder picker is not available"}
+            path = FOLDER_PICK_CALLBACK()
+            return {"ok": True, "path": path or "", "cancelled": not bool(path), "state": self.state()}
         with self.lock:
             name = payload.get("action")
             result = {}
@@ -716,6 +751,32 @@ class Store:
                     subtask["done"] = True
                     subtask["completed_at"] = now.isoformat(timespec="seconds")
                     subtask["time_cost"] = max(0, int((now - start).total_seconds())) if start else 0
+            elif name == "bind_project_folder":
+                _, todo = self._find_todo(payload.get("id"))
+                raw = str(payload.get("path") or "").strip()
+                folder = Path(raw).expanduser() if raw else None
+                if todo is None:
+                    error = "Todo not found"
+                elif folder is None or not folder.is_dir():
+                    error = "Folder not found"
+                else:
+                    files = list_folder_files(str(folder))
+                    todo["project_folder"] = str(folder)
+                    todo["project_file_count"] = len(files)
+                    result["files"] = files
+            elif name == "clear_project_folder":
+                _, todo = self._find_todo(payload.get("id"))
+                if todo is None:
+                    error = "Todo not found"
+                else:
+                    todo.pop("project_folder", None)
+                    todo.pop("project_file_count", None)
+            elif name == "project_files":
+                _, todo = self._find_todo(payload.get("id"))
+                if todo is None:
+                    error = "Todo not found"
+                else:
+                    result["files"] = list_folder_files(todo.get("project_folder") or "")
             elif name == "save_note":
                 _, todo = self._find_todo(payload.get("id"))
                 subtask_id = payload.get("subtask_id")
@@ -1165,7 +1226,14 @@ class AgentStore:
             raise RuntimeError(
                 "OpenCode CLI not found. Install opencode and make sure it is on PATH."
             )
-        cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
+        # A linked project folder becomes the agent's workspace, so subtasks
+        # can read that project's files as their work content.
+        project_folder = str(scope.get("project_folder") or "").strip()
+        project_dir = Path(project_folder).expanduser() if project_folder else None
+        if project_dir is not None and project_dir.is_dir():
+            cwd = project_dir
+        else:
+            cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
         if not cwd.exists():
             raise RuntimeError(f"Agent project directory not found: {cwd}")
         if mode == "build":
@@ -1175,6 +1243,15 @@ class AgentStore:
                 prompt = self._build_prompt(scope, title, message)
         else:
             prompt = f"{self._system_prompt(scope, title)}\n\nUser message:\n{message}"
+        if project_dir is not None and project_dir.is_dir():
+            files = list_folder_files(str(project_dir), limit=120)
+            listing = "\n".join(f"- {name}" for name in files) if files else "(no readable files found)"
+            prompt += (
+                f"\n\nActive project folder: {project_dir}\n"
+                "Read files from this folder as the work content for this todo/subtask. "
+                "Keep outputs inside this folder when the user asks you to write files.\n"
+                f"Files:\n{listing}"
+            )
         session_id = str(agent.get("opencode_session") or "")
         command = [
             opencode, "run", "--standalone", "--format", "json",
@@ -1637,6 +1714,14 @@ def run_gtk() -> None:
         Gtk.Window.set_default_icon_name("io.github.neotodo")
     except Exception:
         pass
+    try:
+        provider = Gtk.CssProvider()
+        provider.load_from_data(b"window, window.background { background-color: #120b06; }")
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+    except Exception:
+        pass
     store = Store(DATA_FILE)
     server, port = start_server(store)
 
@@ -1659,6 +1744,33 @@ def run_gtk() -> None:
             # The black titlebar is the OS window chrome, not the page. Remove it.
             window.set_decorated(False)
             window.maximize()
+
+            def pick_project_folder():
+                chosen = {"path": None}
+                done = threading.Event()
+
+                def show_dialog():
+                    dialog = Gtk.FileDialog()
+                    dialog.set_title("Choose project folder")
+
+                    def finished(source, result, _data=None):
+                        try:
+                            folder = source.select_folder_finish(result)
+                            chosen["path"] = folder.get_path() if folder else None
+                        except Exception:
+                            chosen["path"] = None
+                        done.set()
+
+                    dialog.select_folder(window, None, finished)
+                    return False
+
+                GLib.idle_add(show_dialog)
+                done.wait(timeout=600)
+                return chosen["path"]
+
+            global FOLDER_PICK_CALLBACK
+            FOLDER_PICK_CALLBACK = pick_project_folder
+
             background = Gdk.RGBA()
             background.parse("#120b06")
             view = WebKit.WebView()
@@ -1848,7 +1960,53 @@ def run_gtk() -> None:
             window.set_child(view)
             window.connect("close-request", self._on_close)
             self.window = window
-            window.present()
+
+            # Do not present the window until the page has painted the real
+            # app, so the yellow boot frame / white WebKit frame never show.
+            revealed = {"done": False}
+
+            def reveal_window():
+                if not revealed["done"]:
+                    revealed["done"] = True
+                    window.present()
+                return False
+
+            def poll_ready():
+                if revealed["done"]:
+                    return False
+
+                def evaluated(target, result, _data=None):
+                    ready = False
+                    try:
+                        value = target.evaluate_javascript_finish(result)
+                        ready = bool(value.to_boolean()) if value is not None else False
+                    except Exception:
+                        ready = False
+                    if ready:
+                        GLib.idle_add(reveal_window)
+                    elif not revealed["done"]:
+                        GLib.timeout_add(16, poll_ready)
+                    return False
+
+                try:
+                    view.evaluate_javascript(
+                        "Boolean(document.body && document.body.classList.contains('app-ready'))",
+                        -1, None, None, None, evaluated, None,
+                    )
+                except Exception:
+                    GLib.timeout_add(16, poll_ready)
+                return False
+
+            def on_load_changed(_view, event):
+                if event == WebKit.LoadEvent.FINISHED:
+                    GLib.timeout_add(0, poll_ready)
+                    # Hard backstop: even if the JS probe is unavailable, the
+                    # first painted frame is ready by now.
+                    GLib.timeout_add(350, reveal_window)
+                return False
+
+            view.connect("load-changed", on_load_changed)
+            GLib.timeout_add(1500, reveal_window)
 
         def _on_close(self, window):
             # Detached panels depend on this process; take them home with the

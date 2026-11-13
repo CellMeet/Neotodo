@@ -9,6 +9,7 @@ WebEngine (Chromium). Build it with PyInstaller on Windows; see
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl
@@ -102,6 +103,22 @@ def main() -> int:
         QTimer.singleShot(0, application.quit)
 
     backend.QUIT_CALLBACK = quit_app
+
+    def pick_project_folder():
+        from PySide6.QtWidgets import QFileDialog
+        result = {"path": None}
+        done = threading.Event()
+
+        def show_dialog():
+            chosen = QFileDialog.getExistingDirectory(window, "Choose project folder")
+            result["path"] = chosen or None
+            done.set()
+
+        QTimer.singleShot(0, show_dialog)
+        done.wait(timeout=600)
+        return result["path"]
+
+    backend.FOLDER_PICK_CALLBACK = pick_project_folder
     application.aboutToQuit.connect(lambda: server.shutdown())
 
     view = NeoTodoWebView()
