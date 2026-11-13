@@ -1771,18 +1771,24 @@ def run_gtk() -> None:
                                     device = seat.get_pointer() if seat else None
                                     if not isinstance(surface, Gdk.Toplevel) or device is None:
                                         return False
+                                    try:
+                                        positioned, px, py, _mask = surface.get_device_position(device)
+                                        if not positioned:
+                                            px, py = x, y
+                                    except Exception:
+                                        px, py = x, y
                                     if resize:
                                         surface.begin_resize(
                                             Gdk.SurfaceEdge.NORTH,
                                             device,
                                             1,
-                                            x,
-                                            y,
+                                            int(px),
+                                            int(py),
                                             Gdk.CURRENT_TIME,
                                         )
                                     else:
                                         surface.begin_move(
-                                            device, 1, x, y, Gdk.CURRENT_TIME
+                                            device, 1, int(px), int(py), Gdk.CURRENT_TIME
                                         )
                                     return False
 
@@ -1825,9 +1831,8 @@ def run_gtk() -> None:
                             return False
                         try:
                             ok, px, py, _mask = surface.get_device_position(device)
-                            if not ok:
-                                px, py = 0, 0
-                            surface.begin_move(device, 1, int(px), int(py), Gdk.CURRENT_TIME)
+                            if ok:
+                                surface.begin_move(device, 1, int(px), int(py), Gdk.CURRENT_TIME)
                         except Exception:
                             pass
                         return False

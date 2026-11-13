@@ -11954,7 +11954,7 @@ html[data-postcard-dark="true"] .agent-terminal {
 /* OpenCode + Obsidian Copilot input: purple session bar, rose box, attach row. */
 .agent-terminal {
   --oc-ink-soft: #4a4a52;
-  --oc-user-accent: #8b6cff;
+  --oc-user-accent: #c98d8d;
   --oc-input-bg: #fffdfd;
   --oc-input-border: #e3a1a1;
   --oc-input-border-focus: #cf8585;
@@ -11966,7 +11966,7 @@ html[data-postcard-dark="true"] .agent-terminal {
 }
 html[data-postcard-dark="true"] .agent-terminal {
   --oc-ink-soft: #c9c9d2;
-  --oc-user-accent: #a78bfa;
+  --oc-user-accent: #c08a90;
   --oc-input-bg: #151517;
   --oc-input-border: #704f57;
   --oc-input-border-focus: #a87680;
@@ -12439,22 +12439,22 @@ body.agent-terminal-open .notes-reveal {
 /* Neutral input border, plain mode dropdown, and swapped header colors. */
 .agent-terminal {
   --oc-input-border: #cfcfd6;
-  --oc-input-border-focus: var(--oc-user-accent);
-  --oc-send-bg: #8b6cff;
+  --oc-input-border-focus: #cf8585;
+  --oc-send-bg: #e5a0a0;
   --oc-send-ink: #ffffff;
 }
 html[data-postcard-dark="true"] .agent-terminal {
   --oc-input-border: #3a3a42;
-  --oc-input-border-focus: #a78bfa;
-  --oc-send-bg: #a78bfa;
+  --oc-input-border-focus: #a87680;
+  --oc-send-bg: #b3757d;
 }
 .agent-compose { border-color: var(--oc-input-border); }
 .agent-compose:focus-within {
   border-color: var(--oc-input-border-focus);
-  box-shadow: 0 0 0 1px rgba(139, 108, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(207, 133, 133, 0.14);
 }
 html[data-postcard-dark="true"] .agent-compose:focus-within {
-  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2);
+  box-shadow: 0 0 0 1px rgba(168, 118, 128, 0.2);
 }
 
 .agent-provider {
@@ -12578,7 +12578,7 @@ html[data-postcard-dark="true"] .agent-compose:focus-within {
 
 .agent-compose.drag-over {
   border-color: var(--oc-user-accent);
-  box-shadow: 0 0 0 1px rgba(139, 108, 255, 0.18);
+  box-shadow: 0 0 0 1px rgba(207, 133, 133, 0.18);
 }
 .agent-compose.drag-over::after {
   content: "Drop files to attach";
@@ -12718,13 +12718,13 @@ body.agent-split-drag .agent-split-chooser {
   flex: 1 1 50%;
   border: 1px dashed var(--oc-user-accent);
   border-radius: 9px;
-  background: rgba(139, 108, 255, 0.05);
+  background: rgba(207, 133, 133, 0.05);
   opacity: 0.28;
   transition: opacity 0.15s ease, background 0.15s ease;
 }
 .agent-split-drop.active {
   opacity: 1;
-  background: rgba(139, 108, 255, 0.16);
+  background: rgba(207, 133, 133, 0.16);
 }
 body.agent-split-drag,
 body.agent-split-resizing {
@@ -12778,7 +12778,7 @@ html[data-postcard-dark="true"] .agent-terminal {
   outline: none !important;
 }
 ::selection {
-  background: rgba(139, 108, 255, 0.22);
+  background: rgba(207, 133, 133, 0.22);
   color: inherit;
 }
 .agent-meta { padding-right: 22px; }
@@ -13319,11 +13319,10 @@ body.notes-hidden .notes-half.floating-notes {
   display: none !important;
 }
 
-/* Closing doors fade where they are, then re-emerge from the bottom edge. */
-.notes-handle-bottom.handle-retiring,
-.desk-handle-ai.handle-retiring {
-  opacity: 0 !important;
-  transition: opacity 0.14s ease !important;
+/* A closing door vanishes at once, then reappears at its bottom home slot. */
+.notes-handle-bottom.handle-vanished,
+.desk-handle-ai.handle-vanished {
+  display: none !important;
 }
 
 /* A held door shows its grip instead of acting like a click. */
@@ -13360,9 +13359,180 @@ body.detached-arriving.detached-note #notes-half {
   will-change: transform, opacity;
 }
 
-/* While a closed door waits below the border, keep it out of layout churn. */
-.notes-handle-bottom.handle-emerging,
-.desk-handle-ai.handle-emerging {
-  opacity: 1 !important;
+
+
+/* Long-press door resize: the bar becomes a grip, the sheet follows the drag. */
+body.desk-handle-grip,
+body.desk-handle-resizing {
+  cursor: ns-resize;
+  user-select: none;
+}
+body.desk-handle-resizing * {
+  cursor: ns-resize !important;
+}
+.panel-handle-resizing {
   transition: none !important;
+  will-change: top, height;
+}
+
+/* Floating panel card that follows the pointer before a drop. */
+body.panel-drag-mode {
+  cursor: grabbing;
+  user-select: none;
+}
+.panel-drag-source {
+  opacity: 0.42 !important;
+  transform: scale(0.992) !important;
+  filter: saturate(0.82);
+  transition: opacity 0.18s ease, transform 0.18s ease, filter 0.18s ease !important;
+}
+.panel-drag-card {
+  position: fixed;
+  z-index: 220;
+  width: 190px;
+  height: 118px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 11px;
+  border: 1px solid rgba(40, 28, 16, 0.12);
+  border-radius: 14px;
+  background: var(--pc-paper, var(--paper, #f7efe3));
+  color: var(--pc-ink, var(--ink, #2a1c10));
+  box-shadow: 0 18px 46px rgba(20, 12, 6, 0.34), 0 2px 8px rgba(20, 12, 6, 0.16);
+  pointer-events: none;
+  overflow: hidden;
+  will-change: left, top, transform;
+  transition: left 0.045s linear, top 0.045s linear, transform 0.18s cubic-bezier(0.2, 0.9, 0.2, 1);
+  animation: panel-card-in 0.24s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+.panel-drag-card-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.panel-drag-card-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pc-accent, var(--gold, #b8872f));
+}
+.panel-drag-card-icon svg { width: 100%; height: 100%; display: block; }
+.panel-drag-card-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--note-font, var(--display));
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.panel-drag-card-sheet {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.035);
+}
+.panel-drag-line {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.12;
+}
+.panel-drag-line.w1 { width: 68%; }
+.panel-drag-line.w2 { width: 88%; }
+.panel-drag-line.w3 { width: 58%; }
+.panel-drag-line.w4 { width: 78%; }
+.panel-drag-card-foot {
+  flex: 0 0 auto;
+  text-align: right;
+  color: currentColor;
+  opacity: 0.45;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+html[data-postcard-dark="true"] .panel-drag-card {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #1c1a18;
+  color: #efe5d6;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.5);
+}
+html[data-postcard-dark="true"] .panel-drag-card-sheet {
+  background: rgba(255, 255, 255, 0.055);
+}
+.panel-drag-hint {
+  position: fixed;
+  z-index: 221;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(30, 20, 12, 0.84);
+  color: #f7efe3;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: left 0.045s linear, top 0.045s linear;
+  animation: panel-hint-in 0.2s ease both;
+}
+body.panel-drag-detach .panel-drag-card {
+  transform: scale(1.045);
+  box-shadow: 0 24px 60px rgba(20, 12, 6, 0.42);
+}
+body.panel-drag-detach .panel-drag-hint {
+  background: rgba(126, 58, 58, 0.92);
+}
+@keyframes panel-card-in {
+  from { opacity: 0; transform: scale(0.82) translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes panel-hint-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.panel-drag-card-out {
+  animation: panel-card-out 0.2s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+@keyframes panel-card-out {
+  to { opacity: 0; transform: scale(0.86) translateY(6px); }
+}
+.panel-drag-hint-out {
+  animation: panel-hint-out 0.16s ease forwards;
+}
+@keyframes panel-hint-out {
+  to { opacity: 0; }
+}
+
+/* Dock previews reuse the existing four split zones, now in rose tones. */
+body.panel-drag-mode .agent-split-chooser {
+  opacity: 1;
+  visibility: visible;
+}
+body.panel-drag-mode .agent-split-drop {
+  opacity: 0.1;
+  border-color: var(--oc-user-accent);
+  background: rgba(207, 133, 133, 0.04);
+}
+body.panel-drag-mode .agent-split-drop.active {
+  opacity: 0.62;
+  background: rgba(207, 133, 133, 0.15);
+}
+
+/* Detached door uses the same paper ink as the in-app handles. */
+html[data-theme="postcard"] .detached-grabber::before {
+  background: rgba(0, 0, 0, 0.24);
+}
+html[data-theme="postcard"] .detached-grabber:hover::before {
+  background: rgba(0, 0, 0, 0.46);
 }

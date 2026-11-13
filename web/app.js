@@ -1817,6 +1817,7 @@ let doingCardHeight = 600;
 let doingPanelRect = null;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
+let panelPreview = null;
 let detachedMode = "";
 let detachedAgentOverride = null;
 let detachedNoteTargetOverride = null;
@@ -1918,23 +1919,15 @@ function hideNotesPanel(silent = false) {
     return;
   }
   notesClosing = true;
-  handle?.classList.add("handle-retiring");
+  handle?.classList.add("handle-vanished");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
+    if (!notesClosing) return;
     panel.classList.remove("sheet-closing");
     notesClosing = false;
     hideNotesPanelNow(silent);
-    if (handle) {
-      // Fade out in place, then rise out of the bottom border at the closed slot.
-      handle.classList.remove("handle-retiring");
-      handle.classList.add("handle-emerging");
-      handle.style.setProperty("top", `${window.innerHeight + 2}px`, "important");
-      handle.getBoundingClientRect();
-      setTimeout(() => {
-        handle.classList.remove("handle-emerging");
-        positionDeskHandles();
-      }, 110);
-    }
+    handle?.classList.remove("handle-vanished");
+    positionDeskHandles();
   }, 240);
 }
 
@@ -1954,12 +1947,14 @@ function hideNotesPanelNow(silent = false) {
 
 function showNotesPanel() {
   if (!notesHidden) return;
+  notesClosing = false;
+  $(".notes-handle-bottom")?.classList.remove("handle-vanished");
   notesHidden = false;
   document.body.classList.remove("notes-hidden");
   AudioFX.leafRustle();
   const panel = $("#notes-half");
   if (!panel) return;
-  panel.classList.remove("notes-hidden");
+  panel.classList.remove("notes-hidden", "sheet-closing");
   setupNotesPanel();
   panel.classList.add("sheet-opening");
   setTimeout(() => panel.classList.remove("sheet-opening"), 320);
@@ -4019,7 +4014,9 @@ function positionDeskHandles() {
   const side = agentSplitSide;
   const vertical = side === "notes-top" || side === "notes-bottom";
   const futureCenter = (which) => {
-    if (vertical) return bodyRect.left + bodyRect.width / 2;
+    // A closed door always hides at its own side, even in a top/bottom split;
+    // it should never slide toward the middle just because the other opened.
+    if (vertical) return bodyRect.left + bodyRect.width * (which === "ai" ? 0.25 : 0.75);
     const aiLeft = side !== "notes-left";
     if (which === "ai") {
       return bodyRect.left + bodyRect.width * (aiLeft ? ratio / 2 : (1 + ratio) / 2);
@@ -4060,10 +4057,8 @@ function positionDeskHandles() {
     handle.style.setProperty("top", `${Math.round(top)}px`, "important");
     handle.style.setProperty("bottom", "auto", "important");
   };
-  // A retiring door fades where it is; its next position is applied only
-  // after it has disappeared, so it never travels diagonally.
-  if (!aiHandle.classList.contains("handle-retiring") && !aiHandle.classList.contains("handle-emerging")) setHandle(aiHandle, aiCenter, aiTop);
-  if (!notesHandle.classList.contains("handle-retiring") && !notesHandle.classList.contains("handle-emerging")) setHandle(notesHandle, notesCenter, notesTop);
+  setHandle(aiHandle, aiCenter, aiTop);
+  setHandle(notesHandle, notesCenter, notesTop);
 }
 
 function bindAgentSplitHandle() {
@@ -4338,10 +4333,13 @@ function syncAgentTerminal() {
 }
 
 function openAgentTerminal() {
+  agentClosing = false;
+  $(".desk-handle-ai")?.classList.remove("handle-vanished");
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
   renderAgentTerminal();
   const panel = $("#agent-terminal");
+  panel?.classList.remove("sheet-closing");
   panel?.classList.add("sheet-opening");
   setTimeout(() => panel?.classList.remove("sheet-opening"), 320);
   setTimeout(() => $("#agent-input")?.focus(), 80);
@@ -4357,9 +4355,10 @@ function closeAgentTerminal() {
   }
   agentClosing = true;
   const handle = $(".desk-handle-ai");
-  handle?.classList.add("handle-retiring");
+  handle?.classList.add("handle-vanished");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
+    if (!agentClosing) return;
     agentTerminalOpen = false;
     agentClosing = false;
     agentModelMenuOpen = false;
@@ -4369,17 +4368,8 @@ function closeAgentTerminal() {
     panel.setAttribute("aria-hidden", "true");
     document.querySelector(".terminal-tool")?.classList.remove("active");
     updateAgentSplitLayout();
-    if (handle) {
-      // Fade out in place, then rise out of the bottom border at the closed slot.
-      handle.classList.remove("handle-retiring");
-      handle.classList.add("handle-emerging");
-      handle.style.setProperty("top", `${window.innerHeight + 2}px`, "important");
-      handle.getBoundingClientRect();
-      setTimeout(() => {
-        handle.classList.remove("handle-emerging");
-        positionDeskHandles();
-      }, 110);
-    }
+    handle?.classList.remove("handle-vanished");
+    positionDeskHandles();
   }, 240);
 }
 
@@ -4448,6 +4438,139 @@ function openDetachedPanel(kind, quiet = false, follow = false) {
   if (kind === "ai") closeAgentTerminal();
   else hideNotesPanel();
   return true;
+}
+
+function panelPreviewIcon(kind) {
+  return kind === "ai" ? "#terminal-icon" : "#notebook";
+}
+
+function panelPreviewTitle(kind) {
+  if (kind === "ai") {
+    return document.querySelector(".agent-head-agent")?.textContent?.trim() || "AI";
+  }
+  return document.querySelector(".notes-title span")?.textContent?.trim() || "Note";
+}
+
+function startPanelPreview(kind, panel, clientX, clientY) {
+  if (panelPreview || !panel) return;
+  if (doingPeekOpen) closeDoingPeek();
+  const card = document.createElement("div");
+  card.className = `panel-drag-card panel-drag-card-${kind}`;
+  card.innerHTML = `<div class="panel-drag-card-top"><span class="panel-drag-card-icon"><svg aria-hidden="true"><use href="${panelPreviewIcon(kind)}"></use></svg></span><span class="panel-drag-card-title">${esc(panelPreviewTitle(kind))}</span></div>
+    <div class="panel-drag-card-sheet"><span class="panel-drag-line w1"></span><span class="panel-drag-line w2"></span><span class="panel-drag-line w3"></span><span class="panel-drag-line w4"></span></div>
+    <div class="panel-drag-card-foot">松手确认</div>`;
+  const hint = document.createElement("div");
+  hint.className = "panel-drag-hint";
+  hint.textContent = "拖到边缘分屏 · 拖出工作区成为独立窗口";
+  document.body.appendChild(card);
+  document.body.appendChild(hint);
+  panel.classList.add("panel-drag-source");
+  document.body.classList.add("panel-drag-mode");
+  panelPreview = { kind, panel, card, hint, zone: "", outside: false, startX: clientX, startY: clientY, moved: false };
+  updatePanelPreview(clientX, clientY);
+}
+
+function pointerOutsideWorkspace(clientX, clientY) {
+  if (clientX < -12 || clientY < -12 || clientX > window.innerWidth + 12 || clientY > window.innerHeight + 12) return true;
+  const desk = agentDeskRect();
+  if (!desk) return true;
+  return clientX < desk.left || clientX > desk.right || clientY < desk.top || clientY > desk.bottom;
+}
+
+function updatePanelPreview(clientX, clientY) {
+  const preview = panelPreview;
+  if (!preview) return;
+  const { card, hint } = preview;
+  const left = Math.max(8, Math.min(window.innerWidth - 208, clientX + 18));
+  const top = Math.max(8, Math.min(window.innerHeight - 170, clientY + 18));
+  card.style.left = `${left}px`;
+  card.style.top = `${top}px`;
+  hint.style.left = `${Math.max(8, Math.min(window.innerWidth - 260, clientX + 18))}px`;
+  hint.style.top = `${Math.min(window.innerHeight - 34, top + 126)}px`;
+
+  if (!preview.moved
+    && Math.hypot(clientX - preview.startX, clientY - preview.startY) > 12) {
+    preview.moved = true;
+  }
+  const desk = agentDeskRect();
+  const outside = preview.moved && pointerOutsideWorkspace(clientX, clientY);
+  let zone = "";
+  if (preview.moved && !outside && desk) {
+    const cx = desk.left + desk.width / 2;
+    const cy = desk.top + desk.height / 2;
+    const nearCenter = Math.abs(clientX - cx) < desk.width * 0.16
+      && Math.abs(clientY - cy) < desk.height * 0.16;
+    if (!nearCenter) {
+      zone = [
+        { side: "left", value: clientX - desk.left },
+        { side: "right", value: desk.right - clientX },
+        { side: "top", value: clientY - desk.top },
+        { side: "bottom", value: desk.bottom - clientY },
+      ].sort((a, b) => a.value - b.value)[0].side;
+    }
+  }
+  preview.zone = zone;
+  preview.outside = outside;
+  document.body.classList.toggle("panel-drag-detach", outside);
+  document.querySelectorAll(".agent-split-drop").forEach((drop) => {
+    drop.classList.toggle("active", !outside && drop.dataset.agentSplitDrop === zone);
+  });
+  hint.textContent = outside
+    ? "松手成为独立窗口"
+    : zone
+      ? "松手分屏"
+      : "拖到边缘分屏 · 拖出工作区成为独立窗口";
+}
+
+function panelPreviewNextSide(kind, zone) {
+  if (kind === "ai") {
+    return zone === "left" ? "notes-right"
+      : zone === "right" ? "notes-left"
+        : zone === "top" ? "notes-bottom"
+          : "notes-top";
+  }
+  return `notes-${zone}`;
+}
+
+function applyPanelPreviewDrop(kind, zone) {
+  if (!zone) return false;
+  const nextSide = panelPreviewNextSide(kind, zone);
+  let justOpened = false;
+  if (kind === "ai" && notesHidden) {
+    showNotesPanel();
+    justOpened = true;
+  }
+  if (kind === "note" && !agentTerminalOpen) {
+    openAgentTerminal();
+    justOpened = true;
+  }
+  if (!justOpened && agentTerminalOpen && !notesHidden && agentSplitSide !== nextSide) {
+    swapAgentSplitSide(nextSide);
+  } else {
+    agentSplitSide = nextSide;
+    try { localStorage.setItem("neotodo.agentSplitSide.v2", agentSplitSide); } catch (error) {}
+    updateAgentSplitLayout();
+  }
+  return true;
+}
+
+function endPanelPreview(confirmDrop = false) {
+  const preview = panelPreview;
+  if (!preview) return;
+  panelPreview = null;
+  const { kind, panel, card, hint, zone, outside } = preview;
+  preview.panel?.classList.remove("panel-drag-source");
+  document.body.classList.remove("panel-drag-mode", "panel-drag-detach");
+  document.querySelectorAll(".agent-split-drop").forEach((drop) => drop.classList.remove("active"));
+  card.classList.add("panel-drag-card-out");
+  hint.classList.add("panel-drag-hint-out");
+  setTimeout(() => { card.remove(); hint.remove(); }, 220);
+  if (!confirmDrop) return;
+  if (outside) {
+    openDetachedPanel(kind, false, true);
+    return;
+  }
+  applyPanelPreviewDrop(kind, zone);
 }
 
 function toggleAgentTerminal() {
@@ -5618,14 +5741,19 @@ function refreshDoingZone() {
   const half = $(".current-half");
   if (!half) { doingZone = null; return; }
   const rect = half.getBoundingClientRect();
+  const area = $(".current-inner") || half;
+  const areaRect = area.getBoundingClientRect();
+  const zoneRect = areaRect.width > 20 ? areaRect : rect;
   doingCardWidth = Math.round(Math.min(420, Math.max(320, rect.width * 0.5)));
   doingCardTop = Math.max(8, rect.top - 40);
   doingCardHeight = Math.min(560, Math.max(280, window.innerHeight - doingCardTop - 12));
+  // The subtask column's full width is the trigger; its lower three quarters
+  // keep the card away from the very top of the task area.
   doingZone = {
-    left: rect.right - 28,
-    right: rect.right,
-    top: rect.top + rect.height / 4,
-    bottom: Math.min(rect.bottom, window.innerHeight - 8),
+    left: zoneRect.left,
+    right: zoneRect.right,
+    top: zoneRect.top + zoneRect.height / 4,
+    bottom: Math.min(zoneRect.bottom, window.innerHeight - 8),
   };
 }
 
@@ -7757,8 +7885,12 @@ function bindEvents() {
     }
   }, { passive: true });
 
+  const doingPeekSuppressed = () => Boolean(panelPreview)
+    || document.body.classList.contains("panel-drag-mode")
+    || document.body.classList.contains("agent-split-drag");
+
   const processDoingPointer = () => {
-    if (!doingZone || doingPeekOpen) return;
+    if (!doingZone || doingPeekOpen || doingPeekSuppressed()) return;
     const { x, y } = doingPeekPoint;
     if (!pointInDoingZone(x, y)) {
       clearTimeout(doingPeekOpenTimer);
@@ -7768,6 +7900,7 @@ function bindEvents() {
     if (!doingPeekOpenTimer) {
       doingPeekOpenTimer = setTimeout(() => {
         doingPeekOpenTimer = 0;
+        if (doingPeekSuppressed()) return;
         if (!pointInDoingZone(doingPeekPoint.x, doingPeekPoint.y)) return;
         openDoingPeek();
       }, 130);
@@ -7777,7 +7910,7 @@ function bindEvents() {
   document.addEventListener("pointermove", (event) => {
     doingPeekPoint = { x: event.clientX, y: event.clientY };
     if (!doingZone) refreshDoingZone();
-    if (!doingZone || doingPeekOpen) return;
+    if (!doingZone || doingPeekOpen || doingPeekSuppressed()) return;
     if (!pointInDoingZone(event.clientX, event.clientY)) {
       clearTimeout(doingPeekOpenTimer);
       doingPeekOpenTimer = 0;
@@ -7858,21 +7991,20 @@ function bindEvents() {
     const open = kind === "ai" ? agentTerminalOpen : !notesHidden;
     if (!open) return;
     if (event.target.closest?.("button, a, input, textarea, select, .agent-compose, .note-block, .note-block-editor, .note-pictures, .notes-resize-handle, .desk-handle, .notes-handle, .detached-grabber")) return;
-    if (!detachedMode && event.target.closest?.(".agent-head, .notes-head")) return;
     const startX = event.screenX;
     const startY = event.screenY;
     const viewX = event.clientX;
     const viewY = event.clientY;
-    const state = { kind, panel, startX, startY, activated: false, cancelled: false, x: viewX, y: viewY };
+    const state = { kind, panel, startX, startY, pointerId: event.pointerId, activated: false, cancelled: false, x: viewX, y: viewY };
     const timer = setTimeout(() => {
       if (state.cancelled || !state.panel.isConnected) return;
       state.activated = true;
-      panelLongPressSuppress = performance.now() + 900;
+      panelLongPressSuppress = performance.now() + 1200;
       if (detachedMode) {
         nativeWindowCommand("move", startX, startY);
       } else {
-        state.panel.classList.add("window-lifting");
-        if (openDetachedPanel(state.kind, true, true)) state.detachedStarted = true;
+        try { document.getSelection()?.removeAllRanges(); } catch (error) {}
+        startPanelPreview(state.kind, state.panel, state.x, state.y);
       }
     }, 380);
     state.timer = timer;
@@ -7880,6 +8012,10 @@ function bindEvents() {
   }, { passive: true });
 
   document.addEventListener("pointermove", (event) => {
+    if (panelPreview) {
+      updatePanelPreview(event.clientX, event.clientY);
+      return;
+    }
     if (!panelLongPress || panelLongPress.activated) return;
     if (Math.hypot(event.screenX - panelLongPress.startX, event.screenY - panelLongPress.startY) > 9) {
       panelLongPress.cancelled = true;
@@ -7888,16 +8024,24 @@ function bindEvents() {
     }
   }, { passive: true });
 
-  document.addEventListener("pointerup", (event) => {
-    if (!panelLongPress) return;
+  const finishPanelLongPress = (confirmDrop = false) => {
     const state = panelLongPress;
     panelLongPress = null;
-    clearTimeout(state.timer);
-    if (state.cancelled) return;
-    state.panel.classList.remove("window-lifting");
-    if (!state.activated) return;
-    if (detachedMode || state.detachedStarted) return;
-    openDetachedPanel(state.kind, false, true);
+    if (state) clearTimeout(state.timer);
+    if (panelPreview) {
+      endPanelPreview(confirmDrop);
+      panelLongPressSuppress = performance.now() + 400;
+      return;
+    }
+    if (!state || state.cancelled) return;
+  };
+
+  document.addEventListener("pointerup", () => {
+    finishPanelLongPress(true);
+  }, { passive: true });
+
+  document.addEventListener("pointercancel", () => {
+    finishPanelLongPress(false);
   }, { passive: true });
 
   document.addEventListener("click", (event) => {
@@ -7919,134 +8063,86 @@ function bindEvents() {
     if (!handle || event.button !== 0) return;
     const isAi = handle.classList.contains("desk-handle-ai");
     const isOpen = isAi ? agentTerminalOpen : !notesHidden;
+    const panel = isAi ? $("#agent-terminal") : $("#notes-half");
+    const desk = agentDeskRect();
+    const canResize = Boolean(panel && desk && isOpen
+      && (isAi ? notesHidden : !agentTerminalOpen));
     const startX = event.clientX;
     const startY = event.clientY;
-    let swiped = false;
-    let detachRequested = false;
+    const panelRect = panel?.getBoundingClientRect();
+    const startTop = panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0;
+    const minHeight = desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120;
     let longPressed = false;
     let moved = false;
+    let resizing = false;
+    let raf = 0;
     const timer = setTimeout(() => {
       if (!handle.isConnected) return;
       longPressed = true;
       handle.classList.add("handle-longpress");
-      // A held door is a grip, not a click. Keep the click from arriving.
-      deskHandleSwipeSuppress = performance.now() + 900;
+      document.body.classList.add("desk-handle-grip");
     }, 340);
+    const applyResize = (dy) => {
+      if (!panel || !desk) return;
+      const top = Math.max(0, Math.min(desk.height - minHeight, startTop + dy));
+      const height = desk.height - top;
+      panel.style.setProperty("top", `${top}px`, "important");
+      panel.style.setProperty("height", `${height}px`, "important");
+      panel.style.setProperty("bottom", "auto", "important");
+      handle.style.setProperty("top", `${desk.top + top + 6}px`, "important");
+    };
     const move = (moveEvent) => {
-      if (swiped || detachRequested) return;
-      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 6) {
-        moved = true;
-        if (!longPressed) clearTimeout(timer);
-      }
-      if (!isOpen) return;
-      if (startY - moveEvent.clientY > 36) {
-        detachRequested = true;
-        clearTimeout(timer);
-        handle.classList.remove("handle-longpress");
-        deskHandleSwipeSuppress = performance.now() + 700;
+      if (!longPressed) {
+        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 6) {
+          moved = true;
+          clearTimeout(timer);
+        }
         return;
       }
-      if (moveEvent.clientY - startY > 24) {
-        swiped = true;
-        clearTimeout(timer);
-        handle.classList.remove("handle-longpress");
-        deskHandleSwipeSuppress = performance.now() + 500;
-        if (isAi) closeAgentTerminal();
-        else hideNotesPanel();
+      if (!canResize) return;
+      if (!resizing) {
+        resizing = true;
+        document.body.classList.add("desk-handle-resizing");
+        panel?.classList.add("panel-handle-resizing");
+        if (panel) {
+          panel.style.setProperty("transition", "none", "important");
+          panel.style.setProperty("will-change", "top, height");
+        }
+        handle.style.setProperty("transition", "none", "important");
+      }
+      const dy = moveEvent.clientY - startY;
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          applyResize(dy);
+        });
       }
     };
     const up = () => {
       clearTimeout(timer);
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
       window.removeEventListener("pointermove", move);
       handle.classList.remove("handle-longpress");
-      if (detachRequested) {
-        openDetachedPanel(isAi ? "ai" : "note", false, true);
+      document.body.classList.remove("desk-handle-grip", "desk-handle-resizing");
+      panel?.classList.remove("panel-handle-resizing");
+      if (panel) {
+        panel.style.removeProperty("transition");
+        panel.style.removeProperty("will-change");
+      }
+      handle.style.removeProperty("transition");
+      if (resizing) {
+        // Suppress only the click that belongs to this same gesture.
+        deskHandleSwipeSuppress = performance.now() + 360;
+        positionDeskHandles();
         return;
       }
-      if (swiped) return;
-      if (longPressed && !moved) {
-        // Long-press stays a grip; the toggle click is suppressed.
-        deskHandleSwipeSuppress = performance.now() + 320;
+      if (longPressed) {
+        deskHandleSwipeSuppress = performance.now() + 360;
+        return;
       }
+      if (moved) deskHandleSwipeSuppress = performance.now() + 360;
     };
     window.addEventListener("pointermove", move, { passive: true });
-    window.addEventListener("pointerup", up, { once: true });
-  }, { passive: true });
-
-  document.addEventListener("pointerdown", (event) => {
-    if (!agentTerminalOpen || notesHidden || event.button !== 0) return;
-    const agentHead = event.target.closest?.(".agent-head");
-    const notesHead = event.target.closest?.(".notes-head");
-    if (!agentHead && !notesHead) return;
-    if (event.target.closest?.("button, a, input, textarea, .notes-resize-handle, .notes-handle-top")) return;
-    const source = agentHead ? "ai" : "notes";
-    const sourcePane = source === "ai" ? $("#agent-terminal") : $("#notes-half");
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let activated = false;
-    let moved = false;
-    let side = "left";
-    let timer = 0;
-    const setSide = (x, y) => {
-      const rect = agentDeskRect();
-      if (!rect) return;
-      const distances = [
-        { side: "left", value: x - rect.left },
-        { side: "right", value: rect.right - x },
-        { side: "top", value: y - rect.top },
-        { side: "bottom", value: rect.bottom - y },
-      ];
-      distances.sort((a, b) => a.value - b.value);
-      side = distances[0].side;
-      document.querySelectorAll(".agent-split-drop").forEach((drop) => {
-        drop.classList.toggle("active", drop.dataset.agentSplitDrop === side);
-      });
-    };
-    const cleanup = () => {
-      clearTimeout(timer);
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      document.body.classList.remove("agent-split-drag");
-      sourcePane?.classList.remove("split-lifted");
-      agentSplitDrag = null;
-      document.querySelectorAll(".agent-split-drop").forEach((drop) => drop.classList.remove("active"));
-    };
-    const move = (moveEvent) => {
-      if (!activated) {
-        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) cleanup();
-        return;
-      }
-      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 12) moved = true;
-      moveEvent.preventDefault();
-      setSide(moveEvent.clientX, moveEvent.clientY);
-    };
-    const up = (upEvent) => {
-      if (activated && moved) {
-        const desk = agentDeskRect();
-        if (desk) {
-          const inArea = upEvent.clientX >= desk.left && upEvent.clientX <= desk.right
-            && upEvent.clientY >= desk.top && upEvent.clientY <= desk.bottom;
-          if (inArea) {
-            setSide(upEvent.clientX, upEvent.clientY);
-            const nextSide = source === "notes"
-              ? `notes-${side}`
-              : (side === "left" ? "notes-right" : side === "right" ? "notes-left" : side === "top" ? "notes-bottom" : "notes-top");
-            cleanup();
-            swapAgentSplitSide(nextSide);
-            return;
-          }
-        }
-      }
-      cleanup();
-    };
-    timer = setTimeout(() => {
-      activated = true;
-      document.body.classList.add("agent-split-drag");
-      sourcePane?.classList.add("split-lifted");
-      agentSplitDrag = { source };
-      setSide(startX, startY);
-    }, 380);
-    window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up, { once: true });
   }, { passive: true });
 
