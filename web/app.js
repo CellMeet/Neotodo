@@ -1829,8 +1829,21 @@ const agentLoadingIds = new Set();
 const agentLive = {};
 const agentPollTimers = new Map();
 const agentAttachments = {};
+const agentFileCache = {};
 let agentModelMenuOpen = false;
+let agentModeMenuOpen = false;
 let agentFilesOpen = false;
+let agentSplitSide = (() => {
+  try { return localStorage.getItem("neotodo.agentSplitSide") === "notes-right" ? "notes-right" : "notes-left"; }
+  catch (error) { return "notes-left"; }
+})();
+let agentSplitRatio = (() => {
+  try {
+    const value = Number(localStorage.getItem("neotodo.agentSplitRatio"));
+    return Number.isFinite(value) && value >= 0.28 && value <= 0.72 ? value : 0.5;
+  } catch (error) { return 0.5; }
+})();
+let agentSplitDrag = null;
 let doingPeekSignature = "";
 let addingSubtask = false;
 let addingSubtaskTodoId = null;
@@ -1906,6 +1919,7 @@ function hideNotesPanel(silent = false) {
   if (panel) panel.classList.add("notes-hidden");
   updateNotesHandle();
   positionNotesHandle();
+  updateAgentSplitLayout();
 }
 
 function showNotesPanel() {
@@ -1919,6 +1933,7 @@ function showNotesPanel() {
   setupNotesPanel();
   updateNotesHandle();
   positionNotesHandle();
+  updateAgentSplitLayout();
 }
 let noteBlocks = [];
 let noteBlockKey = null;
@@ -3677,6 +3692,16 @@ function agentAttachmentsFor(agentId) {
   return agentAttachments[agentId];
 }
 
+function addAgentFileFromCache(name) {
+  const agent = activeAgent();
+  const cached = agentFileCache[agent.id]?.[name];
+  if (!cached) return;
+  const list = agentAttachmentsFor(agent.id);
+  if (list.some((file) => file.name === name)) return;
+  list.push({ ...cached });
+  renderAgentTerminal();
+}
+
 function agentAttachedChips(items) {
   if (!Array.isArray(items) || !items.length) return "";
   const names = items.map((item) => (typeof item === "string" ? item : String(item?.name || ""))).filter(Boolean);
@@ -3706,6 +3731,27 @@ function agentFileItems(agent, messages) {
   return files;
 }
 
+function agentSplitUiMarkup() {
+  return `<div class="agent-split-handle" id="agent-split-handle" hidden></div>
+    <div class="agent-split-chooser" id="agent-split-chooser" aria-hidden="true">
+      <div class="agent-split-drop" data-agent-split-drop="left"></div>
+      <div class="agent-split-drop" data-agent-split-drop="right"></div>
+    </div>`;
+}
+
+function updateAgentSplitLayout() {
+  const active = agentTerminalOpen && !notesHidden && Boolean($("#notes-half"));
+  document.body.classList.toggle("agent-notes-split", active);
+  document.body.classList.toggle("agent-notes-left", active && agentSplitSide === "notes-left");
+  document.body.classList.toggle("agent-notes-right", active && agentSplitSide === "notes-right");
+  document.documentElement.style.setProperty("--agent-left-pct", `${(agentSplitRatio * 100).toFixed(2)}%`);
+  const handle = $("#agent-split-handle");
+  if (handle) handle.hidden = !active;
+  const chooser = $("#agent-split-chooser");
+  if (chooser) chooser.setAttribute("aria-hidden", active ? "false" : "true");
+  if (agentTerminalOpen) positionAgentFilesCard();
+}
+
 function agentTerminalMarkup() {
   return `<section class="agent-terminal ${agentTerminalOpen ? "open" : ""}" id="agent-terminal" aria-hidden="${agentTerminalOpen ? "false" : "true"}">
     <div class="agent-resize" data-agent-resize aria-label="Resize terminal"></div>
@@ -3733,6 +3779,7 @@ function agentTerminalMarkup() {
               </button>
               <button class="agent-mode-pick" type="button" data-agent-mode-toggle aria-label="Switch work mode" title="Switch between Chat and Build">
                 <span id="agent-mode">Chat</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <button class="agent-send" type="submit" aria-label="Send">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -3740,6 +3787,7 @@ function agentTerminalMarkup() {
             </div>
             <input class="agent-file" type="file" id="agent-file" multiple>
             <div class="agent-model-menu" id="agent-model-menu" hidden></div>
+            <div class="agent-mode-menu" id="agent-mode-menu" hidden></div>
           </form>
         </div>
         <div class="agent-meta" id="agent-meta">
@@ -3748,11 +3796,10 @@ function agentTerminalMarkup() {
         </div>
       </div>
     </div>
-    <aside class="agent-files-drawer ${agentFilesOpen ? "open" : ""}" id="agent-files-drawer" aria-hidden="${agentFilesOpen ? "false" : "true"}">
-      <div class="agent-files-head"><span>Files</span><button class="agent-files-close" type="button" data-agent-files-close aria-label="Close files"><svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
+    <aside class="agent-files-card ${agentFilesOpen ? "open" : ""}" id="agent-files-card" aria-hidden="${agentFilesOpen ? "false" : "true"}">
+      <button class="agent-files-close" type="button" data-agent-files-close aria-label="Close files"><svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#close-circle"></use></svg></button>
       <div class="agent-files-list" id="agent-files-list"></div>
     </aside>
-    <button class="agent-files-tab" type="button" data-agent-files-toggle aria-label="Show files">Files</button>
   </section>`;
 }
 
@@ -3782,6 +3829,7 @@ function bindAgentCompose() {
       event.preventDefault();
       if (agentBusyIds.has(activeAgent().id)) return;
       agentModelMenuOpen = !agentModelMenuOpen;
+      agentModeMenuOpen = false;
       if (agentModelMenuOpen) loadAgentModels();
       renderAgentTerminal();
       return;
@@ -3795,8 +3843,16 @@ function bindAgentCompose() {
     const modeToggle = event.target.closest("[data-agent-mode-toggle]");
     if (modeToggle) {
       event.preventDefault();
-      const agent = activeAgent();
-      setAgentMode(currentAgentMode(agent) === "build" ? "chat" : "build");
+      if (agentBusyIds.has(activeAgent().id)) return;
+      agentModeMenuOpen = !agentModeMenuOpen;
+      agentModelMenuOpen = false;
+      renderAgentTerminal();
+      return;
+    }
+    const modeChoice = event.target.closest("[data-agent-mode-choice]");
+    if (modeChoice) {
+      event.preventDefault();
+      setAgentMode(modeChoice.dataset.agentModeChoice);
     }
   });
   compose.addEventListener("change", (event) => {
@@ -3805,21 +3861,64 @@ function bindAgentCompose() {
       event.target.value = "";
     }
   });
+  compose.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    compose.classList.add("drag-over");
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  });
+  compose.addEventListener("dragleave", () => compose.classList.remove("drag-over"));
+  compose.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    compose.classList.remove("drag-over");
+    const transfer = event.dataTransfer;
+    if (!transfer) return;
+    if (transfer.files && transfer.files.length) {
+      await handleAgentFiles(Array.from(transfer.files));
+      return;
+    }
+    const raw = transfer.getData("application/x-neotodo-file");
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      if (data.agentId === activeAgent().id) addAgentFileFromCache(data.name);
+    } catch (error) {
+    }
+  });
+}
+
+function agentAiPaneRect() {
+  const panel = $("#agent-terminal");
+  if (!panel) return null;
+  const rect = panel.getBoundingClientRect();
+  if (document.body.classList.contains("agent-notes-split")) {
+    const body = $(".page-body");
+    const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--agent-left-pct"));
+    const ratio = Number.isFinite(value) ? value / 100 : 0.5;
+    const bodyRect = body?.getBoundingClientRect();
+    const boundary = bodyRect ? bodyRect.left + bodyRect.width * ratio : rect.left + rect.width * ratio;
+    if (document.body.classList.contains("agent-notes-right")) {
+      return { left: rect.left, right: boundary, top: rect.top, bottom: rect.bottom };
+    }
+    return { left: boundary, right: rect.right, top: rect.top, bottom: rect.bottom };
+  }
+  return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+}
+
+function positionAgentFilesCard() {
+  const card = $("#agent-files-card");
+  const panel = $("#agent-terminal");
+  const pane = agentAiPaneRect();
+  if (!card || !panel || !pane) return;
+  const panelRect = panel.getBoundingClientRect();
+  card.style.right = `${Math.max(8, Math.round(panelRect.right - pane.right + 8))}px`;
+  card.style.width = `${Math.max(190, Math.min(258, Math.round(pane.right - pane.left - 16)))}px`;
 }
 
 function bindAgentFileDrawer() {
-  const panel = $("#agent-terminal");
-  if (!panel || panel.dataset.filesBound === "1") return;
-  panel.dataset.filesBound = "1";
-  panel.addEventListener("click", (event) => {
-    const toggle = event.target.closest("[data-agent-files-toggle]");
-    if (toggle) {
-      event.preventDefault();
-      event.stopPropagation();
-      agentFilesOpen = true;
-      renderAgentTerminal();
-      return;
-    }
+  const card = $("#agent-files-card");
+  if (!card || card.dataset.filesBound === "1") return;
+  card.dataset.filesBound = "1";
+  card.addEventListener("click", (event) => {
     const close = event.target.closest("[data-agent-files-close]");
     if (close) {
       event.preventDefault();
@@ -3827,6 +3926,46 @@ function bindAgentFileDrawer() {
       agentFilesOpen = false;
       renderAgentTerminal();
     }
+  });
+  card.addEventListener("dragstart", (event) => {
+    const row = event.target.closest("[data-agent-file-name]");
+    if (!row || row.dataset.agentFileDrag !== "1") {
+      event.preventDefault();
+      return;
+    }
+    const agent = activeAgent();
+    event.dataTransfer?.setData("application/x-neotodo-file", JSON.stringify({ agentId: agent.id, name: row.dataset.agentFileName }));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+  });
+}
+
+function bindAgentSplitHandle() {
+  const handle = $("#agent-split-handle");
+  if (!handle || handle.dataset.bound === "1") return;
+  handle.dataset.bound = "1";
+  handle.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !document.body.classList.contains("agent-notes-split")) return;
+    const body = $(".page-body");
+    if (!body) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = body.getBoundingClientRect();
+    document.body.classList.add("agent-split-resizing");
+    try { handle.setPointerCapture?.(event.pointerId); } catch (error) {}
+    const move = (moveEvent) => {
+      const ratio = clamp((moveEvent.clientX - rect.left) / Math.max(1, rect.width), 0.28, 0.72);
+      agentSplitRatio = ratio;
+      document.documentElement.style.setProperty("--agent-left-pct", `${(ratio * 100).toFixed(2)}%`);
+      positionAgentFilesCard();
+    };
+    const up = () => {
+      document.body.classList.remove("agent-split-resizing");
+      try { localStorage.setItem("neotodo.agentSplitRatio", String(agentSplitRatio)); } catch (error) {}
+      window.removeEventListener("pointermove", move);
+      updateAgentSplitLayout();
+    };
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up, { once: true });
   });
 }
 
@@ -3837,9 +3976,10 @@ function renderAgentTerminal() {
   if (!panel) return;
   panel.classList.toggle("open", agentTerminalOpen);
   panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
-  if (!agentTerminalOpen) return;
+  if (!agentTerminalOpen) { updateAgentSplitLayout(); return; }
   bindAgentCompose();
   bindAgentFileDrawer();
+  bindAgentSplitHandle();
 
   const agent = activeAgent();
   const model = currentAgentModel(agent);
@@ -3887,6 +4027,13 @@ function renderAgentTerminal() {
   if (modelLabel) modelLabel.textContent = label;
   const modeEl = $("#agent-mode");
   if (modeEl) modeEl.textContent = mode === "build" ? "Build" : "Chat";
+  const modeMenu = $("#agent-mode-menu");
+  if (modeMenu) {
+    modeMenu.hidden = !agentModeMenuOpen;
+    if (agentModeMenuOpen) {
+      modeMenu.innerHTML = ["chat", "build"].map((item) => `<button type="button" class="agent-mode-option ${item === mode ? "active" : ""}" data-agent-mode-choice="${item}"><span>${item === "build" ? "Build" : "Chat"}</span>${item === mode ? `<span class="agent-model-check">✓</span>` : ""}</button>`).join("");
+    }
+  }
 
   const attachments = agentAttachmentsFor(agent.id);
   const chips = $("#agent-attach-chips");
@@ -3906,18 +4053,21 @@ function renderAgentTerminal() {
   }
 
   const fileItems = agentFileItems(agent, messages);
-  panel.classList.toggle("files-open", agentFilesOpen);
-  const fileDrawer = $("#agent-files-drawer");
-  if (fileDrawer) {
-    fileDrawer.classList.toggle("open", agentFilesOpen);
-    fileDrawer.setAttribute("aria-hidden", agentFilesOpen ? "false" : "true");
+  const fileCard = $("#agent-files-card");
+  if (fileCard) {
+    fileCard.classList.toggle("open", agentFilesOpen);
+    fileCard.setAttribute("aria-hidden", agentFilesOpen ? "false" : "true");
   }
   const fileList = $("#agent-files-list");
   if (fileList) {
     fileList.innerHTML = fileItems.length
-      ? fileItems.map((file) => `<div class="agent-file-row"><span class="agent-file-name" title="${esc(file.name)}">${esc(file.name)}</span><span class="agent-file-size">${file.size ? formatAgentBytes(file.size) : ""}</span></div>`).join("")
+      ? fileItems.map((file) => {
+          const canDrag = Boolean(agentFileCache[agent.id]?.[file.name]);
+          return `<div class="agent-file-row" draggable="${canDrag ? "true" : "false"}" data-agent-file-name="${esc(file.name)}" data-agent-file-drag="${canDrag ? "1" : "0"}"><span class="agent-file-name" title="${esc(file.name)}">${esc(file.name)}</span><span class="agent-file-size">${file.size ? formatAgentBytes(file.size) : ""}</span></div>`;
+        }).join("")
       : `<div class="agent-files-empty">No files yet.</div>`;
   }
+  positionAgentFilesCard();
 
   const live = agentLive[agent.id] || {};
   let usage = (busy && live.usage?.tokens ? live.usage : session.usage) || {};
@@ -3957,6 +4107,7 @@ function renderAgentTerminal() {
   if (modePick) modePick.disabled = Boolean(busy || loading);
   const send = $(".agent-send");
   if (send) send.disabled = Boolean(busy || loading);
+  updateAgentSplitLayout();
 }
 
 async function loadAgentModels() {
@@ -4063,12 +4214,14 @@ function openAgentTerminal() {
 function closeAgentTerminal() {
   agentTerminalOpen = false;
   agentModelMenuOpen = false;
+  agentModeMenuOpen = false;
   agentFilesOpen = false;
   document.body.classList.remove("agent-terminal-open");
   const panel = $("#agent-terminal");
   panel?.classList.remove("open");
   panel?.setAttribute("aria-hidden", "true");
   document.querySelector(".terminal-tool")?.classList.remove("active");
+  updateAgentSplitLayout();
 }
 
 function toggleAgentTerminal() {
@@ -4096,6 +4249,7 @@ async function setAgentMode(mode) {
   if (agentBusyIds.has(agent.id)) return;
   const session = agentSessions[agent.id] || { messages: [] };
   agentSessions[agent.id] = { ...session, mode };
+  agentModeMenuOpen = false;
   renderAgentTerminal();
   try {
     await agentPost({ action: "set_mode", agent_id: agent.id, mode });
@@ -4139,7 +4293,10 @@ async function handleAgentFiles(files) {
       reader.readAsDataURL(file);
     });
     if (!data) continue;
-    list.push({ name: file.name, type: file.type || "", size: file.size, data });
+    const cached = { name: file.name, type: file.type || "", size: file.size, data };
+    list.push(cached);
+    if (!agentFileCache[agent.id]) agentFileCache[agent.id] = {};
+    agentFileCache[agent.id][file.name] = cached;
   }
   renderAgentTerminal();
   setTimeout(() => $("#agent-input")?.focus(), 40);
@@ -4249,6 +4406,7 @@ function renderStage() {
         </section>
         <section class="notes-half" id="notes-half">${notesHtml()}</section>
         ${agentTerminalMarkup()}
+        ${agentSplitUiMarkup()}
       </div>`;
     renderAgentTerminal();
     refreshTaskBoard();
@@ -4353,6 +4511,7 @@ function renderStage() {
       </section>
       <section class="notes-half" id="notes-half">${notesHtml()}</section>
       ${agentTerminalMarkup()}
+      ${agentSplitUiMarkup()}
     </div>`;
 
   renderAgentTerminal();
@@ -5192,7 +5351,7 @@ function refreshDoingZone() {
   doingZone = {
     left: rect.right - 28,
     right: rect.right,
-    top: doingCardTop,
+    top: rect.top + rect.height / 2,
     bottom: Math.min(rect.bottom, window.innerHeight - 8),
   };
 }
@@ -6631,7 +6790,7 @@ async function startNewTask(name = "") {
 
 function bindEvents() {
   document.addEventListener("pointerdown", (event) => {
-    const stretchHandle = event.target.closest(".notes-handle-top");
+    const stretchHandle = event.target.closest?.(".notes-handle-top");
     if (stretchHandle && !notesHidden && event.button === 0) {
       const board = ensureTaskBoard();
       const metrics = notesDock.metrics();
@@ -7362,6 +7521,7 @@ function bindEvents() {
     refreshDoingZone();
     refreshNotesSwipeLine();
     if (doingPeekOpen) positionDoingPeek();
+    updateAgentSplitLayout();
   });
 
   document.addEventListener("pointerdown", (event) => {
@@ -7378,6 +7538,7 @@ function bindEvents() {
     const move = (moveEvent) => {
       const height = Math.max(220, Math.min(bodyRect.height - 40, startHeight + (startY - moveEvent.clientY)));
       document.documentElement.style.setProperty("--agent-terminal-height", `${Math.round(height)}px`);
+      updateAgentSplitLayout();
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -7396,11 +7557,119 @@ function bindEvents() {
   });
 
   document.addEventListener("click", () => {
-    if (agentModelMenuOpen) {
+    if (agentModelMenuOpen || agentModeMenuOpen) {
       agentModelMenuOpen = false;
+      agentModeMenuOpen = false;
       renderAgentTerminal();
     }
   });
+
+  let agentFilesSwipe = null;
+  document.addEventListener("pointerdown", (event) => {
+    if (!agentTerminalOpen || event.button !== 0) return;
+    if (event.target.closest?.(".agent-split-handle")) return;
+    const pane = agentAiPaneRect();
+    if (pane) {
+      const nearEdge = event.clientX >= pane.right - 26 && event.clientX <= pane.right + 6;
+      const inBand = event.clientY > pane.top + 46 && event.clientY < pane.bottom - 130;
+      if (nearEdge && inBand) {
+        agentFilesSwipe = { startX: event.clientX, pointerId: event.pointerId };
+        return;
+      }
+    }
+    if (agentFilesOpen && !event.target.closest?.("#agent-files-card") && !event.target.closest?.(".agent-compose")) {
+      agentFilesOpen = false;
+      renderAgentTerminal();
+    }
+  }, { passive: true });
+
+  document.addEventListener("pointermove", (event) => {
+    if (!agentFilesSwipe) return;
+    if (agentFilesSwipe.startX - event.clientX > 18) {
+      agentFilesSwipe = null;
+      agentFilesOpen = true;
+      renderAgentTerminal();
+    }
+  }, { passive: true });
+
+  document.addEventListener("pointerup", () => {
+    agentFilesSwipe = null;
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!agentTerminalOpen || notesHidden || event.button !== 0) return;
+    const agentHead = event.target.closest?.(".agent-head");
+    const notesHead = event.target.closest?.(".notes-head");
+    if (!agentHead && !notesHead) return;
+    if (event.target.closest?.("button, a, input, textarea, .notes-resize-handle, .notes-handle-top, .agent-files-card")) return;
+    const source = agentHead ? "ai" : "notes";
+    const sourcePane = source === "ai" ? $("#agent-terminal") : $("#notes-half");
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let activated = false;
+    let moved = false;
+    let side = "left";
+    let timer = 0;
+    const setSide = (x) => {
+      const body = $(".page-body");
+      if (!body) return;
+      const rect = body.getBoundingClientRect();
+      side = x < rect.left + rect.width / 2 ? "left" : "right";
+      document.querySelectorAll(".agent-split-drop").forEach((drop) => {
+        drop.classList.toggle("active", drop.dataset.agentSplitDrop === side);
+      });
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.classList.remove("agent-split-drag");
+      sourcePane?.classList.remove("split-lifted");
+      agentSplitDrag = null;
+      document.querySelectorAll(".agent-split-drop").forEach((drop) => drop.classList.remove("active"));
+    };
+    const move = (moveEvent) => {
+      if (!activated) {
+        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) cleanup();
+        return;
+      }
+      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 12) moved = true;
+      moveEvent.preventDefault();
+      setSide(moveEvent.clientX);
+    };
+    const up = (upEvent) => {
+      if (activated && moved) {
+        const body = $(".page-body");
+        const terminal = $("#agent-terminal");
+        if (body && terminal) {
+          const bodyRect = body.getBoundingClientRect();
+          const terminalRect = terminal.getBoundingClientRect();
+          const inArea = upEvent.clientX >= bodyRect.left && upEvent.clientX <= bodyRect.right
+            && upEvent.clientY >= terminalRect.top && upEvent.clientY <= terminalRect.bottom;
+          if (inArea) {
+            setSide(upEvent.clientX);
+            if (source === "notes") {
+              agentSplitSide = side === "left" ? "notes-left" : "notes-right";
+            } else {
+              agentSplitSide = side === "left" ? "notes-right" : "notes-left";
+            }
+            try { localStorage.setItem("neotodo.agentSplitSide", agentSplitSide); } catch (error) {}
+            updateAgentSplitLayout();
+          }
+        }
+      }
+      cleanup();
+    };
+    timer = setTimeout(() => {
+      activated = true;
+      document.body.classList.add("agent-split-drag");
+      sourcePane?.classList.add("split-lifted");
+      agentSplitDrag = { source };
+      setSide(startX);
+    }, 380);
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up, { once: true });
+  }, { passive: true });
 
   document.addEventListener("submit", (event) => {
     if (event.target.id === "agent-compose") {

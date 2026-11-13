@@ -12435,3 +12435,306 @@ body.agent-terminal-open .notes-reveal {
   margin-left: 0;
   padding-right: 26px;
 }
+
+/* Neutral input border, plain mode dropdown, and swapped header colors. */
+.agent-terminal {
+  --oc-input-border: #cfcfd6;
+  --oc-input-border-focus: var(--oc-user-accent);
+  --oc-send-bg: #8b6cff;
+  --oc-send-ink: #ffffff;
+}
+html[data-postcard-dark="true"] .agent-terminal {
+  --oc-input-border: #3a3a42;
+  --oc-input-border-focus: #a78bfa;
+  --oc-send-bg: #a78bfa;
+}
+.agent-compose { border-color: var(--oc-input-border); }
+.agent-compose:focus-within {
+  border-color: var(--oc-input-border-focus);
+  box-shadow: 0 0 0 1px rgba(139, 108, 255, 0.14);
+}
+html[data-postcard-dark="true"] .agent-compose:focus-within {
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2);
+}
+
+.agent-provider {
+  color: var(--oc-ink);
+  font-weight: 700;
+}
+.agent-head-agent {
+  color: var(--oc-ink-soft);
+  font-weight: 600;
+}
+
+.agent-mode-pick {
+  margin-left: 0;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--oc-ink-soft);
+  font-family: var(--oc-sans);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.agent-mode-pick svg {
+  width: 14px;
+  height: 14px;
+  margin-left: 1px;
+  opacity: 0.7;
+}
+.agent-mode-pick:hover { color: var(--oc-ink); background: transparent; }
+.agent-mode-pick:disabled { opacity: 0.45; cursor: default; }
+
+.agent-mode-menu {
+  position: absolute;
+  right: 52px;
+  bottom: 54px;
+  z-index: 13;
+  width: 160px;
+  padding: 5px;
+  border: 1px solid var(--oc-line-strong);
+  border-radius: 7px;
+  background: var(--oc-bg);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+.agent-mode-menu[hidden] { display: none; }
+.agent-mode-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--oc-ink);
+  font-family: var(--oc-sans);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-mode-option:hover { background: var(--oc-soft); }
+.agent-mode-option.active { color: var(--oc-user-accent); font-weight: 650; }
+
+.agent-model-option.active { color: var(--oc-user-accent); }
+.agent-model-check { color: var(--oc-user-accent); }
+
+/* Floating Files card: edge-swipe, no tab, no header, overlays the console. */
+.agent-files-card {
+  position: absolute;
+  top: 56px;
+  right: 8px;
+  bottom: 154px;
+  z-index: 11;
+  width: 258px;
+  display: flex;
+  flex-direction: column;
+  padding: 34px 12px 12px;
+  border: 1px solid var(--oc-line-strong);
+  border-radius: 10px;
+  background: var(--oc-bg);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(18px);
+  transition: transform 0.2s cubic-bezier(0.22, 0.8, 0.24, 1), opacity 0.2s ease;
+}
+.agent-files-card.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+.agent-files-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--oc-muted);
+  cursor: pointer;
+}
+.agent-files-close svg { width: 16px; height: 16px; display: block; }
+.agent-files-close:hover { color: var(--oc-ink); background: var(--oc-soft); }
+.agent-files-card .agent-files-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--oc-line-strong) transparent;
+}
+.agent-file-row[draggable="true"] { cursor: grab; }
+.agent-file-row[draggable="true"]:active { cursor: grabbing; }
+
+.agent-compose.drag-over {
+  border-color: var(--oc-user-accent);
+  box-shadow: 0 0 0 1px rgba(139, 108, 255, 0.18);
+}
+.agent-compose.drag-over::after {
+  content: "Drop files to attach";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--oc-bg);
+  color: var(--oc-user-accent);
+  font-family: var(--oc-sans);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Split view: notes and the AI console share the lower desk with a divider. */
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
+  position: absolute !important;
+  top: calc(100% - var(--agent-terminal-height, calc(50% + 70px))) !important;
+  bottom: auto !important;
+  height: var(--agent-terminal-height, calc(50% + 70px)) !important;
+  z-index: 13 !important;
+  padding: 0 14px 10px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+body.agent-notes-left .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: var(--agent-left-pct) !important;
+  border-right: 1px solid var(--note-rule, var(--line)) !important;
+}
+body.agent-notes-right .notes-half.floating-notes:not(.notes-hidden) {
+  left: auto !important;
+  right: 0 !important;
+  width: calc(100% - var(--agent-left-pct)) !important;
+  border-left: 1px solid var(--note-rule, var(--line)) !important;
+}
+body.agent-notes-split .notes-half.floating-notes .notes-handle-top,
+body.agent-notes-split .notes-half.floating-notes .notes-resize-handle {
+  display: none;
+}
+
+body.agent-notes-split .agent-terminal .agent-head-left { min-width: 0; }
+body.agent-notes-left .agent-terminal .agent-head {
+  margin-left: var(--agent-left-pct);
+  padding-left: 18px;
+}
+body.agent-notes-left .agent-terminal .agent-main {
+  flex: 1 1 auto;
+  width: calc(100% - var(--agent-left-pct));
+  max-width: none;
+  margin-left: var(--agent-left-pct);
+  margin-right: 0;
+  padding-left: 18px;
+}
+body.agent-notes-right .agent-terminal .agent-head {
+  margin-right: calc(100% - var(--agent-left-pct));
+}
+body.agent-notes-right .agent-terminal .agent-main {
+  flex: 0 0 var(--agent-left-pct);
+  width: var(--agent-left-pct);
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding-right: 18px;
+}
+
+.agent-split-handle {
+  position: absolute;
+  top: calc(100% - var(--agent-terminal-height, calc(50% + 70px)));
+  left: var(--agent-left-pct);
+  width: 10px;
+  height: var(--agent-terminal-height, calc(50% + 70px));
+  z-index: 15;
+  display: none;
+  cursor: col-resize;
+  touch-action: none;
+  transform: translateX(-50%);
+}
+body.agent-notes-split .agent-split-handle { display: block; }
+.agent-split-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: var(--note-rule, var(--line));
+  opacity: 0.75;
+  transition: background 0.15s ease, opacity 0.15s ease, width 0.15s ease;
+}
+.agent-split-handle::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 50%;
+  width: 8px;
+  height: 38px;
+  border-radius: 4px;
+  background: var(--oc-line-strong);
+  opacity: 0.8;
+  transform: translateY(-50%);
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.agent-split-handle:hover::before,
+body.agent-split-resizing .agent-split-handle::before {
+  width: 2px;
+  background: var(--oc-user-accent);
+  opacity: 1;
+}
+.agent-split-handle:hover::after,
+body.agent-split-resizing .agent-split-handle::after {
+  background: var(--oc-user-accent);
+  opacity: 1;
+}
+
+.agent-split-chooser {
+  position: absolute;
+  top: calc(100% - var(--agent-terminal-height, calc(50% + 70px)));
+  left: 0;
+  right: 0;
+  height: var(--agent-terminal-height, calc(50% + 70px));
+  z-index: 16;
+  display: none;
+  gap: 8px;
+  padding: 8px;
+  pointer-events: none;
+}
+body.agent-split-drag .agent-split-chooser { display: flex; }
+.agent-split-drop {
+  flex: 1 1 50%;
+  border: 1px dashed var(--oc-user-accent);
+  border-radius: 9px;
+  background: rgba(139, 108, 255, 0.05);
+  opacity: 0.28;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.agent-split-drop.active {
+  opacity: 1;
+  background: rgba(139, 108, 255, 0.16);
+}
+body.agent-split-drag,
+body.agent-split-resizing {
+  cursor: grabbing;
+  user-select: none;
+}
+.split-lifted {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  transform: translateY(-2px) scale(1.004);
+  opacity: 0.97;
+}
+.agent-terminal.split-lifted {
+  box-shadow: 0 -24px 60px rgba(0, 0, 0, 0.26), 0 0 0 1px var(--oc-user-accent);
+}
+.notes-half.split-lifted {
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26) !important;
+}
