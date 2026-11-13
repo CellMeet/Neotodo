@@ -822,6 +822,10 @@ class Store:
                         current["caret_shape"] = incoming["caret_shape"]
                     if incoming.get("note_material") in ("paper", "blur"):
                         current["note_material"] = incoming["note_material"]
+                    try:
+                        current["saved_at"] = int(incoming.get("saved_at", 0))
+                    except (TypeError, ValueError):
+                        pass
                     background = incoming.get("note_background")
                     if isinstance(background, str) and background.startswith("data:") and len(background) <= 8_000_000:
                         current["note_background_image"] = background

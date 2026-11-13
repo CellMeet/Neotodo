@@ -11621,8 +11621,8 @@ html[data-postcard-dark="true"] .modal h3 {
 
 /* OpenCode terminal skin: neutral editor palette, no postcard paper, no chrome. */
 .agent-terminal {
-  --oc-bg: #f5f5f6;
-  --oc-soft: #ececee;
+  --oc-bg: #ffffff;
+  --oc-soft: #f4f4f5;
   --oc-ink: #171718;
   --oc-muted: #7c7c83;
   --oc-faint: #b4b4bb;
@@ -12978,9 +12978,9 @@ body.notes-hidden .notes-handle-bottom {
   pointer-events: auto !important;
 }
 
-/* Solid note panes make the split slide crisp instead of shimmering through blur. */
-body.agent-notes-split .notes-half.floating-notes,
-body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
+/* Solid note panes make the *paper* split slide crisp; glass keeps its mask. */
+html[data-note-material="paper"] body.agent-notes-split .notes-half.floating-notes,
+html[data-note-material="paper"] body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   background-color: var(--pc-paper, var(--paper, #f7efe3)) !important;
@@ -13317,14 +13317,6 @@ body.detached-note #notes-half .notes-body { padding-top: 12px; }
   opacity: 1;
 }
 
-/* Both door handles share the notes handle's colour. */
-html[data-theme="postcard"]:not([data-postcard-dark="true"]) .desk-handle-ai::before {
-  background: rgba(0, 0, 0, 0.24);
-}
-html[data-theme="postcard"]:not([data-postcard-dark="true"]) .desk-handle-ai:hover::before {
-  background: rgba(0, 0, 0, 0.46);
-}
-
 /* A stage re-render must not flash the closed note sheet. */
 body.notes-hidden .notes-half.floating-notes {
   display: none !important;
@@ -13515,37 +13507,6 @@ body.doing-peek-open .agent-split-drop {
   opacity: 0 !important;
 }
 
-/* AI is its own OpenCode surface, never tinted by the NeoTodo theme. */
-.agent-terminal {
-  --oc-bg: #ffffff !important;
-  --oc-soft: #f4f4f5 !important;
-  --oc-ink: #171718 !important;
-  --oc-muted: #7c7c83 !important;
-  --oc-faint: #b4b4bb !important;
-  --oc-line: #ececee !important;
-  --oc-input-bg: #ececee !important;
-  --oc-input-border: #d7d7dd !important;
-  --oc-input-border-focus: #c2c2ca !important;
-  --oc-input-text: #3d4757 !important;
-  --oc-input-placeholder: #98a2b2 !important;
-  --oc-plus: #47505f !important;
-  --oc-send-bg: #3b82f6 !important;
-  --oc-send-ink: #ffffff !important;
-  --oc-user-accent: #b8872f !important;
-  background: var(--oc-bg) !important;
-}
-
-/* The door line must stay visible on dark paper. */
-html[data-postcard-dark="true"] .notes-handle-bottom::before,
-html[data-postcard-dark="true"] .desk-handle-ai::before,
-html[data-postcard-dark="true"] .detached-grabber::before {
-  background: rgba(255, 255, 255, 0.38) !important;
-}
-html[data-postcard-dark="true"] .notes-handle-bottom:hover::before,
-html[data-postcard-dark="true"] .desk-handle-ai:hover::before,
-html[data-postcard-dark="true"] .detached-grabber:hover::before {
-  background: rgba(255, 255, 255, 0.68) !important;
-}
 
 /* The floating card is a top-most layer, above the Doing card and chrome. */
 body.panel-drag-mode .page-body {
@@ -13557,7 +13518,7 @@ body.panel-drag-mode .notes-half.panel-shrinking {
 }
 
 /* Robot mark: dark ink on light paper, light ink on dark paper. */
-.agent-provider-icon { color: #3a3a3c; }
+.agent-provider-icon { color: var(--oc-muted); }
 
 /* Paper note ink only; the glass material keeps its own palette. */
 html[data-note-material="paper"] .notes-half.floating-notes {
@@ -13598,4 +13559,56 @@ html[data-note-material="paper"] .notes-half.floating-notes {
   background-size: cover, auto, auto, 240px 240px !important;
   background-position: center, 0 0, 0 0, 0 0 !important;
   background-repeat: no-repeat, no-repeat, no-repeat, repeat !important;
+}
+
+
+/* Door handles own their gestures; never let the webview steal the drag. */
+.notes-handle-bottom,
+.desk-handle-ai,
+.detached-grabber {
+  touch-action: none !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* A door line readable on parchment, glass, white OpenCode and dark OpenCode:
+   warm dark core plus a thin light halo, so one of the two always contrasts. */
+.notes-handle-bottom::before,
+.desk-handle-ai::before,
+.detached-grabber::before {
+  background: rgba(58, 36, 20, 0.88) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 1px 4px rgba(0, 0, 0, 0.28) !important;
+  opacity: 0.95 !important;
+}
+.notes-handle-bottom:hover::before,
+.desk-handle-ai:hover::before,
+.detached-grabber:hover::before {
+  background: rgba(42, 24, 10, 1) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.8),
+    0 1px 6px rgba(0, 0, 0, 0.4) !important;
+  opacity: 1 !important;
+}
+
+/* Sliding a sheet is the expensive part; keep the frosted blur only at rest. */
+.agent-terminal.sheet-opening,
+.notes-half.floating-notes.sheet-opening,
+.agent-terminal.sheet-closing,
+.notes-half.floating-notes.sheet-closing {
+  will-change: transform, opacity;
+}
+.notes-half.floating-notes.sheet-opening::before,
+.notes-half.floating-notes.sheet-closing::before {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.agent-terminal.sheet-opening,
+.notes-half.floating-notes.sheet-opening {
+  animation-duration: 0.18s !important;
+}
+.agent-terminal.sheet-closing,
+.notes-half.floating-notes.sheet-closing {
+  animation-duration: 0.16s !important;
 }

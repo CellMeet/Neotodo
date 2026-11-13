@@ -1931,7 +1931,7 @@ function hideNotesPanel(silent = false) {
     if (singleDock?.kind === "note") clearSingleDock();
     positionDeskHandles();
     DeskHandle.appear("note", "below");
-  }, 240);
+  }, 180);
 }
 
 function hideNotesPanelNow(silent = false) {
@@ -1962,14 +1962,14 @@ function showNotesPanel() {
   panel.classList.remove("notes-hidden", "sheet-closing");
   setupNotesPanel();
   panel.classList.add("sheet-opening");
-  setTimeout(() => panel.classList.remove("sheet-opening"), 320);
+  setTimeout(() => panel.classList.remove("sheet-opening"), 200);
   updateNotesHandle();
   positionNotesHandle();
   updateAgentSplitLayout();
   setTimeout(() => {
     positionDeskHandles();
     DeskHandle.appear("note", "above");
-  }, 320);
+  }, 190);
 }
 let noteBlocks = [];
 let noteBlockKey = null;
@@ -4045,7 +4045,7 @@ const DeskHandle = {
     handle.classList.remove("handle-appear-above", "handle-appear-below");
     void handle.offsetWidth;
     handle.classList.add(from === "above" ? "handle-appear-above" : "handle-appear-below");
-    setTimeout(() => handle.classList.remove("handle-appear-above", "handle-appear-below"), 320);
+    setTimeout(() => handle.classList.remove("handle-appear-above", "handle-appear-below"), 240);
   },
   isVanished(kind) {
     const handle = this.ensure()[kind];
@@ -4072,6 +4072,8 @@ DeskHandle.bindGestures = function () {
     const canResize = Boolean(panel && desk && isOpen);
     const startX = event.clientX;
     const startY = event.clientY;
+    let lastDx = 0;
+    let lastDy = 0;
     const panelRect = panel?.getBoundingClientRect();
     const startTop = panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0;
     const minHeight = desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120;
@@ -4092,10 +4094,12 @@ DeskHandle.bindGestures = function () {
       handle.style.setProperty("top", `${desk.top + top + 6}px`, "important");
     };
     const move = (moveEvent) => {
+      lastDy = moveEvent.clientY - startY;
+      lastDx = moveEvent.clientX - startX;
       if (!longPressed) {
-        const dy = moveEvent.clientY - startY;
-        const dx = Math.abs(moveEvent.clientX - startX);
-        if (dy > 24 && dy > dx) {
+        const dy = lastDy;
+        const dx = Math.abs(lastDx);
+        if (dy > 16 && dy > dx) {
           // Swipe down closes the sheet, even in a split.
           moved = true;
           clearTimeout(timer);
@@ -4104,7 +4108,7 @@ DeskHandle.bindGestures = function () {
           else hideNotesPanel();
           return;
         }
-        if (dy < -24 && Math.abs(dy) > dx && !isOpen) {
+        if (dy < -16 && Math.abs(dy) > dx && !isOpen) {
           // Swipe up opens a closed sheet.
           moved = true;
           clearTimeout(timer);
@@ -4151,6 +4155,21 @@ DeskHandle.bindGestures = function () {
       }
       if (longPressed) {
         deskHandleSwipeSuppress = performance.now() + 360;
+        return;
+      }
+      // A slow swipe still closes if the release crossed the line.
+      if (!resizing && lastDy > 36 && Math.abs(lastDy) > Math.abs(lastDx)) {
+        deskHandleSwipeSuppress = performance.now() + 600;
+        if (isOpen) {
+          if (isAi) closeAgentTerminal();
+          else hideNotesPanel();
+        }
+        return;
+      }
+      if (!resizing && lastDy < -36 && Math.abs(lastDy) > Math.abs(lastDx) && !isOpen) {
+        deskHandleSwipeSuppress = performance.now() + 600;
+        if (isAi) openAgentTerminal();
+        else showNotesPanel();
         return;
       }
       if (moved) deskHandleSwipeSuppress = performance.now() + 360;
@@ -4210,6 +4229,7 @@ function positionDeskHandles() {
   const notesTop = notesRect ? notesRect.top : (notesOtherHidden ? hiddenTop : closedTop);
   DeskHandle.place("ai", aiCenter, aiTop);
   DeskHandle.place("note", notesCenter, notesTop);
+  if (performance.now() - notesSwipeLineAt > 60) refreshNotesSwipeLine();
 }
 
 function bindAgentSplitHandle() {
@@ -4495,12 +4515,12 @@ function openAgentTerminal() {
   const panel = $("#agent-terminal");
   panel?.classList.remove("sheet-closing");
   panel?.classList.add("sheet-opening");
-  setTimeout(() => panel?.classList.remove("sheet-opening"), 320);
+  setTimeout(() => panel?.classList.remove("sheet-opening"), 200);
   setTimeout(() => $("#agent-input")?.focus(), 80);
   setTimeout(() => {
     positionDeskHandles();
     DeskHandle.appear("ai", "above");
-  }, 320);
+  }, 190);
 }
 
 function closeAgentTerminal() {
@@ -4529,7 +4549,7 @@ function closeAgentTerminal() {
     updateAgentSplitLayout();
     positionDeskHandles();
     DeskHandle.appear("ai", "below");
-  }, 240);
+  }, 180);
 }
 
 function detachedAgentUrl(agent) {
@@ -6763,11 +6783,14 @@ function maybeAutoPostcard() {
 }
 
 function loadSettings() {
-  let saved = null;
-  if (state.data?.settings && typeof state.data.settings === "object") {
-    saved = state.data.settings;
-  } else {
-    try { saved = JSON.parse(localStorage.getItem("neotodo.settings") || "null"); } catch (error) {}
+  let saved = state.data?.settings && typeof state.data.settings === "object" ? state.data.settings : null;
+  let local = null;
+  try { local = JSON.parse(localStorage.getItem("neotodo.settings") || "null"); } catch (error) {}
+  if (local && typeof local === "object") {
+    const backendTime = Number(saved?.saved_at) || 0;
+    const localTime = Number(local.saved_at) || 0;
+    // The freshest copy wins, so a quick edit never gets reverted by the file.
+    if (!saved || localTime > backendTime) saved = local;
   }
   settings = { ...DEFAULT_SETTINGS, ...(saved && typeof saved === "object" ? saved : {}) };
   settings.theme = "postcard";
@@ -6895,12 +6918,21 @@ function notePalette(_theme) {
 }
 
 function saveSettings() {
+  // Stamp every edit so a stale copy can never win on the next launch.
+  settings.saved_at = Date.now();
   try { localStorage.setItem("neotodo.settings", JSON.stringify(settings)); } catch (error) {}
   clearTimeout(settingsSaveTimer);
   settingsSaveTimer = setTimeout(() => {
     settingsSaveTimer = null;
     if (state.data) persistAction("save_settings", { settings });
-  }, 280);
+  }, 80);
+}
+
+function flushSettingsSave() {
+  clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = null;
+  if (state.data) return persistAction("save_settings", { settings });
+  return Promise.resolve(null);
 }
 
 function updateArchiveIcon() {
@@ -6993,6 +7025,7 @@ function openSettings(tab = "appearance") {
 }
 
 function closeSettings() {
+  flushSettingsSave();
   $("#modal-root").innerHTML = "";
 }
 
@@ -8072,9 +8105,9 @@ function bindEvents() {
     if (notesStretchPress || notesStretchActive) { noteSwipeLastY = event.clientY; return; }
     const now = performance.now();
     if (now < notesSwipeCooldownUntil) { noteSwipeLastY = event.clientY; return; }
-    if (!notesSwipeLine
-      || performance.now() - notesSwipeLineAt > 500
-      || Math.abs(event.clientY - notesSwipeLine.y) < 90) {
+    // Never measure the handle on every pointermove: that forced layout is
+    // what made the swipe stutter. The cached line is refreshed on layout.
+    if (!notesSwipeLine && performance.now() - notesSwipeLineAt > 250) {
       refreshNotesSwipeLine();
     }
     if (!notesSwipeLine) { noteSwipeLastY = event.clientY; return; }
@@ -8273,6 +8306,10 @@ function bindEvents() {
   }, true);
 
   DeskHandle.bindGestures();
+  window.addEventListener("pagehide", () => { flushSettingsSave(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushSettingsSave();
+  });
 
   document.addEventListener("submit", (event) => {
     if (event.target.id === "agent-compose") {
