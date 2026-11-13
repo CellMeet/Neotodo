@@ -12624,7 +12624,7 @@ body.agent-notes-split .notes-half.floating-notes .notes-resize-handle {
   display: none;
 }
 @keyframes agent-split-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.992); }
+  from { opacity: 0; transform: translateY(30px) scale(0.992); }
   to { opacity: 1; transform: none; }
 }
 
@@ -12990,3 +12990,131 @@ body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
   backdrop-filter: none !important;
   background-color: var(--pc-paper, var(--paper, #f7efe3)) !important;
 }
+
+/* Independent pane geometry: the AI card stays rounded; notes stay square. */
+.agent-terminal {
+  left: 0;
+  right: auto;
+  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px)));
+  bottom: auto;
+  width: 100%;
+  height: var(--agent-terminal-height, calc(50% + 70px));
+  max-height: none;
+  border-radius: 16px !important;
+}
+body.agent-notes-left .agent-terminal {
+  left: calc(var(--agent-left-pct) + 5px);
+  width: calc(100% - var(--agent-left-pct) - 5px);
+}
+body.agent-notes-right .agent-terminal {
+  left: 0;
+  width: calc(var(--agent-left-pct) - 5px);
+}
+body.agent-notes-axis-y .agent-terminal {
+  left: 0;
+  width: 100%;
+  top: var(--agent-ai-top, 16px);
+  height: var(--agent-ai-height, 50%);
+  padding: 0 !important;
+}
+body.agent-notes-split .agent-terminal .agent-head,
+body.agent-notes-split .agent-terminal .agent-main {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  flex: 1 1 auto;
+}
+
+.notes-half.floating-notes { border-radius: 0 !important; }
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
+  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px))) !important;
+  height: var(--agent-terminal-height, calc(50% + 70px)) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 14px 38px rgba(20, 20, 24, 0.18) !important;
+}
+body.agent-notes-left .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: calc(var(--agent-left-pct) - 5px) !important;
+  border-right: 0 !important;
+}
+body.agent-notes-right .notes-half.floating-notes:not(.notes-hidden) {
+  left: calc(var(--agent-left-pct) + 5px) !important;
+  right: auto !important;
+  width: calc(100% - var(--agent-left-pct) - 5px) !important;
+  border-left: 0 !important;
+}
+body.agent-notes-top .notes-half.floating-notes:not(.notes-hidden),
+body.agent-notes-bottom .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  top: var(--agent-notes-y-top, 0px) !important;
+  height: var(--agent-notes-y-height, 50%) !important;
+  border-radius: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+}
+body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px))) !important;
+  height: var(--agent-terminal-height, calc(50% + 70px)) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 -18px 42px rgba(20, 20, 24, 0.16) !important;
+}
+
+/* Door handles: visible when both closed, tucked into the strip when the other is open. */
+.notes-handle-bottom,
+.desk-handle-ai {
+  transition: bottom 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease !important;
+}
+body:not(.agent-terminal-open).notes-hidden .desk-handle-ai,
+body:not(.agent-terminal-open).notes-hidden .notes-handle-bottom,
+body.agent-terminal-open:not(.notes-hidden) .desk-handle-ai,
+body.agent-terminal-open:not(.notes-hidden) .notes-handle-bottom {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+body:not(.agent-terminal-open):not(.notes-hidden) .desk-handle-ai,
+body.agent-terminal-open.notes-hidden .notes-handle-bottom {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+body.desk-strip-hover:not(.agent-terminal-open):not(.notes-hidden) .desk-handle-ai,
+body.desk-strip-hover.agent-terminal-open.notes-hidden .notes-handle-bottom {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Slide the sheets up/down with their handles. */
+@keyframes agent-sheet-up {
+  from { opacity: 0.35; transform: translateY(30px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes agent-sheet-down {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(30px); }
+}
+.agent-terminal.sheet-opening,
+.notes-half.floating-notes.sheet-opening {
+  animation: agent-sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.agent-terminal.sheet-closing,
+.notes-half.floating-notes.sheet-closing {
+  animation: agent-sheet-down 0.24s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+/* Vertical AI card: use the computed pane box, never the old full-height hack. */
+body.agent-notes-axis-y .agent-terminal {
+  top: var(--agent-ai-top, 16px) !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: var(--agent-ai-height, 50%) !important;
+  max-height: none !important;
+}
+
+/* The bottom-center door handle is the only layer grabber. */
+.notes-handle-top { display: none !important; }
