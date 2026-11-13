@@ -10,7 +10,6 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import uuid
@@ -39,6 +38,7 @@ DATA_DIR = app_data_dir()
 DATA_FILE = DATA_DIR / "NeoTodo.json"
 LEGACY_FILE = DATA_DIR / "data.json"
 AGENT_FILE = DATA_DIR / "agents.json"
+AGENT_FILES_DIR = DATA_DIR / "agent-files"
 
 PALETTE = [
     "#89b4fa", "#a6e3a1", "#f9e2af", "#fab387", "#cba6f7", "#94e2d5",
@@ -1058,45 +1058,40 @@ class AgentStore:
         )
 
     @staticmethod
-    def _write_attachments(attachments: list) -> tuple[Path | None, list, list]:
-        if not isinstance(attachments, list) or not attachments:
-            return None, [], []
-        try:
-            folder = Path(tempfile.mkdtemp(prefix="neotodo-agent-"))
-        except Exception:
-            return None, [], []
-        files = []
-        metas = []
-        total_bytes = 0
-        for index, item in enumerate(attachments[:8]):
+    def _agent_folder(agent_id: str) -> Path:
+        safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(agent_id or "")).strip("._") or "agent"
+        return AGENT_FILES_DIR / safe
+
+    @classmethod
+    def _clean_files(cls, agent_id: str, files: list) -> list:
+        folder = cls._agent_folder(agent_id)
+        cleaned = []
+        seen = set()
+        for item in files if isinstance(files, list) else []:
             if not isinstance(item, dict):
                 continue
-            name = Path(str(item.get("name") or f"file-{index + 1}").replace("\\", "/")).name.strip()
-            data = item.get("data")
-            if not name or not isinstance(data, str) or not data:
+            name = Path(str(item.get("name") or "").replace("\\", "/")).name.strip()
+            if not name or name in (".", "..") or name in seen:
                 continue
-            try:
-                raw = base64.b64decode(data)
-            except Exception:
+            path = folder / name
+            if not path.exists() or not path.is_file():
                 continue
-            if not raw or len(raw) > 15_000_000:
-                continue
-            if total_bytes + len(raw) > 30_000_000:
-                break
-            total_bytes += len(raw)
-            target = folder / name
-            if target.exists():
-                target = folder / f"{index + 1}-{name}"
-            try:
-                target.write_bytes(raw)
-            except Exception:
-                continue
-            files += ["--file", str(target)]
-            metas.append({"name": name, "size": len(raw)})
-        if not metas:
-            shutil.rmtree(folder, ignore_errors=True)
-            return None, [], []
-        return folder, files, metas
+            seen.add(name)
+            cleaned.append({
+                "name": name,
+                "size": int(item.get("size") or path.stat().st_size),
+                "added_at": str(item.get("added_at") or ""),
+            })
+        return cleaned
+
+    @classmethod
+    def _agent_file_args(cls, agent_id: str, agent: dict) -> tuple[list, list]:
+        folder = cls._agent_folder(agent_id)
+        args = []
+        files = cls._clean_files(agent_id, agent.get("files") if isinstance(agent.get("files"), list) else [])
+        for item in files:
+            args += ["--file", str(folder / item["name"])]
+        return args, files
 
     @staticmethod
     def _session_usage(session_id: str) -> dict:
@@ -1344,6 +1339,7 @@ class AgentStore:
                 "provider": self._provider_for_model(model),
                 "model": model,
                 "mode": mode,
+                "files": self._clean_files(agent_id, agent.get("files") if isinstance(agent.get("files"), list) else []),
                 "models": self._available_models(),
                 "default_model": default_model,
                 "live": live,
@@ -1374,6 +1370,71 @@ class AgentStore:
                 stored["mode"] = mode
                 self._save(data)
             return {"ok": True, "mode": mode}
+        if name == "add_files":
+            agent_id = str(payload.get("agent_id") or "")
+            attachments = payload.get("attachments") if isinstance(payload.get("attachments"), list) else []
+            if not agent_id or not attachments:
+                return {"ok": False, "error": "Missing files"}
+            folder = self._agent_folder(agent_id)
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+            except Exception as error:
+                return {"ok": False, "error": f"Could not create the file store: {error}"}
+            with self.lock:
+                data = self._load()
+                stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                metas = self._clean_files(agent_id, stored.get("files") if isinstance(stored.get("files"), list) else [])
+                total = sum(int(item.get("size") or 0) for item in metas)
+                added = []
+                for index, item in enumerate(attachments[:20]):
+                    if not isinstance(item, dict):
+                        continue
+                    name = Path(str(item.get("name") or f"file-{index + 1}").replace("\\", "/")).name.strip()
+                    raw_data = item.get("data")
+                    if not name or name in (".", "..") or not isinstance(raw_data, str) or not raw_data:
+                        continue
+                    try:
+                        raw = base64.b64decode(raw_data)
+                    except Exception:
+                        continue
+                    if not raw or len(raw) > 10_000_000:
+                        continue
+                    existing = next((m for m in metas if m["name"] == name), None)
+                    if existing is None and len(metas) >= 20:
+                        continue
+                    previous_size = int(existing.get("size") or 0) if existing else 0
+                    if total + len(raw) - previous_size > 50_000_000:
+                        continue
+                    target = folder / name
+                    try:
+                        target.write_bytes(raw)
+                    except Exception:
+                        continue
+                    total += len(raw) - previous_size
+                    metas = [m for m in metas if m["name"] != name]
+                    metas.append({"name": name, "size": len(raw), "added_at": datetime.now().isoformat(timespec="seconds")})
+                    added.append(name)
+                stored["files"] = metas
+                self._save(data)
+            return {"ok": True, "files": metas, "added": added}
+        if name == "remove_file":
+            agent_id = str(payload.get("agent_id") or "")
+            name = Path(str(payload.get("name") or "").replace("\\", "/")).name.strip()
+            if not agent_id or not name or name in (".", ".."):
+                return {"ok": False, "error": "Missing file"}
+            folder = self._agent_folder(agent_id)
+            target = folder / name
+            try:
+                target.unlink(missing_ok=True)
+            except Exception:
+                pass
+            with self.lock:
+                data = self._load()
+                stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                metas = self._clean_files(agent_id, stored.get("files") if isinstance(stored.get("files"), list) else [])
+                stored["files"] = [m for m in metas if m["name"] != name]
+                self._save(data)
+            return {"ok": True, "files": stored["files"]}
         if name == "clear":
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
@@ -1402,8 +1463,7 @@ class AgentStore:
         requested = str(payload.get("model") or agent.get("model") or "").strip()
         models = self._available_models()
         model = requested if requested in models else self._default_model()
-        attachments = payload.get("attachments") if isinstance(payload.get("attachments"), list) else []
-        attachment_dir, file_args, attachment_metas = self._write_attachments(attachments)
+        file_args, persistent_files = self._agent_file_args(agent_id, agent)
         try:
             if mode == "build":
                 self.exec_lock.acquire()
@@ -1429,17 +1489,12 @@ class AgentStore:
                 },
             }
             user_entry = {"role": "user", "content": message}
-            if attachment_metas:
-                user_entry["attachments"] = attachment_metas
             updated = (history + [
                 user_entry,
                 assistant,
             ])[-40:]
         except Exception as error:
             return {"ok": False, "error": str(error)}
-        finally:
-            if attachment_dir:
-                shutil.rmtree(attachment_dir, ignore_errors=True)
         with self.lock:
             data = self._load()
             stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
@@ -1481,7 +1536,7 @@ class AgentStore:
             "model": model,
             "usage": session_usage,
             "live": {},
-            "attachments": attachment_metas,
+            "files": persistent_files,
             "agents": data["agents"],
         }
 

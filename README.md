@@ -98,11 +98,10 @@ Click the terminal icon in the lower-left tool rail to turn the note half into a
 - The terminal follows the selected todo/subtask; drag its top border to resize it. The header shows the provider in dark type and the task title in a softer gray.
 - Press `Ctrl+P` or use the model picker under the input to switch between the models reported by `opencode models`. The choice is remembered per todo/subtask.
 - The mode picker beside the model opens a small menu with **Chat** (OpenCode's read-only plan agent) and **Build** (the `--auto` agent that can edit the project). The choice is remembered per todo/subtask.
-- The `+` button attaches up to five files (10 MB each). Attachments are handed to OpenCode with `--file` for that turn, so the agent can read them.
-- Swipe left from the right edge of the AI pane to slide out the floating **files card**. It lists every file added to the thread. Drag a cached file row, or drag files from the desktop, onto the input to attach them.
+- The `+` button and drag-and-drop both add files to the thread. Files are kept permanently as context for that todo/subtask: up to 20 files, 10 MB each, 50 MB total. They are passed to OpenCode with `--file` on every turn until you press the `×` on their chip. They survive app restarts.
 - The footer always shows session tokens with context usage and cost, for example `176.0K (17%) · $10.74`. Tool calls appear as a compact process log above each answer.
 - The OpenCode terminal uses its own neutral light/dark palette rather than the postcard theme, with a purple session bar and the Copilot-style input row.
-- Opening the AI terminal closes the note card. The note card can be reopened while chatting: it becomes a 50/50 split pane beside the AI console. Drag the divider to change the widths. Long-press the AI or note header, then drop it on the left or right half to swap the split sides.
+- Opening the AI terminal closes the note card. The note card can be reopened while chatting: it becomes a 50/50 split pane beside the AI console with a smooth slide. Drag the divider to change the widths. Long-press the AI or note header, then drop it on the left or right half to swap the split sides.
 - The Doing card only reacts near the lower half of the current-task area, so it no longer pops up from casual pointer movement near the top.
 
 The console renders Markdown, so plans, code snippets, and checklists stay readable. Selecting another subtask switches the lower terminal to that crew member's own thread.

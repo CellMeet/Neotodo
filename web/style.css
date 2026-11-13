@@ -12607,45 +12607,47 @@ body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
   box-shadow: none !important;
 }
 body.agent-notes-left .notes-half.floating-notes:not(.notes-hidden) {
-  left: 0 !important;
-  right: auto !important;
-  width: var(--agent-left-pct) !important;
   border-right: 1px solid var(--note-rule, var(--line)) !important;
 }
 body.agent-notes-right .notes-half.floating-notes:not(.notes-hidden) {
-  left: auto !important;
-  right: 0 !important;
-  width: calc(100% - var(--agent-left-pct)) !important;
   border-left: 1px solid var(--note-rule, var(--line)) !important;
+}
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
+  left: var(--agent-notes-left, 0%) !important;
+  right: auto !important;
+  width: var(--agent-notes-width, 50%) !important;
+  transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease !important;
+  animation: agent-split-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 body.agent-notes-split .notes-half.floating-notes .notes-handle-top,
 body.agent-notes-split .notes-half.floating-notes .notes-resize-handle {
   display: none;
 }
+@keyframes agent-split-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.992); }
+  to { opacity: 1; transform: none; }
+}
 
 body.agent-notes-split .agent-terminal .agent-head-left { min-width: 0; }
-body.agent-notes-left .agent-terminal .agent-head {
-  margin-left: var(--agent-left-pct);
-  padding-left: 18px;
+body.agent-notes-split .agent-terminal .agent-head {
+  margin-left: var(--agent-ai-left, 0%);
+  margin-right: var(--agent-ai-right, 0%);
+  transition: margin-left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), margin-right 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-body.agent-notes-left .agent-terminal .agent-main {
+body.agent-notes-split .agent-terminal .agent-main {
   flex: 1 1 auto;
-  width: calc(100% - var(--agent-left-pct));
+  width: auto;
   max-width: none;
-  margin-left: var(--agent-left-pct);
-  margin-right: 0;
-  padding-left: 18px;
+  margin-left: var(--agent-ai-left, 0%);
+  margin-right: var(--agent-ai-right, 0%);
+  transition: margin-left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), margin-right 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-body.agent-notes-right .agent-terminal .agent-head {
-  margin-right: calc(100% - var(--agent-left-pct));
-}
-body.agent-notes-right .agent-terminal .agent-main {
-  flex: 0 0 var(--agent-left-pct);
-  width: var(--agent-left-pct);
-  max-width: none;
-  margin-left: 0;
-  margin-right: 0;
-  padding-right: 18px;
+body.agent-split-resizing .agent-main,
+body.agent-split-resizing .agent-head,
+body.agent-split-resizing .notes-half.floating-notes,
+body.agent-split-resizing .agent-split-handle {
+  transition: none !important;
+  animation: none !important;
 }
 
 .agent-split-handle {
@@ -12659,6 +12661,7 @@ body.agent-notes-right .agent-terminal .agent-main {
   cursor: col-resize;
   touch-action: none;
   transform: translateX(-50%);
+  transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 body.agent-notes-split .agent-split-handle { display: block; }
 .agent-split-handle::before {
@@ -12704,12 +12707,18 @@ body.agent-split-resizing .agent-split-handle::after {
   right: 0;
   height: var(--agent-terminal-height, calc(50% + 70px));
   z-index: 16;
-  display: none;
+  display: flex;
   gap: 8px;
   padding: 8px;
   pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
 }
-body.agent-split-drag .agent-split-chooser { display: flex; }
+body.agent-split-drag .agent-split-chooser {
+  opacity: 1;
+  visibility: visible;
+}
 .agent-split-drop {
   flex: 1 1 50%;
   border: 1px dashed var(--oc-user-accent);
@@ -12728,8 +12737,8 @@ body.agent-split-resizing {
   user-select: none;
 }
 .split-lifted {
-  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
-  transform: translateY(-2px) scale(1.004);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.22s ease;
+  transform: translateY(-3px) scale(1.006);
   opacity: 0.97;
 }
 .agent-terminal.split-lifted {
