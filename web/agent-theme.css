@@ -1,0 +1,89 @@
+/* ==========================================================================
+   The AI console owns an OpenCode palette that is independent of the NeoTodo
+   postcard theme. Only its brightness follows the app (light/dark), never its
+   colours. All values live in this file, not in style.css.
+   ========================================================================== */
+
+.agent-terminal {
+  --oc-bg: #ffffff;
+  --oc-soft: #f4f4f5;
+  --oc-ink: #171718;
+  --oc-ink-soft: #4a4a52;
+  --oc-muted: #7c7c83;
+  --oc-faint: #b4b4bb;
+  --oc-line: #ececee;
+  --oc-line-strong: #c6c6cd;
+  --oc-accent: #4f7cff;
+  --oc-notice: #cf6a43;
+  --oc-input-bg: #ececee;
+  --oc-input-border: #d7d7dd;
+  --oc-input-border-focus: #c2c2ca;
+  --oc-input-text: #3d4757;
+  --oc-input-placeholder: #98a2b2;
+  --oc-plus: #47505f;
+  --oc-send-bg: #3b82f6;
+  --oc-send-ink: #ffffff;
+  --oc-user-accent: #b8872f;
+
+  background: var(--oc-bg) !important;
+  color: var(--oc-ink) !important;
+}
+
+html[data-postcard-dark="true"] .agent-terminal {
+  --oc-bg: #0d0d0f;
+  --oc-soft: #141417;
+  --oc-ink: #ededf0;
+  --oc-ink-soft: #c9c9d2;
+  --oc-muted: #85858c;
+  --oc-faint: #55555d;
+  --oc-line: #232327;
+  --oc-line-strong: #3b3b43;
+  --oc-accent: #8ab4f8;
+  --oc-notice: #e08a63;
+  --oc-input-bg: #1a1a1c;
+  --oc-input-border: #3a3a42;
+  --oc-input-border-focus: #4a4a52;
+  --oc-input-text: #d9dde6;
+  --oc-input-placeholder: #6f7785;
+  --oc-plus: #aab2c0;
+  --oc-send-bg: #4f8cff;
+  --oc-send-ink: #ffffff;
+  --oc-user-accent: #c9a35f;
+
+  background: var(--oc-bg) !important;
+  color: var(--oc-ink) !important;
+}
+
+.agent-terminal .agent-provider-icon {
+  color: var(--oc-muted) !important;
+}
+
+.agent-terminal .agent-compose {
+  background: var(--oc-input-bg) !important;
+  border-color: var(--oc-input-border) !important;
+}
+
+.agent-terminal .agent-compose:focus-within {
+  border-color: var(--oc-input-border-focus) !important;
+  box-shadow: none !important;
+}
+
+.agent-terminal .agent-send {
+  background: var(--oc-send-bg) !important;
+  color: var(--oc-send-ink) !important;
+}
+
+/* No themed focus ring, selection colour, or tap highlight in the console. */
+.agent-terminal button:focus,
+.agent-terminal button:focus-visible,
+.agent-terminal input:focus,
+.agent-terminal input:focus-visible,
+.agent-terminal textarea:focus,
+.agent-terminal textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.agent-terminal ::selection {
+  background: rgba(79, 140, 255, 0.22) !important;
+  color: var(--oc-ink) !important;
+}

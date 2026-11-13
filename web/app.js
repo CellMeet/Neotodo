@@ -3824,8 +3824,9 @@ function updateAgentSplitLayout() {
   const chooser = $("#agent-split-chooser");
   if (chooser) chooser.setAttribute("aria-hidden", active ? "false" : "true");
   positionDeskHandles();
-  requestAnimationFrame(() => positionDeskHandles());
-  setTimeout(() => positionDeskHandles(), 80);
+  // The panes animate for ~0.3s; let the door line ride their real edges
+  // every frame instead of jumping once and then lagging behind.
+  followPageLayout(380);
 }
 
 function agentTerminalMarkup() {
@@ -6836,6 +6837,11 @@ function loadSettings() {
     settings.note_background_image = "";
   }
   if (settings.note_background === "__custom" && !settings.note_background_image) settings.note_background = "";
+  // An older build could leave a saved image with an empty selection; the
+  // mask then fell back to the app theme. Restore the notebook's own cover.
+  if (settings.note_material === "blur" && settings.note_background === "" && settings.note_background_image) {
+    settings.note_background = "__custom";
+  }
   settings.note_blur = Math.min(40, Math.max(0, Math.round(Number(settings.note_blur) || 16)));
 }
 
@@ -6902,20 +6908,6 @@ function readableAccent(theme, accent) {
   return accent;
 }
 
-function notePalette(_theme) {
-  // The note is its own parchment object, intentionally independent of the
-  // app's postcard theme, so switching themes never tints the paper.
-  const paper = "#e8d3a6";
-  const ink = "#3a2414";
-  return {
-    paper,
-    ink,
-    muted: "rgba(58, 36, 20, 0.62)",
-    rule: "rgba(58, 36, 20, 0.16)",
-    accent: "#a8691f",
-    accent2: "#8a5a2a",
-  };
-}
 
 function saveSettings() {
   // Stamp every edit so a stale copy can never win on the next launch.
@@ -6988,14 +6980,6 @@ function applySettings() {
     root.style.setProperty("--pc-stamp", postcard.stamp || postcard.accent);
     root.style.setProperty("--pc-line", `rgba(${hexToRgb(postcard.ink)}, .16)`);
     root.style.setProperty("--pc-rule", `rgba(${hexToRgb(postcard.ink)}, .13)`);
-    const note = notePalette(postcard);
-    root.style.setProperty("--notes-mask", note.paper);
-    root.style.setProperty("--note-paper", note.paper);
-    root.style.setProperty("--note-ink", note.ink);
-    root.style.setProperty("--note-muted", note.muted);
-    root.style.setProperty("--note-rule", note.rule);
-    root.style.setProperty("--note-accent", note.accent);
-    root.style.setProperty("--note-accent-2", note.accent2);
     if (backdrop) {
       backdrop.hidden = false;
       backdrop.innerHTML = postcard.art(postcard);
@@ -7685,6 +7669,10 @@ function bindEvents() {
     if (noteBgPreset) {
       event.preventDefault();
       settings.note_background = noteBgPreset.dataset.noteBgPreset;
+      // Choosing "None" really removes the custom cover; otherwise a stale
+      // base64 image would silently come back on the next launch.
+      if (settings.note_background === "") settings.note_background_image = "";
+      if (settings.note_background === "__custom" && !settings.note_background_image) settings.note_background = "";
       saveSettings();
       applySettings();
       renderNotesPanel();

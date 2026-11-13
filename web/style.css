@@ -12983,7 +12983,9 @@ html[data-note-material="paper"] body.agent-notes-split .notes-half.floating-not
 html[data-note-material="paper"] body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-  background-color: var(--pc-paper, var(--paper, #f7efe3)) !important;
+  /* The pane is solid only for crisp split motion; it stays notebook paper,
+     never the app theme's paper. */
+  background-color: var(--note-paper, #e8d3a6) !important;
 }
 
 /* Independent pane geometry: the AI card stays rounded; notes stay square. */
@@ -13520,48 +13522,6 @@ body.panel-drag-mode .notes-half.panel-shrinking {
 /* Robot mark: dark ink on light paper, light ink on dark paper. */
 .agent-provider-icon { color: var(--oc-muted); }
 
-/* Paper note ink only; the glass material keeps its own palette. */
-html[data-note-material="paper"] .notes-half.floating-notes {
-  color: var(--note-ink, #3a2414) !important;
-}
-html[data-note-material="paper"] .notes-half.floating-notes .notes-head,
-html[data-note-material="paper"] .notes-half.floating-notes .notes-title,
-html[data-note-material="paper"] .notes-half.floating-notes .notes-title > span,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block-editor,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h1,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h2,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h3,
-html[data-note-material="paper"] .notes-half.floating-notes .notes-empty,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block-placeholder {
-  color: var(--note-ink, #3a2414) !important;
-}
-html[data-note-material="paper"] .notes-half.floating-notes .notes-icon,
-html[data-note-material="paper"] .notes-half.floating-notes .notes-quill {
-  color: var(--note-accent, #a8691f) !important;
-}
-html[data-note-material="paper"] .notes-half.floating-notes .notes-head {
-  border-bottom-color: rgba(74, 53, 37, 0.18) !important;
-}
-html[data-note-material="paper"] .notes-half.floating-notes .picture-link,
-html[data-note-material="paper"] .notes-half.floating-notes .note-link {
-  color: #7b4d20 !important;
-}
-
-/* The paper note uses the user's chosen note background, not the app theme. */
-html[data-note-material="paper"] .notes-half.floating-notes {
-  background-color: var(--note-paper, #e8d3a6) !important;
-  background-image:
-    var(--note-bg-image, none),
-    radial-gradient(ellipse at 12% 8%, rgba(120, 80, 30, 0.055), transparent 44%),
-    radial-gradient(ellipse at 88% 92%, rgba(120, 80, 30, 0.045), transparent 48%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E") !important;
-  background-size: cover, auto, auto, 240px 240px !important;
-  background-position: center, 0 0, 0 0, 0 0 !important;
-  background-repeat: no-repeat, no-repeat, no-repeat, repeat !important;
-}
-
-
 /* Door handles own their gestures; never let the webview steal the drag. */
 .notes-handle-bottom,
 .desk-handle-ai,
@@ -13611,4 +13571,14 @@ html[data-note-material="paper"] .notes-half.floating-notes {
 .agent-terminal.sheet-closing,
 .notes-half.floating-notes.sheet-closing {
   animation-duration: 0.16s !important;
+}
+
+
+/* Door lines must ride the pane edges, never animate their own 'top' behind
+   them; that self-animation is what read as slow, stuttering motion when the
+   AI pane opened beside the notes. Only opacity is animated now. */
+.notes-handle-bottom,
+.desk-handle-ai,
+.detached-grabber {
+  transition: opacity 0.18s ease !important;
 }
