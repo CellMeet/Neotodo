@@ -13669,3 +13669,14 @@ html body .desk-handle-ai.handle-vanish::before {
   transition: none !important;
   animation: none !important;
 }
+
+
+/* A taller invisible hit area makes the door line easy to grab for swipes. */
+.notes-handle-bottom,
+.desk-handle-ai {
+  height: 30px !important;
+}
+.notes-handle-bottom::before,
+.desk-handle-ai::before {
+  margin: 12px auto !important;
+}

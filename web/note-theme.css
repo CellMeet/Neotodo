@@ -15,9 +15,7 @@
 
   /* Static default cover for the Glass mask. It is the notebook's own
      material, not the app wallpaper, so themes cannot tint it. */
-  --note-glass-default:
-    linear-gradient(180deg, rgba(16, 22, 18, 0.06), rgba(16, 22, 18, 0.18)),
-    url("/notes-forest.jpg");
+  --note-glass-default: none;
 
   --note-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
 }
@@ -32,21 +30,17 @@ html[data-note-material="paper"] .notes-half.floating-notes {
   --note-accent-2: #8a5a2a;
   color: var(--note-ink) !important;
   background-color: #e8d3a6 !important;
-  /* A real parchment sheet: warm centre, aged edges, fibre grain and a few
-     faint water stains, all painted with static gradients. */
+  /* Smooth parchment: a warm centre, softly aged edges and two broad stains.
+     No fine grid, no dotted noise. */
   background-image:
-    radial-gradient(ellipse at 50% 42%, rgba(255, 249, 232, 0.50), transparent 62%),
-    radial-gradient(ellipse at 6% 2%, rgba(108, 70, 26, 0.18), transparent 42%),
-    radial-gradient(ellipse at 96% 98%, rgba(108, 70, 26, 0.16), transparent 46%),
-    radial-gradient(circle at 21% 77%, rgba(146, 96, 40, 0.09), transparent 24%),
-    radial-gradient(circle at 78% 23%, rgba(146, 96, 40, 0.08), transparent 27%),
-    radial-gradient(circle at 62% 88%, rgba(120, 78, 30, 0.06), transparent 18%),
-    repeating-linear-gradient(0deg, rgba(104, 68, 28, 0.030) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(90deg, rgba(104, 68, 28, 0.022) 0 1px, transparent 1px 4px),
-    var(--note-noise) !important;
-  background-size: auto, auto, auto, auto, auto, auto, auto, auto, 240px 240px !important;
-  background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0 !important;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat, repeat !important;
+    radial-gradient(ellipse at 50% 42%, rgba(255, 249, 232, 0.58), transparent 66%),
+    radial-gradient(ellipse at 4% 0%, rgba(108, 70, 26, 0.20), transparent 52%),
+    radial-gradient(ellipse at 100% 100%, rgba(108, 70, 26, 0.18), transparent 56%),
+    radial-gradient(ellipse at 22% 82%, rgba(146, 96, 40, 0.075), transparent 34%),
+    radial-gradient(ellipse at 80% 18%, rgba(146, 96, 40, 0.065), transparent 36%) !important;
+  background-size: auto, auto, auto, auto, auto !important;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0 !important;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat !important;
   border: 1px solid rgba(112, 74, 30, 0.30) !important;
   box-shadow:
     inset 0 0 68px rgba(92, 56, 20, 0.22),
