@@ -1809,6 +1809,7 @@ let suppressCategoryClickUntil = 0;
 let doingPeekOpen = false;
 let doingExpandedTodoIds = new Set();
 let doingPeekOpenTimer = 0;
+let doingPeekCooldownUntil = 0;
 let doingPeekPoint = { x: 0, y: 0 };
 let doingZone = null;
 let doingCardWidth = 380;
