@@ -87,6 +87,18 @@ git tag v0.0.1
 git push origin v0.0.1
 ```
 
+## AI terminal
+
+Click the terminal icon in the lower-left tool rail to turn the note half into a Captain & Crew console.
+
+- **Captain** is the project-level agent.
+- **Crew · TODO** is the agent for the current todo.
+- **Crew · Subtask** agents are dedicated to each subtask.
+- Every agent keeps its own thread in `agents.json` next to `NeoTodo.json`.
+- The terminal needs `DEEPSEEK_API_KEY` (or `OPENAI_API_KEY`) in the environment. Optional knobs: `NEOTODO_AGENT_MODEL`, `NEOTODO_AGENT_BASE_URL`.
+
+The agents return Markdown, so plans, code snippets, and checklists render in the console.
+
 ## Keyboard
 
 - `Tab` — toggle the category spine

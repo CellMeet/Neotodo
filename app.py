@@ -9,6 +9,8 @@ import socket
 import subprocess
 import sys
 import threading
+import urllib.error
+import urllib.request
 import uuid
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -34,6 +36,7 @@ def app_data_dir() -> Path:
 DATA_DIR = app_data_dir()
 DATA_FILE = DATA_DIR / "NeoTodo.json"
 LEGACY_FILE = DATA_DIR / "data.json"
+AGENT_FILE = DATA_DIR / "agents.json"
 
 PALETTE = [
     "#89b4fa", "#a6e3a1", "#f9e2af", "#fab387", "#cba6f7", "#94e2d5",
@@ -877,8 +880,179 @@ class Store:
             return {"ok": True, "state": self.state(), **result}
 
 
+class AgentStore:
+    """Per-agent chat sessions for the AI terminal.
+
+    Agents are independent: the project agent is the Captain, each todo/subtask
+    gets its own crew thread. Histories live beside NeoTodo.json.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.lock = threading.Lock()
+
+    def _load(self) -> dict:
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                data.setdefault("agents", {})
+                return data
+        except Exception:
+            pass
+        return {"agents": {}}
+
+    def _save(self, data: dict) -> None:
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(self.path)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _config() -> tuple[str, str, str]:
+        key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
+        base = (
+            os.environ.get("NEOTODO_AGENT_BASE_URL")
+            or os.environ.get("DEEPSEEK_BASE_URL")
+            or os.environ.get("OPENAI_BASE_URL")
+            or "https://api.deepseek.com/v1"
+        ).rstrip("/")
+        model = (
+            os.environ.get("NEOTODO_AGENT_MODEL")
+            or os.environ.get("DEEPSEEK_MODEL")
+            or "deepseek-chat"
+        )
+        return key, base, model
+
+    @staticmethod
+    def _system_prompt(scope: dict, title: str) -> str:
+        kind = str(scope.get("kind") or "captain")
+        category = str(scope.get("category") or "")
+        todo = str(scope.get("todo") or "")
+        subtask = str(scope.get("subtask") or "")
+        done = bool(scope.get("done"))
+        context = str(scope.get("context") or "")
+        base = (
+            "You are an AI agent inside NeoTodo, a local GTK4/WebKit desktop todo app. "
+            f"The project source is at {APP_DIR} on the user's current machine. "
+            "The interface is HTML/CSS/JS; the backend is Python; the Linux shell is GTK4 + WebKitGTK; "
+            "a Windows shell uses PySide6/Qt WebEngine. "
+            "Be practical and concise. Use Markdown, complete code snippets, and exact file paths. "
+            "You are part of a pirate crew: the project agent is the Captain; task and subtask agents are crew. "
+            "Each crew agent owns one task thread. Do not pretend you can edit files unless the user asks you to describe the edit."
+        )
+        if kind == "captain":
+            role = "You are the Captain, responsible for the whole NeoTodo project and for coordinating the crew's work."
+        elif kind == "subtask":
+            role = (
+                f"You are the crew agent for the subtask '{subtask}' under todo '{todo}'"
+                f"{f' in category {category}' if category else ''}. This subtask is {'done' if done else 'pending'}. "
+                "Focus on this subtask and the smallest useful steps around it."
+            )
+        else:
+            role = (
+                f"You are the crew agent for the todo '{todo}'"
+                f"{f' in category {category}' if category else ''}. "
+                "Focus on this todo and its subtasks."
+            )
+        return f"{base}\n\n{role}\n\nCurrent workspace: {context}"
+
+    def _chat(self, agent_id: str, title: str, scope: dict, history: list, message: str, key: str, base: str, model: str) -> tuple[str, list]:
+        messages = [{"role": "system", "content": self._system_prompt(scope, title)}]
+        messages.extend(history[-24:])
+        messages.append({"role": "user", "content": message})
+        payload = json.dumps({
+            "model": model,
+            "messages": messages,
+            "temperature": 0.4,
+            "max_tokens": 1800,
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            f"{base}/chat/completions",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=90) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            reply = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+            reply = str(reply or "").strip()
+            if not reply:
+                raise ValueError("The agent returned an empty reply")
+            updated = (history + [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": reply},
+            ])[-40:]
+            return reply, updated
+        except urllib.error.HTTPError as error:
+            try:
+                detail = error.read().decode("utf-8", "replace")[:500]
+            except Exception:
+                detail = ""
+            raise RuntimeError(f"Agent API error {error.code}: {detail or error.reason}") from error
+        except urllib.error.URLError as error:
+            raise RuntimeError(f"Could not reach the agent API: {error.reason}") from error
+        except Exception as error:
+            if isinstance(error, RuntimeError):
+                raise
+            raise RuntimeError(f"Agent request failed: {error}") from error
+
+    def action(self, payload: dict) -> dict:
+        name = payload.get("action")
+        if name == "list":
+            with self.lock:
+                data = self._load()
+            return {"ok": True, "agents": data.get("agents", {})}
+        if name == "clear":
+            agent_id = str(payload.get("agent_id") or "")
+            if not agent_id:
+                return {"ok": False, "error": "Missing agent"}
+            with self.lock:
+                data = self._load()
+                data.get("agents", {}).pop(agent_id, None)
+                self._save(data)
+            return {"ok": True, "agents": data.get("agents", {})}
+        if name != "chat":
+            return {"ok": False, "error": "Unknown agent action"}
+        agent_id = str(payload.get("agent_id") or "").strip()
+        message = str(payload.get("message") or "").strip()
+        scope = payload.get("scope") if isinstance(payload.get("scope"), dict) else {}
+        title = str(payload.get("title") or "Agent").strip()[:120]
+        if not agent_id:
+            return {"ok": False, "error": "Missing agent"}
+        if not message:
+            return {"ok": False, "error": "Write a message first"}
+        key, base, model = self._config()
+        if not key:
+            return {
+                "ok": False,
+                "error": "No AI key configured. Set DEEPSEEK_API_KEY (or OPENAI_API_KEY) in the environment before launching NeoTodo.",
+            }
+        with self.lock:
+            data = self._load()
+            agent = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+            history = agent.get("messages") if isinstance(agent.get("messages"), list) else []
+            try:
+                reply, updated = self._chat(agent_id, title, scope, history, message, key, base, model)
+            except Exception as error:
+                return {"ok": False, "error": str(error)}
+            agent["title"] = title
+            agent["messages"] = updated
+            agent["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            data["agents"][agent_id] = agent
+            self._save(data)
+            return {"ok": True, "title": title, "reply": reply, "messages": updated, "agents": data["agents"]}
+
+
 class ApiHandler(BaseHTTPRequestHandler):
     store: Store = None
+    agent_store: AgentStore = None
 
     def log_message(self, format, *args):
         return
@@ -926,13 +1100,17 @@ class ApiHandler(BaseHTTPRequestHandler):
         self._send(200, body, content_type)
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path != "/api/action":
+        path = urlparse(self.path).path
+        if path not in ("/api/action", "/api/agent"):
             self._json(404, {"ok": False, "error": "Not found"})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-            result = self.store.action(payload)
+            if path == "/api/agent":
+                result = self.agent_store.action(payload)
+            else:
+                result = self.store.action(payload)
             self._json(200 if result.get("ok") else 400, result)
         except Exception as error:
             self._json(400, {"ok": False, "error": str(error)})
@@ -941,6 +1119,7 @@ class ApiHandler(BaseHTTPRequestHandler):
 def start_server(store: Store):
     server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
     ApiHandler.store = store
+    ApiHandler.agent_store = AgentStore(AGENT_FILE)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, server.server_address[1]
@@ -1036,6 +1215,7 @@ def run_server() -> None:
     store = Store(DATA_FILE)
     server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
     ApiHandler.store = store
+    ApiHandler.agent_store = AgentStore(AGENT_FILE)
     port = server.server_address[1]
     print(f"NeoTodo preview: http://127.0.0.1:{port}/", flush=True)
     try:

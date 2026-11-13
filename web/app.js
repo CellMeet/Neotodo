@@ -1816,6 +1816,11 @@ let doingCardTop = 0;
 let doingCardHeight = 600;
 let doingPanelRect = null;
 let doingPointerFrame = 0;
+let agentTerminalOpen = false;
+let agentSessions = {};
+let activeAgentId = "captain";
+let agentBusy = false;
+let agentLoaded = false;
 let doingPeekSignature = "";
 let addingSubtask = false;
 let addingSubtaskTodoId = null;
@@ -3511,6 +3516,244 @@ function startSubtaskRename(span, event) {
   input.addEventListener("blur", () => commit(true));
 }
 
+function agentContextString() {
+  const category = selectedCategory();
+  const todo = currentTodo();
+  const subs = (todo?.subtasks || []).map((subtask) => `${subtask.name}${subtask.done ? " (done)" : ""}`).join(", ");
+  return `Category: ${category?.name || "none"}; Current todo: ${todo?.name || "none"}; Subtasks: ${subs || "none"}.`;
+}
+
+function buildAgentRoster() {
+  const context = agentContextString();
+  const captain = {
+    id: "captain",
+    title: "Captain",
+    subtitle: "NeoTodo project",
+    kind: "captain",
+    scope: { kind: "captain", context },
+  };
+  const category = selectedCategory();
+  const todo = currentTodo();
+  if (!category || !todo) return [captain];
+  const roster = [
+    captain,
+    {
+      id: `todo:${todo.id}`,
+      title: todo.name,
+      subtitle: `${category.name} · todo`,
+      kind: "todo",
+      scope: { kind: "todo", category: category.name, todo: todo.name, context },
+    },
+  ];
+  for (const subtask of todo.subtasks || []) {
+    roster.push({
+      id: `subtask:${subtask.id}`,
+      title: subtask.name,
+      subtitle: `${todo.name} · ${subtask.done ? "done" : "subtask"}`,
+      kind: "subtask",
+      scope: {
+        kind: "subtask",
+        category: category.name,
+        todo: todo.name,
+        subtask: subtask.name,
+        done: Boolean(subtask.done),
+        context,
+      },
+    });
+  }
+  return roster;
+}
+
+function agentTerminalMarkup() {
+  return `<section class="agent-terminal ${agentTerminalOpen ? "open" : ""}" id="agent-terminal" aria-hidden="${agentTerminalOpen ? "false" : "true"}">
+    <div class="agent-head">
+      <div class="agent-head-title"><span class="agent-led" aria-hidden="true"></span><span>AI Terminal</span><span class="agent-head-agent" id="agent-head-agent">Captain</span></div>
+      <div class="agent-head-actions">
+        <button class="agent-clear" type="button" data-action="clear-agent">Clear</button>
+        <button class="plain-x" type="button" data-action="close-terminal" aria-label="Close AI terminal">×</button>
+      </div>
+    </div>
+    <div class="agent-body">
+      <aside class="agent-roster" id="agent-roster" aria-label="Agents"></aside>
+      <div class="agent-main">
+        <div class="agent-messages" id="agent-messages"></div>
+        <div class="agent-status" id="agent-status"></div>
+        <form class="agent-compose" id="agent-compose">
+          <span class="agent-prompt" aria-hidden="true">›</span>
+          <textarea id="agent-input" rows="1" placeholder="Ask the captain or crew..." autocomplete="off" spellcheck="false"></textarea>
+          <button class="agent-send" type="submit">Send</button>
+        </form>
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderAgentTerminal() {
+  const panel = $("#agent-terminal");
+  const tool = document.querySelector(".terminal-tool");
+  tool?.classList.toggle("active", agentTerminalOpen);
+  if (!panel) return;
+  panel.classList.toggle("open", agentTerminalOpen);
+  panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
+  if (!agentTerminalOpen) return;
+
+  const roster = buildAgentRoster();
+  if (!roster.some((agent) => agent.id === activeAgentId)) activeAgentId = roster[0]?.id || "captain";
+  const active = roster.find((agent) => agent.id === activeAgentId) || roster[0];
+  const rosterEl = $("#agent-roster");
+  if (rosterEl) {
+    rosterEl.innerHTML = roster.map((agent) => {
+      const role = agent.kind === "captain" ? "CAPTAIN" : agent.kind === "todo" ? "CREW · TODO" : "CREW · SUBTASK";
+      return `<button class="agent-roster-item ${agent.id === activeAgentId ? "active" : ""}" type="button" data-action="select-agent" data-agent-id="${esc(agent.id)}">
+        <span class="agent-roster-role">${role}</span>
+        <span class="agent-roster-name">${esc(agent.title)}</span>
+        <span class="agent-roster-sub">${esc(agent.subtitle)}</span>
+      </button>`;
+    }).join("");
+  }
+  const heading = $("#agent-head-agent");
+  if (heading) heading.textContent = active?.kind === "captain" ? "Captain" : (active?.title || "Captain");
+
+  const session = agentSessions[activeAgentId] || { messages: [] };
+  const messages = Array.isArray(session.messages) ? session.messages : [];
+  const messagesEl = $("#agent-messages");
+  if (messagesEl) {
+    const agentLabel = active?.kind === "captain" ? "Captain" : "Crew";
+    let html = "";
+    if (!messages.length && !agentBusy) {
+      html = `<div class="agent-empty">
+        <div class="agent-empty-title">Captain &amp; Crew</div>
+        <p>Every todo and subtask has its own agent thread. The Captain watches the whole project; each crew agent focuses on one mission.</p>
+        <p class="agent-empty-hint">Pick a crew member on the left, then ask for a plan, a fix, or a code change.</p>
+      </div>`;
+    } else {
+      for (const message of messages) {
+        const role = message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user";
+        const label = role === "user" ? "You" : role === "system" ? "System" : agentLabel;
+        const body = role === "assistant" ? renderMarkdown(message.content) : esc(message.content);
+        html += `<div class="agent-msg ${role}"><div class="agent-msg-role">${esc(label)}</div><div class="agent-msg-body">${body}</div></div>`;
+      }
+    }
+    if (agentBusy) {
+      html += `<div class="agent-msg assistant thinking"><div class="agent-msg-role">${esc(agentLabel)}</div><div class="agent-msg-body"><span class="agent-thinking-dots" aria-label="Thinking">● ● ●</span></div></div>`;
+    }
+    messagesEl.innerHTML = html;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+  const status = $("#agent-status");
+  if (status) {
+    status.textContent = agentBusy ? "Thinking…" : "";
+    status.classList.toggle("busy", agentBusy);
+  }
+  const input = $("#agent-input");
+  if (input) input.disabled = agentBusy;
+  const send = $(".agent-send");
+  if (send) send.disabled = agentBusy;
+}
+
+function openAgentTerminal() {
+  agentTerminalOpen = true;
+  document.body.classList.add("agent-terminal-open");
+  const target = activeNoteTarget();
+  if (target?.subtask) activeAgentId = `subtask:${target.subtask.id}`;
+  else if (target?.todo) activeAgentId = `todo:${target.todo.id}`;
+  renderAgentTerminal();
+  if (!agentLoaded) loadAgentSessions();
+  setTimeout(() => $("#agent-input")?.focus(), 80);
+}
+
+function closeAgentTerminal() {
+  agentTerminalOpen = false;
+  document.body.classList.remove("agent-terminal-open");
+  const panel = $("#agent-terminal");
+  panel?.classList.remove("open");
+  panel?.setAttribute("aria-hidden", "true");
+  document.querySelector(".terminal-tool")?.classList.remove("active");
+}
+
+function toggleAgentTerminal() {
+  if (agentTerminalOpen) closeAgentTerminal();
+  else openAgentTerminal();
+}
+
+async function loadAgentSessions() {
+  try {
+    const response = await fetch("/api/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "list" }),
+    });
+    const data = await response.json();
+    if (data.ok) {
+      agentSessions = data.agents || {};
+      agentLoaded = true;
+      renderAgentTerminal();
+    }
+  } catch (error) {}
+}
+
+async function sendAgentMessage() {
+  const input = $("#agent-input");
+  const message = input?.value.trim();
+  if (!message || agentBusy) return;
+  const roster = buildAgentRoster();
+  const agent = roster.find((item) => item.id === activeAgentId) || roster[0];
+  if (!agent) return;
+  const session = agentSessions[agent.id] || { title: agent.title, messages: [] };
+  agentSessions[agent.id] = {
+    ...session,
+    title: agent.title,
+    messages: [...(session.messages || []), { role: "user", content: message }],
+  };
+  agentBusy = true;
+  if (input) input.value = "";
+  renderAgentTerminal();
+  try {
+    const response = await fetch("/api/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "chat",
+        agent_id: agent.id,
+        title: agent.title,
+        scope: agent.scope,
+        message,
+      }),
+    });
+    const data = await response.json();
+    if (data.ok) {
+      agentSessions[agent.id] = { title: data.title || agent.title, messages: data.messages || [] };
+    } else {
+      agentSessions[agent.id] = {
+        ...agentSessions[agent.id],
+        messages: [...(agentSessions[agent.id]?.messages || []), { role: "system", content: data.error || "The agent could not answer." }],
+      };
+    }
+  } catch (error) {
+    agentSessions[agent.id] = {
+      ...agentSessions[agent.id],
+      messages: [...(agentSessions[agent.id]?.messages || []), { role: "system", content: "Could not reach the local agent service." }],
+    };
+  } finally {
+    agentBusy = false;
+    renderAgentTerminal();
+    setTimeout(() => $("#agent-input")?.focus(), 40);
+  }
+}
+
+async function clearAgent() {
+  const id = activeAgentId;
+  agentSessions[id] = { ...(agentSessions[id] || {}), messages: [] };
+  renderAgentTerminal();
+  try {
+    await fetch("/api/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "clear", agent_id: id }),
+    });
+  } catch (error) {}
+}
+
 function renderStage() {
   const stage = $("#stage");
   const prevSubScroll = $(".current-inner")?.scrollTop ?? 0;
@@ -3523,7 +3766,9 @@ function renderStage() {
           <div class="history-half"><div class="history-empty"></div></div>
         </section>
         <section class="notes-half" id="notes-half">${notesHtml()}</section>
+        ${agentTerminalMarkup()}
       </div>`;
+    renderAgentTerminal();
     refreshTaskBoard();
     return;
   }
@@ -3625,8 +3870,10 @@ function renderStage() {
         <div class="current-half">${metaHtml}</div>
       </section>
       <section class="notes-half" id="notes-half">${notesHtml()}</section>
+      ${agentTerminalMarkup()}
     </div>`;
 
+  renderAgentTerminal();
   refreshTaskBoard();
   setupNotesPanel();
   positionTimerRoot();
@@ -4959,6 +5206,15 @@ async function handleAction(actionName, element) {
   if (actionName === "open-trash") { openTrashDrawer(); return; }
   if (actionName === "close-trash") { closeTrashDrawer(); return; }
   if (actionName === "clear-trash") { clearTrash(); return; }
+  if (actionName === "open-terminal") { toggleAgentTerminal(); return; }
+  if (actionName === "close-terminal") { closeAgentTerminal(); return; }
+  if (actionName === "clear-agent") { clearAgent(); return; }
+  if (actionName === "select-agent") {
+    activeAgentId = element?.dataset.agentId || "captain";
+    renderAgentTerminal();
+    setTimeout(() => $("#agent-input")?.focus(), 20);
+    return;
+  }
   if (actionName === "open-settings") { openSettings(); return; }
   if (actionName === "close-settings") { closeSettings(); return; }
   if (actionName === "toggle-show-clock") {
@@ -6632,7 +6888,26 @@ function bindEvents() {
     if (doingPeekOpen) positionDoingPeek();
   });
 
+  document.addEventListener("submit", (event) => {
+    if (event.target.id === "agent-compose") {
+      event.preventDefault();
+      sendAgentMessage();
+    }
+  });
+
   document.addEventListener("keydown", (event) => {
+    if (event.target.id === "agent-input") {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        sendAgentMessage();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAgentTerminal();
+        return;
+      }
+    }
     if (event.key === "Escape" && doingPeekOpen) {
       event.preventDefault();
       closeDoingPeek();
