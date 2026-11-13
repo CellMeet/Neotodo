@@ -929,6 +929,17 @@ class AgentStore:
         return key, base, model
 
     @staticmethod
+    def _provider_name(base: str) -> str:
+        text = (base or "").lower()
+        if "deepseek" in text:
+            return "DeepSeek"
+        if "openai" in text:
+            return "OpenAI"
+        if "anthropic" in text or "claude" in text:
+            return "Anthropic"
+        return "AI"
+
+    @staticmethod
     def _system_prompt(scope: dict, title: str) -> str:
         kind = str(scope.get("kind") or "captain")
         category = str(scope.get("category") or "")
@@ -1085,7 +1096,9 @@ class AgentStore:
             with self.lock:
                 data = self._load()
                 agent = data.get("agents", {}).get(agent_id) or {"messages": []}
-            return {"ok": True, "agent": agent}
+            _, base, _ = self._config()
+            provider = os.environ.get("NEOTODO_AGENT_PROVIDER") or self._provider_name(base)
+            return {"ok": True, "agent": agent, "provider": provider}
         if name == "clear":
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
@@ -1112,11 +1125,7 @@ class AgentStore:
         mode = "execute" if str(scope.get("kind") or "") == "subtask" else "chat"
         try:
             if mode == "execute":
-                if not self.exec_lock.acquire(blocking=False):
-                    return {
-                        "ok": False,
-                        "error": "Another crew agent is already editing the project. Wait for it to finish (atomic lock).",
-                    }
+                self.exec_lock.acquire()
                 try:
                     reply, opencode_session = self._execute_opencode(agent, title, scope, message)
                 finally:
@@ -1147,12 +1156,15 @@ class AgentStore:
                 stored["opencode_session"] = opencode_session
             data["agents"][agent_id] = stored
             self._save(data)
+        _, base, _ = self._config()
+        provider = os.environ.get("NEOTODO_AGENT_PROVIDER") or self._provider_name(base)
         return {
             "ok": True,
             "title": title,
             "reply": reply,
             "messages": updated,
             "mode": mode,
+            "provider": provider,
             "agents": data["agents"],
         }
 

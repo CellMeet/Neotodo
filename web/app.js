@@ -1818,8 +1818,10 @@ let doingPanelRect = null;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
 let agentSessions = {};
-let agentBusy = false;
-let agentRunningAgentId = null;
+const agentBusyIds = new Set();
+const agentExecQueue = [];
+let agentExecutingId = null;
+let agentProviderName = "DeepSeek";
 const agentLoadedIds = new Set();
 const agentLoadingIds = new Set();
 let doingPeekSignature = "";
@@ -3535,7 +3537,6 @@ function activeAgent() {
     return {
       id: `subtask:${target.subtask.id}`,
       kind: "subtask",
-      role: "CREW · EXECUTOR",
       title: target.subtask.name,
       category: category?.name || "",
       todo: target.todo?.name || "",
@@ -3554,7 +3555,6 @@ function activeAgent() {
     return {
       id: `todo:${target.todo.id}`,
       kind: "todo",
-      role: "CAPTAIN · ARCHITECT",
       title: target.todo.name,
       category: category?.name || "",
       todo: target.todo.name,
@@ -3570,7 +3570,6 @@ function activeAgent() {
   return {
     id: "captain",
     kind: "captain",
-    role: "CAPTAIN · PROJECT",
     title: "NeoTodo",
     category: category?.name || "",
     todo: "",
@@ -3581,21 +3580,18 @@ function activeAgent() {
 
 function agentTerminalMarkup() {
   return `<section class="agent-terminal ${agentTerminalOpen ? "open" : ""}" id="agent-terminal" aria-hidden="${agentTerminalOpen ? "false" : "true"}">
+    <div class="agent-resize" data-agent-resize aria-label="Resize terminal"></div>
     <div class="agent-head">
-      <div class="agent-head-title"><span class="agent-led" aria-hidden="true"></span><span class="agent-role" id="agent-role">CAPTAIN · ARCHITECT</span><span class="agent-head-agent" id="agent-head-agent">NeoTodo</span></div>
-      <div class="agent-head-actions">
-        <button class="agent-clear" type="button" data-action="clear-agent">Clear</button>
-        <button class="plain-x" type="button" data-action="close-terminal" aria-label="Close AI terminal">×</button>
-      </div>
+      <span class="agent-provider" id="agent-provider">DeepSeek</span>
+      <span class="agent-head-agent" id="agent-head-agent">NeoTodo</span>
     </div>
-    <div class="agent-context" id="agent-context"></div>
     <div class="agent-body">
       <div class="agent-main">
         <div class="agent-messages" id="agent-messages"></div>
         <div class="agent-status" id="agent-status"></div>
         <form class="agent-compose" id="agent-compose">
           <span class="agent-prompt" aria-hidden="true">›</span>
-          <textarea id="agent-input" rows="1" placeholder="Ask the captain..." autocomplete="off" spellcheck="false"></textarea>
+          <textarea id="agent-input" rows="3" placeholder="" autocomplete="off" spellcheck="false"></textarea>
           <button class="agent-send" type="submit">Send</button>
         </form>
       </div>
@@ -3613,66 +3609,29 @@ function renderAgentTerminal() {
   if (!agentTerminalOpen) return;
 
   const agent = activeAgent();
-  const roleEl = $("#agent-role");
-  if (roleEl) {
-    roleEl.textContent = agent.role;
-    roleEl.classList.toggle("crew", agent.kind === "subtask");
-  }
+  const provider = $("#agent-provider");
+  if (provider) provider.textContent = agentProviderName;
   const heading = $("#agent-head-agent");
   if (heading) heading.textContent = agent.title;
-  const contextEl = $("#agent-context");
-  if (contextEl) {
-    contextEl.textContent = agent.kind === "subtask"
-      ? `${agent.category} / ${agent.todo} / ${agent.title}  ·  ATOMIC LOCK · one executor at a time`
-      : agent.kind === "todo"
-        ? `${agent.category} / ${agent.title}  ·  architect`
-        : "Project bridge";
-  }
 
   if (!agentLoadedIds.has(agent.id) && !agentLoadingIds.has(agent.id)) {
     agentLoadingIds.add(agent.id);
     loadAgentSession(agent.id);
   }
   const loading = agentLoadingIds.has(agent.id);
+  const busy = agentBusyIds.has(agent.id);
   const session = agentSessions[agent.id] || { messages: [] };
   const messages = Array.isArray(session.messages) ? session.messages : [];
   const messagesEl = $("#agent-messages");
   if (messagesEl) {
-    const agentLabel = agent.kind === "subtask" ? "Crew" : "Captain";
     let html = "";
-    if (loading && !messages.length) {
-      html = `<div class="agent-empty"><div class="agent-empty-title">Opening thread…</div></div>`;
-    } else if (!messages.length && !agentBusy) {
-      if (agent.kind === "subtask") {
-        html = `<div class="agent-empty">
-          <div class="agent-empty-title">Crew terminal</div>
-          <p>This crew agent can edit the project to complete this subtask. It is an executor, not a planner.</p>
-          <p class="agent-empty-hint">One crew agent runs at a time; the first run may take a minute while OpenCode starts.</p>
-        </div>`;
-      } else if (agent.kind === "todo") {
-        html = `<div class="agent-empty">
-          <div class="agent-empty-title">Captain's desk</div>
-          <p>This is the architect for the todo. Use it to shape the module, split work, and review decisions.</p>
-          <p class="agent-empty-hint">Select a subtask to open that crew member's executor terminal.</p>
-        </div>`;
-      } else {
-        html = `<div class="agent-empty">
-          <div class="agent-empty-title">Project bridge</div>
-          <p>Ask the Captain about the whole NeoTodo project, its architecture, or where to start.</p>
-        </div>`;
-      }
-    } else {
-      for (const message of messages) {
-        const role = message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user";
-        const label = role === "user" ? "You" : role === "system" ? "System" : agentLabel;
-        const body = role === "assistant" ? renderMarkdown(message.content) : esc(message.content);
-        html += `<div class="agent-msg ${role}"><div class="agent-msg-role">${esc(label)}</div><div class="agent-msg-body">${body}</div></div>`;
-      }
+    for (const message of messages) {
+      const role = message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user";
+      const body = role === "assistant" ? renderMarkdown(message.content) : esc(message.content);
+      html += `<div class="agent-msg ${role}"><div class="agent-msg-body">${body}</div></div>`;
     }
-    if (agentBusy) {
-      const runningHere = agentRunningAgentId === agent.id;
-      const runningLabel = agent.kind === "subtask" ? "Crew" : "Captain";
-      html += `<div class="agent-msg assistant thinking"><div class="agent-msg-role">${runningHere ? esc(runningLabel) : "Terminal"}</div><div class="agent-msg-body"><span class="agent-thinking-dots">● ● ●</span></div></div>`;
+    if (busy) {
+      html += `<div class="agent-msg assistant working"><div class="agent-msg-body"><span class="agent-working-cursor"></span></div></div>`;
     }
     messagesEl.innerHTML = html;
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -3680,31 +3639,25 @@ function renderAgentTerminal() {
 
   const status = $("#agent-status");
   if (status) {
-    if (loading) status.textContent = "Opening thread…";
-    else if (agentBusy) {
-      if (agentRunningAgentId === agent.id) {
-        status.textContent = agent.mode === "execute" ? "Crew is editing the project…" : "Captain is thinking…";
-      } else {
-        status.textContent = "Another agent is working on the project…";
-      }
-    } else {
-      status.textContent = "";
+    let text = "";
+    if (loading) text = "…";
+    else if (busy) {
+      if (agent.mode === "execute") {
+        text = agentExecutingId && agentExecutingId !== agent.id ? "queued…" : "working…";
+      } else text = "thinking…";
     }
-    status.classList.toggle("busy", Boolean(agentBusy || loading));
+    status.textContent = text;
   }
   const input = $("#agent-input");
   if (input) {
-    input.placeholder = agent.mode === "execute"
-      ? "Describe the change; the crew will execute it…"
-      : agent.kind === "todo"
-        ? "Ask the architect for a plan…"
-        : "Ask the captain about the project…";
-    input.disabled = Boolean(agentBusy || loading);
+    input.disabled = Boolean(busy || loading);
+    input.placeholder = "";
+    if (input.value === "" && !input.disabled) input.style.height = "";
   }
   const send = $(".agent-send");
   if (send) {
     send.textContent = agent.mode === "execute" ? "Run" : "Send";
-    send.disabled = Boolean(agentBusy || loading);
+    send.disabled = Boolean(busy || loading);
   }
 }
 
@@ -3725,6 +3678,7 @@ async function loadAgentSession(agentId) {
     const data = await agentPost({ action: "get", agent_id: agentId });
     if (data.ok) {
       agentSessions[agentId] = data.agent || { messages: [] };
+      if (data.provider) agentProviderName = data.provider;
       agentLoadedIds.add(agentId);
     }
   } catch (error) {
@@ -3763,8 +3717,9 @@ function toggleAgentTerminal() {
 async function sendAgentMessage() {
   const input = $("#agent-input");
   const message = input?.value.trim();
-  if (!message || agentBusy) return;
+  if (!message) return;
   const agent = activeAgent();
+  if (agentBusyIds.has(agent.id)) return;
   if (!agentLoadedIds.has(agent.id)) await loadAgentSession(agent.id);
   const session = agentSessions[agent.id] || { title: agent.title, messages: [] };
   agentSessions[agent.id] = {
@@ -3772,9 +3727,15 @@ async function sendAgentMessage() {
     title: agent.title,
     messages: [...(session.messages || []), { role: "user", content: message }],
   };
-  agentBusy = true;
-  agentRunningAgentId = agent.id;
-  if (input) input.value = "";
+  agentBusyIds.add(agent.id);
+  if (agent.mode === "execute") {
+    if (!agentExecutingId) agentExecutingId = agent.id;
+    else if (!agentExecQueue.includes(agent.id)) agentExecQueue.push(agent.id);
+  }
+  if (input) {
+    input.value = "";
+    input.style.height = "";
+  }
   renderAgentTerminal();
   try {
     const data = await agentPost({
@@ -3786,6 +3747,7 @@ async function sendAgentMessage() {
     });
     if (data.ok) {
       agentSessions[agent.id] = { title: data.title || agent.title, messages: data.messages || [] };
+      if (data.provider) agentProviderName = data.provider;
       agentLoadedIds.add(agent.id);
     } else {
       agentSessions[agent.id] = {
@@ -3799,8 +3761,14 @@ async function sendAgentMessage() {
       messages: [...(agentSessions[agent.id]?.messages || []), { role: "system", content: "Could not reach the local agent service." }],
     };
   } finally {
-    agentBusy = false;
-    agentRunningAgentId = null;
+    agentBusyIds.delete(agent.id);
+    if (agent.mode === "execute") {
+      if (agentExecutingId === agent.id) agentExecutingId = agentExecQueue.shift() || null;
+      else {
+        const queued = agentExecQueue.indexOf(agent.id);
+        if (queued >= 0) agentExecQueue.splice(queued, 1);
+      }
+    }
     renderAgentTerminal();
     setTimeout(() => $("#agent-input")?.focus(), 40);
   }
@@ -6942,6 +6910,37 @@ function bindEvents() {
     refreshDoingZone();
     refreshNotesSwipeLine();
     if (doingPeekOpen) positionDoingPeek();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest?.("[data-agent-resize]");
+    if (!handle) return;
+    const panel = handle.closest("#agent-terminal");
+    const body = panel?.parentElement;
+    if (!panel || !body) return;
+    event.preventDefault();
+    const bodyRect = body.getBoundingClientRect();
+    const startY = event.clientY;
+    const startHeight = panel.getBoundingClientRect().height;
+    try { handle.setPointerCapture?.(event.pointerId); } catch (error) {}
+    const move = (moveEvent) => {
+      const height = Math.max(220, Math.min(bodyRect.height - 40, startHeight + (startY - moveEvent.clientY)));
+      document.documentElement.style.setProperty("--agent-terminal-height", `${Math.round(height)}px`);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+  }, { passive: false });
+
+  document.addEventListener("input", (event) => {
+    if (event.target.id === "agent-input") {
+      const input = event.target;
+      input.style.height = "auto";
+      input.style.height = `${Math.min(160, Math.max(58, input.scrollHeight))}px`;
+    }
   });
 
   document.addEventListener("submit", (event) => {
