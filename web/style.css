@@ -11614,8 +11614,8 @@ html[data-postcard-dark="true"] .modal h3 {
 
 /* OpenCode terminal skin: neutral editor palette, no postcard paper, no chrome. */
 .agent-terminal {
-  --oc-bg: #ffffff;
-  --oc-soft: #f7f7f8;
+  --oc-bg: #f5f5f6;
+  --oc-soft: #ececee;
   --oc-ink: #171718;
   --oc-muted: #7c7c83;
   --oc-faint: #b4b4bb;
@@ -11955,25 +11955,25 @@ html[data-postcard-dark="true"] .agent-terminal {
 .agent-terminal {
   --oc-ink-soft: #4a4a52;
   --oc-user-accent: #b8872f;
-  --oc-input-bg: #fffdfd;
+  --oc-input-bg: #ececee;
   --oc-input-border: #d7d7dd;
   --oc-input-border-focus: #c2c2ca;
   --oc-input-text: #3d4757;
   --oc-input-placeholder: #98a2b2;
   --oc-plus: #47505f;
-  --oc-send-bg: #e5a0a0;
+  --oc-send-bg: #3b82f6;
   --oc-send-ink: #ffffff;
 }
 html[data-postcard-dark="true"] .agent-terminal {
   --oc-ink-soft: #c9c9d2;
   --oc-user-accent: #c9a35f;
-  --oc-input-bg: #151517;
+  --oc-input-bg: #1a1a1c;
   --oc-input-border: #3a3a42;
   --oc-input-border-focus: #4a4a52;
   --oc-input-text: #d9dde6;
   --oc-input-placeholder: #6f7785;
   --oc-plus: #aab2c0;
-  --oc-send-bg: #b3757d;
+  --oc-send-bg: #4f8cff;
   --oc-send-ink: #ffffff;
 }
 
@@ -12440,13 +12440,13 @@ body.agent-terminal-open .notes-reveal {
 .agent-terminal {
   --oc-input-border: #cfcfd6;
   --oc-input-border-focus: #c2c2ca;
-  --oc-send-bg: #e5a0a0;
+  --oc-send-bg: #3b82f6;
   --oc-send-ink: #ffffff;
 }
 html[data-postcard-dark="true"] .agent-terminal {
   --oc-input-border: #3a3a42;
   --oc-input-border-focus: #4a4a52;
-  --oc-send-bg: #b3757d;
+  --oc-send-bg: #4f8cff;
 }
 .agent-compose { border-color: var(--oc-input-border); }
 .agent-compose:focus-within {
@@ -12761,11 +12761,11 @@ body.agent-split-flipping .agent-split-handle {
 /* Rounded AI layer, plugin-red send button, quieter focus/selection. */
 .agent-terminal {
   border-radius: 16px;
-  --oc-send-bg: #e5a0a0;
+  --oc-send-bg: #3b82f6;
   --oc-send-ink: #ffffff;
 }
 html[data-postcard-dark="true"] .agent-terminal {
-  --oc-send-bg: #b3757d;
+  --oc-send-bg: #4f8cff;
 }
 .agent-send { background: var(--oc-send-bg); }
 .agent-terminal * { -webkit-tap-highlight-color: transparent; }
@@ -12838,7 +12838,7 @@ body.notes-hidden .notes-handle-bottom {
 .notes-reveal { display: none !important; }
 
 @keyframes agent-sheet-up {
-  from { opacity: 0; transform: translateY(28px) scale(0.996); }
+  from { opacity: 0.45; transform: translateY(100%); }
   to { opacity: 1; transform: none; }
 }
 .agent-terminal.sheet-opening,
@@ -13072,12 +13072,12 @@ body.agent-terminal-open:not(.notes-hidden) .notes-handle-bottom {
 
 /* Slide the sheets up/down with their handles. */
 @keyframes agent-sheet-up {
-  from { opacity: 0; transform: translateY(28px) scale(0.996); }
+  from { opacity: 0.45; transform: translateY(100%); }
   to { opacity: 1; transform: none; }
 }
 @keyframes agent-sheet-down {
   from { opacity: 1; transform: none; }
-  to { opacity: 0; transform: translateY(22px) scale(0.996); }
+  to { opacity: 0; transform: translateY(100%); }
 }
 .agent-terminal.sheet-opening,
 .notes-half.floating-notes.sheet-opening {
@@ -13365,14 +13365,14 @@ body.panel-drag-mode {
 }
 body.panel-drag-mode .panel-shrinking {
   translate: var(--card-x, 0px) var(--card-y, 0px);
-  scale: var(--card-scale, 0.46);
+  scale: var(--card-scale, 0.54);
   transform-origin: top left;
-  transition: scale 0.18s cubic-bezier(0.2, 0.9, 0.2, 1);
+  transition: scale 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
   pointer-events: none !important;
   z-index: 60 !important;
   border-radius: 18px !important;
   border: 0 !important;
-  box-shadow: 0 0 0 1px rgba(120, 95, 55, 0.16), 0 28px 64px rgba(20, 12, 6, 0.36) !important;
+  box-shadow: 0 0 0 1px rgba(120, 95, 55, 0.16), 0 36px 90px rgba(0, 0, 0, 0.38), 0 10px 28px rgba(0, 0, 0, 0.18) !important;
   will-change: translate, scale;
 }
 body.panel-drag-mode .panel-unshrinking {
@@ -13443,4 +13443,32 @@ body.single-note-bottom .notes-half.floating-notes:not(.notes-hidden) {
     width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     height 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Closing doors fade while the sheet retracts downward. */
+.notes-handle-bottom.handle-closing,
+.desk-handle-ai.handle-closing {
+  opacity: 0 !important;
+  transition: opacity 0.22s ease !important;
+}
+
+/* No red/colored focus rings on the door handles or buttons. */
+button:focus, button:focus-visible,
+.notes-handle:focus, .notes-handle:focus-visible,
+.desk-handle:focus, .desk-handle:focus-visible {
+  outline: none !important;
+}
+
+/* Robot mark before the provider name. */
+.agent-provider-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  align-self: center;
+  color: var(--oc-muted);
+}
+
+/* Keep the split drop outlines from showing through the Doing card. */
+body.doing-peek-open .agent-split-drop {
+  opacity: 0 !important;
 }

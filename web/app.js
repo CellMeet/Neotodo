@@ -1913,7 +1913,6 @@ function followPageLayout(duration = 360) {
 
 function hideNotesPanel(silent = false) {
   if (notesHidden || notesClosing) return;
-  if (singleDock?.kind === "note") clearSingleDock();
   const panel = $("#notes-half");
   const handle = $(".notes-handle-bottom");
   if (!panel || silent) {
@@ -1921,14 +1920,15 @@ function hideNotesPanel(silent = false) {
     return;
   }
   notesClosing = true;
-  handle?.classList.add("handle-vanished");
+  handle?.classList.add("handle-closing");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
     if (!notesClosing) return;
     panel.classList.remove("sheet-closing");
     notesClosing = false;
     hideNotesPanelNow(silent);
-    handle?.classList.remove("handle-vanished");
+    if (singleDock?.kind === "note") clearSingleDock();
+    handle?.classList.remove("handle-closing");
     positionDeskHandles();
   }, 240);
 }
@@ -1951,7 +1951,7 @@ function showNotesPanel() {
   if (!notesHidden) return;
   notesClosing = false;
   clearSingleDock();
-  $(".notes-handle-bottom")?.classList.remove("handle-vanished");
+  $(".notes-handle-bottom")?.classList.remove("handle-vanished", "handle-closing");
   notesHidden = false;
   document.body.classList.remove("notes-hidden");
   AudioFX.leafRustle();
@@ -3827,6 +3827,7 @@ function agentTerminalMarkup() {
     <div class="agent-resize" data-agent-resize aria-label="Resize terminal"></div>
     <div class="agent-head">
       <div class="agent-head-left">
+        <svg class="agent-provider-icon" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M576 85.333333c0 18.944-8.234667 35.968-21.333333 47.701334V213.333333h213.333333a128 128 0 0 1 128 128v426.666667a128 128 0 0 1-128 128H256a128 128 0 0 1-128-128V341.333333a128 128 0 0 1 128-128h213.333333V133.034667A64 64 0 1 1 576 85.333333zM0 426.666667h85.333333v256H0v-256z m1024 0h-85.333333v256h85.333333v-256zM384 618.666667a64 64 0 1 0 0-128 64 64 0 0 0 0 128z m320-64a64 64 0 1 0-128 0 64 64 0 0 0 128 0z" fill="currentColor"/></svg>
         <span class="agent-provider" id="agent-provider">DeepSeek</span>
         <span class="agent-head-sep" aria-hidden="true">/</span>
         <span class="agent-head-agent" id="agent-head-agent">NeoTodo</span>
@@ -4338,7 +4339,8 @@ function syncAgentTerminal() {
 function openAgentTerminal() {
   agentClosing = false;
   clearSingleDock();
-  $(".desk-handle-ai")?.classList.remove("handle-vanished");
+  AudioFX.drawer();
+  $(".desk-handle-ai")?.classList.remove("handle-vanished", "handle-closing");
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
   renderAgentTerminal();
@@ -4351,7 +4353,6 @@ function openAgentTerminal() {
 
 function closeAgentTerminal() {
   if (!agentTerminalOpen || agentClosing) return;
-  if (singleDock?.kind === "ai") clearSingleDock();
   const panel = $("#agent-terminal");
   if (!panel) {
     agentTerminalOpen = false;
@@ -4359,8 +4360,9 @@ function closeAgentTerminal() {
     return;
   }
   agentClosing = true;
+  AudioFX.drawer();
   const handle = $(".desk-handle-ai");
-  handle?.classList.add("handle-vanished");
+  handle?.classList.add("handle-closing");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
     if (!agentClosing) return;
@@ -4372,8 +4374,9 @@ function closeAgentTerminal() {
     panel.classList.remove("open", "sheet-closing");
     panel.setAttribute("aria-hidden", "true");
     document.querySelector(".terminal-tool")?.classList.remove("active");
+    if (singleDock?.kind === "ai") clearSingleDock();
     updateAgentSplitLayout();
-    handle?.classList.remove("handle-vanished");
+    handle?.classList.remove("handle-closing");
     positionDeskHandles();
   }, 240);
 }
@@ -4469,8 +4472,26 @@ function startPanelPreview(kind, panel, clientX, clientY) {
   if (panelPreview || !panel) return;
   if (doingPeekOpen) closeDoingPeek();
   panel.classList.remove("sheet-opening", "sheet-closing");
+  // Normalise a docked/split card to the full workspace before shrinking so
+  // the floating card is always the same size and never gets narrow.
+  const desk = agentDeskRect();
+  const before = panel.getBoundingClientRect();
+  const needsNormalize = Boolean(desk && (before.width < desk.width - 4 || before.height < desk.height - 4));
+  const prevStyle = {};
+  if (needsNormalize) {
+    ["left", "top", "width", "height", "right", "bottom"].forEach((prop) => {
+      prevStyle[prop] = panel.style.getPropertyValue(prop);
+      prevStyle[prop + "Priority"] = panel.style.getPropertyPriority(prop);
+    });
+    panel.style.setProperty("left", "0", "important");
+    panel.style.setProperty("top", "0", "important");
+    panel.style.setProperty("width", "100%", "important");
+    panel.style.setProperty("height", "100%", "important");
+    panel.style.setProperty("right", "auto", "important");
+    panel.style.setProperty("bottom", "auto", "important");
+  }
   const rect = panel.getBoundingClientRect();
-  const scale = Math.min(0.46, Math.min(430 / Math.max(1, rect.width), 290 / Math.max(1, rect.height)));
+  const scale = Math.min(0.54, Math.min(500 / Math.max(1, rect.width), 330 / Math.max(1, rect.height)));
   panel.classList.add("panel-shrinking");
   panel.style.setProperty("--card-scale", scale.toFixed(4));
   document.body.classList.add("panel-drag-mode");
@@ -4481,6 +4502,7 @@ function startPanelPreview(kind, panel, clientX, clientY) {
     zone: "", outside: false,
     startX: clientX, startY: clientY, moved: false,
     wasDocked: Boolean(singleDock && singleDock.kind === kind),
+    prevStyle, needsNormalize,
   };
   updatePanelPreview(clientX, clientY);
 }
@@ -4566,6 +4588,14 @@ function endPanelPreview(confirmDrop = false) {
     panel.style.removeProperty("--card-x");
     panel.style.removeProperty("--card-y");
     panel.style.removeProperty("--card-scale");
+    if (preview.needsNormalize && preview.prevStyle) {
+      ["left", "top", "width", "height", "right", "bottom"].forEach((prop) => {
+        const value = preview.prevStyle[prop];
+        const priority = preview.prevStyle[prop + "Priority"] || "";
+        if (value) panel.style.setProperty(prop, value, priority);
+        else panel.style.removeProperty(prop);
+      });
+    }
   };
   if (!confirmDrop) {
     clearShrink();
@@ -4582,6 +4612,14 @@ function endPanelPreview(confirmDrop = false) {
       panel.style.removeProperty("--card-x");
       panel.style.removeProperty("--card-y");
       panel.style.removeProperty("--card-scale");
+      if (preview.needsNormalize && preview.prevStyle) {
+        ["left", "top", "width", "height", "right", "bottom"].forEach((prop) => {
+          const value = preview.prevStyle[prop];
+          const priority = preview.prevStyle[prop + "Priority"] || "";
+          if (value) panel.style.setProperty(prop, value, priority);
+          else panel.style.removeProperty(prop);
+        });
+      }
     }, 220);
     return;
   }
@@ -5866,6 +5904,7 @@ function updateDoingPeek(force = false) {
   if (!entries.length) {
     if (panel) panel.remove();
     doingPeekOpen = false;
+    document.body.classList.remove("doing-peek-open");
     doingExpandedTodoIds.clear();
     doingPeekSignature = "";
     doingPanelRect = null;
@@ -5904,6 +5943,7 @@ function openDoingPeek() {
   const panel = $("#doing-peek");
   if (!panel) return;
   doingPeekOpen = true;
+  document.body.classList.add("doing-peek-open");
   positionDoingPeek();
   panel.classList.add("open");
 }
@@ -5912,6 +5952,7 @@ function closeDoingPeek() {
   clearTimeout(doingPeekOpenTimer);
   if (!doingPeekOpen) return;
   doingPeekOpen = false;
+  document.body.classList.remove("doing-peek-open");
   doingExpandedTodoIds.clear();
   const panel = $("#doing-peek");
   if (panel) panel.classList.remove("open");
@@ -8024,7 +8065,7 @@ function bindEvents() {
         try { document.getSelection()?.removeAllRanges(); } catch (error) {}
         startPanelPreview(state.kind, state.panel, state.x, state.y);
       }
-    }, 100);
+    }, 360);
     state.timer = timer;
     panelLongPress = state;
   }, { passive: true });
@@ -8107,7 +8148,18 @@ function bindEvents() {
     };
     const move = (moveEvent) => {
       if (!longPressed) {
-        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 6) {
+        const dy = moveEvent.clientY - startY;
+        const dx = Math.abs(moveEvent.clientX - startX);
+        if (dy > 24 && dy > dx) {
+          // A quick downward swipe closes the panel, in any split state.
+          moved = true;
+          clearTimeout(timer);
+          deskHandleSwipeSuppress = performance.now() + 600;
+          if (isAi) closeAgentTerminal();
+          else hideNotesPanel();
+          return;
+        }
+        if (Math.hypot(moveEvent.clientX - startX, dy) > 6) {
           moved = true;
           clearTimeout(timer);
         }
@@ -8116,6 +8168,7 @@ function bindEvents() {
       if (!canResize) return;
       if (!resizing) {
         resizing = true;
+        AudioFX.startLeafStretch();
         document.body.classList.add("desk-handle-resizing");
         panel?.classList.add("panel-handle-resizing");
         if (panel) {
@@ -8137,6 +8190,7 @@ function bindEvents() {
       }
       handle.style.removeProperty("transition");
       if (resizing) {
+        AudioFX.stopLeafStretch();
         // Suppress only the click that belongs to this same gesture.
         deskHandleSwipeSuppress = performance.now() + 360;
         positionDeskHandles();
