@@ -13445,11 +13445,46 @@ body.single-note-bottom .notes-half.floating-notes:not(.notes-hidden) {
     height 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Closing doors fade while the sheet retracts downward. */
-.notes-handle-bottom.handle-closing,
-.desk-handle-ai.handle-closing {
+/* The door line vanishes like a magic trick, then pops in from above/below. */
+.notes-handle-bottom.handle-vanish,
+.desk-handle-ai.handle-vanish {
   opacity: 0 !important;
-  transition: opacity 0.22s ease !important;
+  pointer-events: none !important;
+  transition: opacity 0.12s ease !important;
+}
+.notes-handle-bottom.handle-vanish::before,
+.desk-handle-ai.handle-vanish::before {
+  transform: scaleX(0.3);
+  opacity: 0;
+  transition: transform 0.14s ease, opacity 0.12s ease !important;
+}
+.notes-handle-bottom.handle-appear-below,
+.desk-handle-ai.handle-appear-below {
+  animation: handle-fade-in 0.22s ease both;
+}
+.notes-handle-bottom.handle-appear-below::before,
+.desk-handle-ai.handle-appear-below::before {
+  animation: handle-bar-below 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.notes-handle-bottom.handle-appear-above,
+.desk-handle-ai.handle-appear-above {
+  animation: handle-fade-in 0.22s ease both;
+}
+.notes-handle-bottom.handle-appear-above::before,
+.desk-handle-ai.handle-appear-above::before {
+  animation: handle-bar-above 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes handle-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes handle-bar-below {
+  from { transform: translateY(10px) scaleX(0.4); opacity: 0; }
+  to { transform: none; opacity: 0.85; }
+}
+@keyframes handle-bar-above {
+  from { transform: translateY(-10px) scaleX(0.4); opacity: 0; }
+  to { transform: none; opacity: 0.85; }
 }
 
 /* No red/colored focus rings on the door handles or buttons. */
@@ -13471,4 +13506,31 @@ button:focus, button:focus-visible,
 /* Keep the split drop outlines from showing through the Doing card. */
 body.doing-peek-open .agent-split-drop {
   opacity: 0 !important;
+}
+
+/* Restore the original paper-textured AI surface. */
+.agent-terminal {
+  background: var(--pc-paper, var(--paper)) !important;
+  background-image: none !important;
+}
+
+/* The door line must stay visible on dark paper. */
+html[data-postcard-dark="true"] .notes-handle-bottom::before,
+html[data-postcard-dark="true"] .desk-handle-ai::before,
+html[data-postcard-dark="true"] .detached-grabber::before {
+  background: rgba(255, 255, 255, 0.38) !important;
+}
+html[data-postcard-dark="true"] .notes-handle-bottom:hover::before,
+html[data-postcard-dark="true"] .desk-handle-ai:hover::before,
+html[data-postcard-dark="true"] .detached-grabber:hover::before {
+  background: rgba(255, 255, 255, 0.68) !important;
+}
+
+/* The floating card is a top-most layer, above the Doing card and chrome. */
+body.panel-drag-mode .page-body {
+  z-index: 200 !important;
+}
+body.panel-drag-mode .agent-terminal.panel-shrinking,
+body.panel-drag-mode .notes-half.panel-shrinking {
+  z-index: 10000 !important;
 }

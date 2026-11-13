@@ -1920,7 +1920,7 @@ function hideNotesPanel(silent = false) {
     return;
   }
   notesClosing = true;
-  handle?.classList.add("handle-closing");
+  DeskHandle.vanish("note");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
     if (!notesClosing) return;
@@ -1928,8 +1928,8 @@ function hideNotesPanel(silent = false) {
     notesClosing = false;
     hideNotesPanelNow(silent);
     if (singleDock?.kind === "note") clearSingleDock();
-    handle?.classList.remove("handle-closing");
     positionDeskHandles();
+    DeskHandle.appear("note", "below");
   }, 240);
 }
 
@@ -1955,6 +1955,7 @@ function showNotesPanel() {
   notesHidden = false;
   document.body.classList.remove("notes-hidden");
   AudioFX.leafRustle();
+  DeskHandle.vanish("note");
   const panel = $("#notes-half");
   if (!panel) return;
   panel.classList.remove("notes-hidden", "sheet-closing");
@@ -1964,6 +1965,10 @@ function showNotesPanel() {
   updateNotesHandle();
   positionNotesHandle();
   updateAgentSplitLayout();
+  setTimeout(() => {
+    positionDeskHandles();
+    DeskHandle.appear("note", "above");
+  }, 320);
 }
 let noteBlocks = [];
 let noteBlockKey = null;
@@ -4006,6 +4011,47 @@ function agentDeskRect() {
   };
 }
 
+// Door handles are their own small module: they own position, the magic
+// vanish/reappear motion, and the gesture surface. Nothing else should move
+// them directly.
+const DeskHandle = {
+  elements: {},
+  ensure() {
+    this.elements.ai = this.elements.ai || document.querySelector(".desk-handle-ai");
+    this.elements.note = this.elements.note || document.querySelector(".notes-handle-bottom");
+    return this.elements;
+  },
+  place(kind, center, top) {
+    const handle = this.ensure()[kind];
+    if (!handle) return;
+    handle.style.setProperty("left", `${Math.round(center)}px`, "important");
+    handle.style.setProperty("right", "auto", "important");
+    handle.style.setProperty("margin-left", "-48px", "important");
+    handle.style.setProperty("transform", "none", "important");
+    handle.style.setProperty("top", `${Math.round(top)}px`, "important");
+    handle.style.setProperty("bottom", "auto", "important");
+  },
+  vanish(kind) {
+    const handle = this.ensure()[kind];
+    if (!handle) return;
+    handle.classList.remove("handle-appear-above", "handle-appear-below");
+    handle.classList.add("handle-vanish");
+  },
+  appear(kind, from = "below") {
+    const handle = this.ensure()[kind];
+    if (!handle) return;
+    handle.classList.remove("handle-vanish");
+    handle.classList.remove("handle-appear-above", "handle-appear-below");
+    void handle.offsetWidth;
+    handle.classList.add(from === "above" ? "handle-appear-above" : "handle-appear-below");
+    setTimeout(() => handle.classList.remove("handle-appear-above", "handle-appear-below"), 320);
+  },
+  isVanished(kind) {
+    const handle = this.ensure()[kind];
+    return Boolean(handle && handle.classList.contains("handle-vanish"));
+  },
+};
+
 function positionDeskHandles() {
   const body = $(".page-body");
   const aiHandle = $(".desk-handle-ai");
@@ -4054,15 +4100,8 @@ function positionDeskHandles() {
   const notesOtherHidden = !notesOpen && aiOpen && !stripHover;
   const aiTop = aiRect ? aiRect.top : (aiOtherHidden ? hiddenTop : closedTop);
   const notesTop = notesRect ? notesRect.top : (notesOtherHidden ? hiddenTop : closedTop);
-  const setHandle = (handle, center, top) => {
-    handle.style.setProperty("left", `${Math.round(center)}px`, "important");
-    handle.style.setProperty("right", "auto", "important");
-    handle.style.setProperty("transform", "translateX(-50%)", "important");
-    handle.style.setProperty("top", `${Math.round(top)}px`, "important");
-    handle.style.setProperty("bottom", "auto", "important");
-  };
-  setHandle(aiHandle, aiCenter, aiTop);
-  setHandle(notesHandle, notesCenter, notesTop);
+  DeskHandle.place("ai", aiCenter, aiTop);
+  DeskHandle.place("note", notesCenter, notesTop);
 }
 
 function bindAgentSplitHandle() {
@@ -4344,11 +4383,16 @@ function openAgentTerminal() {
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
   renderAgentTerminal();
+  DeskHandle.vanish("ai");
   const panel = $("#agent-terminal");
   panel?.classList.remove("sheet-closing");
   panel?.classList.add("sheet-opening");
   setTimeout(() => panel?.classList.remove("sheet-opening"), 320);
   setTimeout(() => $("#agent-input")?.focus(), 80);
+  setTimeout(() => {
+    positionDeskHandles();
+    DeskHandle.appear("ai", "above");
+  }, 320);
 }
 
 function closeAgentTerminal() {
@@ -4361,8 +4405,7 @@ function closeAgentTerminal() {
   }
   agentClosing = true;
   AudioFX.drawer();
-  const handle = $(".desk-handle-ai");
-  handle?.classList.add("handle-closing");
+  DeskHandle.vanish("ai");
   panel.classList.add("sheet-closing");
   setTimeout(() => {
     if (!agentClosing) return;
@@ -4376,8 +4419,8 @@ function closeAgentTerminal() {
     document.querySelector(".terminal-tool")?.classList.remove("active");
     if (singleDock?.kind === "ai") clearSingleDock();
     updateAgentSplitLayout();
-    handle?.classList.remove("handle-closing");
     positionDeskHandles();
+    DeskHandle.appear("ai", "below");
   }, 240);
 }
 
@@ -8065,7 +8108,7 @@ function bindEvents() {
         try { document.getSelection()?.removeAllRanges(); } catch (error) {}
         startPanelPreview(state.kind, state.panel, state.x, state.y);
       }
-    }, 360);
+    }, 520);
     state.timer = timer;
     panelLongPress = state;
   }, { passive: true });
@@ -8076,6 +8119,18 @@ function bindEvents() {
       return;
     }
     if (!panelLongPress || panelLongPress.activated) return;
+    const dy = event.clientY - panelLongPress.y;
+    const dx = Math.abs(event.clientX - panelLongPress.x);
+    if (dy > 40 && dy > dx) {
+      // Quick swipe from top to bottom closes the sheet.
+      const state = panelLongPress;
+      panelLongPress = null;
+      clearTimeout(state.timer);
+      panelLongPressSuppress = performance.now() + 500;
+      if (state.kind === "ai") closeAgentTerminal();
+      else hideNotesPanel();
+      return;
+    }
     if (Math.hypot(event.screenX - panelLongPress.startX, event.screenY - panelLongPress.startY) > 9) {
       panelLongPress.cancelled = true;
       clearTimeout(panelLongPress.timer);
