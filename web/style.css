@@ -11354,3 +11354,23 @@ body.agent-terminal-open #notes-half { visibility: hidden; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Categories spine: a faint paper texture so the empty column reads as paper
+   rather than a flat block. Both layers use the postcard ink, so the grain
+   stays quiet in light themes and softly lifts in dark ones. */
+.index {
+  background-color: var(--pc-paper, var(--paper, #f7efe3)) !important;
+  background-image:
+    radial-gradient(circle at 50% 50%,
+      color-mix(in srgb, var(--pc-ink, var(--ink)) 7%, transparent) 0.7px,
+      transparent 1.15px),
+    repeating-linear-gradient(90deg,
+      color-mix(in srgb, var(--pc-ink, var(--ink)) 3.5%, transparent) 0 1px,
+      transparent 1px 54px),
+    linear-gradient(180deg,
+      color-mix(in srgb, #ffffff 5%, transparent),
+      transparent 26%) !important;
+  background-size: 12px 12px, 100% 100%, 100% 100% !important;
+  background-repeat: repeat, repeat, no-repeat !important;
+  background-position: 0 0, 0 0, 0 0 !important;
+}
