@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN" data-mp-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>白噪音播放器 · NeoTodo</title>
+  <script>
+    try {
+      if (window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        if (parentRoot.dataset.postcardDark === "true") {
+          document.documentElement.dataset.mpDark = "true";
+        }
+      }
+    } catch (error) {}
+    document.documentElement.classList.add("mp-booting");
+  </script>
+  <link rel="stylesheet" href="plugin.css">
+</head>
+<body>
+  <main class="mp-page">
+    <button class="mp-close" type="button" data-close aria-label="Close music player page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+
+    <section class="mp-hero">
+      <div class="mp-stage" aria-hidden="true">
+        <span class="mp-stage-grid"></span>
+        <img class="mp-stage-disc" src="play.svg" alt="">
+        <span class="mp-stage-eq"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="mp-stage-lyric">把今天的 bug 折成纸飞机</span>
+      </div>
+
+      <div class="mp-title">
+        <span class="mp-kicker">PLUGIN · ELECTRONIC MUSIC</span>
+        <h1>Neon Terminal</h1>
+        <p>做任务时，让电子乐陪你一起编译夜晚。</p>
+      </div>
+
+      <div class="mp-copy">
+        <p>点击左侧边框的粉色唱片图标，下方会出现播放器横条和歌词界面。左右滑动或使用上一首 / 下一首切歌，点开「曲库」可以直接选歌。</p>
+        <p>内置三首原创电子乐。把 MP3、WAV、OGG、FLAC 放进曲库文件夹，或在播放器里「从本地添加」，同名 <code>.lrc</code> 会自动同步。</p>
+      </div>
+
+      <div class="mp-stats" aria-live="polite">
+        <div><b data-count>—</b><span>TRACKS</span></div>
+        <div><b data-folder-state>—</b><span>LIBRARY</span></div>
+        <div><b data-source-state>—</b><span>SOURCE</span></div>
+      </div>
+
+      <button class="mp-power" id="mp-power" type="button" aria-pressed="true">
+        <span class="mp-power-copy">
+          <strong id="mp-power-title">Music player is on</strong>
+          <small id="mp-power-detail">播放器图标会留在左侧工具栏。</small>
+        </span>
+        <span class="mp-switch" aria-hidden="true"><span class="mp-thumb"></span></span>
+      </button>
+
+      <div class="mp-actions">
+        <button class="mp-open-player" id="mp-open-player" type="button">打开播放器</button>
+        <button class="mp-ghost" type="button" data-close>Back to NeoTodo</button>
+      </div>
+
+      <div class="mp-folder" data-folder-path title="曲库路径">曲库路径会在播放器里显示</div>
+
+      <div class="mp-hints">
+        <span><b>Click</b> 唱片图标</span>
+        <span><b>Swipe</b> 左右切歌</span>
+        <span><b>LRC</b> 同名歌词自动同步</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

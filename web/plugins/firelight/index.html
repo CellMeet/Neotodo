@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN" class="firelight-on" data-fl-dark="false" data-postcard-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>火光特效 · NeoTodo</title>
+  <script>
+    // Read the parent theme first so the preview never flashes the wrong paper.
+    (function () {
+      try {
+        if (window.parent !== window) {
+          var parentRoot = window.parent.document.documentElement;
+          var dark = parentRoot.dataset.postcardDark === "true";
+          document.documentElement.dataset.flDark = dark ? "true" : "false";
+          document.documentElement.dataset.postcardDark = dark ? "true" : "false";
+        }
+      } catch (error) {}
+      window.addEventListener("message", function (event) {
+        if (!event.data || event.data.type !== "neotodo-theme") return;
+        var dark = event.data.dark ? "true" : "false";
+        document.documentElement.dataset.flDark = dark;
+        document.documentElement.dataset.postcardDark = dark;
+      });
+      document.documentElement.classList.add("fl-booting");
+    })();
+  </script>
+  <link rel="stylesheet" href="firelight.css">
+  <link rel="stylesheet" href="plugin.css">
+</head>
+<body>
+  <svg class="fl-defs" aria-hidden="true" width="0" height="0">
+    <defs>
+      <symbol id="fl-fan" viewBox="0 0 64 64">
+        <circle cx="32" cy="27" r="19" fill="#E9E2FA" stroke="#2f1d18" stroke-width="2.6"/>
+        <path d="M32 27c-8-3-12-9-9-15 4 3 8 6 9 10z" fill="#C8B9FC"/>
+        <path d="M32 27c3-8 9-12 15-9-3 4-6 8-10 9z" fill="#A482F9"/>
+        <path d="M32 27c-1 8 1 14 7 15 1-5 0-10-3-13z" fill="#C8B9FC"/>
+        <circle cx="32" cy="27" r="4" fill="#9575FC"/>
+        <path d="M30 46h4v6h-4z" fill="#2f1d18"/>
+        <ellipse cx="32" cy="55" rx="11" ry="4" fill="#FFDC4A" stroke="#2f1d18" stroke-width="2.6"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <main class="fl-page">
+    <button class="fl-close" type="button" data-close aria-label="Close Firelight">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+
+    <section class="fl-hero">
+      <div class="fl-stage" aria-hidden="true">
+        <div class="fl-sheet">
+          <div class="fl-row">
+            <span class="fl-icon doing-mark has-unseen">
+              <svg viewBox="0 0 64 64"><use href="#fl-fan"></use></svg>
+              <span class="doing-fireflies">
+                <i class="firefly" style="--fx:-9px;--fy:4px;--fx2:-14px;--fy2:-18px;--fsway:3px;--fs:3.4px;--fdur:2.8s;--fdelay:0.2s"></i>
+                <i class="firefly" style="--fx:8px;--fy:-6px;--fx2:14px;--fy2:-24px;--fsway:-4px;--fs:2.8px;--fdur:3.2s;--fdelay:0.9s"></i>
+                <i class="lantern" style="--fx:10px;--fy:2px;--fx2:12px;--fy2:-30px;--fsway:5px;--fs:6px;--fdur:5s;--fdelay:1.2s"></i>
+                <i class="firefly" style="--fx:-4px;--fy:8px;--fx2:-9px;--fy2:-12px;--fsway:4px;--fs:3px;--fdur:3s;--fdelay:1.7s"></i>
+              </span>
+            </span>
+            <span class="fl-row-name">整理火光的颜色</span>
+            <span class="fl-row-count">3/5</span>
+          </div>
+          <div class="fl-row fl-row-sub">
+            <span class="fl-icon doing-fan has-unseen">
+              <svg viewBox="0 0 64 64"><use href="#fl-fan"></use></svg>
+              <span class="doing-fireflies">
+                <i class="firefly" style="--fx:5px;--fy:5px;--fx2:8px;--fy2:-15px;--fsway:-3px;--fs:3.2px;--fdur:2.9s;--fdelay:0.4s"></i>
+                <i class="firefly" style="--fx:-6px;--fy:-3px;--fx2:-10px;--fy2:-19px;--fsway:4px;--fs:2.6px;--fdur:3.4s;--fdelay:1.4s"></i>
+                <i class="lantern rose" style="--fx:7px;--fy:3px;--fx2:9px;--fy2:-26px;--fsway:4px;--fs:5.6px;--fdur:4.8s;--fdelay:0.8s"></i>
+              </span>
+            </span>
+            <span class="fl-row-name">只剩图标边缘的一圈暖光</span>
+          </div>
+          <div class="fl-row fl-row-quiet">
+            <span class="fl-icon">
+              <svg viewBox="0 0 64 64"><use href="#fl-fan"></use></svg>
+            </span>
+            <span class="fl-row-name">读过之后，光就安静下来</span>
+          </div>
+        </div>
+        <span class="fl-stage-caption">Doing · unseen agent results</span>
+      </div>
+
+      <div class="fl-title">
+        <span class="fl-kicker">PLUGIN · EFFECTS</span>
+        <h1>火光特效</h1>
+        <p>完成任务的代理，会让 Doing 图标轻轻亮起来。</p>
+      </div>
+
+      <div class="fl-copy">
+        <p>暗色主题留下萤火虫和几盏小灯笼；亮色主题让暖色火光贴着图标本身的轮廓呼吸，几粒小余烬慢慢向上飘。没有爆炸、没有放射光条，也没有把图标包起来的一层粒子。</p>
+        <p>打开子任务的笔记后，对应的亮光会自动熄灭；整组结果都看过之后，整行恢复安静。</p>
+      </div>
+
+      <button class="fl-power" id="fl-power" type="button" aria-pressed="true">
+        <span class="fl-power-copy">
+          <strong id="fl-power-title">Firelight is on</strong>
+          <small id="fl-power-detail">代理留下未读结果时，图标会亮起。</small>
+        </span>
+        <span class="fl-switch" aria-hidden="true"><span class="fl-thumb"></span></span>
+      </button>
+
+      <div class="fl-hints">
+        <span><b>Dark</b> 萤火虫 · 小灯笼</span>
+        <span><b>Light</b> 轮廓火光 · 余烬</span>
+        <span><b>Never</b> 爆炸或放射光条</span>
+      </div>
+
+      <button class="fl-done" type="button" data-close>Back to NeoTodo</button>
+    </section>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

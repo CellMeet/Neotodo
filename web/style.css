@@ -3020,7 +3020,6 @@ body.still .parchment-intro { display: none !important; }
   padding-bottom: 24px;
 }
 .history-row.selected { background: linear-gradient(90deg, rgba(157, 111, 28, 0.09), transparent 80%); }
-.history-row.selected .h-name { text-decoration: underline; text-decoration-color: rgba(157, 111, 28, 0.35); text-underline-offset: 4px; }
 
 /* Note desk: Markdown on the left, Yu-Gi-Oh-card image slot on the right */
 .notes-half {
@@ -3646,7 +3645,6 @@ html[data-theme="lavender"] .history-row .h-date { color: #9b86b2; }
 html[data-theme="lavender"] .history-row.cursor { background: linear-gradient(90deg, rgba(140, 100, 180, 0.12), transparent 74%); }
 html[data-theme="lavender"] .history-row.cursor::after { border-bottom-color: rgba(140, 100, 180, 0.65); }
 html[data-theme="lavender"] .history-row.selected { background: linear-gradient(90deg, rgba(140, 100, 180, 0.1), transparent 80%); }
-html[data-theme="lavender"] .history-row.selected .h-name { text-decoration-color: rgba(140, 100, 180, 0.4); }
 html[data-theme="lavender"] .history-subtask .h-sub-name,
 html[data-theme="lavender"] .log-subtask .log-sub-name { color: #3a2a52; }
 html[data-theme="lavender"] .history-empty { color: #8c79a4; }
@@ -3917,7 +3915,6 @@ html[data-theme="lavender"] .history-row .h-date { color: #a99cba; }
 html[data-theme="lavender"] .history-row.cursor { background: linear-gradient(90deg, rgba(170, 140, 200, 0.1), transparent 74%); }
 html[data-theme="lavender"] .history-row.cursor::after { border-bottom-color: rgba(160, 130, 190, 0.55); }
 html[data-theme="lavender"] .history-row.selected { background: linear-gradient(90deg, rgba(170, 140, 200, 0.08), transparent 80%); }
-html[data-theme="lavender"] .history-row.selected .h-name { text-decoration-color: rgba(160, 130, 190, 0.35); }
 html[data-theme="lavender"] .history-subtask .h-sub-name,
 html[data-theme="lavender"] .log-subtask .log-sub-name { color: #4a3d63; }
 html[data-theme="lavender"] .history-empty { color: #9b86b8; }
@@ -4201,7 +4198,6 @@ html[data-theme="lavender"] .history-row .h-date { color: #9a83b2; }
 html[data-theme="lavender"] .history-row.cursor { background: linear-gradient(90deg, rgba(150, 105, 190, 0.13), transparent 74%); }
 html[data-theme="lavender"] .history-row.cursor::after { border-bottom-color: rgba(150, 105, 190, 0.6); }
 html[data-theme="lavender"] .history-row.selected { background: linear-gradient(90deg, rgba(150, 105, 190, 0.1), transparent 80%); }
-html[data-theme="lavender"] .history-row.selected .h-name { text-decoration-color: rgba(150, 105, 190, 0.4); }
 html[data-theme="lavender"] .history-subtask .h-sub-name,
 html[data-theme="lavender"] .log-subtask .log-sub-name { color: #4a3560; }
 html[data-theme="lavender"] .history-empty { color: #8d6fa8; }
@@ -4537,7 +4533,6 @@ html[data-theme="postcard"] .history-row .h-date { color: var(--muted); }
 html[data-theme="postcard"] .history-row.cursor { background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.18), transparent 74%); }
 html[data-theme="postcard"] .history-row.cursor::after { border-bottom-color: rgba(var(--pc-accent-rgb), 0.65); }
 html[data-theme="postcard"] .history-row.selected { background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.13), transparent 80%); }
-html[data-theme="postcard"] .history-row.selected .h-name { text-decoration-color: rgba(var(--pc-accent-rgb), 0.45); }
 html[data-theme="postcard"] .history-subtask .h-sub-name,
 html[data-theme="postcard"] .log-subtask .log-sub-name { color: var(--ink-soft); }
 html[data-theme="postcard"] .history-empty { color: var(--muted); }
@@ -4840,13 +4835,11 @@ html[data-theme="postcard"] .context-item:hover { background: rgba(var(--pc-acce
 }
 .current-action { font-size: calc(11.5px * var(--user-scale, 1)); }
 
-/* Floating draggable/resizable note mask */
+/* Floating draggable/resizable note mask. Position comes from page-layout.css. */
 .notes-half.floating-notes {
   position: absolute;
   left: 0;
-  top: 52%;
   width: 100%;
-  height: 48%;
   z-index: 6;
   min-width: 0;
   min-height: 0;
@@ -5273,7 +5266,6 @@ html[data-theme="postcard"] .history-row .h-date { color: var(--pc-muted); }
 html[data-theme="postcard"] .history-row.cursor { background: linear-gradient(90deg, rgba(0, 0, 0, 0.06), transparent 74%); }
 html[data-theme="postcard"] .history-row.cursor::after { border-bottom-color: var(--pc-accent); }
 html[data-theme="postcard"] .history-row.selected { background: linear-gradient(90deg, rgba(0, 0, 0, 0.045), transparent 80%); }
-html[data-theme="postcard"] .history-row.selected .h-name { text-decoration-color: var(--pc-accent); }
 html[data-theme="postcard"] .history-subtask .h-sub-name,
 html[data-theme="postcard"] .log-subtask .log-sub-name { color: var(--pc-ink); }
 html[data-theme="postcard"] .history-empty { color: var(--pc-muted); }
@@ -5466,6 +5458,25 @@ html[data-theme="postcard"] .settings-gear { color: var(--pc-accent); }
   font-weight: 700;
   font-style: normal;
   font-display: swap;
+}
+
+/* Heavy, blocky upright face for the "Categories" label. */
+@font-face {
+  font-family: "Bungee";
+  src: url("/fonts/Bungee-Regular.ttf") format("truetype");
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* The "Categories" spine label: squared, right-angled letterforms so the
+   opening C reads like a bracket instead of a round bowl. */
+@font-face {
+  font-family: "NeoTodo Square";
+  src: url("/fonts/Michroma-Regular.ttf") format("truetype");
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
 }
 
 html[data-theme="postcard"] {
@@ -6192,9 +6203,7 @@ body.focus-running #timer-root { z-index: 91; }
 html[data-theme] .page-body .notes-half.floating-notes {
   position: absolute;
   left: 0;
-  top: 50%;
   width: 100%;
-  height: 50%;
   padding: 0 26px 16px;
   margin: 0;
   border: 0;
@@ -6546,10 +6555,7 @@ html[data-theme="postcard"] .page {
 
 /* Give the note two extra lines; keep the completed rows above it shorter. */
 .todos-section { flex: 0 0 calc(50% - 80px); max-height: calc(50% - 80px); }
-html[data-theme] .page-body .notes-half.floating-notes {
-  top: calc(50% - 80px);
-  height: calc(50% + 80px);
-}
+/* The note box itself is laid out by page-layout.css. */
 
 /* Wider achievement/search popup. */
 .completed-sheet { width: min(1040px, 94vw); }
@@ -6992,17 +6998,6 @@ html[data-theme="postcard"] .current-subtask.done .sub-name {
   opacity: .95;
 }
 
-/* Clicking a subtask gets the same underline as a selected completed task. */
-.current-subtask.selected .sub-name {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
-  text-decoration-color: rgba(157, 111, 28, 0.45);
-}
-html[data-theme="postcard"] .current-subtask.selected .sub-name {
-  text-decoration-color: rgba(var(--pc-accent-rgb), 0.45);
-}
-
 /* Notes drawer pulls up from the lower border and retracts into it. */
 .notes-half.floating-notes {
   transition: transform .36s cubic-bezier(.22, .8, .26, 1), opacity .24s ease;
@@ -7015,14 +7010,6 @@ html[data-theme="postcard"] .current-subtask.selected .sub-name {
   pointer-events: none;
 }
 
-/* Selected done subtask keeps the underline despite the done-color rule. */
-html[data-theme="postcard"] .current-subtask.selected .sub-name {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
-  text-decoration-color: rgba(var(--pc-accent-rgb), 0.45);
-}
-
 /* Expanded completed subtasks also carry the red completion mark and underline when selected. */
 .h-sub-check {
   width: 14px;
@@ -7031,16 +7018,6 @@ html[data-theme="postcard"] .current-subtask.selected .sub-name {
   margin-left: 18px;
   align-self: center;
 }
-.history-subtask.selected .h-sub-name {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  text-decoration-color: rgba(157, 111, 28, 0.4);
-}
-html[data-theme="postcard"] .history-subtask.selected .h-sub-name {
-  text-decoration-color: rgba(var(--pc-accent-rgb), 0.45);
-}
-
 /* Selected subtask uses the same right-fading highlight as selected completed tasks. */
 html[data-theme="postcard"] .current-subtask.selected {
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.045), transparent 80%);
@@ -7598,7 +7575,7 @@ body.notes-hidden .notes-handle-bottom { opacity: 1; pointer-events: auto; }
 /* Nudge the exit door down slightly. */
 .top-tools .exit-button .exit-icon { transform: translateY(2px); }
 
-/* Only the "Categories" label uses the flowing art face. */
+/* Category rows keep the body face. */
 .category-item .cat-name {
   font-family: inherit;
   font-style: normal;
@@ -7607,10 +7584,11 @@ body.notes-hidden .notes-handle-bottom { opacity: 1; pointer-events: auto; }
   letter-spacing: 0;
 }
 .index-head > span {
-  font-family: "Z003", "Caveat", "URW Bookman", serif;
-  font-style: italic;
-  font-weight: 600;
-  font-size: 18px;
+  font-family: var(--body, "Adwaita Sans", "Noto Sans", "Noto Sans CJK SC", sans-serif);
+  font-style: normal;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.15;
   letter-spacing: .02em;
   text-transform: none;
   color: var(--ink);
@@ -7704,8 +7682,14 @@ body.notes-hidden .notes-handle-bottom {
   transition: opacity .16s ease;
 }
 
-/* Categories label a little larger. */
-.index-head > span { font-size: 20px; }
+/* Categories label: plain, sturdy type that sits quietly in the spine. */
+.index-head > span { font-size: 15px; }
+@media (max-width: 980px) {
+  .index-head > span { font-size: 14px; }
+}
+@media (max-width: 720px) {
+  .index-head > span { font-size: 12.5px; letter-spacing: 0; }
+}
 
 /* Week label moves into the postcard's top-right header block. */
 .pc-head-right {
@@ -7812,17 +7796,6 @@ html[data-theme="postcard"] .index {
 /* Expanded completed subtasks use the same right-fading selected fill. */
 html[data-theme="postcard"] .history-subtask.selected {
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.045), transparent 80%);
-}
-
-/* Subtask underlines get the full accent color, like completed tasks. */
-.current-subtask.selected .sub-name,
-.history-subtask.selected .h-sub-name,
-html[data-theme="postcard"] .current-subtask.selected .sub-name,
-html[data-theme="postcard"] .history-subtask.selected .h-sub-name {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-  text-decoration-color: var(--pc-accent, var(--gold));
 }
 
 /* Tomato achievement icon 52px, keeping both counter bottoms aligned. */
@@ -8168,17 +8141,19 @@ body.clock-hidden .header-clock { display: none; }
 .fan-stack > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .fan-rotor { transform-origin: 48.15% 41.21%; }
 .sub-fan-action .fan-rotor.spinning { animation: fan-wheel-spin .62s cubic-bezier(.3, .7, .25, 1); }
-@keyframes fan-wheel-spin { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
+@keyframes fan-wheel-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* Inline "Name subtask ..." row with its own fan. */
 .current-subtask.adding-subtask { cursor: text; }
+/* The field rides the row's own ruled line. It must not paint a second,
+   dashed underline: it is nudged down to share the saved name's baseline, so
+   that border fell just below the row and read as a stray broken line. */
 .subtask-name-input {
   flex: 1 1 auto;
   min-width: 0;
   height: 34px;
   padding: 0 4px 4px;
   border: 0;
-  border-bottom: 1px dashed rgba(92, 66, 32, .28);
   outline: none;
   background: transparent;
   color: var(--ink-soft, var(--ink));
@@ -8187,7 +8162,7 @@ body.clock-hidden .header-clock { display: none; }
   font-style: italic;
   font-weight: 600;
 }
-html[data-theme="postcard"] .subtask-name-input { color: var(--ink-soft); border-bottom-color: var(--pc-border); }
+html[data-theme="postcard"] .subtask-name-input { color: var(--ink-soft); }
 .subtask-name-input::placeholder {
   color: var(--muted);
   opacity: .5;
@@ -8212,7 +8187,7 @@ html[data-theme="postcard"] .subtask-name-input { color: var(--ink-soft); border
 
 /* Fan turns about 60 degrees, then returns; the stand never moves. */
 .sub-fan-action .fan-rotor.spinning { animation: fan-wheel-spin .45s cubic-bezier(.35, .8, .3, 1); }
-@keyframes fan-wheel-spin { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
+@keyframes fan-wheel-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* The inline subtask hint sits close to the rule. */
 .subtask-name-input {
@@ -8362,7 +8337,7 @@ html[data-theme="postcard"] .history-half { padding-right: 0; }
 
 /* Seven fixed task rows: completed side fills with ruled rows too. */
 html[data-theme="postcard"] .todos-section { flex: 0 0 280px; max-height: 280px; }
-html[data-theme] .page-body .notes-half.floating-notes { top: 280px; height: calc(100% - 280px); }
+/* The note sheet's top and height are owned by page-layout.css. */
 html[data-theme="postcard"] .history-rows { padding-bottom: 0; }
 html[data-theme="postcard"] .history-reel {
   -webkit-mask-image: none;
@@ -8428,15 +8403,8 @@ html[data-theme="postcard"] .page-head {
 html[data-theme="postcard"] .history-rows,
 html[data-theme="postcard"] .history-row { width: 100%; }
 
-/* The last row lines already form the single full-width rule. */
-html[data-theme="postcard"] .todos-section { border-bottom: 0; }
-
-/* Task block has fixed top and bottom boundaries. */
-html[data-theme="postcard"] .todos-section {
-  border-top: 1px solid var(--pc-line);
-  border-bottom: 1px solid var(--pc-line);
-}
-/* Every row keeps its own rule, including the last one. */
+/* Every row keeps its own rule, including the last one. The task block's
+   bottom boundary lives in page-layout.css only. */
 /* Independent ruled paper below the seven task rows. */
 html[data-theme="postcard"] .page-body::after {
   content: "";
@@ -8468,7 +8436,6 @@ html[data-theme="postcard"] .current-inner.task-scrollable { overflow-y: auto; }
 /* No extra inset rules: the row rules themselves are the boundaries. */
 html[data-theme="postcard"] .todos-section {
   border-top: 0 !important;
-  border-bottom: 0 !important;
   box-shadow: none;
 }
 
@@ -8609,8 +8576,6 @@ html[data-theme="postcard"] .action-slash::before {
   width: var(--size, 10px);
   height: var(--size, 10px);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(92, 86, 74, 0.56) 0%, rgba(138, 132, 118, 0.26) 46%, rgba(190, 184, 168, 0) 74%);
-  filter: blur(1.4px);
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.35);
   animation: subtask-smoke-rise 0.95s ease-out var(--delay, 0ms) forwards;
@@ -8677,24 +8642,8 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
   z-index: -1 !important;
 }
 
-/* The bottom edge of the seven-row task area is a fixed border: it stays
-   visible while the subtask rows scroll. */
-html[data-theme="postcard"] .todos-section::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: var(--pc-line);
-  pointer-events: none;
-  z-index: 3;
-}
-/* The fixed border replaces the last row rule at that edge. */
-html[data-theme="postcard"] .history-rows > .history-row:last-child,
-html[data-theme="postcard"] .current-subtasks > .current-subtask:last-child {
-  border-bottom-color: transparent;
-}
+/* The bottom edge of the seven-row task area lives in page-layout.css.
+   It is a page-level layer, independent of the note and AI sheets. */
 
 /* Typewriter perspective for completed tasks: the row content (icon, name,
    date) slides right with distance from the middle, while the ruled line
@@ -8908,8 +8857,6 @@ html[data-theme="postcard"] .history-row > .h-date {
 }
 .doing-sub:hover .doing-sub-name {
   color: var(--pc-accent, var(--gold, #a9791f));
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 .doing-fan {
   flex: 0 0 22px;
@@ -8971,7 +8918,7 @@ html[data-theme="postcard"] .history-subtask {
 .history-subtask .fan-rotor,
 .current-subtask.done .fan-rotor { transform-origin: 48.15% 41.21%; }
 .history-subtask.turned .fan-rotor,
-.current-subtask.turned .fan-rotor { transform: rotate(180deg); }
+.current-subtask.turned .fan-rotor { transform: rotate(360deg); }
 .history-subtask .fan-rotor.spinning,
 .current-subtask.done .fan-rotor.spinning {
   /* Full clockwise turn; repeated clicks simply restart it. */
@@ -9220,7 +9167,12 @@ html[data-theme="postcard"] .banner-icon {
   padding: 12px 4px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
 }
-.postcard.simple .pc-trophy { font-size: 16px; filter: none; }
+.postcard.simple .pc-trophy {
+  font-size: 16px;
+  filter: none;
+  /* Match the card's own palette, not the app theme behind the viewer. */
+  color: var(--accent, var(--pc-accent));
+}
 .postcard.simple .pc-cat {
   font-size: 8.5px;
   padding: 3px 8px;
@@ -9252,30 +9204,39 @@ html[data-theme="postcard"] .banner-icon {
 /* Top toolbar icons: keep the archive image the same visual size as the rest. */
 .top-tools .archive-button .windmill-icon { width: 26px; height: 26px; }
 
-/* One selection treatment shared by completed task rows and every subtask row.
-   The underline and the grey paper wash come from this single base rule. */
+/* One selection treatment shared by completed task rows and every subtask row:
+   a grey paper wash, with no underline emphasis. The wash runs to the row
+   edges, but is clipped to the padding box so the 1px bottom rule is painted
+   on paper instead of on top of the tint and stays crisp.
+   The old rule inset the background image by one pixel at the top and bottom.
+   That floating 1px edge sat between the row border and the tint, so whenever
+   a row landed on a fractional device pixel (scrolling, FLIP completion
+   animations, zoom) the edge anti-aliased into a broken dashed line. Painting
+   up to the real row edges removes that extra edge entirely. */
 .history-row.selected,
 .current-subtask.selected,
 .history-subtask.selected {
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-origin: border-box !important;
+  background-clip: padding-box !important;
+  background-repeat: no-repeat !important;
+  background-position: 0 0 !important;
+  background-size: 100% 100% !important;
 }
 html[data-theme="postcard"] .history-row.selected,
 html[data-theme="postcard"] .current-subtask.selected,
 html[data-theme="postcard"] .history-subtask.selected {
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-origin: border-box !important;
+  background-clip: padding-box !important;
+  background-repeat: no-repeat !important;
+  background-position: 0 0 !important;
+  background-size: 100% 100% !important;
 }
-.history-row.selected .h-name,
-.current-subtask.selected .sub-name,
-.history-subtask.selected .h-sub-name,
-html[data-theme="postcard"] .history-row.selected .h-name,
-html[data-theme="postcard"] .current-subtask.selected .sub-name,
-html[data-theme="postcard"] .history-subtask.selected .h-sub-name {
-  text-decoration: underline !important;
-  text-decoration-thickness: 1px !important;
-  text-underline-offset: 4px !important;
-  text-decoration-color: var(--pc-accent, rgba(157, 111, 28, 0.55)) !important;
-}
-
+/* The last subtask row's transparent bottom rule and its selection fill are
+   owned by page-layout.css, together with the task-area boundary itself. */
 /* No native white flash / text selection on modal buttons. */
 .btn {
   -webkit-appearance: none;
@@ -9710,7 +9671,16 @@ html[data-theme="postcard"] .current-subtask { padding-left: 29px; }
   color: var(--pc-ink, var(--ink));
 }
 .trash-clear:hover { background: rgba(0, 0, 0, 0.055); }
-.trash-clear img { width: 22px; height: 22px; display: block; opacity: 0.78; }
+/* The broom is drawn with currentColor (see #clear-trash), so it inherits the
+   theme ink: dark ink on light paper, light ink on every dark postcard. */
+.trash-clear svg {
+  width: 23px;
+  height: 23px;
+  display: block;
+  fill: var(--pc-ink, var(--ink));
+  opacity: 0.92;
+}
+html[data-postcard-dark="true"] .trash-clear:hover { background: rgba(255, 255, 255, 0.07); }
 .trash-title { min-width: 0; flex: 1 1 auto; }
 .trash-title span {
   display: block;
@@ -10602,7 +10572,7 @@ html[data-theme="postcard"] .theme-card.active {
   background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.14);
 }
 
-/* Selection never recolours the text; it only adds the wash and underline. */
+/* Selection never recolours the text; it only adds the paper wash. */
 html[data-theme="postcard"] .current-subtask.selected .sub-name {
   color: var(--pc-ink, var(--ink)) !important;
 }
@@ -10630,8 +10600,20 @@ html[data-theme="postcard"] .doing-peek {
   opacity: 0.70;
   pointer-events: none;
   overflow: hidden;
+  display: flex;
+  align-items: flex-end;
 }
-.doing-art svg { width: 100%; height: 100%; display: block; }
+/* The postcard art is a wide 10:3 landscape scene. The Doing card is a tall,
+   narrow strip, so stretching that art over the whole card turned its moon,
+   windows and hills into giant cropped fragments. Keep the full scene at its
+   natural ratio as a skyline along the bottom edge, fading into the paper. */
+.doing-art svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  -webkit-mask-image: linear-gradient(to top, #000 58%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 58%, transparent 100%);
+}
 html[data-theme="postcard"] .doing-peek::before {
   content: "";
   position: absolute;
@@ -10735,20 +10717,12 @@ html[data-theme="postcard"] .doing-head:hover {
 }
 html[data-theme="postcard"] .doing-name:hover {
   color: var(--pc-ink, var(--ink)) !important;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  text-decoration-color: rgba(var(--pc-accent-rgb), 0.8);
 }
 html[data-theme="postcard"] .doing-sub:hover {
   background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.13), transparent 82%);
 }
 html[data-theme="postcard"] .doing-sub:hover .doing-sub-name {
   color: var(--pc-ink, var(--ink)) !important;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  text-decoration-color: rgba(var(--pc-accent-rgb), 0.8);
 }
 
 /* Dark-mode slash between complete and add stays visible. */
@@ -10941,26 +10915,6 @@ html[data-theme="postcard"] .modal-actions .btn.primary.to-do {
 /* Move the todo title block nearer the banner icon. */
 html[data-theme="postcard"] .page-head > .page-head-title {
   transform: translateX(calc(var(--title-offset, 0px) - 8px));
-}
-
-/* Selected subtask underline starts left of the glyphs and runs a little longer. */
-.current-subtask.selected .sub-name,
-.history-subtask.selected .h-sub-name,
-html[data-theme="postcard"] .current-subtask.selected .sub-name,
-html[data-theme="postcard"] .history-subtask.selected .h-sub-name {
-  text-decoration: none !important;
-  position: relative;
-}
-.current-subtask.selected .sub-name::after,
-.history-subtask.selected .h-sub-name::after {
-  content: "";
-  position: absolute;
-  left: -6px;
-  right: -2px;
-  bottom: -2px;
-  height: 1px;
-  background: var(--pc-accent, var(--gold));
-  pointer-events: none;
 }
 
 /* Empty "Nothing to do..." line: larger, lifted so the N crosses the rule. */
@@ -11995,10 +11949,64 @@ html[data-postcard-dark="true"] .agent-terminal {
   font-size: 13px;
   line-height: 1.65;
 }
+.agent-line.user {
+  position: relative;
+  padding-right: 40px;
+}
 .agent-line.user .agent-line-text {
   min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.agent-user-copy {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--oc-muted);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.agent-user-copy svg { width: 13px; height: 13px; display: block; }
+.agent-user-copy:hover,
+.agent-user-copy:focus-visible {
+  opacity: 1;
+  color: var(--oc-ink);
+  background: rgba(127, 127, 127, 0.14);
+}
+.agent-user-copy:focus { outline: none; }
+.agent-user-copy.copied { opacity: 1; color: #3fbf87; }
+
+/* A tiny "Copied" tag that follows a select-to-copy gesture. */
+.agent-copy-flash {
+  position: fixed;
+  z-index: 9999;
+  transform: translate(6px, 4px);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(24, 24, 28, 0.9);
+  color: #f4f6f8;
+  font-family: var(--oc-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  animation: agent-copy-flash 0.9s ease forwards;
+}
+@keyframes agent-copy-flash {
+  0% { opacity: 0; transform: translate(6px, 8px); }
+  16% { opacity: 1; }
+  68% { opacity: 1; }
+  100% { opacity: 0; transform: translate(6px, -2px); }
 }
 .agent-attached-files {
   display: flex;
@@ -12007,13 +12015,23 @@ html[data-postcard-dark="true"] .agent-terminal {
   margin-top: 7px;
 }
 .agent-attached-file {
-  padding: 2px 7px;
-  border: 1px solid var(--oc-line);
-  border-radius: 4px;
-  color: var(--oc-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--oc-file, #a9741a);
   font-family: var(--oc-mono);
   font-size: 10.5px;
   line-height: 1.5;
+  font-weight: 500;
+}
+.agent-attached-file .agent-file-pin {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
 }
 
 .agent-input-shell {
@@ -12161,13 +12179,13 @@ html[data-postcard-dark="true"] .agent-compose:focus-within {
 .agent-chip {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   max-width: 100%;
-  padding: 3px 7px;
-  border: 1px solid var(--oc-line);
-  border-radius: 5px;
-  background: var(--oc-soft);
-  color: var(--oc-muted);
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--oc-file, #a9741a);
   font-family: var(--oc-mono);
   font-size: 10.5px;
   line-height: 1.5;
@@ -12177,8 +12195,17 @@ html[data-postcard-dark="true"] .agent-compose:focus-within {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--oc-file, #a9741a);
+  font-weight: 500;
 }
-.agent-chip-size { flex: 0 0 auto; color: var(--oc-faint); }
+.agent-chip-size { flex: 0 0 auto; color: var(--oc-file-dim, #c19a55); }
+.agent-file-pin {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  display: block;
+  color: var(--oc-file, #a9741a);
+}
 .agent-chip-remove {
   flex: 0 0 auto;
   padding: 0;
@@ -12844,8 +12871,6 @@ body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
   left: 0 !important;
   right: auto !important;
   width: 100% !important;
-  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px))) !important;
-  height: var(--agent-terminal-height, calc(50% + 70px)) !important;
   z-index: 12 !important;
   border-radius: 16px !important;
   box-shadow: 0 -20px 44px rgba(20, 20, 24, 0.14) !important;
@@ -13045,8 +13070,6 @@ body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
   left: 0 !important;
   right: auto !important;
   width: 100% !important;
-  top: calc(100% - var(--desk-bottom, 30px) - var(--agent-terminal-height, calc(50% + 70px))) !important;
-  height: var(--agent-terminal-height, calc(50% + 70px)) !important;
   border-radius: 0 !important;
   box-shadow: 0 -18px 42px rgba(20, 20, 24, 0.16) !important;
 }
@@ -13138,24 +13161,25 @@ body.agent-notes-split .agent-split-handle::after {
   transition: top 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease !important;
 }
 
-/* Opened windows fill the whole workspace, flush to the bottom. */
+/* Default sheets rise from below the subtask border. Split panes still fill
+   the whole desk, so the two-sided layout keeps its full-height edge. */
 .agent-terminal {
-  top: 0 !important;
   left: 0 !important;
   width: 100% !important;
-  height: 100% !important;
   max-height: none !important;
-  left: 0;
 }
+/* Each pane keeps its own height; the split only divides the width. */
 .agent-terminal .agent-resize { display: none !important; }
 body.agent-notes-axis-y .agent-terminal {
   top: var(--agent-ai-top, 0px) !important;
   height: var(--agent-ai-height, 50%) !important;
 }
-body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden),
+body.agent-notes-split .notes-half.floating-notes:not(.notes-hidden) {
+  top: var(--page-desk-top) !important;
+  height: var(--page-desk-h) !important;
+}
 body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
-  top: 0 !important;
-  height: 100% !important;
+  border-radius: 0 !important;
 }
 .agent-split-handle,
 .agent-split-chooser {
@@ -13982,4 +14006,1460 @@ html[data-theme="postcard"] .head-right .trophy-glyph {
 }
 .sound-settings-list .sound-file {
   padding: 7px 5px;
+}
+
+/* A click gives an achievement counter one cheeky nod, never a full turn.
+   The headphone tips left and the tomato tips right, mirroring each other.
+   The die-cut sticker is animated on its own with a much smaller angle and a
+   tiny delay, so it rides along with the mark instead of whirling around. */
+.head-right .trophy-button.ach-click-spin .trophy-glyph,
+.head-right .trophy-button.ach-click-spin .ach-sticker,
+.head-right .tomato-counter.ach-click-spin .tomato-glyph,
+.head-right .tomato-counter.ach-click-spin .ach-sticker {
+  transform-origin: 50% 68%;
+  animation-duration: 0.32s;
+  animation-timing-function: cubic-bezier(0.3, 1.1, 0.5, 1);
+  animation-fill-mode: both;
+}
+.head-right .trophy-button.ach-click-spin .trophy-glyph {
+  animation-name: achievement-nod-left;
+}
+.head-right .tomato-counter.ach-click-spin .tomato-glyph {
+  animation-name: achievement-nod-right;
+}
+.head-right .trophy-button.ach-click-spin .ach-sticker {
+  animation-name: achievement-sticker-left;
+  animation-delay: 0.015s;
+}
+.head-right .tomato-counter.ach-click-spin .ach-sticker {
+  animation-name: achievement-sticker-right;
+  animation-delay: 0.015s;
+}
+@keyframes achievement-nod-left {
+  0% { transform: rotate(0deg) scale(1); }
+  30% { transform: rotate(-5.5deg) scale(1.025); }
+  55% { transform: rotate(-1deg) scale(0.998); }
+  76% { transform: rotate(-3deg) scale(1.008); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+/* The tomato mark normally sits 4px higher; keep that lift while it nods. */
+@keyframes achievement-nod-right {
+  0% { transform: translateY(-4px) rotate(0deg) scale(1); }
+  30% { transform: translateY(-4px) rotate(5.5deg) scale(1.025); }
+  55% { transform: translateY(-4px) rotate(1deg) scale(0.998); }
+  76% { transform: translateY(-4px) rotate(3deg) scale(1.008); }
+  100% { transform: translateY(-4px) rotate(0deg) scale(1); }
+}
+@keyframes achievement-sticker-left {
+  0% { transform: rotate(0deg); }
+  32% { transform: rotate(-3.2deg); }
+  58% { transform: rotate(0.8deg); }
+  78% { transform: rotate(-1.4deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes achievement-sticker-right {
+  0% { transform: rotate(0deg); }
+  32% { transform: rotate(3.2deg); }
+  58% { transform: rotate(-0.8deg); }
+  78% { transform: rotate(1.4deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .head-right .trophy-button.ach-click-spin .trophy-glyph,
+  .head-right .trophy-button.ach-click-spin .ach-sticker,
+  .head-right .tomato-counter.ach-click-spin .tomato-glyph,
+  .head-right .tomato-counter.ach-click-spin .ach-sticker { animation: none; }
+}
+
+/* Settings → Pictures: one crop card per achievement sticker. */
+.sticker-settings-grid {
+  display: grid;
+  gap: 12px;
+}
+.sticker-setting-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--pc-border, rgba(104, 76, 38, 0.22));
+  border-radius: 10px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.28));
+}
+.sticker-setting-preview {
+  flex: 0 0 132px;
+  width: 132px;
+  height: 74px;
+  overflow: hidden;
+  border: 3px solid #fffdf8;
+  border-radius: 15px;
+  outline: 1px solid rgba(30, 40, 50, 0.4);
+  background: #fffdf8;
+  box-shadow: 0 3px 9px rgba(60, 40, 20, 0.14);
+}
+.sticker-setting-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sticker-setting-body { flex: 1 1 auto; min-width: 0; }
+.sticker-setting-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.sticker-setting-head strong { font-family: var(--display); font-size: 14px; color: var(--pc-ink, var(--ink)); }
+.sticker-setting-head small { color: var(--pc-muted, var(--muted)); font-size: 11px; }
+.sticker-setting-hint { margin-top: 3px; color: var(--pc-muted, var(--muted)); font-size: 11px; line-height: 1.35; }
+.sticker-crop-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+  color: var(--pc-muted, var(--muted));
+  font-size: 11px;
+}
+.sticker-crop-row label {
+  flex: 0 0 74px;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.sticker-crop-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--pc-accent, var(--gold, #b8893a));
+}
+.sticker-crop-row input[type="range"]:disabled { opacity: 0.35; }
+.sticker-setting-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.sticker-setting-actions .btn[disabled] { opacity: 0.4; cursor: default; }
+html[data-theme="postcard"] .sticker-setting-card { background: rgba(255, 255, 255, 0.26); }
+
+/* Balance the two header marks: a slightly smaller headphone and a larger
+   tomato so they read as the same visual size. */
+html[data-theme="postcard"] .head-right .trophy-glyph {
+  width: 50px !important;
+  height: 50px !important;
+}
+html[data-theme="postcard"] .head-right .tomato-glyph {
+  width: 58px !important;
+  height: 58px !important;
+}
+
+/* The large header mark opens the current todo's project folder. */
+.project-folder-trigger {
+  position: relative;
+  z-index: 3;
+  cursor: pointer;
+  background: transparent !important;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.project-folder-trigger.banner-pop .banner-icon {
+  animation: banner-icon-pop 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes banner-icon-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.16); }
+  65% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+/* Tomato stays at 54px; only the headphone was reduced. */
+html[data-theme="postcard"] .head-right .tomato-glyph {
+  width: 54px !important;
+  height: 54px !important;
+}
+
+/* Running subtask agent: the fan keeps turning until the answer lands. */
+.current-subtask.agent-running .fan-rotor {
+  animation: fan-spin 0.8s linear infinite !important;
+}
+
+/* Model/provider mark that pops in to the left of the fan after a run. */
+.sub-agent-model {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 1px;
+  /* The mark is bare ink on the paper: no tile, plate or wash behind it. */
+  background: transparent;
+  border-radius: 0;
+}
+.sub-agent-model:empty { display: none; }
+.sub-agent-model.icon-failed { display: none !important; }
+.sub-agent-model img {
+  width: 18px;
+  height: 18px;
+  display: block;
+  object-fit: contain;
+  background: transparent;
+}
+.sub-agent-model.pop {
+  animation: sub-model-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes sub-model-pop {
+  0% { opacity: 0; transform: translateY(20px) scale(0.35); }
+  60% { opacity: 1; transform: translateY(-3px) scale(1.08); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* Model badge: larger, bottom-aligned with the fan. */
+.sub-agent-model {
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  margin-right: 4px !important;
+  align-self: flex-end;
+  margin-bottom: 3px;
+}
+.sub-agent-model img {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+/* Fan must not grow/shrink when clicked, and has no focus box. */
+button.sub-fan-action {
+  transition: none !important;
+}
+button.sub-fan-action:hover,
+button.sub-fan-action:active {
+  transform: none !important;
+  filter: none !important;
+}
+button.sub-fan-action:focus,
+button.sub-fan-action:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Faster running fan. */
+.current-subtask.agent-running .fan-rotor {
+  animation: fan-spin 0.45s linear infinite !important;
+}
+
+/* Lift only the tomato mark/count; the background sticker stays aligned
+   with the headphone sticker. */
+html[data-theme="postcard"] .head-right .tomato-counter {
+  transform: none !important;
+}
+html[data-theme="postcard"] .head-right .tomato-glyph,
+html[data-theme="postcard"] .head-right #tomato-count {
+  transform: translateY(-2px);
+}
+
+/* No focus rings anywhere in the app. Keyboard focus still works, but it is
+   never painted as a red/coloured outline or glow. */
+:focus,
+:focus-visible {
+  outline: none !important;
+}
+button:focus,
+button:focus-visible,
+[role="button"]:focus,
+[role="button"]:focus-visible,
+a:focus,
+a:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-focus-ring-color: transparent !important;
+}
+.project-folder-trigger:focus,
+.project-folder-trigger:focus-visible,
+button.sub-fan-action:focus,
+button.sub-fan-action:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Only the focus ring was the problem; keep the fan's original click feel. */
+button.sub-fan-action {
+  transition: transform 0.12s ease, filter 0.12s ease !important;
+}
+button.sub-fan-action:hover {
+  transform: translateY(-1px) !important;
+  filter: brightness(1.08) !important;
+}
+button.sub-fan-action:active {
+  transform: translateY(0) scale(0.96) !important;
+}
+
+/* Tomato mark: 1px smaller and lifted slightly above the headphone baseline.
+   The count stays on the headphone number line. */
+html[data-theme="postcard"] .head-right .tomato-glyph {
+  width: 53px !important;
+  height: 53px !important;
+  transform: translateY(-4px);
+}
+html[data-theme="postcard"] .head-right #tomato-count {
+  transform: none !important;
+}
+
+/* Die-cut sticker rim, slightly slimmer than before, image fills the cut. */
+.head-right .ach-sticker {
+  border: 2px solid #fffdf8 !important;
+  outline: 1px solid rgba(30, 40, 50, .5) !important;
+  background: #fffdf8 !important;
+  border-radius: 17px !important;
+  inset: 0 -9px !important;
+  box-sizing: border-box !important;
+  overflow: hidden;
+}
+.head-right .ach-sticker img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  display: block;
+}
+
+/* The top hidden bar reacts as soon as the pointer reaches the upper region.
+   It covers the left half plus the left quarter of the right half (62.5% in
+   total), so the pointer no longer has to be pushed into the middle of the
+   window while the rest of the right side stays free for the achievement
+   counters. The band is as tall as the header, so a hover well below the very
+   top border still opens the bar. */
+.top-edge {
+  right: max(37.5%, 300px) !important;
+  height: 56px !important;
+}
+.top-tools {
+  transition:
+    opacity 0.08s ease,
+    transform 0.11s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+}
+
+/* Doing card: keep a real card border on the right edge too. */
+.doing-peek {
+  border-right: 1px solid var(--pc-line, rgba(104, 76, 38, 0.3)) !important;
+}
+html[data-theme="postcard"] .doing-peek {
+  border-right-color: rgba(var(--pc-accent-rgb, 47, 125, 151), 0.30) !important;
+}
+
+/* Doing card: slightly larger label, sitting a touch lower and further right. */
+.doing-label {
+  font-size: 18.5px;
+  position: relative;
+  top: 2px;
+  left: 4px;
+}
+
+/* The Doing card's last todo keeps its closing rule as well. */
+.doing-item:last-child {
+  border-bottom: 1px solid var(--pc-line, rgba(104, 76, 38, 0.22));
+}
+
+/* Agent meta: lower-left interrupt hint, and usage/cost nudged left. */
+.agent-meta-state { margin-right: 0 !important; }
+.agent-meta-esc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  color: var(--oc-accent, var(--pc-accent, var(--gold)));
+  font-family: var(--oc-mono, var(--mono));
+  font-size: 10.5px;
+  visibility: hidden;
+}
+.agent-meta-esc.show { visibility: visible; }
+.agent-meta-esc kbd {
+  display: inline;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+.agent-meta-usage { padding-right: 32px !important; }
+
+/* AI caret colour row: one Dark / Light pair, separated by a slash. */
+.ai-caret-color-row { flex-wrap: wrap; }
+.ai-caret-color-row label { margin-right: 2px; }
+.ai-caret-mode {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ai-caret-divider {
+  flex: 0 0 auto;
+  opacity: 0.45;
+  font-size: 12px;
+}
+
+/* Music off slash: one centered diagonal from top-left to bottom-right. */
+.sound-toggle.muted::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  top: 50% !important;
+  bottom: auto !important;
+  width: 30px !important;
+  height: 2.5px !important;
+  margin: 0 !important;
+  border-radius: 2px !important;
+  background: currentColor !important;
+  transform: translate(-50%, -50%) rotate(45deg) !important;
+  transform-origin: center !important;
+  pointer-events: none !important;
+}
+
+/* AI chat history: hidden native scrollbar with a quiet dash rail.
+   One dash per conversation, capped at eight, parked in the gutter between
+   the chat body and the AI panel edge. */
+.agent-messages-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.agent-messages-wrap .agent-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-width: none !important;
+}
+.agent-messages-wrap .agent-messages::-webkit-scrollbar { display: none !important; width: 0; }
+.agent-scroll-rail {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  right: -14px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 14px;
+  pointer-events: none;
+}
+.agent-scroll-rail[hidden] { display: none; }
+.agent-scroll-tick {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  background: var(--oc-accent, var(--pc-accent, var(--gold)));
+  opacity: 0.34;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: width 0.16s ease, height 0.16s ease, opacity 0.16s ease;
+}
+.agent-scroll-tick.active { box-shadow: 0 0 6px rgba(var(--pc-accent-rgb, 141, 184, 255), 0.55); }
+.agent-scroll-tick:hover { opacity: 1 !important; width: 13px !important; }
+
+/* Context menu icon + the bottom-left note-card toggle. */
+.context-item { display: flex; align-items: center; gap: 8px; }
+.context-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pc-accent, var(--gold));
+}
+.context-icon svg { width: 16px; height: 16px; display: block; }
+.panel-card-toggle:focus-visible { outline: none !important; }
+
+
+/* The hidden left rail sits a little higher; its last item is the card pencil. */
+.tool-rail {
+  top: auto !important;
+  bottom: 132px !important;
+}
+
+/* Default danger colour for app-themed context menus. */
+.context-item.context-danger { color: var(--red); }
+
+/* Settings → Note material CSS files. */
+.note-material-files { margin-top: 14px; }
+.note-material-list { margin: 6px 0 10px; }
+.note-material-file { cursor: default; }
+.note-material-file:hover { background: transparent; }
+
+/* Note material picker: one horizontally scrollable row of names. */
+.note-material-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+  padding: 2px 2px 7px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+.note-material-row::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.note-material-name {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display, var(--mono));
+  font-size: calc(12px * var(--user-scale, 1));
+  line-height: 1.1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .16s ease, border-color .16s ease, background .16s ease;
+}
+.note-material-name:hover { color: var(--pc-ink, var(--ink)); border-color: var(--pc-accent, var(--gold)); }
+.note-material-name.active {
+  border-color: var(--pc-accent, var(--gold));
+  background: color-mix(in srgb, var(--pc-accent, var(--gold)) 14%, transparent);
+  color: var(--pc-ink, var(--ink));
+  font-weight: 700;
+}
+.note-materials-open { margin-top: 2px; }
+
+/* Note material picker: one current-name box; click opens a name list. */
+.note-material-picker { margin-top: 8px; }
+.note-material-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: min(224px, 100%);
+  height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 7px;
+  background: var(--pc-paper2, var(--paper-2, rgba(0, 0, 0, 0.045)));
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display, var(--mono));
+  font-size: 14px;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+}
+.note-material-current:hover { border-color: var(--pc-accent, var(--gold)); }
+.note-material-current svg {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  display: block;
+  opacity: 0.7;
+}
+.note-material-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: min(224px, 100%);
+  max-height: 220px;
+  margin-top: 5px;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 7px;
+  background: var(--pc-paper, var(--paper));
+  box-shadow: 0 10px 26px rgba(20, 14, 8, 0.16);
+  scrollbar-width: thin;
+}
+.note-material-option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display, var(--mono));
+  font-size: calc(12.5px * var(--user-scale, 1));
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+.note-material-option:hover { background: color-mix(in srgb, var(--pc-accent, var(--gold)) 10%, transparent); color: var(--pc-ink, var(--ink)); }
+.note-material-option.active { color: var(--pc-ink, var(--ink)); font-weight: 700; }
+.note-material-check {
+  flex: 0 0 14px;
+  width: 14px;
+  text-align: center;
+  color: var(--pc-accent, var(--gold));
+  font-weight: 700;
+}
+
+/* Settings active controls share the Light/Dark card frame: warm dark border,
+   tinted paper wash and a one-pixel inner rim. */
+.theme-mode-card.active,
+.note-material-current,
+.font-choice.active,
+.postcard-choice.active,
+.note-bg-choice.active {
+  border-color: #6b4a2a !important;
+  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.10) !important;
+  box-shadow: inset 0 0 0 1px #6b4a2a !important;
+}
+.caret-color-row input[type="color"],
+.caret-color-row input[type="text"] {
+  border-color: #6b4a2a !important;
+}
+
+/* Keep the unified active frame when the postcard theme overrides defaults. */
+html[data-theme="postcard"] .theme-mode-card.active,
+html[data-theme="postcard"] .note-material-current,
+html[data-theme="postcard"] .font-choice.active,
+html[data-theme="postcard"] .postcard-choice.active,
+html[data-theme="postcard"] .note-bg-choice.active {
+  border-color: #6b4a2a !important;
+  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.10) !important;
+  box-shadow: inset 0 0 0 1px #6b4a2a !important;
+}
+
+/* JS drives the working fan so it can accelerate and decelerate smoothly. */
+.current-subtask.agent-running .fan-rotor { animation: none !important; }
+
+/* Conversation turns are laid out in full. `content-visibility: auto` kept the
+   newest turn at the top of the list until a later layout pass, so every task
+   switch painted the first message and then jumped down to the last one. The
+   chat histories are short enough that a normal layout stays smooth. */
+
+/* The Doing card's firelight / firefly glow is an optional chrome plugin:
+   web/plugins/firelight/ (registered and toggled like the other plugins). */
+
+/* --------------------------------------------------------------------------
+   Postcard viewer: the card is the anchor.
+   The opened card stays centred on the page and its previous / next / close
+   controls sit on the card's own edges, not out at the viewport corners.
+   -------------------------------------------------------------------------- */
+.postcard-stage {
+  align-items: center !important;
+  justify-content: center !important;
+  padding-top: 22px !important;
+  padding-bottom: 22px !important;
+}
+.postcard-deck { position: relative; }
+.postcard-close {
+  position: absolute !important;
+  top: -16px !important;
+  right: -16px !important;
+  left: auto !important;
+  transform: none !important;
+}
+.postcard-nav {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+}
+.postcard-nav.prev { left: -58px !important; right: auto !important; }
+.postcard-nav.next { right: -58px !important; left: auto !important; }
+
+@media (max-width: 900px) {
+  .postcard-nav.prev { left: -20px !important; }
+  .postcard-nav.next { right: -20px !important; }
+}
+@media (max-width: 640px) {
+  .postcard-close { top: -12px !important; right: -12px !important; }
+  .postcard-nav.prev { left: -6px !important; }
+  .postcard-nav.next { right: -6px !important; }
+}
+
+/* If no AI height was recorded, start below the subtask border instead of
+   overlapping the task column. */
+:root { --agent-terminal-height: calc(50% - var(--desk-bottom, 30px)); }
+
+/* ==========================================================================
+   NeoTodo wordmark — black-green street tag
+   The mark is a hand-tagged "NeoTodo": only the N and the T keep their
+   capitals, the rest stays lowercase. A marker face, a slight tag tilt and
+   layered black-green ink with a mint spray halo make it read as paint on the
+   paper. There is no closing dot: the word itself ends the mark. Dark
+   postcards flip to mint paint with a black-green keyline so it survives the
+   black paper.
+   ========================================================================== */
+
+@font-face {
+  font-family: "NeoTodo Marker";
+  src: url("/fonts/SedgwickAve-400.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+html[data-theme] .brand .brand-name {
+  --wordmark-ink: #0b2f22;
+  --wordmark-accent: #178a4e;
+  --wordmark-key: #d5f3df;
+  --wordmark-shadow: #041c12;
+  position: relative;
+  display: inline-block;
+  padding: 0 2px 3px 1px;
+  font-family: "NeoTodo Marker", "Permanent Marker", "Adwaita Sans", "Noto Sans", sans-serif;
+  font-size: 27px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--wordmark-ink);
+  -webkit-text-stroke: 0;
+  -webkit-font-smoothing: antialiased;
+  text-shadow:
+    0.7px 0 0 var(--wordmark-ink),
+    1.2px 1.2px 0 rgba(255, 255, 255, 0.55),
+    2.6px 2.6px 0 var(--wordmark-shadow),
+    5px 5px 0 rgba(23, 138, 78, 0.2),
+    0 0 13px rgba(74, 205, 137, 0.24);
+  transform: rotate(-2.2deg) skewX(-4deg);
+  transform-origin: 0% 80%;
+}
+
+/* A faint mint spray smear behind the tag, not a dot or a badge. */
+html[data-theme] .brand .brand-name::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -4px;
+  right: -3px;
+  bottom: 0;
+  height: 64%;
+  background: linear-gradient(96deg, transparent 0 5%, rgba(47, 191, 113, 0.24) 14%, rgba(47, 191, 113, 0.07) 58%, transparent 94%);
+  filter: blur(1.6px);
+  transform: rotate(-1.6deg);
+  pointer-events: none;
+}
+
+html[data-theme] .brand .brand-name .brand-n,
+html[data-theme] .brand .brand-name .brand-t {
+  display: inline-block;
+  color: var(--wordmark-accent);
+  font-family: inherit;
+  font-size: 1.08em;
+  font-style: normal;
+  font-weight: inherit;
+  line-height: 0.9;
+  -webkit-text-stroke: 0;
+  transform-origin: 50% 80%;
+}
+
+html[data-theme] .brand .brand-name .brand-n {
+  transform: translateY(1px) rotate(-7deg);
+}
+
+html[data-theme] .brand .brand-name .brand-t {
+  transform: translateY(-1px) rotate(4deg);
+}
+
+html[data-theme] .brand .brand-name .brand-rest {
+  display: inline;
+  color: var(--wordmark-ink);
+  font-family: inherit;
+  font-style: normal;
+  font-weight: inherit;
+  letter-spacing: 0.005em;
+  -webkit-text-stroke: 0;
+}
+
+/* Dark postcards: mint paint with a black-green keyline. */
+html[data-theme][data-postcard-dark="true"] .brand .brand-name {
+  --wordmark-ink: #a9f5c2;
+  --wordmark-accent: #5ee596;
+  --wordmark-key: #06251a;
+  --wordmark-shadow: #03170f;
+  color: var(--wordmark-ink);
+  text-shadow:
+    1.5px 1.5px 0 var(--wordmark-shadow),
+    4px 4px 0 rgba(6, 37, 26, 0.9),
+    0 0 16px rgba(79, 217, 141, 0.4);
+}
+
+html[data-theme][data-postcard-dark="true"] .brand .brand-name .brand-n,
+html[data-theme][data-postcard-dark="true"] .brand .brand-name .brand-t {
+  color: var(--wordmark-accent);
+  -webkit-text-stroke: 0.9px var(--wordmark-key);
+  paint-order: stroke fill;
+}
+
+html[data-theme][data-postcard-dark="true"] .brand .brand-name .brand-rest {
+  color: var(--wordmark-ink);
+  -webkit-text-stroke: 0.9px var(--wordmark-key);
+  paint-order: stroke fill;
+}
+
+html[data-theme][data-postcard-dark="true"] .brand .brand-name::before {
+  background: linear-gradient(96deg, transparent 0 5%, rgba(94, 229, 150, 0.3) 14%, rgba(94, 229, 150, 0.08) 58%, transparent 94%);
+}
+
+@media (max-width: 980px) {
+  html[data-theme] .brand .brand-name { font-size: 22px; }
+}
+
+/* The AI list is hidden for one frame while it is pinned to the newest turn,
+   so reopening a conversation never paints at the old scroll offset first. */
+.agent-terminal.agent-preparing .agent-messages {
+  visibility: hidden;
+}
+
+/* Fork: the flame sits in the context menu and marks forked boards in the
+   category index. The pixel flame is used exactly as drawn: no plate, plate
+   texture, halo or tint behind it, in any theme. */
+.context-icon img.fork-flame {
+  width: 16px;
+  height: 16px;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.category-item .cat-dot.cat-fork {
+  width: 14px;
+  height: 14px;
+  border-radius: 0;
+  background: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  display: grid;
+  place-items: center;
+}
+.category-item .cat-dot.cat-fork img {
+  width: 12px;
+  height: 12px;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.category-item.selected .cat-dot.cat-fork {
+  width: 14px;
+  height: 14px;
+  border-radius: 0;
+}
+
+/* ==========================================================================
+   Independent wallpaper — the room behind NeoTodo
+   --------------------------------------------------------------------------
+   The postcard theme still owns every card, rule and ink colour. This layer
+   is separate: a still picture or a looping MP4 sits behind translucent paper
+   so the theme can change without changing the room. When a wallpaper is
+   active, the right-hand Doing card takes its artwork from the wallpaper.
+   ========================================================================== */
+
+.wallpaper-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #0b0812;
+}
+.wallpaper-layer[hidden] { display: none; }
+.wallpaper-layer > .wallpaper-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.wallpaper-layer > .wallpaper-art,
+.wallpaper-layer > .wallpaper-media svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.wallpaper-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(8, 6, 14, 0.10) 0%, rgba(8, 6, 14, 0.32) 100%);
+}
+html[data-postcard-dark="false"] .wallpaper-layer::after {
+  background: linear-gradient(180deg, rgba(255, 250, 244, 0.08) 0%, rgba(255, 250, 244, 0.20) 100%);
+}
+
+html[data-wallpaper="static"],
+html[data-wallpaper="dynamic"],
+html[data-wallpaper="static"] body,
+html[data-wallpaper="dynamic"] body { background: #0b0812; }
+
+/* Let the room show through the paper without hurting readability. */
+html[data-wallpaper="static"] .app-shell,
+html[data-wallpaper="dynamic"] .app-shell {
+  background-color: rgba(var(--pc-paper-rgb, 18, 12, 30), 0.26);
+  -webkit-backdrop-filter: blur(14px) saturate(1.06);
+  backdrop-filter: blur(14px) saturate(1.06);
+}
+html[data-wallpaper="static"] .notebook-head,
+html[data-wallpaper="dynamic"] .notebook-head {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--pc-paper-rgb, 18, 12, 30), 0.88),
+    rgba(var(--pc-paper-rgb, 18, 12, 30), 0.66)
+  );
+}
+html[data-wallpaper="static"] .index,
+html[data-wallpaper="dynamic"] .index {
+  background-color: rgba(var(--pc-paper2-rgb, 24, 18, 34), 0.58);
+}
+html[data-wallpaper="static"] .page,
+html[data-wallpaper="dynamic"] .page {
+  background-color: rgba(var(--pc-paper-rgb, 18, 12, 30), 0.62);
+}
+html[data-wallpaper="static"] .notebook-foot,
+html[data-wallpaper="dynamic"] .notebook-foot {
+  background: rgba(var(--pc-paper2-rgb, 24, 18, 34), 0.78);
+}
+/* A film should feel like the whole room is moving, so leave a little more
+   of the frame visible than for a still wallpaper. */
+html[data-wallpaper="dynamic"] .app-shell {
+  background-color: rgba(var(--pc-paper-rgb, 18, 12, 30), 0.16);
+  -webkit-backdrop-filter: blur(8px) saturate(1.08);
+  backdrop-filter: blur(8px) saturate(1.08);
+}
+html[data-wallpaper="dynamic"] .notebook-head {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--pc-paper-rgb, 18, 12, 30), 0.80),
+    rgba(var(--pc-paper-rgb, 18, 12, 30), 0.56)
+  );
+}
+html[data-wallpaper="dynamic"] .index {
+  background-color: rgba(var(--pc-paper2-rgb, 24, 18, 34), 0.44);
+}
+html[data-wallpaper="dynamic"] .page {
+  background-color: rgba(var(--pc-paper-rgb, 18, 12, 30), 0.48);
+}
+html[data-wallpaper="dynamic"] .notebook-foot {
+  background: rgba(var(--pc-paper2-rgb, 24, 18, 34), 0.70);
+}
+html[data-wallpaper="static"] .postcard-backdrop,
+html[data-wallpaper="dynamic"] .postcard-backdrop { display: none !important; }
+/* The postcard scene is a wallpaper now, never a layer inside the page. */
+.page-art { display: none !important; }
+
+/* The right-hand card follows the wallpaper instead of the theme art. */
+.doing-art.doing-art-wallpaper {
+  align-items: stretch;
+  opacity: 0.82;
+}
+.doing-art.doing-art-wallpaper > .wallpaper-media {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.doing-art.doing-art-wallpaper svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.doing-art.doing-art-empty { opacity: 0; }
+html[data-wallpaper="static"] .doing-peek::before,
+html[data-wallpaper="dynamic"] .doing-peek::before { opacity: 0.50; }
+
+/* Wallpaper picker in Settings → Pictures. */
+.wallpaper-hint {
+  margin: -2px 0 12px;
+  color: var(--muted);
+  font-family: var(--display);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.appearance-wallpaper-hint { margin-top: -12px; }
+.appearance-wallpaper-hint strong { color: var(--pc-accent, var(--gold)); font-weight: 600; }
+.wallpaper-current {
+  position: relative;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 10px;
+  background: var(--pc-paper2, rgba(0, 0, 0, 0.04));
+  box-shadow: 0 6px 18px rgba(20, 15, 10, 0.10);
+}
+.wallpaper-current.is-empty {
+  border-style: dashed;
+  background: rgba(0, 0, 0, 0.018);
+  box-shadow: none;
+}
+.wallpaper-preview-media {
+  position: relative;
+  width: 100%;
+  height: 138px;
+  overflow: hidden;
+  background: #0b0812;
+}
+.wallpaper-preview-media > .wallpaper-media {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.wallpaper-preview-media > .wallpaper-art svg,
+.wallpaper-preview-media svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.wallpaper-preview-empty {
+  display: grid;
+  place-content: center;
+  gap: 3px;
+  height: 96px;
+  padding: 14px;
+  color: var(--pc-muted, var(--muted));
+  text-align: center;
+}
+.wallpaper-preview-empty span {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+}
+.wallpaper-preview-empty small {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.wallpaper-current-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 11px;
+  border-top: 1px solid var(--pc-border, var(--line));
+  background: var(--pc-paper, transparent);
+}
+.wallpaper-current.is-empty .wallpaper-current-copy { border-top: 0; }
+.wallpaper-current-copy small {
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.wallpaper-current-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wallpaper-mode-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.wallpaper-mode-card {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.wallpaper-mode-card:hover {
+  border-color: var(--pc-accent, var(--gold-soft));
+  background: rgba(0, 0, 0, 0.025);
+}
+.wallpaper-mode-card.active {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.12);
+}
+.wallpaper-mode-card strong {
+  display: block;
+  overflow: hidden;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wallpaper-mode-card small {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--display);
+  font-size: 9.5px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wallpaper-group {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.wallpaper-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.wallpaper-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wallpaper-choice {
+  position: relative;
+  width: 104px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  text-align: center;
+}
+.wallpaper-choice-main {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.wallpaper-choice-main:focus-visible {
+  outline: 2px solid var(--pc-accent, var(--gold));
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+.wallpaper-clear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 50%;
+  background: var(--pc-paper, #fffdf8);
+  color: var(--pc-ink, var(--ink));
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(20, 15, 10, 0.18);
+}
+.wallpaper-clear:hover {
+  color: var(--pc-accent, var(--gold));
+  border-color: var(--pc-accent, var(--gold));
+  background: var(--pc-paper, #fffdf8);
+}
+.wallpaper-clear svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.wallpaper-choice:hover {
+  border-color: var(--pc-accent, var(--gold-soft));
+  background: rgba(0, 0, 0, 0.025);
+}
+.wallpaper-choice.active {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.12);
+}
+.wallpaper-thumb {
+  display: block;
+  width: 100%;
+  height: 56px;
+  border-radius: 4px;
+  background-color: #1b1d24;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+.wallpaper-thumb-art {
+  overflow: hidden;
+}
+.wallpaper-thumb-art svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.wallpaper-thumb-video {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.wallpaper-thumb-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wallpaper-play {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(8, 6, 14, 0.48);
+  color: #fff;
+  font-size: 11px;
+  text-indent: 1px;
+}
+.wallpaper-name {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wallpaper-choice.active .wallpaper-name { color: var(--ink); }
+.wallpaper-empty {
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--display);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.wallpaper-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ==========================================================================
+   SETTINGS → PLUGINS
+   --------------------------------------------------------------------------
+   A quiet list of installable mini-apps. Each row keeps the plugin's own
+   artwork, an inline on/off switch, and a small vertical menu. Settings stay
+   inside the same sheet so the notebook itself never grows a second shell.
+   ========================================================================== */
+[data-plugin].plugin-hidden { display: none !important; }
+
+.plugin-list { display: grid; gap: 10px; }
+
+.plugin-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 13px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 10px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.3));
+  transition: opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.plugin-row.plugin-off { opacity: 0.62; }
+.plugin-row.plugin-available { border-style: dashed; }
+
+.plugin-icon {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 13px;
+  background: var(--pc-paper2, rgba(255, 255, 255, 0.44));
+  box-shadow: 0 3px 9px rgba(60, 40, 20, 0.1);
+}
+.plugin-icon img { width: 100%; height: 100%; display: block; object-fit: contain; }
+
+.plugin-copy { flex: 1 1 auto; min-width: 0; }
+.plugin-copy strong {
+  display: block;
+  overflow: hidden;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-copy small {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-copy p {
+  margin: 4px 0 0;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.plugin-power {
+  flex: 0 0 auto;
+  padding: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+}
+.plugin-power:hover { background: rgba(0, 0, 0, 0.045); }
+.plugin-power .toggle-track { display: block; }
+.plugin-power.active .toggle-track {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.16);
+}
+.plugin-power.active .toggle-thumb { transform: translateX(16px); background: var(--pc-accent, var(--gold)); }
+
+.plugin-menu-button {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+}
+.plugin-menu-button:hover { color: var(--pc-ink, var(--ink)); background: rgba(0, 0, 0, 0.05); }
+.plugin-menu-button svg { width: 18px; height: 18px; display: block; }
+
+.plugin-empty {
+  padding: 11px 13px;
+  border: 1px dashed var(--pc-border, var(--line));
+  border-radius: 8px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.plugin-market-note {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px dashed var(--pc-border, var(--line));
+  border-radius: 9px;
+}
+.plugin-market-note strong {
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 600;
+}
+.plugin-market-note span {
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+/* Plugin detail sheet: reached from the row's vertical menu. */
+.plugin-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.plugin-back:hover { color: var(--pc-ink, var(--ink)); }
+.plugin-back svg { width: 15px; height: 15px; display: block; }
+
+.plugin-detail-head { display: flex; align-items: center; gap: 14px; }
+.plugin-icon-large { flex-basis: 64px; width: 64px; height: 64px; padding: 6px; border-radius: 17px; }
+.plugin-detail-title { min-width: 0; }
+.plugin-detail-title h2 { margin: 0; }
+.plugin-detail-title p {
+  margin: 2px 0 0;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+}
+.plugin-detail-description {
+  max-width: 58ch;
+  margin: -2px 0 22px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.plugin-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.plugin-setting-toggle + .plugin-setting-toggle { margin-top: 8px; }
+
+.plugin-danger-zone {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--pc-rule, var(--line));
+}
+
+.plugin-uninstall-confirm {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(180, 60, 40, 0.42);
+  border-radius: 9px;
+  background: rgba(190, 70, 50, 0.07);
+}
+.plugin-uninstall-confirm strong {
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+}
+.plugin-uninstall-confirm p {
+  margin: 3px 0 0;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.plugin-uninstall-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 620px) {
+  .plugin-row { flex-wrap: wrap; }
+  .plugin-copy { flex: 1 1 calc(100% - 64px); }
+  .plugin-power { margin-left: auto; }
+  .plugin-detail-head { align-items: flex-start; }
 }

@@ -1,0 +1,348 @@
+/* ==========================================================================
+   PAGE LAYOUT
+   --------------------------------------------------------------------------
+   The whole working page is laid out here and nowhere else.
+
+   Regions (all coordinates are relative to .page-body):
+
+       ┌──────────────────────────────┐
+       │ .page-head                   │  fixed header
+       ├──────────────────────────────┤
+       │ .todos-section               │  task region, fixed 280px
+       │                              │
+       ├──────────────────────────────┤  <- page baseline (own layer)
+       │ desk: note / AI panes        │  fills the rest of the page
+       └──────────────────────────────┘
+
+   The baseline, the task region and the desk are peers. Opening, closing,
+   splitting or dragging a note/AI pane can never change the task region or
+   the baseline; it only changes the pane's own geometry inside the desk.
+   Layer order is explicit (see the --page-layer-* variables), so z-index
+   accidents in other stylesheets cannot erase the boundary.
+   ========================================================================== */
+
+:root {
+  /* Page regions. The task block is a fixed seven-row sheet. */
+  --page-task-h: 280px;
+  --page-desk-top: var(--page-task-h);
+  --page-desk-bottom: var(--desk-bottom, 0px);
+  --page-desk-h: calc(100% - var(--page-desk-top) - var(--page-desk-bottom));
+  --page-desk-half-h: calc(var(--page-desk-h) / 2);
+
+  /* A sheet may request a taller size, but it can never grow into the task
+     region: the desk height is the hard ceiling. */
+  --page-sheet-h: min(var(--agent-terminal-height, var(--page-desk-h)), var(--page-desk-h));
+
+  /* Explicit paint order for the page regions. */
+  --page-layer-tasks: 2;
+  --page-layer-ai: 11;
+  --page-layer-note: 12;
+  --page-layer-note-float: 13;
+  --page-layer-baseline: 14;
+  --page-layer-split: 15;
+  --page-layer-chooser: 16;
+
+  --page-baseline-color: var(--pc-line, var(--line));
+}
+
+/* ---------------------------------------------------------------- shell --- */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page-head {
+  flex: 0 0 80px;
+  height: 80px;
+  min-height: 80px;
+}
+
+/* The page body is the coordinate space for the three independent regions:
+   tasks, desk panes and the baseline. Children are positioned, never stacked
+   in normal flow, so one region cannot push another. */
+.page-body {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------- task region --- */
+
+.page-body > .todos-section {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--page-task-h);
+  max-height: var(--page-task-h);
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  z-index: var(--page-layer-tasks);
+}
+
+.page-body > .todos-section > .history-half,
+.page-body > .todos-section > .current-half {
+  height: 100%;
+  min-height: 0;
+}
+
+.page-body > .todos-section > .current-half > .current-inner {
+  height: 100%;
+}
+
+/* The task block never paints its own bottom rule; the page baseline does. */
+.page-body > .todos-section::after {
+  display: none !important;
+}
+
+/* The last row hands its bottom rule to the page baseline, so the two never
+   stack into a 2px line. */
+.page-body > .todos-section .history-rows > .history-row:last-child,
+.page-body > .todos-section .current-subtasks > .current-subtask:last-child {
+  border-bottom-color: transparent;
+}
+
+/* The last row fills its border box because its own bottom rule is gone. */
+.page-body > .todos-section .current-subtasks > .current-subtask.selected:last-child {
+  background-clip: border-box !important;
+}
+
+/* --------------------------------------------------------- page baseline --- */
+
+/* A page-level region, not a child of the task block: its position and paint
+   order are fixed no matter which sheet is open. It keeps the final pixel of
+   the task region and sits above every pane layer. */
+.page-body::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--page-desk-top) - 1px);
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--page-baseline-color);
+  pointer-events: none;
+  z-index: var(--page-layer-baseline);
+}
+
+/* A detached window is a sheet on its own; there is no page boundary. */
+body.detached-mode .page-body::before {
+  display: none;
+}
+
+/* ---------------------------------------------------------- desk panes --- */
+
+/* Both sheets are bottom-anchored cards inside the desk. Their height is
+   capped by the desk, so the 220px minimum used by the resizers can never
+   push a sheet up through the baseline. */
+.page-body > #notes-half,
+.page-body > #agent-terminal {
+  position: absolute;
+  top: auto;
+  right: 0;
+  bottom: var(--page-desk-bottom);
+  left: 0;
+  height: var(--page-sheet-h);
+  max-height: var(--page-desk-h);
+  margin: 0;
+  min-height: 0;
+}
+
+.page-body > #agent-terminal {
+  z-index: var(--page-layer-ai);
+}
+
+.page-body > #notes-half {
+  z-index: var(--page-layer-note);
+}
+
+/* Both sheets open without an explicit split: the note floats at the top of
+   the desk, above the AI card, and still below the page baseline. */
+body.agent-terminal-open:not(.agent-notes-split) .page-body > #notes-half:not(.notes-hidden) {
+  top: calc(var(--page-desk-top) + 6px);
+  right: 18px;
+  bottom: auto;
+  left: auto;
+  width: min(560px, 46vw);
+  height: min(max(120px, calc(50% - 140px)), calc(var(--page-desk-h) - 12px));
+  max-height: calc(var(--page-desk-h) - 12px);
+  z-index: var(--page-layer-note-float) !important;
+}
+
+/* ------------------------------------------------------------- splitting --- */
+
+/* A split always divides the desk, never the task region. */
+body.agent-notes-split .page-body > #notes-half:not(.notes-hidden),
+body.agent-notes-split .page-body > #agent-terminal {
+  top: var(--page-desk-top) !important;
+  bottom: auto !important;
+  height: var(--page-desk-h) !important;
+  max-height: none !important;
+}
+
+body.agent-notes-split .page-body > #notes-half:not(.notes-hidden) {
+  z-index: var(--page-layer-note-float) !important;
+}
+
+body.agent-notes-split .page-body > #agent-terminal {
+  z-index: var(--page-layer-ai) !important;
+}
+
+/* Horizontal split: notes and AI meet on one vertical divider. */
+body.agent-notes-left .page-body > #notes-half:not(.notes-hidden) {
+  left: 0 !important;
+  right: auto !important;
+  width: var(--agent-left-px, var(--agent-left-pct)) !important;
+}
+
+body.agent-notes-left .page-body > #agent-terminal {
+  left: var(--agent-left-px, var(--agent-left-pct)) !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+body.agent-notes-right .page-body > #notes-half:not(.notes-hidden) {
+  left: var(--agent-left-px, var(--agent-left-pct)) !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+body.agent-notes-right .page-body > #agent-terminal {
+  left: 0 !important;
+  right: auto !important;
+  width: var(--agent-left-px, var(--agent-left-pct)) !important;
+}
+
+/* Vertical split: the two panes meet on one horizontal divider. The JS
+   measures the desk (not the whole page) so the values already include the
+   task region offset. */
+body.agent-notes-axis-y .page-body > #notes-half:not(.notes-hidden) {
+  top: var(--agent-notes-y-top, var(--page-desk-top)) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  height: var(--agent-notes-y-height, 50%) !important;
+  max-height: none !important;
+}
+
+body.agent-notes-axis-y .page-body > #agent-terminal {
+  top: var(--agent-ai-top, var(--page-desk-top)) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  height: var(--agent-ai-height, 50%) !important;
+  max-height: none !important;
+}
+
+/* The divider follows the same desk bounds. */
+.page-body .agent-split-handle {
+  position: absolute;
+  top: var(--page-desk-top) !important;
+  height: var(--page-desk-h) !important;
+  z-index: var(--page-layer-split);
+}
+
+body.agent-notes-axis-y .page-body .agent-split-handle {
+  top: var(--agent-split-y, 50%) !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 10px !important;
+  transform: none !important;
+}
+
+.page-body .agent-split-chooser {
+  position: absolute;
+  top: var(--page-desk-top) !important;
+  height: var(--page-desk-h) !important;
+  z-index: var(--page-layer-chooser);
+}
+
+/* -------------------------------------------------- single-panel docks --- */
+
+/* A single dock pins one sheet to half of the desk, leaving the other half
+   free, and always starts below the page baseline. */
+body.single-ai-left .page-body > #agent-terminal {
+  top: var(--page-desk-top) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 50% !important;
+  height: var(--page-desk-h) !important;
+}
+body.single-ai-right .page-body > #agent-terminal {
+  top: var(--page-desk-top) !important;
+  bottom: auto !important;
+  left: 50% !important;
+  width: 50% !important;
+  height: var(--page-desk-h) !important;
+}
+body.single-ai-top .page-body > #agent-terminal {
+  top: var(--page-desk-top) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: var(--page-desk-half-h) !important;
+}
+body.single-ai-bottom .page-body > #agent-terminal {
+  top: calc(var(--page-desk-top) + var(--page-desk-half-h)) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: var(--page-desk-half-h) !important;
+}
+
+body.single-note-left .page-body > #notes-half:not(.notes-hidden) {
+  top: var(--page-desk-top) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 50% !important;
+  height: var(--page-desk-h) !important;
+}
+body.single-note-right .page-body > #notes-half:not(.notes-hidden) {
+  top: var(--page-desk-top) !important;
+  bottom: auto !important;
+  left: 50% !important;
+  width: 50% !important;
+  height: var(--page-desk-h) !important;
+}
+body.single-note-top .page-body > #notes-half:not(.notes-hidden) {
+  top: var(--page-desk-top) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: var(--page-desk-half-h) !important;
+}
+body.single-note-bottom .page-body > #notes-half:not(.notes-hidden) {
+  top: calc(var(--page-desk-top) + var(--page-desk-half-h)) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: var(--page-desk-half-h) !important;
+}
+
+/* ------------------------------------------------------- detached sheet --- */
+
+body.detached-ai .page-body > #agent-terminal {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  z-index: 9999;
+}
+
+body.detached-note .page-body > #notes-half {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  z-index: 9999;
+}

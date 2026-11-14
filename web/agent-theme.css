@@ -24,6 +24,8 @@
   --oc-send-bg: #3b82f6;
   --oc-send-ink: #ffffff;
   --oc-user-accent: #b8872f;
+  --oc-file: #a9741a;
+  --oc-file-dim: #c19a55;
 
   background: var(--oc-bg) !important;
   color: var(--oc-ink) !important;
@@ -51,6 +53,8 @@ html[data-postcard-dark="true"] .agent-terminal {
   --oc-send-bg: #4f8cff;
   --oc-send-ink: #ffffff;
   --oc-user-accent: #c9a35f;
+  --oc-file: #efc160;
+  --oc-file-dim: #b89a5e;
 
   background: var(--oc-bg) !important;
   color: var(--oc-ink) !important;
@@ -89,4 +93,41 @@ html[data-postcard-dark="true"] .agent-terminal {
 .agent-terminal ::selection {
   background: rgba(79, 140, 255, 0.22) !important;
   color: var(--oc-ink) !important;
+}
+
+/* AI context menu uses the OpenCode palette, not the NeoTodo postcard one. */
+html[data-theme="postcard"] .context-menu.context-agent,
+.context-menu.context-agent {
+  background: #ffffff !important;
+  color: #171718;
+  border-color: #ececee;
+  box-shadow: 0 14px 34px rgba(20, 20, 24, 0.18), 0 3px 8px rgba(20, 20, 24, 0.08);
+  font-family: "DejaVu Sans Mono", ui-monospace, monospace;
+}
+html[data-postcard-dark="true"] .context-menu.context-agent {
+  background: #202126 !important;
+  color: #e8e8ec;
+  border-color: #3a3b42;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.5), 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+/* Every AI menu row uses the same ink, danger included. The trash icon alone
+   carries the destructive hint so the two labels never look mismatched. */
+.context-menu.context-agent .context-item,
+.context-menu.context-agent .context-item.context-danger { color: inherit !important; }
+.context-menu.context-agent .context-item:hover { background: rgba(79, 124, 255, 0.12); }
+.context-menu.context-agent .context-icon { color: #4f7cff; }
+.context-menu.context-agent .context-danger .context-icon { color: #cf6a43; }
+html[data-postcard-dark="true"] .context-menu.context-agent .context-danger .context-icon { color: #e08a63; }
+.context-menu.context-agent .context-sep { background: #ececee; }
+html[data-postcard-dark="true"] .context-menu.context-agent .context-sep { background: #3a3b42; }
+
+/* One readable ink for every line inside the AI dialog. */
+.agent-terminal .agent-line,
+.agent-terminal .agent-line-text,
+.agent-terminal .agent-reply,
+.agent-terminal .agent-notice,
+.agent-terminal .agent-process,
+.agent-terminal .agent-compose textarea,
+.agent-terminal .agent-input {
+  color: var(--oc-ink, #e8e8ec) !important;
 }

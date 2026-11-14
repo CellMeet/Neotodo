@@ -1,0 +1,5 @@
+Model/provider brand icons come from LobeHub Icons:
+https://github.com/lobehub/lobe-icons
+https://unpkg.com/@lobehub/icons-static-svg/
+The @lobehub/icons package is MIT-licensed; the brand marks belong to their owners.
+Files are used only to identify the model/provider that produced a result.

@@ -1,0 +1,292 @@
+/* ==========================================================================
+   Subtask column and the completed-task drawer
+   Unfinished work fills a single lane. Finished rows live behind a short
+   handle line under the task block's top boundary: clicking the line, or
+   pulling it downwards, slides the completed list down over the pending rows.
+   Clicking the line again (or pulling upwards) tucks it back away.
+
+   Every rule here is additive; the base typography, fan marks, checks and
+   theme colours still come from style.css and completed.css.
+   ========================================================================== */
+
+/* Give the subtask lanes more room by pulling the main column divider left;
+   the completed-todo history keeps the smaller share of the page. */
+.todos-section > .history-half {
+  flex: 1 1 32%;
+}
+
+.todos-section > .current-half {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 68%;
+  max-width: none;
+}
+
+.current-inner {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.subtask-lanes {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.subtask-lane-column {
+  position: relative;
+  flex: 1 1 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.subtask-lane {
+  position: relative;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.subtask-lane::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none !important;
+}
+
+/* Rows keep their full-width rule and seven-row grid inside a lane. */
+.subtask-lane .current-subtasks {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.subtask-lane .current-subtask {
+  width: 100%;
+  /* A row is always one complete ruled line. Without the min-width guard a
+     flex/lane change elsewhere can make a freshly inserted row shrink-wrap to
+     its name, which reads as a truncated row. */
+  min-width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
+  flex: 0 0 40px;
+}
+
+/* The rule's hit strip sits over the first row, but the row's own controls
+   must win: the fan, model mark, name and check stay above it. The drawer
+   later lifts above all of them, so nothing from the live lane leaks through. */
+.subtask-lane .current-subtask .sub-fan,
+.subtask-lane .current-subtask .sub-agent-model,
+.subtask-lane .current-subtask .sub-name,
+.subtask-lane .current-subtask .sub-name-input,
+.subtask-lane .current-subtask .subtask-name-input,
+.subtask-lane .current-subtask .sub-done-check {
+  position: relative;
+  z-index: 9;
+}
+
+.subtask-lane-column .slim-scrollbar {
+  right: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   The short handle line just below the task block's top boundary.
+   Same shape and motion as the note/AI door lines, but in the fan's purple
+   (#C8B9FC): one 64px pill with a faint light halo, widening on hover. The
+   colour deliberately differs so the finished-task card reads as its own
+   control instead of a second note/AI door.
+   -------------------------------------------------------------------------- */
+
+.completed-subtask-toggle {
+  position: absolute;
+  top: 0;
+  /* The line must sit in the middle of the finished-task card, not the middle
+     of the whole column. The card is pinned 12px from the right and is
+     clamp(220px, 56%, 460px) wide, so its centre is 12px + half that width in
+     from the right edge. max(50%, …) keeps the control centred on very narrow
+     columns, where the card's max-width makes it span the full width. */
+  left: max(50%, calc(100% - 12px - clamp(110px, 28%, 230px)));
+  z-index: 8;
+  width: 120px;
+  height: 30px;
+  display: block;
+  margin: 0 0 0 -60px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The open card is above the live rows, and its handle line stays above the
+   card so the same control can tuck the list away again. */
+.completed-subtask-toggle.open {
+  z-index: 11;
+}
+
+.completed-subtask-line {
+  position: absolute;
+  left: 50%;
+  top: 9px;
+  width: 76px;
+  height: 5px;
+  margin-left: -38px;
+  border-radius: 3px;
+  background: #C8B9FC;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
+  opacity: 0.95;
+  transition: width 0.16s ease, margin-left 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.completed-subtask-toggle:hover .completed-subtask-line,
+.completed-subtask-toggle:focus-visible .completed-subtask-line {
+  width: 90px;
+  margin-left: -45px;
+  background: #B29AFC;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.38);
+  opacity: 1;
+}
+
+.completed-subtask-toggle:active .completed-subtask-line {
+  width: 84px;
+  margin-left: -42px;
+}
+
+/* --------------------------------------------------------------------------
+   The finished rows: a compact paper card that slides down on the right.
+   It floats over the live lane instead of covering the whole subtask column,
+   so unfinished rows stay readable on the left. The card is a little wider
+   than half the column and scrolls its own list.
+   -------------------------------------------------------------------------- */
+
+.completed-subtask-drawer {
+  position: absolute;
+  top: 24px;
+  right: 12px;
+  z-index: 7;
+  width: clamp(220px, 56%, 460px);
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 34px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 14px;
+  background: var(--pc-paper, var(--paper));
+  box-shadow: 0 18px 36px rgba(20, 20, 24, 0.16);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-14px) scale(0.985);
+  transform-origin: 50% 0;
+  transition: opacity 0.18s ease,
+    transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0.26s;
+}
+
+.completed-subtask-drawer.open {
+  z-index: 10;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+  transition: opacity 0.2s ease,
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s;
+}
+
+.completed-subtask-drawer.no-motion {
+  transition: none;
+}
+
+.completed-subtask-sheet {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: 6px 0;
+  background: var(--pc-paper, var(--paper));
+}
+
+.completed-subtask-drawer .subtask-lane-column {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: auto;
+}
+
+.completed-subtask-drawer .subtask-lane {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.completed-subtask-drawer .subtask-lane::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none !important;
+}
+
+.completed-subtask-drawer .current-subtasks {
+  min-height: 0;
+}
+
+.completed-subtask-drawer .current-subtask {
+  flex: 0 0 40px;
+}
+
+.completed-subtask-drawer .slim-scrollbar {
+  right: 3px;
+}
+
+.completed-subtask-empty {
+  padding: 12px 16px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display, var(--sans));
+  font-size: 14px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Finished rows sit quieter than the live lane, even while selected. */
+.subtask-lane .current-subtask.done .sub-name {
+  opacity: 0.82;
+}
+
+.subtask-lane .current-subtask.done.selected {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--pc-accent-rgb, 157, 111, 28), 0.08),
+    transparent 86%
+  );
+}
+
+@media (max-width: 1180px) {
+  .todos-section > .current-half { flex-basis: 68%; }
+}
+
+@media (max-width: 900px) {
+  .todos-section > .history-half { flex-basis: 36%; }
+  .todos-section > .current-half { flex-basis: 64%; }
+}

@@ -1,0 +1,277 @@
+/* ==========================================================================
+   FIRELIGHT — the Doing card's icon glow, as an installable chrome plugin.
+   --------------------------------------------------------------------------
+   When an agent leaves unseen results, its Doing icon lights up:
+
+     dark  postcards — lantern light, small fireflies and rising paper
+                       lanterns, like a quiet Lantern Festival release;
+     light postcards — the icon glows like warm emberlight and a few tiny
+                       embers drift up from its edge.
+
+   There is deliberately no radial burst, no expanding ring and no shell of
+   particles around the artwork: the light belongs to the icon itself.
+
+   Every rule is scoped to html.firelight-on, which firelight.js toggles from
+   the plugin switch. Turning the plugin off removes the glow without editing
+   the notebook. The specks are seeded by firelight.js so re-renders keep the
+   same arrangement.
+   ========================================================================== */
+
+/* The unseen icon hosts the glow. */
+html.firelight-on .doing-mark.has-unseen,
+html.firelight-on .doing-fan.has-unseen {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Zero-size switch probe; it only carries data-plugin for the host. */
+.firelight-probe {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+html.firelight-on .doing-mark.has-unseen > svg,
+html.firelight-on .doing-fan.has-unseen > svg {
+  position: relative;
+  z-index: 1;
+  animation: firelight-icon-glow 3s ease-in-out infinite;
+}
+
+@keyframes firelight-icon-glow {
+  0%, 100% {
+    filter: brightness(1.12) saturate(1.12)
+      drop-shadow(0 0 3px rgba(255, 246, 205, 0.9))
+      drop-shadow(0 0 9px rgba(255, 196, 80, 0.55))
+      drop-shadow(0 0 18px rgba(255, 128, 20, 0.26));
+  }
+  45% {
+    filter: brightness(1.22) saturate(1.2)
+      drop-shadow(0 0 5px rgba(255, 252, 225, 1))
+      drop-shadow(0 0 14px rgba(255, 206, 100, 0.85))
+      drop-shadow(0 0 26px rgba(255, 140, 20, 0.48));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Dark postcards — lantern light against the night.
+   -------------------------------------------------------------------------- */
+
+/* A tight hot core makes the icon itself look like the light source. */
+html.firelight-on[data-postcard-dark="true"] .doing-mark.has-unseen::before,
+html.firelight-on[data-postcard-dark="true"] .doing-fan.has-unseen::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 120%;
+  height: 120%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 249, 220, 0.82) 0 14%,
+    rgba(255, 205, 105, 0.46) 34%,
+    rgba(255, 130, 20, 0.14) 58%,
+    rgba(255, 90, 0, 0) 74%);
+  filter: blur(0.7px);
+  z-index: 0;
+  pointer-events: none;
+  animation: firelight-lamp-core 2.6s ease-in-out infinite;
+}
+
+@keyframes firelight-lamp-core {
+  0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(0.96); }
+  42% { opacity: 1; transform: translate(-50%, -52%) scale(1.06); }
+}
+
+/* A warm halo that lifts the whole row, without hiding the icon. */
+html.firelight-on[data-postcard-dark="true"] .doing-mark.has-unseen::after,
+html.firelight-on[data-postcard-dark="true"] .doing-fan.has-unseen::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 162%;
+  height: 178%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 58% 52% at 50% 68%,
+      rgba(255, 198, 94, 0.54) 0 16%,
+      rgba(255, 130, 24, 0.24) 46%,
+      rgba(255, 90, 0, 0) 74%),
+    radial-gradient(ellipse 36% 46% at 50% 36%,
+      rgba(255, 156, 46, 0.2) 0 22%,
+      rgba(255, 90, 0, 0) 74%);
+  filter: blur(2.2px);
+  z-index: 0;
+  pointer-events: none;
+  animation: firelight-lantern-halo 2.6s ease-in-out infinite;
+}
+
+@keyframes firelight-lantern-halo {
+  0%, 100% { opacity: 0.66; transform: translate(-50%, -50%) scale(0.96); }
+  32% { opacity: 0.98; transform: translate(-50%, -52%) scale(1.03); }
+  58% { opacity: 0.74; transform: translate(-50%, -50%) scale(0.99); }
+  80% { opacity: 0.92; transform: translate(-50%, -53%) scale(1.05); }
+}
+
+/* --------------------------------------------------------------------------
+   Light postcards — warm emberlight, no burst. The glow follows the icon's
+   own silhouette; the specks only drift upward and fade.
+   -------------------------------------------------------------------------- */
+
+html.firelight-on[data-postcard-dark="false"] .doing-mark.has-unseen > svg,
+html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
+  animation: firelight-ember-glow 2.6s ease-in-out infinite;
+}
+
+@keyframes firelight-ember-glow {
+  0%, 100% {
+    filter: brightness(1.18) saturate(1.22)
+      drop-shadow(0 0 1px rgba(255, 255, 240, 0.9))
+      drop-shadow(0 0 3px rgba(255, 224, 132, 0.9))
+      drop-shadow(0 0 8px rgba(255, 152, 24, 0.62))
+      drop-shadow(0 0 14px rgba(255, 88, 0, 0.2));
+  }
+  38% {
+    filter: brightness(1.3) saturate(1.32)
+      drop-shadow(0 0 2px rgba(255, 255, 250, 0.98))
+      drop-shadow(0 0 5px rgba(255, 236, 160, 0.95))
+      drop-shadow(0 0 11px rgba(255, 160, 24, 0.78))
+      drop-shadow(0 0 19px rgba(255, 72, 0, 0.28));
+  }
+  68% {
+    filter: brightness(1.22) saturate(1.26)
+      drop-shadow(0 0 1px rgba(255, 255, 244, 0.94))
+      drop-shadow(0 0 4px rgba(255, 228, 144, 0.92))
+      drop-shadow(0 0 9px rgba(255, 155, 22, 0.7))
+      drop-shadow(0 0 16px rgba(255, 80, 0, 0.24));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   The specks: fireflies and little paper lanterns on dark postcards, small
+   embers on light ones.
+   -------------------------------------------------------------------------- */
+
+html.firelight-on .doing-fireflies {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+html.firelight-on .doing-fireflies i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--fs, 3px);
+  height: var(--fs, 3px);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf0 0 18%, #ffe49a 46%, rgba(255, 190, 60, 0.26) 72%, transparent 80%);
+  box-shadow:
+    0 0 4px 1.5px rgba(255, 230, 140, 0.95),
+    0 0 11px 3px rgba(255, 180, 50, 0.55);
+  opacity: 0;
+  animation: firelight-firefly-drift var(--fdur, 2.6s) ease-in-out var(--fdelay, 0s) infinite;
+  will-change: transform, opacity;
+}
+
+html.firelight-on .doing-fireflies i.lantern {
+  border-radius: 50% 50% 46% 46% / 54% 54% 46% 46%;
+  background: radial-gradient(circle at 50% 36%, #fff8da 0 14%, #ffd37a 34%, #ff9b3d 66%, rgba(255, 120, 20, 0.2) 100%);
+  box-shadow:
+    0 0 6px 2.5px rgba(255, 215, 120, 1),
+    0 0 18px 7px rgba(255, 140, 30, 0.62);
+  animation-name: firelight-lantern-rise;
+  animation-timing-function: ease-in-out;
+}
+
+html.firelight-on .doing-fireflies i.lantern.rose {
+  background: radial-gradient(circle at 50% 36%, #fff4e2 0 14%, #ffc2a6 34%, #ff7d52 66%, rgba(255, 90, 50, 0.2) 100%);
+  box-shadow:
+    0 0 6px 2.5px rgba(255, 190, 150, 1),
+    0 0 18px 7px rgba(255, 90, 50, 0.58);
+}
+
+@keyframes firelight-firefly-drift {
+  0% { opacity: 0; transform: translate(calc(var(--fx, 0px) - 50%), calc(var(--fy, 0px) - 50%)) scale(0.3); }
+  10% { opacity: 0.9; }
+  28% { opacity: 0.25; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 7px - 50%)) scale(0.95); }
+  44% { opacity: 1; }
+  62% { opacity: 0.3; transform: translate(calc(var(--fx, 0px) - var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 16px - 50%)) scale(1.05); }
+  80% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(calc(var(--fx2, 0px) - 50%), calc(var(--fy2, 0px) - 50%)) scale(0.4); }
+}
+
+@keyframes firelight-lantern-rise {
+  0% { opacity: 0; transform: translate(calc(var(--fx, 0px) - 50%), calc(var(--fy, 0px) + 3px - 50%)) scale(0.35); }
+  9% { opacity: 0.95; }
+  26% { opacity: 0.9; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 9px - 50%)) scale(1); }
+  50% { opacity: 0.75; transform: translate(calc(var(--fx, 0px) - var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 21px - 50%)) scale(0.96); }
+  72% { opacity: 0.65; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 32px - 50%)) scale(0.88); }
+  100% { opacity: 0; transform: translate(calc(var(--fx2, 0px) - 50%), calc(var(--fy2, 0px) - 50%)) scale(0.55); }
+}
+
+html.firelight-on[data-postcard-dark="false"] .doing-fireflies i.firefly {
+  background: radial-gradient(circle at 50% 62%, #fff8d6 0 16%, #ffb02c 46%, rgba(255, 96, 0, 0.16) 74%, transparent 82%);
+  box-shadow:
+    0 0 2px 1px rgba(255, 214, 120, 0.92),
+    0 0 6px 2px rgba(255, 118, 8, 0.36);
+  animation-name: firelight-ember-rise;
+  animation-duration: calc(var(--fdur, 2.6s) * 1.05);
+  animation-timing-function: ease-in-out;
+}
+
+/* Paper lanterns belong to the dark lantern-festival version; on light paper
+   they only crowd the icon's edge. */
+html.firelight-on[data-postcard-dark="false"] .doing-fireflies i.lantern {
+  display: none;
+}
+
+@keyframes firelight-ember-rise {
+  0% { opacity: 0; transform: translate(calc(var(--fx, 0px) - 50%), calc(var(--fy, 0px) + 2px - 50%)) scale(0.45); }
+  14% { opacity: 0.85; }
+  36% { opacity: 0.35; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 7px - 50%)) scale(0.95); }
+  52% { opacity: 0.8; }
+  72% { opacity: 0.3; transform: translate(calc(var(--fx, 0px) - var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 15px - 50%)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--fx2, 0px) - 50%), calc(var(--fy2, 0px) - 50%)) scale(0.55); }
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion keeps a static glow and drops every drifting speck.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html.firelight-on .doing-mark.has-unseen > svg,
+  html.firelight-on .doing-fan.has-unseen > svg {
+    animation: none;
+    filter: brightness(1.16) saturate(1.14)
+      drop-shadow(0 0 4px rgba(255, 245, 200, 0.9))
+      drop-shadow(0 0 12px rgba(255, 190, 70, 0.55));
+  }
+  html.firelight-on[data-postcard-dark="true"] .doing-mark.has-unseen::before,
+  html.firelight-on[data-postcard-dark="true"] .doing-fan.has-unseen::before,
+  html.firelight-on[data-postcard-dark="true"] .doing-mark.has-unseen::after,
+  html.firelight-on[data-postcard-dark="true"] .doing-fan.has-unseen::after {
+    animation: none;
+    opacity: 0.82;
+  }
+  html.firelight-on[data-postcard-dark="false"] .doing-mark.has-unseen > svg,
+  html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
+    animation: none;
+    filter: brightness(1.22) saturate(1.24)
+      drop-shadow(0 0 1px rgba(255, 255, 240, 0.95))
+      drop-shadow(0 0 4px rgba(255, 230, 150, 0.95))
+      drop-shadow(0 0 10px rgba(255, 150, 20, 0.72))
+      drop-shadow(0 0 16px rgba(255, 74, 0, 0.26));
+  }
+  html.firelight-on .doing-fireflies {
+    display: none;
+  }
+}

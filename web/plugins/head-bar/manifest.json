@@ -1,0 +1,16 @@
+{
+  "id": "head-bar",
+  "name": "Head Bar",
+  "englishName": "Head Bar",
+  "version": "2.0.0",
+  "description": "悬停时间数字时，一条短短的、蓝白剔透的水晶宝石灵动岛从上边框滑出。点击后整个工作区向上收起，只留下原始壁纸；再次点击恢复。",
+  "icon": "head-bar.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#86b8e4",
+    "paper": "#1c1c1e"
+  }
+}

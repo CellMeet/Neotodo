@@ -42,6 +42,13 @@ def capture_view(view, snapshot_path: Path, callback=None) -> None:
         if finished["done"]:
             return
         finished["done"] = True
+        try:
+            view.evaluate_javascript(
+                "document.body.classList.remove('snapshot-clean')",
+                -1, None, None, None, None, None,
+            )
+        except Exception:
+            pass
         if callback is not None:
             try:
                 callback()
@@ -58,15 +65,31 @@ def capture_view(view, snapshot_path: Path, callback=None) -> None:
             pass
         finish()
 
+    def snapshot_now():
+        try:
+            view.get_snapshot(
+                WebKit.SnapshotRegion.VISIBLE,
+                WebKit.SnapshotOptions.NONE,
+                None,
+                done,
+                None,
+            )
+            # Never let a stalled snapshot keep the app open.
+            GLib.timeout_add(1500, lambda: (finish(), False)[1])
+        except Exception:
+            finish()
+        return False
+
+    # The hidden utility bar can be expanded when quitting from its buttons.
+    # Capture the default header (brand, clock, achievements) instead.
     try:
-        view.get_snapshot(
-            WebKit.SnapshotRegion.VISIBLE,
-            WebKit.SnapshotOptions.NONE,
-            None,
-            done,
+        view.evaluate_javascript(
+            "document.body.classList.add('snapshot-clean');"
+            "const m=document.getElementById('modal-root');if(m)m.innerHTML='';"
+            "const sp=document.getElementById('sound-panel');if(sp)sp.hidden=true;",
+            -1, None, None, None,
+            lambda _v, _r, _d=None: GLib.timeout_add(60, snapshot_now),
             None,
         )
-        # Never let a stalled snapshot keep the app open.
-        GLib.timeout_add(1500, lambda: (finish(), False)[1])
     except Exception:
-        finish()
+        snapshot_now()

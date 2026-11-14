@@ -1,0 +1,16 @@
+{
+  "id": "completed-drawer",
+  "name": "完成抽屉",
+  "englishName": "Completed Drawer",
+  "version": "1.0.0",
+  "description": "把完成的子任务收进右下角的紫色小卡片，横线向下拉即可展开。关闭后，完成的任务会和其他任务排在一起。",
+  "icon": "completed-drawer.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#C8B9FC",
+    "paper": "#f7efe3"
+  }
+}

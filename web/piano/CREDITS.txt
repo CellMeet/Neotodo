@@ -1,0 +1,4 @@
+Piano key samples: Salamander Grand Piano by Alexander Holm.
+Source: https://tonejs.github.io/audio/salamander/
+License: CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/)
+Files are used as random piano-key cues.

@@ -1,0 +1,98 @@
+/* ==========================================================================
+   PLUGIN HOST
+   --------------------------------------------------------------------------
+   The left tool rail can host installable mini-apps. Each one lives in its own
+   folder under /plugins/<id>/ and runs in an isolated iframe, so adding or
+   removing a plugin never reaches into the main NeoTodo code.
+   ========================================================================== */
+
+.pindou-button { overflow: visible; }
+
+.pindou-glyph {
+  width: 37px;
+  height: 37px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(90, 42, 20, 0.16));
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.pindou-button:hover .pindou-glyph {
+  transform: rotate(-7deg) scale(1.08);
+}
+
+.pindou-button:active .pindou-glyph {
+  transform: rotate(4deg) scale(0.96);
+}
+
+.pindou-button:focus,
+.pindou-button:focus-visible {
+  outline: none !important;
+}
+
+html[data-postcard-dark="true"] .pindou-glyph {
+  filter: drop-shadow(0 0 5px rgba(255, 150, 190, 0.25));
+}
+
+/* Forktree keeps the user's blue mind-map mark in the rail. */
+.forktree-button { overflow: visible; }
+
+.forktree-glyph {
+  width: 31px;
+  height: 31px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(36, 62, 120, 0.20));
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.forktree-button:hover .forktree-glyph {
+  transform: translateY(-1px) scale(1.08);
+}
+
+.forktree-button:active .forktree-glyph {
+  transform: scale(0.95);
+}
+
+.forktree-button:focus,
+.forktree-button:focus-visible {
+  outline: none !important;
+}
+
+html[data-postcard-dark="true"] .forktree-glyph {
+  filter: drop-shadow(0 0 6px rgba(138, 180, 248, 0.30));
+}
+
+.plugin-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  overflow: hidden;
+  background: var(--pc-paper, var(--paper, #f7efe3));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.20s ease;
+}
+
+.plugin-root.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.plugin-frame {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+  background: transparent;
+}
+
+body.plugin-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pindou-glyph,
+  .plugin-root { transition: none; }
+}

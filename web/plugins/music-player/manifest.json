@@ -1,0 +1,16 @@
+{
+  "id": "music-player",
+  "name": "白噪音播放器",
+  "englishName": "Neon Terminal",
+  "version": "1.0.0",
+  "description": "程序员电子乐播放器。点击左侧唱片图标，下方出现播放器横条与同步歌词；支持左右切歌、点击列表选曲，以及自定义曲库文件夹。",
+  "icon": "play.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "play",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#ff4d9d",
+    "paper": "#0b0d16"
+  }
+}

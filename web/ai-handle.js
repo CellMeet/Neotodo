@@ -29,10 +29,6 @@
       protectDeskHandles(420);
     }
   };
-  const closeAi = () => {
-    deskHandleSwipeSuppress = performance.now() + 500;
-    closeAgentTerminal();
-  };
   const openAi = () => {
     deskHandleSwipeSuppress = performance.now() + 500;
     openAgentTerminal();
@@ -68,11 +64,7 @@
     if (event.clientX < r.left - 24 || event.clientX > r.right + 24) return;
     const now = performance.now();
     if (now - lastCross < 250) return;
-    if (prev < lineY && y >= lineY) {
-      // 120ms protection after opening: a downward move towards the line to
-      // grab it for a height drag must not close the panel.
-      if (openNow() && now > deskHandleProtectUntil) { lastCross = now; closeAi(); }
-    } else if (prev > lineY && y <= lineY) {
+    if (prev > lineY && y <= lineY) {
       if (!openNow()) { lastCross = now; openAi(); }
     }
   }, { passive: true });

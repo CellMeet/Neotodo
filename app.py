@@ -18,7 +18,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 if getattr(sys, "frozen", False):
     APP_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
@@ -43,7 +43,18 @@ AGENT_FILE = DATA_DIR / "agents.json"
 AGENT_FILES_DIR = DATA_DIR / "agent-files"
 PAGE_CACHE_FILE = DATA_DIR / "last-page.html"
 SOUNDS_DIR = DATA_DIR / "sounds"
+NOTE_MATERIALS_DIR = DATA_DIR / "note-materials"
+PICTURES_DIR = DATA_DIR / "pictures"
+MUSIC_DIR = DATA_DIR / "music"
 SNAPSHOT_FILE = DATA_DIR / "last-page.png"
+DETACH_PREVIEW_FILE = DATA_DIR / "detach-preview.png"
+
+WALLPAPER_MODES = ("none", "static", "dynamic")
+PICTURE_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
+PICTURE_VIDEO_EXTS = {".mp4", ".webm", ".mov", ".m4v", ".ogv"}
+WALLPAPER_VIDEO_MAX_BYTES = 120_000_000
+MUSIC_EXTS = {".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".opus"}
+MUSIC_COLORS = ("#ff4d9d", "#41e0d0", "#8f8cff", "#ffb45e", "#7cd4ff", "#b6ff6b")
 
 PALETTE = [
     "#89b4fa", "#a6e3a1", "#f9e2af", "#fab387", "#cba6f7", "#94e2d5",
@@ -55,6 +66,7 @@ PALETTE = [
 THEMES = [
     "violet", "tokyo", "space", "aurora", "ocean",
     "forest", "vintage", "alpine", "desert", "emerald",
+    "rain", "field", "deco", "bauhaus",
 ]
 
 # Paper colours used before the first CSS paint, so the window never flashes
@@ -87,6 +99,281 @@ def ensure_sounds_dir() -> Path:
     except Exception:
         pass
     return SOUNDS_DIR
+
+
+def ensure_note_materials_dir() -> Path:
+    """Create a user-editable note material folder seeded with bundled CSS."""
+    try:
+        NOTE_MATERIALS_DIR.mkdir(parents=True, exist_ok=True)
+        bundled = WEB_DIR / "note-materials"
+        if bundled.is_dir():
+            for src in bundled.iterdir():
+                if not src.is_file() or src.suffix.lower() != ".css":
+                    continue
+                dest = NOTE_MATERIALS_DIR / src.name
+                if not dest.exists():
+                    shutil.copy2(src, dest)
+    except Exception:
+        pass
+    return NOTE_MATERIALS_DIR
+
+
+def ensure_pictures_dir() -> Path:
+    """Create the user's wallpaper folder and seed the bundled stills."""
+    try:
+        PICTURES_DIR.mkdir(parents=True, exist_ok=True)
+        for name in ("notes-forest.jpg", "notes-mist.jpg", "notes-dusk.jpg"):
+            src = WEB_DIR / name
+            dest = PICTURES_DIR / name
+            if src.is_file() and not dest.exists():
+                shutil.copy2(src, dest)
+    except Exception:
+        pass
+    return PICTURES_DIR
+
+
+def music_has_audio(folder: Path) -> bool:
+    try:
+        return any(
+            item.is_file() and item.suffix.lower() in MUSIC_EXTS
+            for item in folder.iterdir()
+        )
+    except Exception:
+        return False
+
+
+def ensure_music_dir() -> Path:
+    """Create the user's music library and seed bundled tracks on first use.
+
+    Once the folder contains audio, it is never re-seeded, so deleting or
+    replacing a bundled track actually sticks.
+    """
+    try:
+        MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+        if music_has_audio(MUSIC_DIR):
+            return MUSIC_DIR
+        bundled = WEB_DIR / "music"
+        if bundled.is_dir():
+            for src in bundled.iterdir():
+                if not src.is_file():
+                    continue
+                if src.suffix.lower() not in MUSIC_EXTS and src.suffix.lower() not in (".lrc", ".json", ".md"):
+                    continue
+                dest = MUSIC_DIR / src.name
+                if not dest.exists():
+                    shutil.copy2(src, dest)
+    except Exception:
+        pass
+    return MUSIC_DIR
+
+
+def music_file(name: str) -> Path | None:
+    """Resolve a bare audio filename from the user library or bundled folder."""
+    if not isinstance(name, str):
+        return None
+    name = name.strip()
+    if not name or Path(name).name != name:
+        return None
+    if Path(name).suffix.lower() not in MUSIC_EXTS:
+        return None
+    ensure_music_dir()
+    folders = [MUSIC_DIR]
+    if not music_has_audio(MUSIC_DIR):
+        folders.append(WEB_DIR / "music")
+    for folder in folders:
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def music_lyrics(lrc_name: str, stem: str) -> str:
+    """Read a sidecar LRC file, capped so a stray huge file cannot wedge the UI."""
+    candidates = []
+    raw = str(lrc_name or "").strip()
+    if raw and Path(raw).name == raw and raw.lower().endswith(".lrc"):
+        candidates.append(raw)
+    candidates.append(f"{stem}.lrc")
+    ensure_music_dir()
+    folders = [MUSIC_DIR] if music_has_audio(MUSIC_DIR) else [MUSIC_DIR, WEB_DIR / "music"]
+    for name in candidates:
+        for folder in folders:
+            path = folder / name
+            try:
+                if not path.is_file():
+                    continue
+                data = path.read_bytes()
+                if len(data) > 260_000:
+                    return ""
+                return data.decode("utf-8", errors="replace")
+            except Exception:
+                continue
+    return ""
+
+
+def music_manifest() -> dict:
+    """Read library.json, preferring the user's editable copy."""
+    ensure_music_dir()
+    for path in (MUSIC_DIR / "library.json", WEB_DIR / "music" / "library.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            continue
+    return {}
+
+
+def music_tracks() -> list:
+    """Build the player playlist from library.json plus any loose audio files."""
+    ensure_music_dir()
+    manifest = music_manifest()
+    rows = manifest.get("tracks")
+    if not isinstance(rows, list):
+        rows = []
+    tracks = []
+    seen = set()
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        path = music_file(str(row.get("file") or ""))
+        if path is None or path.name in seen:
+            continue
+        seen.add(path.name)
+        title = str(row.get("title") or path.stem).strip() or path.stem
+        artist = str(row.get("artist") or "Local file").strip() or "Local file"
+        album = str(row.get("album") or "").strip()
+        color = str(row.get("color") or "").strip().lower()
+        if not re.fullmatch(r"#[0-9a-f]{6}", color):
+            color = MUSIC_COLORS[index % len(MUSIC_COLORS)]
+        tags = row.get("tags")
+        if not isinstance(tags, list):
+            tags = []
+        tags = [str(tag)[:24] for tag in tags if isinstance(tag, str) and tag.strip()][:6]
+        lyrics = music_lyrics(row.get("lrc"), path.stem)
+        track = {
+            "id": path.name,
+            "file": path.name,
+            "src": f"/user-music/{quote(path.name)}",
+            "title": title,
+            "artist": artist,
+            "album": album,
+            "color": color,
+            "tags": tags,
+            "instrumental": bool(row.get("instrumental", False)),
+        }
+        if lyrics:
+            track["lrc"] = lyrics
+        tracks.append(track)
+
+    for folder in ([MUSIC_DIR] if music_has_audio(MUSIC_DIR) else [MUSIC_DIR, WEB_DIR / "music"]):
+        try:
+            loose = sorted(
+                (
+                    item for item in folder.iterdir()
+                    if item.is_file() and item.suffix.lower() in MUSIC_EXTS
+                ),
+                key=lambda item: item.name.lower(),
+            )
+        except Exception:
+            loose = []
+        for path in loose:
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            lyrics = music_lyrics("", path.stem)
+            track = {
+                "id": path.name,
+                "file": path.name,
+                "src": f"/user-music/{quote(path.name)}",
+                "title": path.stem.replace("_", " ").replace("-", " ").strip() or path.stem,
+                "artist": "Local file",
+                "album": "",
+                "color": MUSIC_COLORS[len(tracks) % len(MUSIC_COLORS)],
+                "tags": [],
+                "instrumental": not bool(lyrics),
+            }
+            if lyrics:
+                track["lrc"] = lyrics
+            tracks.append(track)
+    return tracks
+
+
+def picture_file_names() -> dict:
+    ensure_pictures_dir()
+    images, videos = [], []
+    try:
+        for item in sorted(PICTURES_DIR.iterdir()):
+            if not item.is_file():
+                continue
+            suffix = item.suffix.lower()
+            if suffix in PICTURE_IMAGE_EXTS:
+                images.append(item.name)
+            elif suffix in PICTURE_VIDEO_EXTS:
+                videos.append(item.name)
+    except Exception:
+        pass
+    return {"images": images, "videos": videos, "folder": str(PICTURES_DIR)}
+
+
+def sanitize_picture_name(value, extensions) -> str:
+    """Only allow a bare filename that exists in the pictures folder."""
+    if not isinstance(value, str):
+        return ""
+    name = value.strip()
+    if not name or Path(name).name != name:
+        return ""
+    if Path(name).suffix.lower() not in extensions:
+        return ""
+    try:
+        if not (PICTURES_DIR / name).is_file():
+            return ""
+    except Exception:
+        return ""
+    return name
+
+
+def sanitize_wallpaper_static(value) -> str:
+    """A static wallpaper is either built-in postcard art or a picture file."""
+    if not isinstance(value, str):
+        return ""
+    name = value.strip()
+    if name.startswith("art:"):
+        return name if name[4:] in THEMES else ""
+    return sanitize_picture_name(name, PICTURE_IMAGE_EXTS)
+
+
+def sanitize_wallpaper_settings(settings: dict) -> None:
+    """Keep pattern (wallpaper) and colour (theme) as independent choices."""
+    ensure_pictures_dir()
+    postcard = str(settings.get("resolved_postcard") or settings.get("postcard") or "violet")
+    if postcard not in THEMES:
+        postcard = "violet"
+    mode = settings.get("wallpaper_mode")
+    # Older builds treated the postcard art as part of the theme. That art is
+    # now the default static wallpaper, so the first launch keeps the look.
+    if mode == "theme":
+        mode = "static"
+    if mode not in WALLPAPER_MODES:
+        mode = "none"
+    static_name = sanitize_wallpaper_static(settings.get("wallpaper_static"))
+    dynamic_name = sanitize_picture_name(settings.get("wallpaper_dynamic"), PICTURE_VIDEO_EXTS)
+    if mode == "static" and not static_name:
+        static_name = f"art:{postcard}"
+    settings["wallpaper_mode"] = mode
+    settings["wallpaper_static"] = static_name
+    settings["wallpaper_dynamic"] = dynamic_name
+
+
+def note_material_file_names() -> list:
+    ensure_note_materials_dir()
+    try:
+        return sorted(
+            item.name for item in NOTE_MATERIALS_DIR.iterdir()
+            if item.is_file() and item.suffix.lower() == ".css"
+        )
+    except Exception:
+        return []
 
 
 def sound_file_names() -> list:
@@ -129,6 +416,36 @@ def new_id() -> str:
     return uuid.uuid4().hex
 
 
+STICKER_TARGET_IDS = ("completed", "focus")
+
+
+def sanitize_sticker_backgrounds(raw) -> dict:
+    """Keep only valid per-sticker pictures and crop values."""
+    if not isinstance(raw, dict):
+        return {}
+    clean = {}
+    for target_id in STICKER_TARGET_IDS:
+        item = raw.get(target_id)
+        if not isinstance(item, dict):
+            continue
+        image = item.get("image")
+        if not isinstance(image, str) or not image.startswith("data:image/") or len(image) > 4_000_000:
+            continue
+        try:
+            zoom = max(1.0, min(2.6, float(item.get("zoom", 1))))
+            x = max(0.0, min(100.0, float(item.get("x", 50))))
+            y = max(0.0, min(100.0, float(item.get("y", 50))))
+        except (TypeError, ValueError):
+            continue
+        clean[target_id] = {
+            "image": image,
+            "zoom": round(zoom, 3),
+            "x": round(x, 2),
+            "y": round(y, 2),
+        }
+    return clean
+
+
 def default_data() -> dict:
     return {
         "categories": [],
@@ -158,8 +475,26 @@ def default_data() -> dict:
             "note_background": "",
             "note_background_image": "",
             "note_blur": 16,
+            "sticker_backgrounds": {},
+            "wallpaper_mode": "static",
+            "wallpaper_static": "art:violet",
+            "wallpaper_dynamic": "",
         },
     }
+
+
+def _activity_stamp(item: dict) -> float:
+    """Latest meaningful timestamp for ordering; 0 when no usable date."""
+    stamp = 0.0
+    for key in ("created_at", "completed_at"):
+        value = item.get(key)
+        if not value:
+            continue
+        try:
+            stamp = max(stamp, datetime.fromisoformat(str(value)).timestamp())
+        except Exception:
+            continue
+    return stamp
 
 
 def load_data() -> dict:
@@ -215,6 +550,12 @@ def load_data() -> dict:
                             subtask["created_at"] = subtask.get("completed_at") or now
                         if subtask.get("done") and not subtask.get("completed_at"):
                             subtask["completed_at"] = now
+                    # Newest activity first: a freshly added subtask opens at
+                    # the top, while work finished later rises above it.
+                    todo["subtasks"].sort(key=_activity_stamp, reverse=True)
+                # Keep todos in the same recency order, so a newly created todo
+                # leads its category and older finished work follows it.
+                category["todos"].sort(key=_activity_stamp, reverse=True)
             data["categories"] = categories
             data.setdefault("selected_category", None)
             data.setdefault("selected_todo", None)
@@ -290,6 +631,11 @@ def load_data() -> dict:
                 settings["caret_shape"] = "line"
             if not isinstance(settings.get("caret_color"), str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", settings["caret_color"]):
                 settings["caret_color"] = "#1b1b1b"
+            settings["sticker_backgrounds"] = sanitize_sticker_backgrounds(settings.get("sticker_backgrounds"))
+            settings.setdefault("wallpaper_mode", "theme")
+            settings.setdefault("wallpaper_static", "")
+            settings.setdefault("wallpaper_dynamic", "")
+            sanitize_wallpaper_settings(settings)
             data["settings"] = settings
             for card in data["archive"]:
                 card.setdefault("id", new_id())
@@ -570,6 +916,11 @@ class Store:
                         "color": color,
                         "todos": [],
                     }
+                    # A category added inside a fork window belongs to that
+                    # branch, so the fork's own index keeps showing it.
+                    fork_root = payload.get("fork_root")
+                    if isinstance(fork_root, str) and fork_root and self._find_category(fork_root) is not None:
+                        category["fork_root"] = fork_root
                     self.categories().append(category)
                     self.data["selected_category"] = category["id"]
                     self.data["opened_category"] = category["id"]
@@ -620,7 +971,8 @@ class Store:
                         "image": "",
                         "subtasks": [],
                     }
-                    category.setdefault("todos", []).append(todo)
+                    # A new todo is the latest activity, so it leads the category.
+                    category.setdefault("todos", []).insert(0, todo)
                     self.data["selected_category"] = category["id"]
                     result["created"] = todo["id"]
             elif name == "rename_todo":
@@ -727,7 +1079,12 @@ class Store:
                         }
                         restored["done"] = False
                         if not any(str(item.get("id")) == target_id for item in todo.get("subtasks", [])):
-                            todo.setdefault("subtasks", []).append(restored)
+                            subtasks = todo.setdefault("subtasks", [])
+                            restored_stamp = _activity_stamp(restored)
+                            at = 0
+                            while at < len(subtasks) and _activity_stamp(subtasks[at]) > restored_stamp:
+                                at += 1
+                            subtasks.insert(at, restored)
                         self.data["trash"] = [
                             item for item in trash
                             if str(item.get("id")) != target_id
@@ -753,8 +1110,69 @@ class Store:
                         "completed_at": None,
                         "time_cost": None,
                     }
-                    todo.setdefault("subtasks", []).append(subtask)
+                    # New work is the latest activity, so it opens at the top
+                    # of the stored list; the board uses the same recency order.
+                    todo.setdefault("subtasks", []).insert(0, subtask)
                     result["created"] = subtask["id"]
+            elif name == "fork_subtask":
+                # A fork branches one subtask into a board of its own: the
+                # parent todo becomes the category name and the subtask becomes
+                # the active todo. The original subtask is left untouched, so
+                # the same task can be forked as many times as wanted.
+                category, todo = self._find_todo(payload.get("todo_id"))
+                subtask = self._find_subtask(todo, payload.get("subtask_id"))
+                if todo is None:
+                    error = "Todo not found"
+                elif subtask is None:
+                    error = "Subtask not found"
+                else:
+                    now = datetime.now().isoformat(timespec="seconds")
+                    branch = {
+                        "category_id": category.get("id") if category else None,
+                        "category_name": category.get("name", "") if category else "",
+                        "todo_id": todo.get("id"),
+                        "todo_name": todo.get("name", ""),
+                        "subtask_id": subtask.get("id"),
+                        "subtask_name": subtask.get("name", ""),
+                        "at": now,
+                    }
+                    forked_images = subtask.get("images")
+                    if not isinstance(forked_images, list):
+                        forked_images = []
+                    forked_images = [
+                        item for item in forked_images
+                        if isinstance(item, str) and item
+                    ]
+                    forked_todo = {
+                        "id": new_id(),
+                        "name": str(subtask.get("name") or "Untitled"),
+                        "done": False,
+                        "created_at": now,
+                        "completed_at": None,
+                        "time_cost": None,
+                        "note": str(subtask.get("note") or ""),
+                        "image": str(subtask.get("image") or ""),
+                        "images": forked_images,
+                        "subtasks": [],
+                        "forked_from": dict(branch),
+                    }
+                    # The branch continues the same work, so it keeps the
+                    # parent's linked project folder.
+                    if todo.get("project_folder"):
+                        forked_todo["project_folder"] = todo["project_folder"]
+                        if todo.get("project_file_count"):
+                            forked_todo["project_file_count"] = todo["project_file_count"]
+                    fork_category = {
+                        "id": new_id(),
+                        "name": str(todo.get("name") or "Untitled"),
+                        "color": (category or {}).get("color") or PALETTE[len(self.categories()) % len(PALETTE)],
+                        "todos": [forked_todo],
+                        "forked_from": dict(branch),
+                    }
+                    self.categories().insert(0, fork_category)
+                    result["created"] = fork_category["id"]
+                    result["forked_todo"] = forked_todo["id"]
+                    result["forked_name"] = forked_todo["name"]
             elif name == "complete_todo":
                 category, todo = self._find_todo(payload.get("id"))
                 if todo is None:
@@ -777,6 +1195,15 @@ class Store:
                     todo["done"] = True
                     todo["completed_at"] = now.isoformat(timespec="seconds")
                     todo["time_cost"] = max(0, int((now - start).total_seconds())) if start else 0
+                    # A finished todo rises to the top of its category, so the
+                    # stored order matches the board and the next todo follows it.
+                    if category is not None:
+                        todos = category.setdefault("todos", [])
+                        todos[:] = [
+                            item for item in todos
+                            if str(item.get("id")) != str(todo.get("id"))
+                        ]
+                        todos.insert(0, todo)
                     result["trophy"] = True
             elif name == "complete_subtask":
                 _, todo = self._find_todo(payload.get("todo_id"))
@@ -801,6 +1228,14 @@ class Store:
                     subtask["done"] = True
                     subtask["completed_at"] = now.isoformat(timespec="seconds")
                     subtask["time_cost"] = max(0, int((now - start).total_seconds())) if start else 0
+                    # The finished subtask is the latest activity, so it leads
+                    # the stored list; a newer task can still open above it.
+                    subtasks = todo.setdefault("subtasks", [])
+                    subtasks[:] = [
+                        item for item in subtasks
+                        if str(item.get("id")) != str(subtask.get("id"))
+                    ]
+                    subtasks.insert(0, subtask)
             elif name == "bind_project_folder":
                 _, todo = self._find_todo(payload.get("id"))
                 raw = str(payload.get("path") or "").strip()
@@ -840,6 +1275,89 @@ class Store:
                 except Exception as open_error:
                     error = str(open_error)
                 result["folder"] = str(SOUNDS_DIR)
+            elif name == "open_note_materials_folder":
+                ensure_note_materials_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(NOTE_MATERIALS_DIR))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(NOTE_MATERIALS_DIR)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(NOTE_MATERIALS_DIR)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(NOTE_MATERIALS_DIR)
+            elif name == "note_material_files":
+                result["files"] = note_material_file_names()
+                result["folder"] = str(NOTE_MATERIALS_DIR)
+            elif name == "open_music_folder":
+                ensure_music_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(MUSIC_DIR))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(MUSIC_DIR)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(MUSIC_DIR)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(MUSIC_DIR)
+            elif name == "open_pictures_folder":
+                ensure_pictures_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(PICTURES_DIR))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(PICTURES_DIR)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(PICTURES_DIR)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(PICTURES_DIR)
+            elif name == "wallpaper_files":
+                files = picture_file_names()
+                result["images"] = files["images"]
+                result["videos"] = files["videos"]
+                result["folder"] = files["folder"]
+            elif name == "upload_wallpaper":
+                kind = payload.get("kind")
+                name = payload.get("name")
+                data = payload.get("data")
+                extensions = PICTURE_IMAGE_EXTS if kind == "image" else PICTURE_VIDEO_EXTS
+                if kind not in ("image", "video"):
+                    error = "Invalid wallpaper kind"
+                elif not isinstance(data, str) or not data:
+                    error = "No wallpaper data"
+                elif len(data) > 170_000_000:
+                    error = "Wallpaper is too large"
+                else:
+                    suffix = Path(str(name or "")).suffix.lower()
+                    if suffix not in extensions:
+                        error = "Unsupported wallpaper format"
+                    else:
+                        try:
+                            raw = base64.b64decode(data, validate=True)
+                        except Exception:
+                            raw = b""
+                        if not raw:
+                            error = "Could not read wallpaper"
+                        elif len(raw) > (
+                            WALLPAPER_VIDEO_MAX_BYTES if kind == "video" else 30_000_000
+                        ):
+                            error = "Wallpaper is too large"
+                        else:
+                            ensure_pictures_dir()
+                            stem = re.sub(r"[^\w-]+", "-", Path(str(name)).stem, flags=re.UNICODE).strip("-_")[:48] or "wallpaper"
+                            dest = PICTURES_DIR / f"{stem}-{new_id()[:8]}{suffix}"
+                            try:
+                                dest.write_bytes(raw)
+                                result["file"] = dest.name
+                                result["kind"] = kind
+                            except Exception as write_error:
+                                error = str(write_error)
             elif name == "sound_files":
                 result["files"] = sound_file_names()
                 result["folder"] = str(SOUNDS_DIR)
@@ -985,6 +1503,15 @@ class Store:
                         pass
                     if isinstance(incoming.get("caret_color"), str) and re.fullmatch(r"#[0-9a-fA-F]{6}", incoming["caret_color"]):
                         current["caret_color"] = incoming["caret_color"].lower()
+                    if "sticker_backgrounds" in incoming:
+                        current["sticker_backgrounds"] = sanitize_sticker_backgrounds(incoming.get("sticker_backgrounds"))
+                    if incoming.get("wallpaper_mode") in (*WALLPAPER_MODES, "theme"):
+                        current["wallpaper_mode"] = incoming["wallpaper_mode"]
+                    if isinstance(incoming.get("wallpaper_static"), str):
+                        current["wallpaper_static"] = incoming["wallpaper_static"]
+                    if isinstance(incoming.get("wallpaper_dynamic"), str):
+                        current["wallpaper_dynamic"] = incoming["wallpaper_dynamic"]
+                    sanitize_wallpaper_settings(current)
                     try:
                         scale = float(incoming.get("scale", 1))
                         current["scale"] = max(0.85, min(1.25, scale))
@@ -1042,9 +1569,22 @@ class AgentStore:
     def __init__(self, path: Path):
         self.path = path
         self.lock = threading.Lock()
-        self.exec_lock = threading.Lock()
+        # Build agents run in parallel. Only agents whose instructions name a
+        # file that another running agent is already touching wait for it.
+        self.build_cond = threading.Condition()
+        self.build_active = {}
+        self.build_waiting = {}
+        self.build_seq = 0
+        self.running_agents = set()
+        self.build_max = max(1, int(os.environ.get("NEOTODO_AGENT_PARALLEL", "12") or 12))
         self.live_lock = threading.Lock()
         self.live = {}
+        self.procs = {}
+        self.procs_lock = threading.Lock()
+        self.interrupts = set()
+        # Per-todo file reads shared by every agent working on that todo.
+        self.shared_files = {}
+        self.shared_lock = threading.Lock()
         self.models_cache = None
         self.models_at = 0.0
 
@@ -1301,9 +1841,265 @@ class AgentStore:
             return text
         return "build" if kind == "subtask" else "chat"
 
+    def _cache_shared_read(self, key: str, root: Path, path: str, output) -> None:
+        if not key or not path or output is None:
+            return
+        try:
+            target = Path(path)
+            if not target.is_absolute():
+                target = root / target
+            target = target.resolve()
+            relative = target.relative_to(root.resolve())
+        except Exception:
+            return
+        text = output if isinstance(output, str) else None
+        if text is None:
+            try:
+                text = json.dumps(output, ensure_ascii=False, indent=2)
+            except Exception:
+                text = str(output)
+        text = text.strip()
+        if not text or len(text) > 200_000:
+            return
+        try:
+            stat = target.stat()
+        except Exception:
+            return
+        with self.shared_lock:
+            files = self.shared_files.setdefault(key, {})
+            files[str(relative)] = {
+                "content": text,
+                "mtime": stat.st_mtime,
+                "size": stat.st_size,
+                "at": time.time(),
+            }
+            if len(files) > 80:
+                oldest = sorted(files.items(), key=lambda item: item[1].get("at", 0))[:-80]
+                for name, _ in oldest:
+                    files.pop(name, None)
+
+    def _invalidate_shared_file(self, key: str, root: Path, path: str) -> None:
+        if not key or not path:
+            return
+        try:
+            target = Path(path)
+            if not target.is_absolute():
+                target = root / target
+            relative = str(target.resolve().relative_to(root.resolve()))
+        except Exception:
+            return
+        with self.shared_lock:
+            self.shared_files.get(key, {}).pop(relative, None)
+
+    def _shared_file_context(self, key: str, root: Path) -> str:
+        with self.shared_lock:
+            items = dict(self.shared_files.get(key) or {})
+        if not items:
+            return ""
+        blocks = []
+        total = 0
+        root_resolved = root.resolve()
+        for relative, item in sorted(items.items(), key=lambda entry: entry[1].get("at", 0), reverse=True):
+            if len(blocks) >= 8 or total >= 18_000:
+                break
+            target = root_resolved / relative
+            try:
+                stat = target.stat()
+            except Exception:
+                continue
+            if stat.st_mtime != item.get("mtime") or stat.st_size != item.get("size"):
+                continue
+            content = str(item.get("content") or "").strip()
+            if not content:
+                continue
+            snippet = content[:3000]
+            if len(content) > 3000:
+                snippet += "\n… (truncated)"
+            block = f"--- {relative} ---\n{snippet}"
+            if total + len(block) > 18_000:
+                break
+            blocks.append(block)
+            total += len(block)
+        if not blocks:
+            return ""
+        return (
+            "\n\nShared file context from sibling agents on this todo "
+            "(these files were already read; reuse this instead of reading them again):\n"
+            + "\n\n".join(blocks)
+        )
+
+    def _save_partial(self, agent_id: str, title: str, model: str, mode: str,
+                      reply_text: str, process_text: str) -> None:
+        """Persist an in-flight answer so a renderer/app crash cannot lose it."""
+        entry = {
+            "role": "assistant",
+            "content": str(reply_text or "")[-12_000:],
+            "process": str(process_text or "")[-12_000:],
+            "model": model,
+            "pending": True,
+        }
+        with self.lock:
+            data = self._load()
+            stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+            messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
+            if messages and messages[-1].get("role") == "assistant" and messages[-1].get("pending"):
+                messages[-1] = entry
+            else:
+                messages.append(entry)
+            stored["messages"] = messages[-40:]
+            stored["title"] = title
+            stored["mode"] = mode
+            stored["model"] = model
+            self._save(data)
+
+    @staticmethod
+    def _project_key(scope: dict) -> str:
+        raw = str(scope.get("project_folder") or "").strip()
+        if not raw:
+            return ""
+        try:
+            path = Path(raw).expanduser()
+            return str(path.resolve()) if path.is_dir() else ""
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _intended_paths(text: str) -> set:
+        pattern = re.compile(
+            r"(?<![\w.-])((?:[\w.-]+/)*[\w.-]+\.(?:py|js|mjs|cjs|ts|tsx|jsx|css|scss|html?|jsonc?|md|txt|ya?ml|toml|ini|sh|rs|go|java|kt|c|h|cpp|hpp|svg|xml|iss))",
+            re.IGNORECASE,
+        )
+        found = set()
+        for match in pattern.finditer(str(text or "")):
+            value = match.group(1).replace("\\", "/").lstrip("./")
+            if value and not value.startswith(".."):
+                found.add(value)
+        return found
+
+    @staticmethod
+    def _claim_key(value, project_dir=None) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        try:
+            path = Path(raw)
+            if project_dir is not None and path.is_absolute():
+                try:
+                    path = path.resolve().relative_to(Path(project_dir).resolve())
+                except Exception:
+                    pass
+            return str(path).replace("\\", "/").lstrip("./")
+        except Exception:
+            return raw.replace("\\", "/").lstrip("./")
+
+    def _acquire_build_slot(self, agent_id: str, project_key: str, intended: set) -> bool:
+        """Join the FIFO queue and start when a slot and files are free.
+
+        Up to build_max agents run together. Queue order is otherwise strict,
+        but a job blocked by a real file conflict does not stall the whole
+        line: later jobs whose files are free may start first.
+        """
+        with self.build_cond:
+            if agent_id not in self.build_waiting and agent_id not in self.build_active:
+                self.build_seq += 1
+                self.build_waiting[agent_id] = {
+                    "project": project_key,
+                    "files": set(intended),
+                    "seq": self.build_seq,
+                    "requested": time.time(),
+                }
+            while True:
+                if agent_id not in self.build_waiting:
+                    # Cancelled while queued (Esc).
+                    self.interrupts.discard(agent_id)
+                    return False
+                if agent_id in self.interrupts:
+                    self.build_waiting.pop(agent_id, None)
+                    self.interrupts.discard(agent_id)
+                    self.build_cond.notify_all()
+                    return False
+                ordered = sorted(self.build_waiting.items(), key=lambda item: item[1].get("seq", 0))
+                runnable = None
+                for other_id, entry in ordered:
+                    if len(self.build_active) >= self.build_max:
+                        break
+                    blocked = False
+                    for active in self.build_active.values():
+                        if active.get("project") != entry.get("project"):
+                            continue
+                        if active.get("files", set()) & entry.get("files", set()):
+                            blocked = True
+                            break
+                    if not blocked:
+                        runnable = other_id
+                        break
+                if runnable == agent_id:
+                    entry = self.build_waiting.pop(agent_id)
+                    self.build_active[agent_id] = {
+                        "project": project_key,
+                        "files": set(intended),
+                        "conflicts": set(),
+                        "started": time.time(),
+                    }
+                    self.build_cond.notify_all()
+                    return True
+                self.build_cond.wait(timeout=1.0)
+
+    def _claim_build_file(self, agent_id: str, project_dir, value) -> None:
+        key = self._claim_key(value, project_dir)
+        if not key:
+            return
+        with self.build_cond:
+            entry = self.build_active.get(agent_id)
+            if not entry:
+                return
+            for other_id, other in self.build_active.items():
+                if other_id == agent_id or other.get("project") != entry.get("project"):
+                    continue
+                if key in other.get("files", set()):
+                    entry["conflicts"].add(key)
+                    other["conflicts"].add(key)
+            entry["files"].add(key)
+            self.build_cond.notify_all()
+
+    def _release_build_slot(self, agent_id: str) -> set:
+        with self.build_cond:
+            entry = self.build_active.pop(agent_id, None)
+            self.build_cond.notify_all()
+            return set(entry.get("conflicts", set())) if entry else set()
+
+    def _finish_agent_error(self, agent_id: str, title: str, model: str, mode: str, error: str) -> None:
+        with self.lock:
+            data = self._load()
+            stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+            messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
+            entry = {
+                "role": "assistant",
+                "content": f"（错误：{error}）",
+                "process": "",
+                "model": model,
+            }
+            if messages and messages[-1].get("role") == "assistant" and messages[-1].get("pending"):
+                messages[-1] = entry
+            else:
+                messages.append(entry)
+            stored["messages"] = messages[-40:]
+            stored["title"] = title
+            stored["mode"] = mode
+            stored["model"] = model
+            self._save(data)
+
+    def queue_status(self, agent_id: str) -> tuple:
+        with self.build_cond:
+            if agent_id not in self.build_waiting:
+                return False, 0, len(self.build_waiting)
+            ordered = sorted(self.build_waiting, key=lambda key: self.build_waiting[key].get("seq", 0))
+            return True, ordered.index(agent_id) + 1, len(ordered)
+
     def _run_opencode(self, agent_id: str, agent: dict, title: str, scope: dict,
                       message: str, model: str, mode: str,
-                      file_args: list | None = None) -> tuple[str, str, str, dict]:
+                      file_args: list | None = None,
+                      partial_cb=None) -> tuple[str, str, str, dict]:
         opencode = shutil.which("opencode")
         if not opencode:
             raise RuntimeError(
@@ -1319,6 +2115,8 @@ class AgentStore:
             cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
         if not cwd.exists():
             raise RuntimeError(f"Agent project directory not found: {cwd}")
+        project_key = str(project_dir.resolve()) if project_dir is not None and project_dir.is_dir() else ""
+        shared_key = f"{str(scope.get('todo_id') or '')}|{project_key}" if project_key else ""
         if mode == "build":
             if str(scope.get("kind") or "") == "subtask":
                 prompt = self._executor_prompt(scope, title, message)
@@ -1335,6 +2133,8 @@ class AgentStore:
                 "Keep outputs inside this folder when the user asks you to write files.\n"
                 f"Files:\n{listing}"
             )
+        if shared_key:
+            prompt += self._shared_file_context(shared_key, project_dir)
         session_id = str(agent.get("opencode_session") or "")
         command = [
             opencode, "run", "--standalone", "--format", "json",
@@ -1370,6 +2170,7 @@ class AgentStore:
         new_session = session_id
         usage = {"tokens": 0, "cost": 0.0, "context": 0}
         process = None
+        last_partial_save = 0.0
         try:
             process = subprocess.Popen(
                 command,
@@ -1379,6 +2180,11 @@ class AgentStore:
                 text=True,
                 bufsize=1,
             )
+            with self.procs_lock:
+                if agent_id in self.interrupts:
+                    self.interrupts.discard(agent_id)
+                    raise RuntimeError("已打断")
+                self.procs[agent_id] = process
             deadline = time.time() + 900
             assert process.stdout is not None
             for line in process.stdout:
@@ -1402,7 +2208,12 @@ class AgentStore:
                     text = part.get("text")
                     if isinstance(text, str) and text.strip():
                         texts.append(text.strip())
-                        self._update_live(agent_id, text="\n\n".join(texts[-6:]))
+                        live_text = "\n\n".join(texts[-6:])[-12_000:]
+                        self._update_live(agent_id, text=live_text)
+                        now = time.time()
+                        if partial_cb and now - last_partial_save > 1.0:
+                            last_partial_save = now
+                            partial_cb(live_text, "\n".join(process_lines)[-12_000:])
                 elif event_type == "tool_use":
                     tool = str(part.get("tool") or "tool")
                     state = part.get("state") if isinstance(part.get("state"), dict) else {}
@@ -1416,11 +2227,23 @@ class AgentStore:
                     else:
                         process_lines.append(f"→ {tool}")
                     output = state.get("output")
+                    if path and tool in ("write", "edit", "patch", "multiedit", "apply_patch"):
+                        self._claim_build_file(agent_id, project_dir, path)
+                    if shared_key and path:
+                        if tool in ("read", "view"):
+                            self._cache_shared_read(shared_key, project_dir, path, output)
+                        elif tool in ("write", "edit", "patch", "multiedit", "apply_patch"):
+                            self._invalidate_shared_file(shared_key, project_dir, path)
                     if output:
                         clean = re.sub(r"\x1b\[[0-9;]*m", "", str(output)).strip()
                         if clean:
                             process_lines.append("  " + "\n  ".join(clean.splitlines()[:8])[:700])
-                    self._update_live(agent_id, process="\n".join(process_lines)[-12000:])
+                    process_text = "\n".join(process_lines)[-12_000:]
+                    self._update_live(agent_id, process=process_text)
+                    now = time.time()
+                    if partial_cb and now - last_partial_save > 1.0:
+                        last_partial_save = now
+                        partial_cb("\n\n".join(texts[-6:])[-12_000:], process_text)
                 elif event_type == "step_finish":
                     tokens = part.get("tokens") if isinstance(part.get("tokens"), dict) else {}
                     try:
@@ -1443,13 +2266,19 @@ class AgentStore:
                 process.kill()
                 process.wait(timeout=5)
         finally:
+            with self.procs_lock:
+                self.procs.pop(agent_id, None)
+                interrupted = agent_id in self.interrupts
+                self.interrupts.discard(agent_id)
             reply = "\n\n".join(texts[-6:]).strip()
-            if not reply:
+            if interrupted:
+                reply = (reply + "\n\n(已打断)").strip() if reply else "已打断。"
+            elif not reply:
                 fallback = "\n".join(raw_lines).strip()
                 fallback = re.sub(r"\x1b\[[0-9;]*m", "", fallback)
                 code = process.returncode if process else "?"
                 reply = fallback[-4000:] or f"The agent exited with code {code}."
-            if process is not None and process.returncode not in (0, None) and not texts:
+            if not interrupted and process is not None and process.returncode not in (0, None) and not texts:
                 reply = f"{reply}\n\n(OpenCode exit code {process.returncode})"
             self._clear_live(agent_id)
         exported = self._session_usage(new_session)
@@ -1497,9 +2326,16 @@ class AgentStore:
                             stored["usage"] = agent["usage"]
                             fresh["agents"][agent_id] = stored
                             self._save(fresh)
+            queued, queue_position, queue_total = self.queue_status(agent_id)
+            with self.procs_lock:
+                running = agent_id in self.running_agents
             return {
                 "ok": True,
                 "agent": agent,
+                "running": running,
+                "queued": queued,
+                "queue_position": queue_position,
+                "queue_total": queue_total,
                 "provider": self._provider_for_model(model),
                 "model": model,
                 "mode": mode,
@@ -1534,6 +2370,54 @@ class AgentStore:
                 stored["mode"] = mode
                 self._save(data)
             return {"ok": True, "mode": mode}
+        if name == "add_paths":
+            agent_id = str(payload.get("agent_id") or "")
+            paths = payload.get("paths") if isinstance(payload.get("paths"), list) else []
+            if not agent_id or not paths:
+                return {"ok": False, "error": "Missing files"}
+            folder = self._agent_folder(agent_id)
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+            except Exception as error:
+                return {"ok": False, "error": f"Could not create the file store: {error}"}
+            with self.lock:
+                data = self._load()
+                stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                metas = self._clean_files(agent_id, stored.get("files") if isinstance(stored.get("files"), list) else [])
+                total = sum(int(item.get("size") or 0) for item in metas)
+                added = []
+                for index, raw_path in enumerate(paths[:20]):
+                    try:
+                        source = Path(str(raw_path)).expanduser()
+                        if not source.is_file():
+                            continue
+                        raw = source.read_bytes()
+                        name = source.name
+                    except Exception:
+                        continue
+                    if not raw or len(raw) > 10_000_000:
+                        continue
+                    name = Path(name.replace("\\", "/")).name.strip()
+                    if not name or name in (".", ".."):
+                        name = f"file-{index + 1}"
+                    existing = next((m for m in metas if m["name"] == name), None)
+                    if existing is None and len(metas) >= 20:
+                        continue
+                    previous_size = int(existing.get("size") or 0) if existing else 0
+                    if total + len(raw) - previous_size > 50_000_000:
+                        continue
+                    target = folder / name
+                    try:
+                        target.write_bytes(raw)
+                    except Exception:
+                        continue
+                    total += len(raw) - previous_size
+                    metas = [m for m in metas if m["name"] != name]
+                    metas.append({"name": name, "size": len(raw), "added_at": datetime.now().isoformat(timespec="seconds")})
+                    added.append(name)
+                stored["files"] = metas
+                self._save(data)
+            return {"ok": True, "files": metas, "added": added}
         if name == "add_files":
             agent_id = str(payload.get("agent_id") or "")
             attachments = payload.get("attachments") if isinstance(payload.get("attachments"), list) else []
@@ -1608,6 +2492,34 @@ class AgentStore:
                 data.get("agents", {}).pop(agent_id, None)
                 self._save(data)
             return {"ok": True, "agents": data.get("agents", {})}
+        if name == "interrupt":
+            agent_id = str(payload.get("agent_id") or "").strip()
+            if not agent_id:
+                return {"ok": False, "error": "Missing agent"}
+            with self.procs_lock:
+                process = self.procs.get(agent_id)
+                if process is not None and process.poll() is None:
+                    self.interrupts.add(agent_id)
+                else:
+                    process = None
+            if process is None:
+                # The agent may still be waiting in the FIFO queue.
+                with self.build_cond:
+                    queued = self.build_waiting.pop(agent_id, None)
+                    if queued is not None or agent_id in self.build_active:
+                        self.interrupts.add(agent_id)
+                    self.build_cond.notify_all()
+                if queued is None:
+                    return {"ok": True, "interrupted": False}
+                return {"ok": True, "interrupted": True, "queued": True}
+            try:
+                process.terminate()
+            except Exception:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+            return {"ok": True, "interrupted": True}
         if name != "chat":
             return {"ok": False, "error": "Unknown agent action"}
         agent_id = str(payload.get("agent_id") or "").strip()
@@ -1628,80 +2540,120 @@ class AgentStore:
         models = self._available_models()
         model = requested if requested in models else self._default_model()
         file_args, persistent_files = self._agent_file_args(agent_id, agent)
-        try:
-            if mode == "build":
-                self.exec_lock.acquire()
-                try:
-                    reply, opencode_session, process_text, usage = self._run_opencode(
-                        agent_id, agent, title, scope, message, model, mode, file_args
-                    )
-                finally:
-                    self.exec_lock.release()
-            else:
-                reply, opencode_session, process_text, usage = self._run_opencode(
-                    agent_id, agent, title, scope, message, model, mode, file_args
-                )
-            assistant = {
-                "role": "assistant",
-                "content": reply,
-                "process": process_text,
-                "model": model,
-                "usage": {
-                    "tokens": int(usage.get("tokens") or 0),
-                    "cost": round(float(usage.get("cost") or 0), 6),
-                    "context": int(usage.get("context") or 0),
-                },
-            }
-            user_entry = {"role": "user", "content": message}
-            updated = (history + [
-                user_entry,
-                assistant,
-            ])[-40:]
-        except Exception as error:
-            return {"ok": False, "error": str(error)}
         with self.lock:
             data = self._load()
             stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+            messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
+            messages = (messages + [{"role": "user", "content": message}])[-40:]
+            messages.append({
+                "role": "assistant",
+                "content": "",
+                "process": "",
+                "model": model,
+                "pending": True,
+            })
+            stored["messages"] = messages[-40:]
             stored["title"] = title
-            stored["messages"] = updated
-            stored["updated_at"] = datetime.now().isoformat(timespec="seconds")
             stored["mode"] = mode
             stored["model"] = model
-            if opencode_session:
-                stored["opencode_session"] = opencode_session
-            previous = stored.get("usage") if isinstance(stored.get("usage"), dict) else {}
-            if usage.get("cumulative"):
-                stored["usage"] = {
-                    "tokens": int(usage.get("tokens") or 0),
-                    "cost": round(float(usage.get("cost") or 0), 6),
-                    "context": int(usage.get("context") or 0),
-                }
-            else:
-                try:
-                    total_tokens = int(previous.get("tokens") or 0) + int(usage.get("tokens") or 0)
-                    total_cost = float(previous.get("cost") or 0) + float(usage.get("cost") or 0)
-                except (TypeError, ValueError):
-                    total_tokens, total_cost = usage.get("tokens", 0), usage.get("cost", 0)
-                stored["usage"] = {
-                    "tokens": total_tokens,
-                    "cost": round(total_cost, 6),
-                    "context": usage.get("context") or previous.get("context") or 0,
-                }
-            data["agents"][agent_id] = stored
             self._save(data)
-            session_usage = dict(stored["usage"])
+
+        def save_partial(reply_text, process_text):
+            self._save_partial(agent_id, title, model, mode, reply_text, process_text)
+
+        def worker():
+            try:
+                conflicts = set()
+                try:
+                    if mode == "build":
+                        project_key = self._project_key(scope)
+                        intended = self._intended_paths(f"{title}\n{message}")
+                        if not self._acquire_build_slot(agent_id, project_key, intended):
+                            reply, opencode_session, process_text = "已打断。", "", ""
+                            usage = {"tokens": 0, "cost": 0.0, "context": 0}
+                        else:
+                            try:
+                                reply, opencode_session, process_text, usage = self._run_opencode(
+                                    agent_id, agent, title, scope, message, model, mode, file_args, save_partial
+                                )
+                            finally:
+                                conflicts = self._release_build_slot(agent_id)
+                    else:
+                        reply, opencode_session, process_text, usage = self._run_opencode(
+                            agent_id, agent, title, scope, message, model, mode, file_args, save_partial
+                        )
+                    if conflicts:
+                        reply = (reply + "\n\n(注意：以下文件与并行 agent 同时修改，请检查是否冲突："
+                                 + ", ".join(sorted(conflicts)) + "）").strip()
+                    assistant = {
+                        "role": "assistant",
+                        "content": reply,
+                        "process": process_text,
+                        "model": model,
+                        "usage": {
+                            "tokens": int(usage.get("tokens") or 0),
+                            "cost": round(float(usage.get("cost") or 0), 6),
+                            "context": int(usage.get("context") or 0),
+                        },
+                    }
+                    user_entry = {"role": "user", "content": message}
+                    updated = (history + [user_entry, assistant])[-40:]
+                except Exception as error:
+                    self._finish_agent_error(agent_id, title, model, mode, str(error))
+                    return
+                with self.lock:
+                    data = self._load()
+                    stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                    stored["title"] = title
+                    stored["messages"] = updated
+                    stored["updated_at"] = datetime.now().isoformat(timespec="seconds")
+                    stored["mode"] = mode
+                    stored["model"] = model
+                    if opencode_session:
+                        stored["opencode_session"] = opencode_session
+                    previous = stored.get("usage") if isinstance(stored.get("usage"), dict) else {}
+                    if usage.get("cumulative"):
+                        stored["usage"] = {
+                            "tokens": int(usage.get("tokens") or 0),
+                            "cost": round(float(usage.get("cost") or 0), 6),
+                            "context": int(usage.get("context") or 0),
+                        }
+                    else:
+                        try:
+                            total_tokens = int(previous.get("tokens") or 0) + int(usage.get("tokens") or 0)
+                            total_cost = float(previous.get("cost") or 0) + float(usage.get("cost") or 0)
+                        except (TypeError, ValueError):
+                            total_tokens, total_cost = usage.get("tokens", 0), usage.get("cost", 0)
+                        stored["usage"] = {
+                            "tokens": total_tokens,
+                            "cost": round(total_cost, 6),
+                            "context": usage.get("context") or previous.get("context") or 0,
+                        }
+                    data["agents"][agent_id] = stored
+                    self._save(data)
+            finally:
+                with self.procs_lock:
+                    self.running_agents.discard(agent_id)
+                with self.live_lock:
+                    self.live.pop(agent_id, None)
+
+        with self.procs_lock:
+            self.running_agents.add(agent_id)
+        threading.Thread(target=worker, daemon=True).start()
+        with self.lock:
+            fresh = self._load()
+            stored_now = fresh.get("agents", {}).get(agent_id) or {}
         return {
             "ok": True,
+            "started": True,
             "title": title,
-            "reply": reply,
-            "messages": updated,
+            "messages": stored_now.get("messages", []),
             "mode": mode,
             "provider": self._provider_for_model(model),
             "model": model,
-            "usage": session_usage,
+            "usage": stored_now.get("usage", {}),
             "live": {},
             "files": persistent_files,
-            "agents": data["agents"],
         }
 
 
@@ -1727,6 +2679,47 @@ class ApiHandler(BaseHTTPRequestHandler):
             "application/json; charset=utf-8",
         )
 
+    def _send_media(self, candidate: Path) -> None:
+        """Serve an audio file with byte ranges so seeking works in WebKit."""
+        content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+        try:
+            size = candidate.stat().st_size
+            start, end = 0, size - 1
+            partial = False
+            range_header = self.headers.get("Range")
+            if range_header:
+                match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+                if match:
+                    first, last = match.group(1), match.group(2)
+                    if first:
+                        start = int(first)
+                        end = int(last) if last else size - 1
+                    elif last:
+                        length = int(last)
+                        start = max(0, size - length)
+                        end = size - 1
+                    if start >= size or end < start:
+                        self.send_response(416)
+                        self.send_header("Content-Range", f"bytes */{size}")
+                        self.end_headers()
+                        return
+                    end = min(end, size - 1)
+                    partial = True
+            with candidate.open("rb") as handle:
+                handle.seek(start)
+                body = handle.read(end - start + 1)
+            self.send_response(206 if partial else 200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Cache-Control", "no-store")
+            if partial:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as read_error:
+            self._json(500, {"ok": False, "error": str(read_error)})
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path.startswith("/user-sounds/"):
@@ -1746,6 +2739,76 @@ class ApiHandler(BaseHTTPRequestHandler):
             content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
             self._send(200, body, content_type)
             return
+        if parsed.path.startswith("/user-pictures/"):
+            name = unquote(parsed.path.rsplit("/", 1)[-1])
+            if not name or Path(name).name != name:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            ensure_pictures_dir()
+            candidate = PICTURES_DIR / name
+            if not candidate.is_file():
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+            if candidate.suffix.lower() in (".m4v", ".mov"):
+                content_type = "video/mp4"
+            try:
+                size = candidate.stat().st_size
+                start, end = 0, size - 1
+                partial = False
+                range_header = self.headers.get("Range")
+                if range_header:
+                    match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+                    if match:
+                        first, last = match.group(1), match.group(2)
+                        if first:
+                            start = int(first)
+                            end = int(last) if last else size - 1
+                        elif last:
+                            length = int(last)
+                            start = max(0, size - length)
+                            end = size - 1
+                        if start >= size or end < start:
+                            self.send_response(416)
+                            self.send_header("Content-Range", f"bytes */{size}")
+                            self.end_headers()
+                            return
+                        end = min(end, size - 1)
+                        partial = True
+                with candidate.open("rb") as handle:
+                    handle.seek(start)
+                    body = handle.read(end - start + 1)
+                self.send_response(206 if partial else 200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Cache-Control", "no-store")
+                if partial:
+                    self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as read_error:
+                self._json(500, {"ok": False, "error": str(read_error)})
+            return
+        if parsed.path.startswith("/user-note-materials/"):
+            name = unquote(parsed.path.rsplit("/", 1)[-1])
+            if not name or Path(name).name != name or not name.lower().endswith(".css"):
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            ensure_note_materials_dir()
+            candidate = NOTE_MATERIALS_DIR / name
+            if not candidate.is_file():
+                candidate = WEB_DIR / "note-materials" / name
+            if not candidate.is_file():
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            try:
+                body = candidate.read_bytes()
+            except Exception as read_error:
+                self._json(500, {"ok": False, "error": str(read_error)})
+                return
+            self._send(200, body, "text/css; charset=utf-8")
+            return
         if parsed.path == "/page-cache":
             try:
                 if not PAGE_CACHE_FILE.exists() or PAGE_CACHE_FILE.stat().st_size > 4_000_000:
@@ -1755,6 +2818,22 @@ class ApiHandler(BaseHTTPRequestHandler):
                 self._json(404, {"ok": False, "error": "No page cache"})
                 return
             self._send(200, body, "text/html; charset=utf-8")
+            return
+        if parsed.path.startswith("/user-music/"):
+            name = unquote(parsed.path.rsplit("/", 1)[-1])
+            candidate = music_file(name)
+            if candidate is None:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            self._send_media(candidate)
+            return
+        if parsed.path == "/api/music":
+            self._json(200, {
+                "ok": True,
+                "tracks": music_tracks(),
+                "folder": str(MUSIC_DIR),
+                "library": music_manifest().get("name") or "Music Library",
+            })
             return
         if parsed.path == "/api/state":
             self._json(200, self.store.state())
@@ -1811,7 +2890,16 @@ class ApiHandler(BaseHTTPRequestHandler):
 
 def start_server(store: Store):
     ensure_sounds_dir()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
+    ensure_note_materials_dir()
+    ensure_pictures_dir()
+    ensure_music_dir()
+    # A fixed loopback port keeps the browser origin stable across launches,
+    # so localStorage (volume, mute, panel geometry, caret choices) survives.
+    # If another copy already owns it, fall back to an ephemeral port.
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", 47321), ApiHandler)
+    except OSError:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
     ApiHandler.store = store
     ApiHandler.agent_store = AgentStore(AGENT_FILE)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1875,25 +2963,32 @@ def run_gtk() -> None:
                 done = threading.Event()
 
                 def show_dialog():
-                    dialog = Gtk.FileDialog()
-                    dialog.set_title("Choose project folder")
-                    try:
-                        dialog.set_modal(True)
-                    except Exception:
-                        pass
-                    # Keep a strong reference until the async callback fires.
-                    window._project_folder_dialog = dialog
+                    # Gtk.FileChooserNative uses the desktop portal and is the
+                    # most reliable folder picker on Wayland.
+                    chooser = Gtk.FileChooserNative(
+                        title="Choose project folder",
+                        transient_for=window,
+                        action=Gtk.FileChooserAction.SELECT_FOLDER,
+                        accept_label="Select",
+                        cancel_label="Cancel",
+                    )
+                    window._project_folder_dialog = chooser
 
-                    def finished(source, result, _data=None):
-                        try:
-                            folder = source.select_folder_finish(result)
-                            chosen["path"] = folder.get_path() if folder else None
-                        except Exception:
+                    def on_response(dialog, response):
+                        if response == Gtk.ResponseType.ACCEPT:
+                            file = dialog.get_file()
+                            chosen["path"] = file.get_path() if file else None
+                        else:
                             chosen["path"] = None
+                        try:
+                            dialog.destroy()
+                        except Exception:
+                            pass
                         window._project_folder_dialog = None
                         done.set()
 
-                    dialog.select_folder(window, None, finished, None)
+                    chooser.connect("response", on_response)
+                    chooser.show()
                     return False
 
                 GLib.idle_add(show_dialog)
@@ -1923,6 +3018,18 @@ def run_gtk() -> None:
                     pass
 
             apply_view_settings(view)
+            def recover_after_renderer_crash(target_view, *_args):
+                def reload_view():
+                    try:
+                        target_view.reload()
+                    except Exception:
+                        pass
+                    return False
+                GLib.idle_add(reload_view)
+            try:
+                view.connect("web-process-terminated", recover_after_renderer_crash)
+            except Exception:
+                pass
             detached_opener = [None]
 
             def decide_policy(_view, decision, decision_type):
@@ -1973,10 +3080,16 @@ def run_gtk() -> None:
                 detached_view = WebKit.WebView()
                 detached_view.set_background_color(background)
                 apply_view_settings(detached_view)
+                try:
+                    detached_view.connect("web-process-terminated", recover_after_renderer_crash)
+                except Exception:
+                    pass
                 detached_window = Gtk.Window()
                 detached_window.set_title("NeoTodo")
                 detached_window.set_default_size(960, 760)
-                detached_window.set_child(detached_view)
+                detached_overlay = Gtk.Overlay()
+                detached_overlay.set_child(detached_view)
+                detached_window.set_child(detached_overlay)
 
                 def detached_policy(_view, decision, decision_type):
                     if decision_type == WebKit.PolicyDecisionType.NAVIGATION_ACTION:
@@ -2066,9 +3179,49 @@ def run_gtk() -> None:
                     lambda target, _pspec, win=detached_window: win.set_title(target.get_title() or "NeoTodo"),
                 )
                 detached_windows.append((detached_window, detached_view))
-                detached_window.present()
+                # Reuse a capture of the page that was on screen before the
+                # click. The new window appears instantly with that content,
+                # then swaps to the note/AI as soon as the page is ready.
+                state = {"preview": None, "loaded": False}
+                def drop_detached_preview():
+                    node = state.get("preview")
+                    if node is not None:
+                        try:
+                            detached_overlay.remove_overlay(node)
+                        except Exception:
+                            pass
+                        state["preview"] = None
+                def on_detached_load(_view, event):
+                    if event == WebKit.LoadEvent.FINISHED:
+                        state["loaded"] = True
+                        drop_detached_preview()
+                try:
+                    detached_view.connect("load-changed", on_detached_load)
+                except Exception:
+                    pass
+                def mount_detached_preview():
+                    if not state.get("loaded"):
+                        try:
+                            picture = startup.make_preview(DETACH_PREVIEW_FILE)
+                            if picture is not None:
+                                detached_overlay.add_overlay(picture)
+                                state["preview"] = picture
+                        except Exception:
+                            pass
+                    try:
+                        detached_window.present()
+                    except Exception:
+                        pass
+                    return False
+                try:
+                    DETACH_PREVIEW_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                startup.capture_view(view, DETACH_PREVIEW_FILE, lambda: GLib.idle_add(mount_detached_preview))
                 if target_url:
                     detached_view.load_uri(target_url)
+                else:
+                    GLib.idle_add(mount_detached_preview)
                 if follow:
                     def begin_initial_move():
                         surface = detached_window.get_surface()

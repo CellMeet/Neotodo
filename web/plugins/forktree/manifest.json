@@ -1,0 +1,15 @@
+{
+  "id": "forktree",
+  "name": "Forktree",
+  "englishName": "Fork Tree",
+  "version": "1.0.0",
+  "description": "把分类、任务、子任务以及所有 fork 展开成从左到右的思维导图。点击任意节点，就能回到对应的任务页面。",
+  "icon": "forktree.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "colors": {
+    "accent": "#4e7ad2",
+    "paper": "#f4efe6"
+  }
+}

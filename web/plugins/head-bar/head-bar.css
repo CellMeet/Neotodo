@@ -1,0 +1,229 @@
+/* ==========================================================================
+   HEAD BAR PLUGIN — an ice-blue crystal Dynamic Island for the notebook.
+   --------------------------------------------------------------------------
+   Hover the clock and a small blue-white crystal capsule drops out of the top
+   border.
+   Click it and the whole working surface rolls upward, leaving only the room's
+   wallpaper. Click the island again to return.
+
+   Everything is scoped to .head-bar* or to body.head-bar-* state classes. The
+   plugin folder owns all of it; the rest of NeoTodo is untouched.
+   ========================================================================== */
+
+.head-bar {
+  --head-bar-left: 50%;
+  --head-bar-height: 56px;
+  --head-bar-hit-width: 190px;
+  --head-bar-island-width: 132px;
+  position: fixed;
+  top: 0;
+  left: var(--head-bar-left);
+  width: var(--head-bar-hit-width);
+  height: var(--head-bar-height);
+  z-index: 150;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 0.20s ease, height 0.38s cubic-bezier(0.55, 0.06, 0.68, 0.19);
+}
+
+body.app-ready.head-bar-ready .head-bar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Disabled through Settings → Plugins. */
+[data-plugin].plugin-hidden { display: none !important; }
+
+/* An ice-blue crystal cabochon: blue-white body, fine angled facets, one
+   crisp specular glint and a slightly deeper blue rim that makes the capsule
+   read as a faint blue stick. No outer halo. */
+.head-bar-island {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: var(--head-bar-island-width);
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      114deg,
+      rgba(255, 255, 255, 0) 0 21px,
+      rgba(255, 255, 255, 0.36) 21px 22px,
+      rgba(112, 160, 206, 0.18) 22px 22.8px,
+      rgba(255, 255, 255, 0) 22.8px 43px
+    ),
+    linear-gradient(180deg, #fbfdff 0%, #e2f1ff 30%, #bfddf7 64%, #86b8e4 100%);
+  border: 1px solid rgba(88, 142, 196, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(70, 124, 178, 0.38),
+    inset 1px 0 0 rgba(255, 255, 255, 0.50),
+    inset -1px 0 0 rgba(88, 142, 196, 0.28);
+  opacity: 0;
+  transform: translate(-50%, -175%) scaleY(0.55);
+  transform-origin: 50% 0%;
+  transition:
+    opacity 0.15s ease,
+    transform 0.46s cubic-bezier(0.16, 1.32, 0.3, 1);
+  pointer-events: none;
+}
+
+/* A long, angled ice pane catches the light across the left half. */
+.head-bar-island::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 8%;
+  width: 38%;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.52) 40%,
+    rgba(255, 255, 255, 0.10) 72%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-22deg);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* The tiny white glint that makes the capsule read as a polished gem. */
+.head-bar-island::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 16%;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.22) 65%, transparent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* The capsule itself is the Head Bar now, so the old inner status line is not
+   needed. Keep the node hidden for compatibility with the plugin markup. */
+.head-bar-line {
+  display: none;
+}
+
+.head-bar:hover .head-bar-island,
+.head-bar:focus-visible .head-bar-island,
+.head-bar:active .head-bar-island,
+body.head-bar-collapsed .head-bar-island {
+  opacity: 1;
+  transform: translate(-50%, 0) scaleY(1);
+}
+
+/* The clock zone owns this strip: the old hidden top bar must not unfold the
+   settings/music icons while the pointer is over the time digits. */
+body.head-bar-hover .top-tools {
+  opacity: 0 !important;
+  transform: translateY(-115%) !important;
+  pointer-events: none !important;
+}
+
+/* The plugin detail toggle only talks about the switch; hide the generic
+   "sits in the left tool rail" line that does not apply to a chrome plugin. */
+[data-action="toggle-plugin"][data-plugin-id="head-bar"] .toggle-copy small {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Collapsed: the working surface rolls upward and only the wallpaper is left.
+   -------------------------------------------------------------------------- */
+
+body.head-bar-collapsed .head-bar {
+  height: 28px !important;
+}
+
+body.head-bar-ready .app-shell > .notebook-head,
+body.head-bar-ready .app-shell > .notebook {
+  transition:
+    transform 0.52s cubic-bezier(0.55, 0.06, 0.68, 0.19),
+    opacity 0.30s ease;
+  will-change: transform, opacity;
+}
+
+body.head-bar-collapsed .app-shell > .notebook-head {
+  transform: translateY(-110%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.head-bar-collapsed .app-shell > .notebook {
+  transform: translateY(-115%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Only the room's wallpaper remains behind the blue island. */
+body.head-bar-collapsed .app-shell {
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-wallpaper="static"] body.head-bar-collapsed .app-shell,
+html[data-wallpaper="dynamic"] body.head-bar-collapsed .app-shell {
+  background-color: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html[data-wallpaper="static"] body.head-bar-collapsed .app-shell::before,
+html[data-wallpaper="static"] body.head-bar-collapsed .app-shell::after,
+html[data-wallpaper="dynamic"] body.head-bar-collapsed .app-shell::before,
+html[data-wallpaper="dynamic"] body.head-bar-collapsed .app-shell::after {
+  opacity: 0 !important;
+}
+
+/* Floating workspace pieces live outside .app-shell, so hide them explicitly. */
+body.head-bar-collapsed .top-edge,
+body.head-bar-collapsed .top-tools,
+body.head-bar-collapsed .tool-rail,
+body.head-bar-collapsed .desk-handle-ai,
+body.head-bar-collapsed .notes-handle-bottom,
+body.head-bar-collapsed #doing-peek,
+body.head-bar-collapsed .archive-drawer,
+body.head-bar-collapsed .archive-backdrop,
+body.head-bar-collapsed .trash-drawer,
+body.head-bar-collapsed .sound-panel,
+body.head-bar-collapsed #sound-panel,
+body.head-bar-collapsed #timer-root,
+body.head-bar-collapsed #modal-root,
+body.head-bar-collapsed .toast {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .head-bar,
+  .head-bar-island,
+  body.head-bar-ready .app-shell > .notebook-head,
+  body.head-bar-ready .app-shell > .notebook {
+    transition: none !important;
+  }
+}

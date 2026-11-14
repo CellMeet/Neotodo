@@ -2,3 +2,16 @@ __pycache__/
 *.py[cod]
 .venv/
 .DS_Store
+
+# Android build output and generated shared sources
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/python/app.py
+android/app/src/main/python/startup.py
+android/app/src/main/python/web/
+
+# Local Android test APK — keep it off the remote
+/NeoTodo-Android.apk

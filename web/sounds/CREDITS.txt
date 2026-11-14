@@ -27,3 +27,9 @@ train-whistle.mp3
   https://commons.wikimedia.org/wiki/File:Parovoz_sound.ogg
   License: Public domain (released by the author)
   Converted from OGG to MP3 for the new-category dialog.
+
+paper-tear.wav — "Paper Tear" by Mildly Useless (https://mildlyuseless.com/res/foley-paper-tear)
+License: CC0 1.0 (public domain). Downloaded and used as-is.
+
+steam-hiss.mp3 — "Valve Release Steam Hiss 03" (https://sfxmint.com/sounds/steam-hiss-03)
+License: CC0 1.0. Trimmed and faded for the NeoTodo completion cue.

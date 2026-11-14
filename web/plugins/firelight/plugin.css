@@ -1,0 +1,372 @@
+/* ==========================================================================
+   FIRELIGHT PLUGIN PAGE — the little control surface.
+   All rules live here and are scoped to .fl-*; the notebook itself is never
+   touched by this stylesheet. firelight.css is loaded too, but only the
+   preview markup inside .fl-stage can match its selectors.
+   ========================================================================== */
+
+:root {
+  --fl-ink: #2c241c;
+  --fl-muted: #7c6a58;
+  --fl-paper: #f7efe3;
+  --fl-card: #fffaf1;
+  --fl-line: rgba(88, 62, 36, 0.16);
+  --fl-flame: #ff8a1f;
+  --fl-flame-deep: #c25500;
+  --fl-ember: #ffcf63;
+  --fl-shadow: rgba(74, 44, 18, 0.16);
+}
+
+html[data-fl-dark="true"] {
+  --fl-ink: #f7ede2;
+  --fl-muted: #bba999;
+  --fl-paper: #1a1512;
+  --fl-card: #241d18;
+  --fl-line: rgba(255, 226, 196, 0.14);
+  --fl-flame: #ffa63d;
+  --fl-flame-deep: #ffcc7a;
+  --fl-ember: #ffe3a0;
+  --fl-shadow: rgba(0, 0, 0, 0.42);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 16% 10%, rgba(255, 158, 64, 0.16), transparent 36%),
+    radial-gradient(circle at 88% 92%, rgba(255, 104, 0, 0.10), transparent 42%),
+    linear-gradient(180deg, var(--fl-paper), var(--fl-paper));
+  color: var(--fl-ink);
+  font-family: "Noto Serif", Georgia, "Times New Roman", var(--serif, serif);
+  opacity: 1;
+}
+
+.fl-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 26px;
+  overflow: auto;
+}
+
+.fl-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--fl-line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fl-card) 82%, transparent);
+  color: var(--fl-muted);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.fl-close:hover {
+  color: var(--fl-ink);
+  border-color: color-mix(in srgb, var(--fl-flame) 60%, var(--fl-line));
+  transform: rotate(6deg);
+}
+
+.fl-close svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.fl-hero {
+  width: min(660px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 6px 26px;
+}
+
+/* --------------------------------------------------------------------------
+   Preview: a miniature Doing card in the current theme. Because the real
+   firelight.css is loaded, the little fan and its specks behave exactly like
+   the notebook's icons.
+   -------------------------------------------------------------------------- */
+
+.fl-stage {
+  position: relative;
+  width: 100%;
+  padding: 16px 18px 30px;
+  border: 1px solid var(--fl-line);
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 18% 4%, rgba(255, 255, 255, 0.32), transparent 48%),
+    color-mix(in srgb, var(--fl-card) 60%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.fl-sheet {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--fl-line);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--fl-card) 88%, transparent);
+  box-shadow: 0 10px 26px var(--fl-shadow);
+}
+
+.fl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 14px;
+  border-top: 1px solid var(--fl-line);
+}
+
+.fl-row:first-child { border-top: 0; }
+
+.fl-row-sub { min-height: 38px; padding-left: 30px; }
+.fl-row-quiet { opacity: 0.72; }
+
+.fl-icon {
+  position: relative;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fl-icon.doing-fan {
+  flex-basis: 24px;
+  width: 24px;
+  height: 24px;
+}
+
+.fl-icon > svg {
+  width: 32px;
+  height: 32px;
+  display: block;
+}
+
+.fl-icon.doing-fan > svg {
+  width: 22px;
+  height: 22px;
+}
+
+.fl-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.fl-row-sub .fl-row-name {
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.fl-row-count {
+  flex: 0 0 auto;
+  color: var(--fl-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.fl-stage-caption {
+  position: absolute;
+  left: 20px;
+  bottom: 10px;
+  color: var(--fl-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   Title, copy, power switch and hints.
+   -------------------------------------------------------------------------- */
+
+.fl-title {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 4px;
+}
+
+.fl-kicker {
+  color: var(--fl-flame-deep);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.fl-title h1 {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 48px);
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.fl-title p {
+  margin: 0;
+  color: var(--fl-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.fl-copy {
+  max-width: 58ch;
+  color: var(--fl-muted);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+
+.fl-copy p {
+  margin: 0 0 8px;
+}
+
+.fl-power {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--fl-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
+    color-mix(in srgb, var(--fl-card) 90%, transparent);
+  color: var(--fl-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--fl-shadow) 70%, transparent);
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.fl-power:hover {
+  border-color: color-mix(in srgb, var(--fl-flame) 46%, var(--fl-line));
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--fl-shadow) 80%, transparent);
+}
+
+.fl-power-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fl-power-copy strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fl-power-copy small {
+  color: var(--fl-muted);
+  font-size: 12px;
+}
+
+.fl-switch {
+  position: relative;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fl-ink) 16%, transparent);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: background-color 0.18s ease;
+}
+
+.fl-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--fl-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.fl-power[aria-pressed="true"] .fl-switch {
+  background: linear-gradient(90deg, var(--fl-flame), var(--fl-ember));
+}
+
+.fl-power[aria-pressed="true"] .fl-thumb {
+  transform: translateX(20px);
+}
+
+.fl-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  color: var(--fl-muted);
+  font-size: 11.5px;
+}
+
+.fl-hints b {
+  color: var(--fl-flame-deep);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fl-done {
+  align-self: flex-start;
+  padding: 9px 18px;
+  border: 1px solid var(--fl-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fl-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.fl-done:hover {
+  background: color-mix(in srgb, var(--fl-flame) 12%, transparent);
+  border-color: color-mix(in srgb, var(--fl-flame) 48%, var(--fl-line));
+}
+
+/* The preview is static decoration; keep it accessible-hidden and stop the
+   host page's own scrolling. */
+.fl-defs { position: absolute; width: 0; height: 0; }
+
+@media (max-width: 520px) {
+  .fl-page { padding: 18px; }
+  .fl-hero { gap: 13px; padding-bottom: 18px; }
+  .fl-stage { padding: 12px 12px 28px; }
+  .fl-row { min-height: 42px; padding: 0 10px; }
+  .fl-row-sub { padding-left: 22px; }
+  .fl-hints { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fl-power,
+  .fl-power:hover { transition: none; transform: none; }
+}

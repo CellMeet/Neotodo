@@ -1,0 +1,16 @@
+{
+  "id": "subtask-search",
+  "name": "子任务搜索",
+  "englishName": "Subtask Search",
+  "version": "1.0.0",
+  "description": "左栏放大镜卡片可以开关子任务搜索栏。搜索栏从子任务上边框滑出，匹配结果以带底线的行排列在下方；点击结果会回到原来的子任务位置，搜索栏保持打开。",
+  "icon": "subtask-search.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#ff8000",
+    "paper": "#f7efe3"
+  }
+}

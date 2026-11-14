@@ -1,0 +1,40 @@
+/* ==========================================================================
+   Dark-theme effects and icon treatments.
+   Smoke is brighter here, and monochrome provider marks turn light.
+   ========================================================================== */
+
+html[data-postcard-dark="true"] .sub-agent-model.has-model img {
+  width: 28px;
+  height: 28px;
+  filter: brightness(0) invert(1);
+}
+
+html[data-postcard-dark="true"] .sub-fan svg,
+html[data-postcard-dark="true"] .h-sub-fan svg,
+html[data-postcard-dark="true"] .doing-fan svg,
+html[data-postcard-dark="true"] .fan-icon {
+  filter: saturate(2.0) contrast(1.06);
+}
+
+html[data-postcard-dark="true"] .subtask-smoke i {
+  background: radial-gradient(
+    circle,
+    rgba(228, 238, 255, 0.88) 0%,
+    rgba(172, 196, 236, 0.50) 46%,
+    rgba(190, 214, 255, 0) 76%
+  );
+  filter: blur(1.6px) brightness(1.22);
+  animation-name: subtask-smoke-rise-dark;
+}
+
+@keyframes subtask-smoke-rise-dark {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  18% { opacity: 0.95; }
+  55% { opacity: 0.58; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -20px))) scale(2.0); }
+}
+
+html[data-postcard-dark="true"] .sub-done-check,
+html[data-postcard-dark="true"] .h-sub-check {
+  filter: brightness(1.22) saturate(1.08);
+}

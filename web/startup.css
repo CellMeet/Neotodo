@@ -10,3 +10,13 @@ html.booting,
 .startup-preview {
   background: var(--boot-paper, #f7efe3);
 }
+
+/* The cached PNG always shows the normal header, never the hover utility bar. */
+body.snapshot-clean .top-tools {
+  opacity: 0 !important;
+  transform: translateY(-115%) !important;
+  pointer-events: none !important;
+}
+body.snapshot-clean .top-edge {
+  display: none !important;
+}

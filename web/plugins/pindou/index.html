@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN" data-pd-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>拼豆工坊 · NeoTodo</title>
+  <script>
+    try {
+      if (window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        if (parentRoot.dataset.postcardDark === "true") {
+          document.documentElement.dataset.pdDark = "true";
+        }
+      }
+    } catch (error) {}
+    document.documentElement.classList.add("pd-booting");
+  </script>
+  <link rel="stylesheet" href="pindou.css">
+</head>
+<body>
+  <div class="pd-app">
+    <header class="pd-top">
+      <div class="pd-brand">
+        <img class="pd-brand-icon" src="pindou.svg" alt="">
+        <div class="pd-brand-copy">
+          <h1>拼豆工坊</h1>
+          <p>PERLER BEAD STUDIO</p>
+        </div>
+      </div>
+
+      <div class="pd-progress" id="progress-wrap" aria-live="polite">
+        <span class="pd-progress-text" id="progress-text">自由创作</span>
+        <span class="pd-progress-track" aria-hidden="true">
+          <span class="pd-progress-fill" id="progress-fill"></span>
+        </span>
+      </div>
+
+      <div class="pd-actions">
+        <button class="pd-action" type="button" data-action="undo" aria-label="撤销" title="撤销 (Ctrl+Z)" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9.5 7H4v-5" />
+            <path d="M4 7c2.3-3.1 6.2-4.3 9.7-2.7S18.3 9.5 17 13" />
+          </svg>
+        </button>
+        <button class="pd-action" type="button" data-action="redo" aria-label="重做" title="重做 (Ctrl+Shift+Z)" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.5 7H20v-5" />
+            <path d="M20 7c-2.3-3.1-6.2-4.3-9.7-2.7S5.7 9.5 7 13" />
+          </svg>
+        </button>
+        <button class="pd-action pd-sound" type="button" data-action="sound" aria-label="开关声音" aria-pressed="true" title="声音">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9.5h3.2L12 5.4v13.2L7.2 14.5H4Z" />
+            <path class="pd-sound-wave" d="M15.2 9.1a4 4 0 0 1 0 5.8M17.9 6.7a7.4 7.4 0 0 1 0 10.6" />
+            <path class="pd-mute-slash" d="M14.8 9.2 20.4 14.8M20.4 9.2 14.8 14.8" />
+          </svg>
+        </button>
+      </div>
+
+      <button class="pd-close" type="button" data-close aria-label="退出拼豆工坊" title="退出拼豆工坊">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </header>
+
+    <main class="pd-main">
+      <section class="pd-stage">
+        <div class="pd-templates" id="templates" role="tablist" aria-label="选择拼豆图案"></div>
+
+        <div class="pd-board-wrap">
+          <div class="pd-board-shell">
+            <div class="pd-board" id="board" role="grid" aria-label="20 乘 20 拼豆板"></div>
+          </div>
+        </div>
+
+        <div class="pd-stage-foot">
+          <div class="pd-current">
+            <span class="pd-current-dot" id="current-dot" aria-hidden="true"></span>
+            <span id="current-name">樱花粉</span>
+          </div>
+          <span class="pd-hint" id="stage-hint">按住拖动，连续放豆</span>
+          <label class="pd-guide-toggle" title="显示或隐藏图案参考点">
+            <input type="checkbox" id="guide-toggle" checked>
+            <span class="pd-switch" aria-hidden="true"></span>
+            <span>参考线</span>
+          </label>
+        </div>
+      </section>
+
+      <aside class="pd-panel" aria-label="颜色与工具">
+        <div class="pd-panel-head"><span>颜色</span><small>COLORS</small></div>
+        <div class="pd-palette" id="palette" role="listbox" aria-label="豆豆颜色"></div>
+
+        <div class="pd-panel-head pd-tools-head"><span>工具</span><small>TOOLS</small></div>
+        <div class="pd-tools" id="tools">
+          <button class="pd-tool is-active" type="button" data-tool="brush" aria-pressed="true" title="放豆 (B)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4.8 19.5c2.3.4 4.2-.7 5.2-2.8 1.4.2 2.8-.4 3.7-1.5L19 9.8a2 2 0 0 0 0-2.8l-2-2a2 2 0 0 0-2.8 0l-5.4 5.3c-1.1 1-1.7 2.4-1.5 3.8-2.1 1-3.2 2.8-2.5 5.4Z" />
+              <path d="m12.8 7.2 4 4" />
+            </svg>
+            <span>放豆</span>
+          </button>
+          <button class="pd-tool" type="button" data-tool="eraser" aria-pressed="false" title="橡皮 (E)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m4.8 14.2 6.9-6.9a2.2 2.2 0 0 1 3.1 0l3.2 3.2a2.2 2.2 0 0 1 0 3.1l-4.9 4.9H8.5l-3.7-3.7a2.2 2.2 0 0 1 0-3.1Z" />
+              <path d="m9.2 9.8 6.9 6.9M4 19.5h16" />
+            </svg>
+            <span>橡皮</span>
+          </button>
+          <button class="pd-tool" type="button" data-tool="picker" aria-pressed="false" title="吸色 (I)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m13.7 5.1 5.2 5.2M4 20l1.2-4.2 8.5-8.5a2.2 2.2 0 0 1 3.1 0l.9.9a2.2 2.2 0 0 1 0 3.1l-8.5 8.5L5 20Z" />
+              <path d="m12 8.1 3.9 3.9" />
+            </svg>
+            <span>吸色</span>
+          </button>
+        </div>
+
+        <div class="pd-panel-foot">
+          <button class="pd-export" type="button" data-action="export">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v10M8.2 10.4 12 14.2l3.8-3.8M5 17.5v1.7h14v-1.7" />
+            </svg>
+            <span>保存图片</span>
+          </button>
+          <button class="pd-clear" type="button" data-action="clear">清空拼板</button>
+        </div>
+      </aside>
+    </main>
+
+    <div class="pd-toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="pd-win" id="win" hidden>
+      <div class="pd-win-card">
+        <div class="pd-confetti" id="confetti" aria-hidden="true"></div>
+        <div class="pd-win-badge" aria-hidden="true"><img src="pindou.svg" alt=""></div>
+        <h2>拼好啦！</h2>
+        <p id="win-text">你完成了一幅拼豆作品。</p>
+        <div class="pd-win-actions">
+          <button type="button" data-win="again">继续看看</button>
+          <button type="button" class="is-primary" data-win="new">再拼一幅</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="pindou.js"></script>
+</body>
+</html>

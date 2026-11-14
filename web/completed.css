@@ -1,0 +1,92 @@
+/* ==========================================================================
+   Completed tasks: isolated type and paper-wash design.
+   These rules deliberately live in their own file. Expanding subtasks,
+   selecting a row or the typewriter roll must never wash out the font or the
+   highlight — so opacity, colour and the selected wash are pinned here.
+   ========================================================================== */
+
+#history-reel .history-row,
+#history-reel .history-subs,
+#history-reel .history-subs .history-subtask {
+  opacity: 1 !important;
+}
+
+#history-reel .history-row .h-name,
+#history-reel .history-row .h-date,
+#history-reel .history-row .h-time,
+#history-reel .history-row .h-trophy,
+#history-reel .history-row .h-trophy *,
+#history-reel .history-subs .h-sub-name,
+#history-reel .history-subs .h-sub-time,
+#history-reel .history-subs .h-sub-check {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Stable ink in the postcard theme; other themes keep their own gold ink. */
+html[data-theme="postcard"] #history-reel .history-row .h-name,
+html[data-theme="postcard"] #history-reel .history-subs .h-sub-name {
+  color: var(--pc-ink) !important;
+}
+
+html[data-theme="postcard"] #history-reel .history-row .h-date,
+html[data-theme="postcard"] #history-reel .history-row .h-time,
+html[data-theme="postcard"] #history-reel .history-subs .h-sub-time {
+  color: var(--pc-muted) !important;
+}
+
+/* One wash, one shape, defined here and nowhere else. */
+:root {
+  --completed-wash: linear-gradient(
+    90deg,
+    rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20),
+    rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%
+  );
+}
+
+html[data-theme="postcard"] #history-reel .history-row.selected,
+html[data-theme="postcard"] #history-reel .history-subs .history-subtask.selected {
+  background: var(--completed-wash) !important;
+}
+
+/* The expanded subtask block sits on the same paper, with no extra veil. */
+#history-reel .history-subs {
+  background: transparent !important;
+}
+
+/* The ambient cursor must never paint a second, grey wash. Selection is the
+   only state allowed to show a background. */
+#history-reel .history-row.cursor,
+html[data-theme="postcard"] #history-reel .history-row.cursor,
+html[data-theme="lavender"] #history-reel .history-row.cursor {
+  background: transparent !important;
+}
+
+/* Doing card bars: the same wash, always square and edge-to-edge. The card's
+   horizontal padding moves onto each row so the wash has no surrounding gap. */
+#doing-peek {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+#doing-peek .doing-kicker {
+  padding-left: 17px;
+  padding-right: 17px;
+}
+#doing-peek .doing-head {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+#doing-peek .doing-subs {
+  padding-left: 0;
+}
+#doing-peek .doing-sub {
+  padding-left: 24px;
+  padding-right: 18px;
+}
+
+#doing-peek .doing-head.marked,
+#doing-peek .doing-sub.marked {
+  background: var(--completed-wash) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}

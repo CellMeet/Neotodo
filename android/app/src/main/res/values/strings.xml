@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NeoTodo</string>
+    <string name="loading_workspace">Opening the workspace…</string>
+    <string name="loading_failed">Could not start NeoTodo</string>
+</resources>

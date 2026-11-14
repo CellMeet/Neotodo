@@ -1,0 +1,16 @@
+{
+  "id": "firelight",
+  "name": "火光特效",
+  "englishName": "Firelight",
+  "version": "1.0.0",
+  "description": "完成任务的代理会让 Doing 图标亮起来：暗色主题是萤火虫和小灯笼，亮色主题是贴着图标轮廓的暖色火光与缓缓升起的余烬，不会炸开。",
+  "icon": "firelight.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#ff8a1f",
+    "paper": "#f7efe3"
+  }
+}

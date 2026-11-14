@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="flFlame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ff5a00"/>
+      <stop offset=".55" stop-color="#ff9a1f"/>
+      <stop offset="1" stop-color="#ffe27a"/>
+    </linearGradient>
+  </defs>
+  <path d="M33 3c2 11 15 15 15 31a16 16 0 0 1-32 0c0-9 6-13 9-20 1 5 3 8 6 10 2-7 3-14 2-21z" fill="url(#flFlame)"/>
+  <path d="M32 33c1 5 7 7 7 13a7 7 0 0 1-14 0c0-4 3-6 4-9 1 2 2 3 3 3 1-2 1-4 0-7z" fill="#fff2bd"/>
+  <circle cx="13" cy="18" r="2.6" fill="#ffb531"/>
+  <circle cx="51" cy="13" r="1.9" fill="#ffcf63"/>
+  <circle cx="55" cy="29" r="1.5" fill="#ff8a1f"/>
+</svg>

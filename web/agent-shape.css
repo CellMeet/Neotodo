@@ -6,10 +6,26 @@
    bottom, and it sits flush against the note pane with no gap.
    ========================================================================== */
 
-/* Top corners rounded, bottom corners square. */
+/* Top corners rounded, bottom corners square.
+   The top arc is a little wider than it is tall (16px across, 12px down), just
+   enough to keep the shoulder soft without the corner eating into the header.
+   A tighter radius also keeps the anti-aliased arc short, so it stays smooth
+   where it meets the flat top edge. */
 .agent-terminal {
-  border-radius: 16px 16px 0 0 !important;
+  border-radius: 16px 16px 0 0 / 12px 12px 0 0 !important;
   border: 0 !important;
+}
+
+/* A clean top edge for the rounded corners.
+   The task area's bottom hairline can land exactly on the sheet's top edge.
+   It then bleeds through the anti-aliased corner arc, so both top corners read
+   as chipped and rough instead of smoothly curved. A one-pixel cap in the
+   sheet's own colour covers that seam and gives the edge a solid, clean line
+   whatever sits behind it (theme rules, custom sheet heights, split docks).
+   Split docks keep their own divider borders, and the lifted/dragging card
+   states keep their own lift shadow. */
+body:not(.agent-notes-split) .agent-terminal:not(.split-lifted):not(.panel-shrinking):not(.panel-unshrinking):not(.window-lifting) {
+  box-shadow: 0 -1px 0 var(--oc-bg, #fff) !important;
 }
 
 /* A detached OS window is a full window, not a card. */
@@ -22,27 +38,13 @@ body.agent-notes-split .agent-terminal {
   box-shadow: none !important;
 }
 
-/* Horizontal split: exactly the remaining width, touching the note. */
-body.agent-notes-left .agent-terminal {
-  left: var(--agent-left-px, var(--agent-left-pct)) !important;
-  width: calc(100% - var(--agent-left-px, var(--agent-left-pct))) !important;
-}
-body.agent-notes-right .agent-terminal {
-  left: 0 !important;
-  width: var(--agent-left-px, var(--agent-left-pct)) !important;
-}
-
-/* Vertical split: the two heights meet exactly at the divider. */
-body.agent-notes-top .agent-terminal,
-body.agent-notes-bottom .agent-terminal {
-  left: 0 !important;
-  width: 100% !important;
-  top: var(--agent-ai-top, 0px) !important;
-  height: var(--agent-ai-height, 50%) !important;
-  max-height: none !important;
+/* Split geometry lives in page-layout.css. This file only owns the AI card's
+   shape: top-rounded, square-bottom, flush against the note. */
+body.agent-notes-split .agent-terminal {
+  box-shadow: none !important;
 }
 
 /* Single-panel dock keeps the same top-rounded shape. */
 body[class*="single-ai-"] .agent-terminal {
-  border-radius: 16px 16px 0 0 !important;
+  border-radius: 16px 16px 0 0 / 12px 12px 0 0 !important;
 }

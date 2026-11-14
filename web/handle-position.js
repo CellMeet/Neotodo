@@ -19,10 +19,31 @@ function protectDeskHandles(ms = 420) {
 
 const DeskHandle = {
   elements: {},
+  homes: { ai: null, note: null },
   ensure() {
     this.elements.ai = this.elements.ai || document.querySelector(".desk-handle-ai");
     this.elements.note = this.elements.note || document.querySelector(".notes-handle-bottom");
     return this.elements;
+  },
+  // Remember the line's closed home before a sheet rises, so closing restores
+  // that same spot instead of recomputing a new one from the resized sheet.
+  captureHome(kind) {
+    const handle = this.ensure()[kind];
+    if (!handle) return;
+    const r = handle.getBoundingClientRect();
+    if (!r.width) return;
+    this.homes[kind] = { center: r.left + r.width / 2, top: r.top };
+  },
+  snapHome(kind) {
+    const home = this.homes[kind];
+    const handle = this.ensure()[kind];
+    if (!home || !handle) return false;
+    handle.style.setProperty("transition", "none", "important");
+    this.place(kind, home.center, home.top);
+    void handle.offsetWidth;
+    requestAnimationFrame(() => handle.style.removeProperty("transition"));
+    if (kind === "note") refreshNotesSwipeLine();
+    return true;
   },
   place(kind, center, top) {
     const handle = this.ensure()[kind];

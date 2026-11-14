@@ -20,7 +20,7 @@
   let lastCross = 0;
 
   const getPanel = () => document.querySelector("#notes-half");
-  const openNow = () => !notesHidden;
+  const openNow = () => !notesHidden && !notesClosing;
   const toggle = () => {
     deskHandleSwipeSuppress = performance.now() + 500;
     if (openNow()) hideNotesPanel();
@@ -29,6 +29,7 @@
       protectDeskHandles(420);
     }
   };
+
   const closeNote = () => {
     deskHandleSwipeSuppress = performance.now() + 500;
     hideNotesPanel();
@@ -47,8 +48,7 @@
     return { r, visible, y: r.top + r.height / 2 };
   };
 
-  // Hover-crossing: slide from above to below the top line to close; slide
-  // from below to above the bottom line to open.
+  // Hover crossing over the handle: the same as clicking it.
   document.addEventListener("pointermove", (event) => {
     if (event.buttons) { hoverY = event.clientY; return; }
     const y = event.clientY;
@@ -57,8 +57,6 @@
     hoverY = y;
     const { r, visible, y: lineY } = lineInfo();
     if (!visible) { lastLineY = null; return; }
-    // If the line itself just moved (panel opened/closed), do not treat the
-    // same cursor position as a crossing.
     if (lastLineY != null && Math.abs(lineY - lastLineY) > 6) {
       lastLineY = lineY;
       hoverY = y;
@@ -69,8 +67,6 @@
     const now = performance.now();
     if (now - lastCross < 250) return;
     if (prev < lineY && y >= lineY) {
-      // 120ms protection after opening: a downward move towards the line to
-      // grab it for a height drag must not close the panel.
       if (openNow() && now > deskHandleProtectUntil) { lastCross = now; closeNote(); }
     } else if (prev > lineY && y <= lineY) {
       if (!openNow()) { lastCross = now; openNote(); }
@@ -158,6 +154,7 @@
       AudioFX.stopLeafStretch();
       deskHandleSwipeSuppress = performance.now() + 400;
       protectDeskHandles(420);
+      noteSheetRememberCurrentHeight();
       positionDeskHandles();
       return;
     }
@@ -193,3 +190,182 @@
   document.addEventListener("touchend", onUp);
   document.addEventListener("touchcancel", onUp);
 })();
+
+/* ==========================================================================
+   NOTE SHEET HEIGHT — the note keeps its own box.
+   --------------------------------------------------------------------------
+   The AI card and the note used to share `--agent-terminal-height`, so
+   resizing one moved the other and a tall AI card pushed the note up over the
+   subtasks. Here the note owns its geometry:
+     - reopening restores the height it had when it was last closed;
+     - with no remembered height, it rises to the default line right below the
+       subtask area;
+     - opening the note snapshots and restores the AI height variable, so the
+       AI card never moves with it;
+     - side-by-side split keeps each pane's own height; a stacked (top/bottom)
+       split owns the geometry, so the note box stands down there.
+   ========================================================================== */
+(function () {
+  const HEIGHT_KEY = "neotodo.notesSheetHeight";
+  const MIN_HEIGHT = 220;
+  const BOTTOM_GAP = 40;
+  const root = document.documentElement;
+  const body = () => document.querySelector(".page-body");
+  const panel = () => document.querySelector("#notes-half");
+  let shownOnce = false;
+
+  let remembered = (() => {
+    try {
+      const saved = Number(localStorage.getItem(HEIGHT_KEY));
+      if (Number.isFinite(saved) && saved > 0) return saved;
+    } catch (error) {}
+    return null;
+  })();
+
+  const deskHeight = () => Math.max(1, body()?.clientHeight || window.innerHeight);
+
+  const clampHeight = (value) => Math.round(
+    Math.max(MIN_HEIGHT, Math.min(Number(value) || 0, deskHeight() - BOTTOM_GAP)),
+  );
+
+  const defaultHeight = () => {
+    const layer = body();
+    const todos = document.querySelector(".todos-section");
+    if (!layer) return 0;
+    const rect = layer.getBoundingClientRect();
+    if (rect.height <= 0) return 0;
+    const top = todos ? todos.getBoundingClientRect().bottom - rect.top : rect.height / 2;
+    // The note starts at the page baseline and may never grow into the task
+    // region, even when the desk is shorter than the 220px minimum.
+    const available = Math.max(0, rect.height - top);
+    return Math.round(Math.min(clampHeight(available), available));
+  };
+
+  /** Height of the desk below the page baseline. */
+  const deskAvailable = () => {
+    const layer = body();
+    const todos = document.querySelector(".todos-section");
+    if (!layer) return 0;
+    const rect = layer.getBoundingClientRect();
+    if (rect.height <= 0) return 0;
+    const top = todos ? todos.getBoundingClientRect().bottom - rect.top : rect.height / 2;
+    return Math.max(0, rect.height - top);
+  };
+
+  const splitActive = () => document.body.classList.contains("detached-note")
+    || document.body.classList.contains("agent-notes-axis-y");
+
+  const clearGeometry = (node) => {
+    node.style.removeProperty("top");
+    node.style.removeProperty("height");
+    node.style.removeProperty("bottom");
+  };
+
+  function applyGeometry() {
+    const node = panel();
+    if (!node) return;
+    if (splitActive() || node.classList.contains("notes-hidden")) {
+      clearGeometry(node);
+      return;
+    }
+    const layer = body();
+    if (!layer) return;
+    const wanted = clampHeight(remembered == null ? defaultHeight() : remembered);
+    const height = Math.round(Math.min(wanted, deskAvailable()));
+    if (!height) return;
+    const top = Math.max(0, layer.clientHeight - height);
+    node.style.setProperty("top", `${top}px`, "important");
+    node.style.setProperty("height", `${height}px`, "important");
+    node.style.setProperty("bottom", "auto", "important");
+  }
+
+  function currentHeight() {
+    const node = panel();
+    if (!node || splitActive()) return 0;
+    const height = node.getBoundingClientRect().height;
+    return height > 0 ? clampHeight(height) : 0;
+  }
+
+  function rememberFromPanel() {
+    const height = currentHeight();
+    if (!height) return;
+    remembered = height;
+    try { localStorage.setItem(HEIGHT_KEY, String(height)); } catch (error) {}
+  }
+
+  // Exposed for the bottom door handle's resize gesture.
+  window.noteSheetRememberCurrentHeight = rememberFromPanel;
+
+  function install() {
+    if (window.__noteSheetGeometry) return;
+    window.__noteSheetGeometry = true;
+
+    const show = window.showNotesPanel;
+    if (typeof show === "function") {
+      window.showNotesPanel = function (...args) {
+        // The AI card must keep its own height: snapshot the variable that
+        // showNotesPanel() may rewrite, then put it back untouched.
+        const previous = root.style.getPropertyValue("--agent-terminal-height");
+        const priority = root.style.getPropertyPriority("--agent-terminal-height");
+        const result = show.apply(this, args);
+        shownOnce = true;
+        applyGeometry();
+        if (previous) root.style.setProperty("--agent-terminal-height", previous, priority);
+        else root.style.removeProperty("--agent-terminal-height");
+        requestAnimationFrame(() => {
+          if (typeof positionDeskHandles === "function") positionDeskHandles();
+        });
+        return result;
+      };
+    }
+
+    const hide = window.hideNotesPanel;
+    if (typeof hide === "function") {
+      window.hideNotesPanel = function (...args) {
+        if (shownOnce && !document.body.classList.contains("notes-hidden")) rememberFromPanel();
+        return hide.apply(this, args);
+      };
+    }
+
+    // A re-render rewrites the panel's inline styles; re-apply the box after it.
+    const setup = window.setupNotesPanel;
+    if (typeof setup === "function") {
+      window.setupNotesPanel = function (...args) {
+        const result = setup.apply(this, args);
+        applyGeometry();
+        return result;
+      };
+    }
+
+    new MutationObserver(applyGeometry).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    applyGeometry();
+  }
+
+  function boot() {
+    if (window.__noteSheetGeometry) return;
+    if (typeof window.showNotesPanel === "function") { install(); return; }
+    // app.js is parsed after this file; wait for its function declarations.
+    let attempts = 0;
+    const wait = () => {
+      if (window.__noteSheetGeometry) return;
+      if (typeof window.showNotesPanel === "function" || attempts++ > 40) { install(); return; }
+      setTimeout(wait, 25);
+    };
+    wait();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+
+  window.addEventListener("resize", () => {
+    if (window.__noteSheetGeometry) applyGeometry();
+  });
+})();
+

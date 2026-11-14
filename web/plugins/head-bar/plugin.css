@@ -1,0 +1,327 @@
+/* ==========================================================================
+   HEAD BAR PLUGIN PAGE
+   A small, self-contained control page for the Head Bar plugin. It can live in
+   the NeoTodo plugin iframe or stand on its own as a normal page.
+   ========================================================================== */
+
+* { box-sizing: border-box; }
+
+html, body {
+  min-height: 100%;
+  margin: 0;
+}
+
+html {
+  --hb-paper: #f7f1e4;
+  --hb-paper-soft: #fffaf0;
+  --hb-ink: #2d241b;
+  --hb-muted: #8f7d68;
+  --hb-line: rgba(88, 62, 34, 0.16);
+  --hb-blue: #3f86c9;
+  --hb-graphite: #1c1c1e;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans", "Noto Sans CJK SC", sans-serif;
+  color: var(--hb-ink);
+  background:
+    radial-gradient(circle at 50% -10%, rgba(168, 209, 244, 0.20), transparent 46%),
+    radial-gradient(circle at 82% 104%, rgba(224, 241, 255, 0.24), transparent 40%),
+    var(--hb-paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+html[data-hb-dark="true"] {
+  --hb-paper: #14100d;
+  --hb-paper-soft: #211913;
+  --hb-ink: #f7ecdf;
+  --hb-muted: #b7a28b;
+  --hb-line: rgba(255, 218, 174, 0.14);
+  background:
+    radial-gradient(circle at 50% -10%, rgba(120, 175, 225, 0.22), transparent 46%),
+    radial-gradient(circle at 82% 104%, rgba(190, 225, 250, 0.14), transparent 40%),
+    var(--hb-paper);
+}
+
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+}
+
+.hb-page {
+  position: relative;
+  width: min(470px, 100%);
+  animation: hb-rise 0.46s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes hb-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.hb-close {
+  position: absolute;
+  top: -10px;
+  right: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--hb-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hb-paper-soft) 72%, transparent);
+  color: var(--hb-muted);
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.hb-close:hover {
+  color: var(--hb-ink);
+  background: var(--hb-paper-soft);
+  transform: rotate(90deg);
+}
+
+.hb-close svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.hb-hero {
+  display: grid;
+  gap: 22px;
+}
+
+/* A miniature notebook card with the ice-blue island hanging from its top edge. */
+.hb-stage {
+  position: relative;
+  height: 164px;
+  overflow: hidden;
+  border: 1px solid var(--hb-line);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 34%),
+    radial-gradient(circle at 50% 130%, rgba(168, 209, 244, 0.18), transparent 58%),
+    var(--hb-paper-soft);
+  box-shadow:
+    0 20px 45px rgba(61, 37, 12, 0.10),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.20);
+}
+
+html[data-hb-dark="true"] .hb-stage {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 34%),
+    radial-gradient(circle at 50% 130%, rgba(120, 175, 225, 0.22), transparent 58%),
+    var(--hb-paper-soft);
+  box-shadow:
+    0 20px 45px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.hb-stage-island {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 92px;
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      114deg,
+      rgba(255, 255, 255, 0) 0 21px,
+      rgba(255, 255, 255, 0.36) 21px 22px,
+      rgba(112, 160, 206, 0.18) 22px 22.8px,
+      rgba(255, 255, 255, 0) 22.8px 43px
+    ),
+    linear-gradient(180deg, #fbfdff 0%, #e2f1ff 30%, #bfddf7 64%, #86b8e4 100%);
+  border: 1px solid rgba(88, 142, 196, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(70, 124, 178, 0.38),
+    inset 1px 0 0 rgba(255, 255, 255, 0.50),
+    inset -1px 0 0 rgba(88, 142, 196, 0.28);
+  transform: translateX(-50%);
+  animation: hb-island-float 3.2s ease-in-out infinite;
+}
+
+.hb-stage-island::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 8%;
+  width: 38%;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.52) 40%,
+    rgba(255, 255, 255, 0.10) 72%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-22deg);
+  opacity: 0.8;
+}
+
+.hb-stage-island::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 16%;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.22) 65%, transparent);
+  opacity: 0.9;
+}
+
+@keyframes hb-island-float {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, 2px); }
+}
+
+.hb-stage-clock {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--hb-muted);
+  font-family: "Z003", "Caveat", Georgia, serif;
+  font-size: 35px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+
+.hb-title { display: grid; gap: 6px; }
+
+.hb-kicker {
+  color: var(--hb-blue);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.hb-title h1 {
+  margin: 0;
+  font-size: clamp(34px, 7vw, 44px);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.hb-title p {
+  margin: 0;
+  color: var(--hb-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.hb-copy p {
+  margin: 0;
+  color: var(--hb-muted);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+
+.hb-power {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  padding: 15px 16px;
+  border: 1px solid var(--hb-line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--hb-paper-soft) 82%, transparent);
+  color: var(--hb-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.hb-power:hover {
+  border-color: rgba(112, 166, 212, 0.55);
+  transform: translateY(-1px);
+}
+
+.hb-power-copy { display: grid; gap: 4px; min-width: 0; }
+.hb-power-copy strong { font-size: 14px; font-weight: 700; }
+.hb-power-copy small { color: var(--hb-muted); font-size: 11.5px; line-height: 1.45; }
+
+.hb-switch {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(120, 100, 80, 0.22);
+  transition: background 0.2s ease;
+}
+
+.hb-thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #fffdf8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  transition: transform 0.24s cubic-bezier(0.16, 1.2, 0.3, 1);
+}
+
+.hb-power[aria-pressed="true"] .hb-switch { background: var(--hb-blue); }
+.hb-power[aria-pressed="true"] .hb-thumb { transform: translateX(18px); }
+
+.hb-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hb-hints span {
+  padding: 6px 9px;
+  border: 1px solid var(--hb-line);
+  border-radius: 999px;
+  color: var(--hb-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+}
+
+.hb-hints b { color: var(--hb-blue); font-weight: 700; }
+
+.hb-done {
+  justify-self: start;
+  padding: 10px 17px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--hb-graphite);
+  color: #fff8ee;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(28, 28, 30, 0.18);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.hb-done:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 11px 24px rgba(28, 28, 30, 0.24);
+}
+
+@media (max-width: 520px) {
+  body { padding: 22px 14px; }
+  .hb-close { top: -4px; }
+  .hb-stage { height: 140px; border-radius: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hb-page, .hb-stage-island { animation: none; }
+  .hb-close, .hb-power, .hb-done, .hb-thumb, .hb-switch { transition: none; }
+}

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN" data-ss-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>子任务搜索 · NeoTodo</title>
+  <script>
+    // The host sends the current postcard theme once the iframe loads. Reading
+    // the parent first avoids a bright flash before that message arrives.
+    try {
+      if (window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        if (parentRoot.dataset.postcardDark === "true") {
+          document.documentElement.dataset.ssDark = "true";
+        }
+      }
+    } catch (error) {}
+    window.addEventListener("message", (event) => {
+      if (event.data?.type !== "neotodo-theme") return;
+      document.documentElement.dataset.ssDark = event.data.dark ? "true" : "false";
+    });
+    document.documentElement.classList.add("ss-booting");
+  </script>
+  <link rel="stylesheet" href="plugin.css">
+</head>
+<body>
+  <main class="ss-page">
+    <button class="ss-close" type="button" data-close aria-label="Close Subtask Search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+
+    <section class="ss-hero">
+      <div class="ss-stage" aria-hidden="true">
+        <span class="ss-stage-eye">
+          <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.2 15.2 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </span>
+        <span class="ss-stage-count">3 / 7</span>
+        <span class="ss-stage-row"><i></i><b>回一封邮件</b></span>
+        <span class="ss-stage-row"><i></i><b>整理桌面</b></span>
+        <span class="ss-stage-row ss-stage-row-empty"><i></i><b>写一页草稿</b></span>
+      </div>
+
+      <div class="ss-title">
+        <span class="ss-kicker">PLUGIN · INTERFACE</span>
+        <h1>子任务搜索</h1>
+        <p>一个不闭合的横向【形搜索框，从左栏打开时从子任务上边框滑出。</p>
+      </div>
+
+      <div class="ss-copy">
+        <p>开启后，左侧工具栏会出现橙色放大镜。点一下打开搜索栏，再点一下收起。搜索框是空白的，输入关键词后，匹配的子任务会以带底线的结果行排列在下方；点击结果会回到它原来的位置，搜索栏保持打开，只用左侧卡片开关。</p>
+      </div>
+
+      <button class="ss-power" id="ss-power" type="button" aria-pressed="true">
+        <span class="ss-power-copy">
+          <strong id="ss-power-title">Subtask Search is on</strong>
+          <small id="ss-power-detail">子任务上方会显示搜索框。</small>
+        </span>
+        <span class="ss-switch" aria-hidden="true"><span class="ss-thumb"></span></span>
+      </button>
+
+      <div class="ss-hints">
+        <span><b>Click</b> 开关搜索栏</span>
+        <span><b>Type</b> 下方列出结果</span>
+        <span><b>Esc</b> 清空搜索</span>
+      </div>
+
+      <button class="ss-done" type="button" data-close>Back to NeoTodo</button>
+    </section>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN" data-cd-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>完成抽屉 · NeoTodo</title>
+  <script>
+    // Read the parent theme first so the page never flashes a bright card in a
+    // dark notebook; the host repeats the theme through postMessage afterwards.
+    try {
+      if (window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        if (parentRoot.dataset.postcardDark === "true") {
+          document.documentElement.dataset.cdDark = "true";
+        }
+      }
+    } catch (error) {}
+    window.addEventListener("message", (event) => {
+      if (event.data?.type !== "neotodo-theme") return;
+      document.documentElement.dataset.cdDark = event.data.dark ? "true" : "false";
+    });
+    document.documentElement.classList.add("cd-booting");
+  </script>
+  <link rel="stylesheet" href="plugin.css">
+</head>
+<body>
+  <main class="cd-page">
+    <button class="cd-close" type="button" data-close aria-label="Close Completed Drawer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+
+    <section class="cd-hero">
+      <div class="cd-stage" aria-hidden="true">
+        <div class="cd-stage-live">
+          <span class="cd-stage-row"><i></i><b>下载流浪之羽视频</b></span>
+          <span class="cd-stage-row"><i></i><b>音频输入点歌功能</b></span>
+          <span class="cd-stage-row"><i></i><b>新建任务第一栏</b></span>
+        </div>
+        <div class="cd-stage-card">
+          <span class="cd-stage-line"></span>
+          <span class="cd-stage-task"><i></i><b>完成任务横线颜色</b><em>✓</em></span>
+          <span class="cd-stage-task"><i></i><b>动态壁纸</b><em>✓</em></span>
+          <span class="cd-stage-task"><i></i><b>子任务 fork</b><em>✓</em></span>
+        </div>
+      </div>
+
+      <div class="cd-title">
+        <span class="cd-kicker">PLUGIN · INTERFACE</span>
+        <h1>完成抽屉</h1>
+        <p>完成的子任务不再挤在未完成的任务里。</p>
+      </div>
+
+      <div class="cd-copy">
+        <p>开启后，完成的任务会收进右下角的紫色小卡片。卡片上方的那条紫色横线正好停在卡片中间，向下拉就能展开，再向上推就收回去。</p>
+        <p>关闭插件后，这条横线和卡片都会消失，完成的任务会像以前一样和其他任务排在一起。</p>
+      </div>
+
+      <button class="cd-power" id="cd-power" type="button" aria-pressed="true">
+        <span class="cd-power-copy">
+          <strong id="cd-power-title">Completed Drawer is on</strong>
+          <small id="cd-power-detail">完成的子任务会收进右边的小卡片。</small>
+        </span>
+        <span class="cd-switch" aria-hidden="true"><span class="cd-thumb"></span></span>
+      </button>
+
+      <div class="cd-hints">
+        <span><b>Pull</b> 横线展开</span>
+        <span><b>Push</b> 收回去</span>
+        <span><b>Off</b> 合并回任务列</span>
+      </div>
+
+      <button class="cd-done" type="button" data-close>Back to NeoTodo</button>
+    </section>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

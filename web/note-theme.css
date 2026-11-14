@@ -20,100 +20,10 @@
   --note-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
 }
 
-/* ---------------------------------------------------------------- Paper --- */
-html[data-note-material="paper"] .notes-half.floating-notes {
-  --note-paper: #e8d3a6;
-  --note-ink: #3a2414;
-  --note-muted: rgba(58, 36, 20, 0.62);
-  --note-rule: rgba(58, 36, 20, 0.16);
-  --note-accent: #a8691f;
-  --note-accent-2: #8a5a2a;
-  color: var(--note-ink) !important;
-  background-color: #e8d3a6 !important;
-  /* Smooth parchment: a warm centre, softly aged edges and two broad stains.
-     No fine grid, no dotted noise. */
-  background-image:
-    radial-gradient(ellipse at 50% 42%, rgba(255, 249, 232, 0.58), transparent 66%),
-    radial-gradient(ellipse at 4% 0%, rgba(108, 70, 26, 0.20), transparent 52%),
-    radial-gradient(ellipse at 100% 100%, rgba(108, 70, 26, 0.18), transparent 56%),
-    radial-gradient(ellipse at 22% 82%, rgba(146, 96, 40, 0.075), transparent 34%),
-    radial-gradient(ellipse at 80% 18%, rgba(146, 96, 40, 0.065), transparent 36%) !important;
-  background-size: auto, auto, auto, auto, auto !important;
-  background-position: 0 0, 0 0, 0 0, 0 0, 0 0 !important;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat !important;
-  border: 1px solid rgba(112, 74, 30, 0.30) !important;
-  box-shadow:
-    inset 0 0 68px rgba(92, 56, 20, 0.22),
-    inset 0 0 14px rgba(255, 250, 236, 0.35),
-    0 16px 40px rgba(40, 24, 8, 0.28) !important;
-}
-
-/* Letterpress ink: the title looks pressed into the parchment. */
-html[data-note-material="paper"] .notes-half.floating-notes .notes-title > span,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h1,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h2,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h3 {
-  text-shadow: 0 1px 0 rgba(255, 249, 233, 0.55) !important;
-}
-
-/* ---------------------------------------------------------------- Glass --- */
-html[data-note-material="blur"] .notes-half.floating-notes {
-  --note-paper: transparent;
-  --note-ink: #171713;
-  --note-muted: rgba(30, 30, 25, 0.55);
-  --note-rule: rgba(30, 30, 24, 0.14);
-  --note-accent: #6d3f18;
-  --note-accent-2: #8a5a2a;
-  color: var(--note-ink) !important;
-  padding: 20px 30px 26px !important;
-  background-color: transparent !important;
-  background-image:
-    var(--note-bg-image, none),
-    var(--note-glass-default) !important;
-  background-size: cover, cover !important;
-  background-position: center, center !important;
-  background-repeat: no-repeat, no-repeat !important;
-  border: 0 !important;
-  border-radius: 14px !important;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.30) !important;
-}
-
-html[data-note-material="blur"] .notes-half.floating-notes .notes-title,
-html[data-note-material="blur"] .notes-half.floating-notes .note-block,
-html[data-note-material="blur"] .notes-half.floating-notes .note-block-editor {
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.55) !important;
-}
-
-html[data-note-material="blur"] .notes-half.floating-notes::before {
-  /* FocusWriter's foreground mask: an inset translucent page floating over
-     the background image, with heavy frost and a soft shadow. */
-  inset: 10px !important;
-  border-radius: 12px !important;
-  background-color: rgba(246, 241, 228, 0.44) !important;
-  background-image:
-    var(--note-noise),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(238, 242, 238, 0.04)) !important;
-  background-size: 180px 180px, auto !important;
-  -webkit-backdrop-filter: blur(22px) saturate(1.06) !important;
-  backdrop-filter: blur(22px) saturate(1.06) !important;
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.34) !important;
-}
-
 /* The split/layout rules in style.css used to repaint the pane with the app
    paper; keep the notebook's own colour there too. */
 html[data-theme] body .page-body .notes-half.floating-notes {
   background-color: var(--note-paper) !important;
-}
-
-/* Aged edge and letterpress border, strong enough to survive layout rules. */
-html[data-theme][data-note-material="paper"] body .page-body .notes-half.floating-notes {
-  border-color: rgba(112, 74, 30, 0.30) !important;
-  box-shadow:
-    inset 0 0 68px rgba(92, 56, 20, 0.22),
-    inset 0 0 14px rgba(255, 250, 236, 0.35),
-    0 16px 40px rgba(40, 24, 8, 0.28) !important;
 }
 
 /* ------------------------------------------------------- Ink and details --- */
@@ -235,3 +145,36 @@ html[data-theme] body .page-body .notes-half.floating-notes ::selection {
   cursor: pointer;
 }
 .project-folder-clear:hover { color: var(--note-ink); }
+
+/* Notebook context menu uses the notebook paper palette, not the app theme. */
+html[data-theme="postcard"] .context-menu.context-note,
+.context-menu.context-note {
+  background: #e8d3a6 !important;
+  color: var(--note-ink, #3a2414);
+  border-color: var(--note-rule, rgba(58, 36, 20, 0.16));
+  box-shadow: 0 14px 34px rgba(54, 33, 12, 0.2), 0 3px 8px rgba(54, 33, 12, 0.08);
+  font-family: var(--note-font, "Z003", "URW Bookman", serif);
+}
+.context-menu.context-note .context-item { color: var(--note-ink, #3a2414); }
+.context-menu.context-note .context-item:hover { background: rgba(168, 105, 31, 0.13); }
+.context-menu.context-note .context-icon { color: var(--note-accent, #a8691f); }
+.context-menu.context-note .context-sep { background: var(--note-rule, rgba(58, 36, 20, 0.16)); }
+.context-menu.context-note .context-danger { color: var(--note-accent-2, #8a5a2a) !important; }
+
+.notes-half.floating-notes.sheet-opening {
+  animation: notes-sheet-up 0.34s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+@keyframes notes-sheet-up {
+  from { transform: translateY(100%); opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+
+/* One ink for the notebook title and every text line. */
+.notes-half.floating-notes .notes-title,
+.notes-half.floating-notes .notes-title > span,
+.notes-half.floating-notes .note-block,
+.notes-half.floating-notes .note-block-editor,
+.notes-half.floating-notes .note-live,
+.notes-half.floating-notes .notes-empty {
+  color: var(--note-ink, #3a2414) !important;
+}

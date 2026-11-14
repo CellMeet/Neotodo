@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN" data-hb-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Head Bar · NeoTodo</title>
+  <script>
+    try {
+      if (window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        if (parentRoot.dataset.postcardDark === "true") {
+          document.documentElement.dataset.hbDark = "true";
+        }
+      }
+    } catch (error) {}
+    document.documentElement.classList.add("hb-booting");
+  </script>
+  <link rel="stylesheet" href="plugin.css">
+</head>
+<body>
+  <main class="hb-page">
+    <button class="hb-close" type="button" data-close aria-label="Close Head Bar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+
+    <section class="hb-hero">
+      <div class="hb-stage" aria-hidden="true">
+        <span class="hb-stage-island"></span>
+        <span class="hb-stage-clock">21:08</span>
+      </div>
+
+      <div class="hb-title">
+        <span class="hb-kicker">PLUGIN · INTERFACE</span>
+        <h1>Head Bar</h1>
+        <p>悬停时钟，让短短的蓝白水晶小岛从上边框滑出。</p>
+      </div>
+
+      <div class="hb-copy">
+        <p>点击小岛，整个工作区向上收起，只留下原始壁纸。再点一次，所有内容回到原位。它安静地藏在顶部，不占用任何空间。</p>
+      </div>
+
+      <button class="hb-power" id="hb-power" type="button" aria-pressed="true">
+        <span class="hb-power-copy">
+          <strong id="hb-power-title">Head Bar is on</strong>
+          <small id="hb-power-detail">悬停时间数字即可唤出灵动岛。</small>
+        </span>
+        <span class="hb-switch" aria-hidden="true"><span class="hb-thumb"></span></span>
+      </button>
+
+      <div class="hb-hints">
+        <span><b>Hover</b> 时间数字</span>
+        <span><b>Click</b> 收起工作区</span>
+        <span><b>Again</b> 恢复</span>
+      </div>
+
+      <button class="hb-done" type="button" data-close>Back to NeoTodo</button>
+    </section>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

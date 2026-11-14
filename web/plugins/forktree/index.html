@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN" data-ft-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Forktree · NeoTodo</title>
+  <script>
+    // The host sends the postcard theme once the iframe loads. Reading the
+    // parent first avoids a bright flash before that message arrives.
+    (() => {
+      try {
+        if (window.parent === window) return;
+        const parentRoot = window.parent.document.documentElement;
+        document.documentElement.dataset.ftDark =
+          parentRoot.dataset.postcardDark === "true" ? "true" : "false";
+        const styles = window.parent.getComputedStyle(parentRoot);
+        for (const [name, key] of [
+          ["--pc-paper", "--ft-paper"],
+          ["--pc-paper2", "--ft-paper2"],
+          ["--pc-ink", "--ft-ink"],
+          ["--pc-muted", "--ft-muted"],
+          ["--pc-border", "--ft-border"],
+          ["--pc-line", "--ft-line"],
+        ]) {
+          const value = styles.getPropertyValue(name).trim();
+          if (value) document.documentElement.style.setProperty(key, value);
+        }
+      } catch (error) {}
+      document.documentElement.classList.add("ft-booting");
+      // Never leave the page invisible if the plugin script fails to start.
+      window.setTimeout(() => {
+        document.documentElement.classList.remove("ft-booting");
+      }, 2200);
+    })();
+  </script>
+  <link rel="stylesheet" href="forktree.css">
+</head>
+<body>
+  <div class="ft-app">
+    <header class="ft-top">
+      <div class="ft-brand">
+        <span class="ft-logo" aria-hidden="true"><img src="forktree.svg" alt=""></span>
+        <span class="ft-brand-copy">
+          <h1>Forktree</h1>
+          <p>分支地图 · BRANCH MAP</p>
+        </span>
+      </div>
+
+      <div class="ft-stats" id="ft-stats" aria-live="polite">
+        <span class="ft-stat"><b id="ft-stat-categories">0</b><small>分类</small></span>
+        <span class="ft-stat"><b id="ft-stat-todos">0</b><small>任务</small></span>
+        <span class="ft-stat"><b id="ft-stat-subtasks">0</b><small>子任务</small></span>
+        <span class="ft-stat ft-stat-fork"><b id="ft-stat-forks">0</b><small>fork</small></span>
+      </div>
+
+      <div class="ft-actions">
+        <label class="ft-search" for="ft-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M15.2 15.2 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <input id="ft-search" type="text" placeholder="搜索节点…" autocomplete="off" spellcheck="false" aria-label="搜索节点">
+          <span class="ft-search-count" id="ft-search-count"></span>
+          <kbd>/</kbd>
+        </label>
+
+        <button class="ft-icon-button" type="button" data-ft-action="refresh" aria-label="刷新分支图" title="刷新">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19.5 8.4A8 8 0 1 0 20 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M20 5.4v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <button class="ft-icon-button ft-close" type="button" data-ft-action="close" aria-label="关闭 Forktree" title="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="ft-viewport" id="ft-viewport" aria-label="Forktree 分支图">
+      <div class="ft-canvas" id="ft-canvas">
+        <svg class="ft-lines" id="ft-lines" aria-hidden="true"></svg>
+        <div class="ft-nodes" id="ft-nodes"></div>
+      </div>
+
+      <div class="ft-loading" id="ft-loading" role="status">
+        <span class="ft-loading-mark"><img src="forktree.svg" alt=""></span>
+        <span class="ft-loading-text">正在展开分支…</span>
+      </div>
+
+      <section class="ft-empty" id="ft-empty" hidden>
+        <span class="ft-empty-mark"><img src="forktree.svg" alt=""></span>
+        <h2>这里还没有分支</h2>
+        <p>新建一个分类或任务，Forktree 会把它们画成一张从左到右的地图。</p>
+        <button type="button" data-ft-action="refresh">重新读取</button>
+      </section>
+
+      <section class="ft-error" id="ft-error" hidden>
+        <h2>分支图没有加载出来</h2>
+        <p id="ft-error-text">请稍后再试。</p>
+        <button type="button" data-ft-action="refresh">重试</button>
+      </section>
+
+      <div class="ft-legend" aria-hidden="true">
+        <span><i class="ft-legend-dot is-category"></i>分类</span>
+        <span><i class="ft-legend-dot is-todo"></i>任务</span>
+        <span><i class="ft-legend-dot is-subtask"></i>子任务</span>
+        <span><i class="ft-legend-dot is-fork"></i>fork</span>
+      </div>
+
+      <div class="ft-zoom" role="group" aria-label="缩放与展开">
+        <button type="button" data-ft-action="zoom-out" aria-label="缩小" title="缩小">−</button>
+        <span class="ft-zoom-label" id="ft-zoom-label">100%</span>
+        <button type="button" data-ft-action="zoom-in" aria-label="放大" title="放大">+</button>
+        <span class="ft-zoom-sep" aria-hidden="true"></span>
+        <button type="button" data-ft-action="fit" aria-label="适应窗口" title="适应窗口 (0)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button type="button" data-ft-action="expand" aria-label="展开全部分支" title="展开全部">展开</button>
+        <button type="button" data-ft-action="collapse" aria-label="收起全部分支" title="收起分支">收起</button>
+      </div>
+
+      <p class="ft-hint">拖动平移 · 滚轮缩放 · 点击节点跳转</p>
+    </main>
+  </div>
+
+  <script src="forktree.js"></script>
+</body>
+</html>

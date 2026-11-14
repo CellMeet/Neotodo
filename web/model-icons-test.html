@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NeoTodo · Model icon test</title>
+  <style>
+    :root { color-scheme: light dark; --paper:#f7efe3; --ink:#2c261d; --line:#d8c8ad; --ok:#2f7d55; --bad:#b5483d; }
+    @media (prefers-color-scheme: dark) {
+      :root { --paper:#17131f; --ink:#f3ead9; --line:#3a3048; --ok:#7ed7a5; --bad:#ff8f85; }
+    }
+    body { margin: 0; padding: 36px; background: var(--paper); color: var(--ink); font: 14px/1.5 "Noto Sans", system-ui, sans-serif; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    p { margin: 0 0 22px; opacity: .65; }
+    .summary { font: 13px/1.6 ui-monospace, monospace; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    figure { margin: 0; padding: 14px 10px 10px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    img { width: 56px; height: 56px; object-fit: contain; }
+    figcaption { font: 11px/1.3 ui-monospace, monospace; opacity: .75; }
+    .status { font: 11px/1 ui-monospace, monospace; }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+  </style>
+</head>
+<body>
+  <h1>Model / provider icons</h1>
+  <p>LobeHub Icons · static SVG assets in <code>/model-icons/</code></p>
+  <div class="summary" id="summary">Testing…</div>
+  <div class="grid" id="grid"></div>
+  <script>
+    const ids = [
+      "deepseek", "openai", "anthropic", "claude", "google", "gemini",
+      "openrouter", "ollama", "mistral", "meta", "xai", "qwen",
+      "zhipu", "moonshot", "groq", "together", "lobehub"
+    ];
+    const grid = document.getElementById("grid");
+    const summary = document.getElementById("summary");
+    let passed = 0;
+    let failed = 0;
+    const done = () => {
+      summary.textContent = `${passed} passed · ${failed} failed · ${ids.length} total`;
+      summary.classList.toggle("bad", failed > 0);
+    };
+    ids.forEach((id) => {
+      const figure = document.createElement("figure");
+      const img = document.createElement("img");
+      const caption = document.createElement("figcaption");
+      const status = document.createElement("span");
+      caption.textContent = id;
+      status.className = "status";
+      status.textContent = "…";
+      img.alt = id;
+      img.src = `/model-icons/${id}.svg`;
+      img.addEventListener("load", () => {
+        if (!img.naturalWidth) return;
+        passed += 1;
+        status.textContent = "PASS";
+        status.classList.add("ok");
+        done();
+      });
+      img.addEventListener("error", () => {
+        failed += 1;
+        status.textContent = "FAIL";
+        status.classList.add("bad");
+        done();
+      });
+      figure.append(img, caption, status);
+      grid.appendChild(figure);
+    });
+  </script>
+</body>
+</html>
