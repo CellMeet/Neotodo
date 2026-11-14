@@ -1,20 +1,30 @@
+# [shared] NeoTodo backend: Linux-first, also used by Windows (windows_app.py)
+# and Android (synced by android/sync-sources.sh). Do not create a Windows
+# or Android fork of this file; sync later as a batch.
 #!/usr/bin/python3
 from __future__ import annotations
 
 import base64
+import hashlib
+import io
 import json
 import mimetypes
 import os
 import re
 import shutil
 import socket
+import ssl
 import subprocess
+import tempfile
 
 import startup
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
+import zipfile
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -48,6 +58,49 @@ PICTURES_DIR = DATA_DIR / "pictures"
 MUSIC_DIR = DATA_DIR / "music"
 SNAPSHOT_FILE = DATA_DIR / "last-page.png"
 DETACH_PREVIEW_FILE = DATA_DIR / "detach-preview.png"
+PLUGINS_DIR = DATA_DIR / "plugins"
+PLUGIN_CATALOG_CACHE = DATA_DIR / "plugin-catalog.json"
+# The community index lives in the repository so a pull request is the only
+# upload step. The bundled copy in web/plugins is the offline fallback.
+PLUGIN_CATALOG_URL = os.environ.get(
+    "NEOTODO_PLUGIN_CATALOG",
+    "https://raw.githubusercontent.com/CellMeet/Neotodo/main/community/catalog.json",
+).strip()
+PLUGIN_CATALOG_TTL = 12 * 60 * 60
+PLUGIN_ARCHIVE_MAX_BYTES = 24_000_000
+PLUGIN_ARCHIVE_MAX_FILES = 400
+PLUGIN_ARCHIVE_MAX_UNCOMPRESSED = 48_000_000
+PLUGIN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
+
+# Theme packs are the community unit for colours, wallpapers, sounds and
+# achievement icons. A pack is a normal folder with theme.json at its root; the
+# web community publishes zipped folders so a pull request is still the only
+# upload step. Bundled packs in web/theme-packs are the offline storefront and
+# the source used when a catalog entry is marked "bundled".
+THEME_PACKS_DIR = DATA_DIR / "theme-packs"
+THEME_EXPORTS_DIR = DATA_DIR / "theme-exports"
+THEME_CATALOG_CACHE = DATA_DIR / "theme-catalog.json"
+THEME_CATALOG_URL = os.environ.get(
+    "NEOTODO_THEME_CATALOG",
+    "https://raw.githubusercontent.com/CellMeet/Neotodo/main/community/themes.json",
+).strip()
+THEME_CATALOG_TTL = 12 * 60 * 60
+THEME_ARCHIVE_MAX_BYTES = 24_000_000
+THEME_ARCHIVE_MAX_FILES = 400
+THEME_ARCHIVE_MAX_UNCOMPRESSED = 64_000_000
+THEME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
+THEME_ASSET_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".svg"}
+THEME_ASSET_AUDIO_EXTS = {".wav", ".mp3", ".ogg", ".flac", ".m4a"}
+THEME_SOUND_KEYS = (
+    "type", "enter", "drawerOpen", "drawerClose", "waterFlow",
+    "trickle", "windScroll", "train", "paperTear", "steamHiss",
+)
+THEME_STICKER_KEYS = ("completed", "focus")
+THEME_PALETTE_FALLBACKS = {
+    "paper": "#f7efe3", "paper2": "#ecdfcd", "ink": "#332b2d",
+    "muted": "#88786a", "accent": "#c56f4a", "accent2": "#5f7f8b",
+    "border": "#d8c3a9", "stamp": "#b0563f",
+}
 
 WALLPAPER_MODES = ("none", "static", "dynamic")
 PICTURE_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
@@ -299,6 +352,1059 @@ def music_tracks() -> list:
     return tracks
 
 
+def ensure_plugins_dir() -> Path:
+    """Create the user plugin shelf and return it."""
+    try:
+        PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return PLUGINS_DIR
+
+
+def normalized_plugin_id(value) -> str:
+    raw = str(value or "").strip().lower()
+    return raw if PLUGIN_ID_RE.fullmatch(raw) else ""
+
+
+def safe_http_url(value) -> str:
+    raw = str(value or "").strip()
+    if not raw or len(raw) > 2000:
+        return ""
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("https", "http") or not parsed.netloc:
+        return ""
+    return raw
+
+
+def plugin_setting_rows(raw) -> list:
+    rows = []
+    if not isinstance(raw, list):
+        return rows
+    for item in raw[:12]:
+        if not isinstance(item, dict) or item.get("type") != "toggle":
+            continue
+        setting_id = str(item.get("id") or "").strip()
+        if not re.fullmatch(r"[a-z0-9_-]{1,40}", setting_id):
+            continue
+        rows.append(
+            {
+                "id": setting_id,
+                "label": str(item.get("label") or setting_id)[:80],
+                "detail": str(item.get("detail") or "")[:220],
+                "type": "toggle",
+                "default": item.get("default") is not False,
+            }
+        )
+    return rows
+
+
+def normalize_plugin_manifest(raw, folder: Path, source: str) -> dict | None:
+    """Validate one manifest and turn it into the registry shape."""
+    if not isinstance(raw, dict):
+        return None
+    plugin_id = normalized_plugin_id(raw.get("id") or getattr(folder, "name", ""))
+    if not plugin_id:
+        return None
+    entry = str(raw.get("entry") or "index.html").strip().replace("\\", "/").lstrip("/")
+    if not entry or ".." in Path(entry).parts:
+        return None
+    if Path(entry).suffix.lower() not in (".html", ".htm"):
+        return None
+    try:
+        if not (folder / entry).is_file():
+            return None
+    except Exception:
+        return None
+    icon = str(raw.get("icon") or "").strip().replace("\\", "/").lstrip("/")
+    if not icon or ".." in Path(icon).parts or not (folder / icon).is_file():
+        icon = ""
+    colors = raw.get("colors") if isinstance(raw.get("colors"), dict) else {}
+    tags = raw.get("tags")
+    if not isinstance(tags, list):
+        tags = []
+    return {
+        "id": plugin_id,
+        "name": str(raw.get("name") or plugin_id)[:80],
+        "englishName": str(raw.get("englishName") or "")[:80],
+        "version": str(raw.get("version") or "1.0.0")[:32],
+        "description": str(raw.get("description") or "")[:600],
+        "icon": icon,
+        "entry": entry,
+        "author": str(raw.get("author") or "Community")[:80],
+        "category": str(raw.get("category") or "Interface")[:40],
+        "kind": str(raw.get("kind") or "")[:32],
+        "homepage": safe_http_url(raw.get("homepage")),
+        "repository": safe_http_url(raw.get("repository")),
+        "license": str(raw.get("license") or "")[:60],
+        "tags": [str(tag)[:24] for tag in tags if isinstance(tag, str) and tag.strip()][:6],
+        "colors": {
+            "accent": str(colors.get("accent") or "")[:32],
+            "paper": str(colors.get("paper") or "")[:32],
+        },
+        "settings": plugin_setting_rows(raw.get("settings")),
+        "source": source,
+    }
+
+
+def read_plugin_manifest(folder: Path, source: str) -> dict | None:
+    try:
+        raw = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return normalize_plugin_manifest(raw, folder, source)
+
+
+def discover_plugins() -> list:
+    """Merge bundled plugins with everything the user installed.
+
+    A user folder with the same id wins, so a downloaded plugin can shadow a
+    built-in one during development. Dot-prefixed folders are staging areas and
+    are ignored.
+    """
+    found: dict[str, dict] = {}
+    for source, root in (("bundled", WEB_DIR / "plugins"), ("user", ensure_plugins_dir())):
+        try:
+            folders = sorted(
+                (item for item in root.iterdir() if item.is_dir() and not item.name.startswith(".")),
+                key=lambda item: item.name.lower(),
+            )
+        except Exception:
+            folders = []
+        for folder in folders:
+            manifest = read_plugin_manifest(folder, source)
+            if manifest is None:
+                continue
+            found[manifest["id"]] = manifest
+    return sorted(found.values(), key=lambda item: (item["source"] != "user", item["name"].lower()))
+
+
+def plugin_file_path(plugin_id, relative) -> Path | None:
+    """Resolve a plugin asset from the user shelf, then the bundled shelf."""
+    plugin_id = normalized_plugin_id(plugin_id)
+    if not plugin_id:
+        return None
+    rel = unquote(str(relative or "")).replace("\\", "/").lstrip("/")
+    if not rel or ".." in Path(rel).parts:
+        return None
+    for folder in (PLUGINS_DIR / plugin_id, WEB_DIR / "plugins" / plugin_id):
+        try:
+            root = folder.resolve()
+            candidate = (folder / rel).resolve()
+            if candidate.is_relative_to(root) and candidate.is_file():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _read_json_file(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _catalog_entry(raw) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    plugin_id = normalized_plugin_id(raw.get("id"))
+    if not plugin_id:
+        return None
+    tags = raw.get("tags")
+    if not isinstance(tags, list):
+        tags = []
+    return {
+        "id": plugin_id,
+        "name": str(raw.get("name") or plugin_id)[:80],
+        "englishName": str(raw.get("englishName") or "")[:80],
+        "version": str(raw.get("version") or "1.0.0")[:32],
+        "description": str(raw.get("description") or "")[:900],
+        "author": str(raw.get("author") or "Community")[:80],
+        "category": str(raw.get("category") or "Interface")[:40],
+        "icon": str(raw.get("icon") or "")[:500],
+        "download": safe_http_url(raw.get("download")),
+        "homepage": safe_http_url(raw.get("homepage")),
+        "repository": safe_http_url(raw.get("repository")),
+        "license": str(raw.get("license") or "")[:60],
+        "sha256": str(raw.get("sha256") or "").strip().lower()[:64],
+        "tags": [str(tag)[:24] for tag in tags if isinstance(tag, str) and tag.strip()][:8],
+        "featured": bool(raw.get("featured", False)),
+        "bundled": bool(raw.get("bundled", False)),
+        "official": bool(raw.get("official", False)),
+    }
+
+
+def normalize_catalog(raw) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    plugins = raw.get("plugins")
+    if not isinstance(plugins, list):
+        return None
+    entries = []
+    seen = set()
+    for item in plugins[:500]:
+        entry = _catalog_entry(item)
+        if entry is None or entry["id"] in seen:
+            continue
+        seen.add(entry["id"])
+        entries.append(entry)
+    return {
+        "schema": int(raw.get("schema") or 1),
+        "name": str(raw.get("name") or "NeoTodo Plugin Community")[:80],
+        "homepage": safe_http_url(raw.get("homepage")) or "https://github.com/CellMeet/Neotodo/tree/main/community",
+        "updated": str(raw.get("updated") or "")[:40],
+        "plugins": entries,
+    }
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Use certifi when the platform Python has no system CA bundle."""
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+def _fetch_json_url(url: str, max_bytes: int = 1_500_000) -> dict | None:
+    parsed = urlparse(url)
+    if parsed.scheme not in ("https", "http") or not parsed.netloc:
+        return None
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "NeoTodo/0.0.1 Plugin Community", "Accept": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=12, context=_ssl_context()) as response:
+        body = response.read(max_bytes + 1)
+    if len(body) > max_bytes:
+        raise ValueError("Catalog is too large")
+    return json.loads(body.decode("utf-8"))
+
+
+def _load_catalog_override() -> dict | None:
+    """Allow a local path or URL through NEOTODO_PLUGIN_CATALOG for development."""
+    source = PLUGIN_CATALOG_URL
+    if not source or source.lower() in ("off", "none", "0"):
+        return None
+    if source.startswith(("http://", "https://")):
+        return _fetch_json_url(source)
+    path = Path(source).expanduser()
+    if path.is_file():
+        return _read_json_file(path)
+    return None
+
+
+def community_catalog(refresh: bool = False) -> dict:
+    """Return the community index with a cached/offline fallback.
+
+    The notebook must open even when the network is slow or the catalog host is
+    unreachable, so every failure degrades to the bundled index.
+    """
+    bundled = normalize_catalog(_read_json_file(WEB_DIR / "plugins" / "community-catalog.json"))
+    cached_raw = _read_json_file(PLUGIN_CATALOG_CACHE)
+    cached = normalize_catalog(cached_raw)
+    cache_age = None
+    try:
+        cache_age = max(0, int(time.time() - PLUGIN_CATALOG_CACHE.stat().st_mtime))
+    except Exception:
+        cache_age = None
+
+    should_fetch = bool(PLUGIN_CATALOG_URL) and PLUGIN_CATALOG_URL.lower() not in ("off", "none", "0")
+    if should_fetch and not refresh and cached is not None and cache_age is not None and cache_age < PLUGIN_CATALOG_TTL:
+        should_fetch = False
+
+    catalog = cached or bundled or {
+        "name": "NeoTodo Plugin Community",
+        "homepage": "https://github.com/CellMeet/Neotodo/tree/main/community",
+        "updated": "",
+        "plugins": [],
+    }
+    source = "cache" if cached is not None else "bundled"
+    error = ""
+    if should_fetch:
+        try:
+            fetched = normalize_catalog(_load_catalog_override())
+            if fetched is None:
+                raise ValueError("Catalog did not contain a plugins list")
+            catalog = fetched
+            source = "remote"
+            try:
+                DATA_DIR.mkdir(parents=True, exist_ok=True)
+                PLUGIN_CATALOG_CACHE.write_text(
+                    json.dumps(fetched, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
+        except Exception as fetch_error:
+            error = str(fetch_error) or "Could not refresh the catalog"
+
+    return {
+        **catalog,
+        "catalog_source": source,
+        "catalog_error": error,
+        "cached_at": cache_age,
+        "catalog_url": PLUGIN_CATALOG_URL,
+    }
+
+
+def _zip_parts(name: str) -> list[str]:
+    clean = name.replace("\\", "/")
+    if clean.startswith("/") or re.match(r"^[A-Za-z]:", clean):
+        raise ValueError("Archive contains an absolute path")
+    parts = [part for part in clean.split("/") if part not in ("", ".")]
+    if any(part == ".." for part in parts):
+        raise ValueError("Archive contains a parent-directory path")
+    return parts
+
+
+def _extract_plugin_archive(data: bytes, staging: Path) -> Path:
+    """Extract one plugin folder from a zip and return the folder holding manifest.json."""
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except Exception as error:
+        raise ValueError("That file is not a valid plugin .zip") from error
+    with archive:
+        infos = archive.infolist()
+        if len(infos) > PLUGIN_ARCHIVE_MAX_FILES:
+            raise ValueError("The plugin archive contains too many files")
+        candidates = []
+        total = 0
+        for info in infos:
+            parts = _zip_parts(info.filename)
+            if info.is_dir():
+                continue
+            total += max(0, int(info.file_size or 0))
+            if total > PLUGIN_ARCHIVE_MAX_UNCOMPRESSED:
+                raise ValueError("The plugin archive is too large when unpacked")
+            if parts and parts[-1] == "manifest.json":
+                candidates.append(parts[:-1])
+        if not candidates:
+            raise ValueError("No manifest.json found in the plugin archive")
+        prefix = min(candidates, key=len)
+        staging.mkdir(parents=True, exist_ok=True)
+        for info in infos:
+            if info.is_dir():
+                continue
+            mode = (info.external_attr >> 16) & 0o170000
+            if mode == 0o120000:
+                raise ValueError("The plugin archive contains a symbolic link")
+            parts = _zip_parts(info.filename)
+            if parts[: len(prefix)] != prefix or len(parts) <= len(prefix):
+                continue
+            relative = parts[len(prefix):]
+            target = staging.joinpath(*relative)
+            root = staging.resolve()
+            try:
+                if not target.resolve().is_relative_to(root):
+                    raise ValueError("The plugin archive escapes its folder")
+            except Exception as error:
+                raise ValueError("The plugin archive contains an unsafe path") from error
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(info, "r") as source, target.open("wb") as sink:
+                remaining = PLUGIN_ARCHIVE_MAX_BYTES
+                while True:
+                    chunk = source.read(64 * 1024)
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    if remaining < 0:
+                        raise ValueError("The plugin archive is too large")
+                    sink.write(chunk)
+    return staging
+
+
+def install_plugin_archive(data: bytes, expected_id: str = "", expected_sha256: str = "") -> dict:
+    """Validate an archive and atomically move it onto the user plugin shelf."""
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("The plugin archive is empty")
+    if len(data) > PLUGIN_ARCHIVE_MAX_BYTES:
+        raise ValueError("The plugin archive is larger than 24 MB")
+    expected_sha256 = str(expected_sha256 or "").strip().lower()
+    if expected_sha256:
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+            raise ValueError("The expected sha256 is not valid")
+        actual = hashlib.sha256(data).hexdigest()
+        if actual != expected_sha256:
+            raise ValueError("The plugin checksum does not match")
+    ensure_plugins_dir()
+    temp_root = Path(tempfile.mkdtemp(prefix=".install-", dir=str(PLUGINS_DIR)))
+    staging = temp_root / "plugin"
+    try:
+        _extract_plugin_archive(data, staging)
+        manifest = read_plugin_manifest(staging, "user")
+        if manifest is None:
+            raise ValueError("manifest.json is missing a valid id, entry or index.html")
+        expected = normalized_plugin_id(expected_id)
+        if expected and manifest["id"] != expected:
+            raise ValueError(f"The archive contains '{manifest['id']}', not '{expected}'")
+        if (WEB_DIR / "plugins" / manifest["id"]).is_dir():
+            raise ValueError(f"'{manifest['id']}' is a built-in plugin id; choose another id")
+        destination = PLUGINS_DIR / manifest["id"]
+        backup = None
+        if destination.exists():
+            backup = PLUGINS_DIR / f".backup-{manifest['id']}-{uuid.uuid4().hex[:8]}"
+            destination.rename(backup)
+        try:
+            staging.rename(destination)
+        except Exception:
+            if backup is not None and backup.exists() and not destination.exists():
+                backup.rename(destination)
+            raise
+        if backup is not None:
+            shutil.rmtree(backup, ignore_errors=True)
+        return manifest
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def download_plugin_archive(url: str) -> bytes:
+    url = safe_http_url(url)
+    if not url:
+        raise ValueError("The plugin download URL must start with https://")
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "NeoTodo/0.0.1 Plugin Community", "Accept": "application/zip, application/octet-stream"},
+    )
+    with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
+        body = response.read(PLUGIN_ARCHIVE_MAX_BYTES + 1)
+    if len(body) > PLUGIN_ARCHIVE_MAX_BYTES:
+        raise ValueError("The plugin archive is larger than 24 MB")
+    return body
+
+
+def uninstall_plugin_files(plugin_id) -> dict:
+    plugin_id = normalized_plugin_id(plugin_id)
+    if not plugin_id:
+        raise ValueError("Unknown plugin")
+    destination = PLUGINS_DIR / plugin_id
+    if not destination.is_dir():
+        raise ValueError("That plugin is not installed in the user plugin folder")
+    shutil.rmtree(destination)
+    return {"id": plugin_id, "folder": str(destination)}
+
+
+def ensure_theme_packs_dir() -> Path:
+    """Create the user's installed theme-pack shelf."""
+    try:
+        THEME_PACKS_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return THEME_PACKS_DIR
+
+
+def ensure_theme_exports_dir() -> Path:
+    try:
+        THEME_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return THEME_EXPORTS_DIR
+
+
+def normalized_theme_id(value) -> str:
+    raw = str(value or "").strip().lower().replace("_", "-").replace(" ", "-")
+    raw = re.sub(r"[^a-z0-9-]+", "-", raw).strip("-")[:64]
+    return raw if THEME_ID_RE.fullmatch(raw) else ""
+
+
+def normalize_theme_color(value, fallback: str = "") -> str:
+    raw = str(value or "").strip()
+    if re.fullmatch(r"#[0-9a-fA-F]{6}", raw):
+        return raw.lower()
+    if re.fullmatch(r"#[0-9a-fA-F]{3}", raw):
+        return "#" + "".join(ch * 2 for ch in raw[1:].lower())
+    return fallback
+
+
+def normalize_theme_palette(raw) -> dict | None:
+    """Validate the colours a pack contributes to the postcard theme."""
+    if not isinstance(raw, dict):
+        return None
+    # A pack must at least describe its paper and ink. Everything else can be
+    # derived so tiny community palettes still produce a readable page.
+    if not normalize_theme_color(raw.get("paper")) or not normalize_theme_color(raw.get("ink")):
+        return None
+    paper = normalize_theme_color(raw.get("paper"), THEME_PALETTE_FALLBACKS["paper"])
+    ink = normalize_theme_color(raw.get("ink"), THEME_PALETTE_FALLBACKS["ink"])
+    accent = normalize_theme_color(raw.get("accent"), ink)
+    palette = {
+        "paper": paper,
+        "paper2": normalize_theme_color(raw.get("paper2"), paper),
+        "ink": ink,
+        "muted": normalize_theme_color(raw.get("muted"), ink),
+        "accent": accent,
+        "accent2": normalize_theme_color(raw.get("accent2"), accent),
+        "border": normalize_theme_color(raw.get("border"), paper),
+        "stamp": normalize_theme_color(raw.get("stamp"), accent),
+        "glow": str(raw.get("glow") or "")[:80],
+        "motif": str(raw.get("motif") or "✦")[:8],
+        "quote": str(raw.get("quote") or "A theme from the NeoTodo community.")[:220],
+    }
+    if not re.fullmatch(r"rgba?\([^)]{1,60}\)", palette["glow"]):
+        palette["glow"] = ""
+    return palette
+
+
+def _theme_asset_rel(raw, folder: Path, extensions: set) -> str:
+    """Only allow a relative asset that actually lives inside the pack."""
+    rel = unquote(str(raw or "")).replace("\\", "/").lstrip("/")
+    if not rel or ".." in Path(rel).parts:
+        return ""
+    if Path(rel).suffix.lower() not in extensions:
+        return ""
+    try:
+        root = folder.resolve()
+        candidate = (folder / rel).resolve()
+        if candidate.is_relative_to(root) and candidate.is_file():
+            return rel
+    except Exception:
+        pass
+    return ""
+
+
+def normalize_theme_manifest(raw, folder: Path, source: str) -> dict | None:
+    """Validate one theme.json and turn it into the catalog/API shape."""
+    if not isinstance(raw, dict):
+        return None
+    theme_id = normalized_theme_id(raw.get("id") or getattr(folder, "name", ""))
+    if not theme_id:
+        return None
+    palette = normalize_theme_palette(raw.get("theme") or raw.get("palette"))
+    if palette is None:
+        return None
+    preview = _theme_asset_rel(raw.get("preview"), folder, THEME_ASSET_IMAGE_EXTS)
+    icon = _theme_asset_rel(raw.get("icon"), folder, THEME_ASSET_IMAGE_EXTS)
+    wallpaper = _theme_asset_rel(raw.get("wallpaper"), folder, THEME_ASSET_IMAGE_EXTS)
+    sounds = {}
+    raw_sounds = raw.get("sounds")
+    if isinstance(raw_sounds, dict):
+        for key in THEME_SOUND_KEYS:
+            rel = _theme_asset_rel(raw_sounds.get(key), folder, THEME_ASSET_AUDIO_EXTS)
+            if rel:
+                sounds[key] = rel
+    icons = {}
+    raw_icons = raw.get("icons")
+    if isinstance(raw_icons, dict):
+        for key in THEME_STICKER_KEYS:
+            rel = _theme_asset_rel(raw_icons.get(key), folder, THEME_ASSET_IMAGE_EXTS)
+            if rel:
+                icons[key] = rel
+    tags = raw.get("tags")
+    if not isinstance(tags, list):
+        tags = []
+    return {
+        "id": theme_id,
+        "name": str(raw.get("name") or theme_id)[:80],
+        "englishName": str(raw.get("englishName") or "")[:80],
+        "version": str(raw.get("version") or "1.0.0")[:32],
+        "description": str(raw.get("description") or "")[:900],
+        "author": str(raw.get("author") or "Community")[:80],
+        "license": str(raw.get("license") or "")[:60],
+        "homepage": safe_http_url(raw.get("homepage")),
+        "repository": safe_http_url(raw.get("repository")),
+        "tags": [str(tag)[:24] for tag in tags if isinstance(tag, str) and tag.strip()][:8],
+        "palette": palette,
+        "preview": preview,
+        "icon": icon,
+        "wallpaper": wallpaper,
+        "sounds": sounds,
+        "icons": icons,
+        "source": source,
+    }
+
+
+def read_theme_manifest(folder: Path, source: str) -> dict | None:
+    try:
+        raw = json.loads((folder / "theme.json").read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return normalize_theme_manifest(raw, folder, source)
+
+
+def discover_theme_packs() -> list:
+    """Installed user packs. Bundled packs stay in the catalog until installed."""
+    root = ensure_theme_packs_dir()
+    try:
+        folders = sorted(
+            (item for item in root.iterdir() if item.is_dir() and not item.name.startswith(".")),
+            key=lambda item: item.name.lower(),
+        )
+    except Exception:
+        folders = []
+    packs = []
+    for folder in folders:
+        manifest = read_theme_manifest(folder, "user")
+        if manifest is not None and manifest["id"] not in THEMES:
+            packs.append(manifest)
+    return sorted(packs, key=lambda item: item["name"].lower())
+
+
+def bundled_theme_pack(theme_id) -> dict | None:
+    theme_id = normalized_theme_id(theme_id)
+    if not theme_id:
+        return None
+    folder = WEB_DIR / "theme-packs" / theme_id
+    if not folder.is_dir():
+        return None
+    return read_theme_manifest(folder, "bundled")
+
+
+def theme_pack_by_id(theme_id) -> dict | None:
+    """Resolve an installed pack first, then a bundled one for previews."""
+    theme_id = normalized_theme_id(theme_id)
+    if not theme_id:
+        return None
+    for pack in discover_theme_packs():
+        if pack["id"] == theme_id:
+            return pack
+    return bundled_theme_pack(theme_id)
+
+
+def installed_theme_ids() -> set:
+    return {pack["id"] for pack in discover_theme_packs()}
+
+
+def theme_pack_asset_path(theme_id, relative) -> Path | None:
+    """Resolve a pack asset from the user shelf, then the bundled shelf."""
+    theme_id = normalized_theme_id(theme_id)
+    if not theme_id:
+        return None
+    rel = unquote(str(relative or "")).replace("\\", "/").lstrip("/")
+    if not rel or ".." in Path(rel).parts:
+        return None
+    for folder in (THEME_PACKS_DIR / theme_id, WEB_DIR / "theme-packs" / theme_id):
+        try:
+            root = folder.resolve()
+            candidate = (folder / rel).resolve()
+            if candidate.is_relative_to(root) and candidate.is_file():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _theme_catalog_entry(raw) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    theme_id = normalized_theme_id(raw.get("id"))
+    if not theme_id:
+        return None
+    tags = raw.get("tags")
+    if not isinstance(tags, list):
+        tags = []
+    preview = str(raw.get("preview") or "").strip().replace("\\", "/").lstrip("/")
+    if preview and (".." in Path(preview).parts or Path(preview).suffix.lower() not in THEME_ASSET_IMAGE_EXTS):
+        preview = ""
+    palette = normalize_theme_palette(raw.get("theme") or raw.get("palette")) or {}
+    return {
+        "id": theme_id,
+        "name": str(raw.get("name") or theme_id)[:80],
+        "englishName": str(raw.get("englishName") or "")[:80],
+        "version": str(raw.get("version") or "1.0.0")[:32],
+        "description": str(raw.get("description") or "")[:900],
+        "author": str(raw.get("author") or "Community")[:80],
+        "tags": [str(tag)[:24] for tag in tags if isinstance(tag, str) and tag.strip()][:8],
+        "preview": preview,
+        "download": safe_http_url(raw.get("download")),
+        "homepage": safe_http_url(raw.get("homepage")),
+        "repository": safe_http_url(raw.get("repository")),
+        "license": str(raw.get("license") or "")[:60],
+        "sha256": str(raw.get("sha256") or "").strip().lower()[:64],
+        "palette": palette,
+        "featured": bool(raw.get("featured", False)),
+        "bundled": bool(raw.get("bundled", False)),
+        "official": bool(raw.get("official", False)),
+    }
+
+
+def normalize_theme_catalog(raw) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    rows = raw.get("themes")
+    if not isinstance(rows, list):
+        return None
+    entries = []
+    seen = set()
+    for item in rows[:500]:
+        entry = _theme_catalog_entry(item)
+        if entry is None or entry["id"] in seen:
+            continue
+        seen.add(entry["id"])
+        entries.append(entry)
+    return {
+        "schema": int(raw.get("schema") or 1),
+        "name": str(raw.get("name") or "NeoTodo Theme Community")[:80],
+        "homepage": safe_http_url(raw.get("homepage")) or "https://github.com/CellMeet/Neotodo/tree/main/community",
+        "updated": str(raw.get("updated") or "")[:40],
+        "themes": entries,
+    }
+
+
+def _load_theme_catalog_override() -> dict | None:
+    source = THEME_CATALOG_URL
+    if not source or source.lower() in ("off", "none", "0"):
+        return None
+    if source.startswith(("http://", "https://")):
+        return _fetch_json_url(source)
+    path = Path(source).expanduser()
+    if path.is_file():
+        return _read_json_file(path)
+    return None
+
+
+def community_theme_catalog(refresh: bool = False) -> dict:
+    """Return the theme index with the same cached/offline fallback as plugins."""
+    bundled = normalize_theme_catalog(_read_json_file(WEB_DIR / "theme-packs" / "community-catalog.json"))
+    cached_raw = _read_json_file(THEME_CATALOG_CACHE)
+    cached = normalize_theme_catalog(cached_raw)
+    cache_age = None
+    try:
+        cache_age = max(0, int(time.time() - THEME_CATALOG_CACHE.stat().st_mtime))
+    except Exception:
+        cache_age = None
+
+    should_fetch = bool(THEME_CATALOG_URL) and THEME_CATALOG_URL.lower() not in ("off", "none", "0")
+    if should_fetch and not refresh and cached is not None and cache_age is not None and cache_age < THEME_CATALOG_TTL:
+        should_fetch = False
+
+    catalog = cached or bundled or {
+        "name": "NeoTodo Theme Community",
+        "homepage": "https://github.com/CellMeet/Neotodo/tree/main/community",
+        "updated": "",
+        "themes": [],
+    }
+    source = "cache" if cached is not None else "bundled"
+    error = ""
+    if should_fetch:
+        try:
+            fetched = normalize_theme_catalog(_load_theme_catalog_override())
+            if fetched is None:
+                raise ValueError("Catalog did not contain a themes list")
+            catalog = fetched
+            source = "remote"
+            try:
+                DATA_DIR.mkdir(parents=True, exist_ok=True)
+                THEME_CATALOG_CACHE.write_text(
+                    json.dumps(fetched, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
+        except Exception as fetch_error:
+            error = str(fetch_error) or "Could not refresh the catalog"
+
+    return {
+        **catalog,
+        "catalog_source": source,
+        "catalog_error": error,
+        "cached_at": cache_age,
+        "catalog_url": THEME_CATALOG_URL,
+    }
+
+
+def _extract_theme_archive(data: bytes, staging: Path) -> Path:
+    """Extract a zipped theme pack without allowing path escapes."""
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except Exception as error:
+        raise ValueError("That file is not a valid theme .zip") from error
+    with archive:
+        infos = archive.infolist()
+        if len(infos) > THEME_ARCHIVE_MAX_FILES:
+            raise ValueError("The theme archive contains too many files")
+        candidates = []
+        total = 0
+        for info in infos:
+            parts = _zip_parts(info.filename)
+            if info.is_dir():
+                continue
+            total += max(0, int(info.file_size or 0))
+            if total > THEME_ARCHIVE_MAX_UNCOMPRESSED:
+                raise ValueError("The theme archive is too large when unpacked")
+            if parts and parts[-1] == "theme.json":
+                candidates.append(parts[:-1])
+        if not candidates:
+            raise ValueError("No theme.json found in the theme archive")
+        prefix = min(candidates, key=len)
+        staging.mkdir(parents=True, exist_ok=True)
+        for info in infos:
+            if info.is_dir():
+                continue
+            mode = (info.external_attr >> 16) & 0o170000
+            if mode == 0o120000:
+                raise ValueError("The theme archive contains a symbolic link")
+            parts = _zip_parts(info.filename)
+            if parts[: len(prefix)] != prefix or len(parts) <= len(prefix):
+                continue
+            target = staging.joinpath(*parts[len(prefix):])
+            try:
+                if not target.resolve().is_relative_to(staging.resolve()):
+                    raise ValueError("The theme archive escapes its folder")
+            except Exception as error:
+                raise ValueError("The theme archive contains an unsafe path") from error
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(info, "r") as source, target.open("wb") as sink:
+                remaining = THEME_ARCHIVE_MAX_BYTES
+                while True:
+                    chunk = source.read(64 * 1024)
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    if remaining < 0:
+                        raise ValueError("The theme archive is too large")
+                    sink.write(chunk)
+    return staging
+
+
+def _move_theme_pack_into_place(staging: Path, theme_id: str) -> None:
+    destination = THEME_PACKS_DIR / theme_id
+    backup = None
+    if destination.exists():
+        backup = THEME_PACKS_DIR / f".backup-{theme_id}-{uuid.uuid4().hex[:8]}"
+        destination.rename(backup)
+    try:
+        staging.rename(destination)
+    except Exception:
+        if backup is not None and backup.exists() and not destination.exists():
+            backup.rename(destination)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup, ignore_errors=True)
+
+
+def install_theme_archive(data: bytes, expected_id: str = "", expected_sha256: str = "") -> dict:
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("The theme archive is empty")
+    if len(data) > THEME_ARCHIVE_MAX_BYTES:
+        raise ValueError("The theme archive is larger than 24 MB")
+    expected_sha256 = str(expected_sha256 or "").strip().lower()
+    if expected_sha256:
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+            raise ValueError("The expected sha256 is not valid")
+        actual = hashlib.sha256(data).hexdigest()
+        if actual != expected_sha256:
+            raise ValueError("The theme checksum does not match")
+    ensure_theme_packs_dir()
+    temp_root = Path(tempfile.mkdtemp(prefix=".install-", dir=str(THEME_PACKS_DIR)))
+    staging = temp_root / "theme"
+    try:
+        _extract_theme_archive(data, staging)
+        manifest = read_theme_manifest(staging, "user")
+        if manifest is None:
+            raise ValueError("theme.json is missing valid colours or an id")
+        if manifest["id"] in THEMES:
+            raise ValueError(f"'{manifest['id']}' is a built-in theme id; choose another id")
+        expected = normalized_theme_id(expected_id)
+        if expected and manifest["id"] != expected:
+            raise ValueError(f"The archive contains '{manifest['id']}', not '{expected}'")
+        _move_theme_pack_into_place(staging, manifest["id"])
+        return manifest
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def install_bundled_theme(theme_id) -> dict:
+    pack = bundled_theme_pack(theme_id)
+    if pack is None:
+        raise ValueError("That bundled theme was not found")
+    if pack["id"] in THEMES:
+        raise ValueError("That id is reserved by a built-in theme")
+    ensure_theme_packs_dir()
+    temp_root = Path(tempfile.mkdtemp(prefix=".install-", dir=str(THEME_PACKS_DIR)))
+    staging = temp_root / "theme"
+    try:
+        shutil.copytree(WEB_DIR / "theme-packs" / pack["id"], staging)
+        _move_theme_pack_into_place(staging, pack["id"])
+        installed = read_theme_manifest(THEME_PACKS_DIR / pack["id"], "user")
+        if installed is None:
+            raise ValueError("That bundled theme could not be installed")
+        return installed
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def uninstall_theme_pack(theme_id) -> dict:
+    theme_id = normalized_theme_id(theme_id)
+    if not theme_id:
+        raise ValueError("Unknown theme")
+    destination = THEME_PACKS_DIR / theme_id
+    if not destination.is_dir():
+        raise ValueError("That theme is not installed in the user theme folder")
+    shutil.rmtree(destination)
+    return {"id": theme_id, "folder": str(destination)}
+
+
+def download_theme_archive(url: str) -> bytes:
+    url = safe_http_url(url)
+    if not url:
+        raise ValueError("The theme download URL must start with https://")
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "NeoTodo/0.0.1 Theme Community", "Accept": "application/zip, application/octet-stream"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        body = response.read(THEME_ARCHIVE_MAX_BYTES + 1)
+    if len(body) > THEME_ARCHIVE_MAX_BYTES:
+        raise ValueError("The theme archive is larger than 24 MB")
+    return body
+
+
+def _theme_export_asset(ref, prefixes: dict):
+    """Resolve a local asset URL used by the exporter (pictures, sounds, packs)."""
+    raw = str(ref or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("data:"):
+        return None
+    parsed = urlparse(raw)
+    path = unquote(parsed.path or raw)
+    for prefix, root in prefixes.items():
+        if path.startswith(prefix):
+            name = path[len(prefix):].strip("/")
+            if not name or "/" in name or "\\" in name:
+                return None
+            candidate = (root / name).resolve()
+            try:
+                if candidate.is_relative_to(root.resolve()) and candidate.is_file():
+                    return candidate
+            except Exception:
+                return None
+    if path.startswith("/theme-assets/"):
+        rest = path[len("/theme-assets/"):]
+        theme_id, _, relative = rest.partition("/")
+        return theme_pack_asset_path(theme_id, relative)
+    return None
+
+
+def _theme_preview_svg(palette: dict) -> str:
+    paper = palette.get("paper") or "#f7efe3"
+    paper2 = palette.get("paper2") or paper
+    ink = palette.get("ink") or "#332b2d"
+    accent = palette.get("accent") or "#c56f4a"
+    accent2 = palette.get("accent2") or accent
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300">'
+        f'<rect width="1000" height="300" fill="{paper}"/>'
+        f'<rect y="190" width="1000" height="110" fill="{paper2}"/>'
+        f'<circle cx="780" cy="78" r="42" fill="{accent}"/>'
+        f'<path d="M0 238 C170 196 320 258 500 224 C690 188 830 252 1000 214 L1000 300 L0 300Z" fill="{accent2}" opacity=".72"/>'
+        f'<path d="M70 120 H340 M70 150 H280 M70 180 H310" stroke="{ink}" stroke-width="8" stroke-linecap="round" opacity=".72"/>'
+        f'<rect x="70" y="60" width="120" height="8" rx="4" fill="{ink}" opacity=".28"/>'
+        '</svg>'
+    )
+
+
+def _decode_theme_icon(value):
+    raw = str(value or "").strip()
+    match = re.fullmatch(r"data:image/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+/=\s]+)", raw)
+    if not match:
+        return None, ""
+    try:
+        data = base64.b64decode(re.sub(r"\s+", "", match.group(2)), validate=True)
+    except Exception:
+        return None, ""
+    if not data or len(data) > 4_000_000:
+        return None, ""
+    suffix = ".jpg" if match.group(1).startswith("jpeg") else f".{match.group(1)}"
+    return data, suffix
+
+
+def export_theme_pack(payload: dict) -> dict:
+    """Zip the current palette and selected local assets into a shareable pack."""
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid theme pack")
+    name = str(payload.get("name") or "My NeoTodo Theme").strip()[:80] or "My NeoTodo Theme"
+    theme_id = normalized_theme_id(payload.get("id") or name)
+    if not theme_id:
+        theme_id = f"theme-{new_id()[:8]}"
+    palette = normalize_theme_palette(payload.get("theme"))
+    if palette is None:
+        raise ValueError("The current theme has no valid colours")
+    ensure_theme_exports_dir()
+    temp_root = Path(tempfile.mkdtemp(prefix=".export-", dir=str(THEME_EXPORTS_DIR)))
+    staging = temp_root / "theme"
+    staging.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "id": theme_id,
+        "name": name,
+        "englishName": str(payload.get("englishName") or "")[:80],
+        "version": str(payload.get("version") or "1.0.0")[:32],
+        "description": str(payload.get("description") or "Exported from NeoTodo.")[:900],
+        "author": str(payload.get("author") or "You")[:80],
+        "license": str(payload.get("license") or "")[:60],
+        "theme": palette,
+        "tags": ["exported"],
+    }
+    prefixes = {"/user-pictures/": PICTURES_DIR, "/user-sounds/": SOUNDS_DIR}
+    try:
+        wallpaper_ref = str(payload.get("wallpaper") or "").strip()
+        if wallpaper_ref and not wallpaper_ref.startswith(("art:", "theme:")):
+            wallpaper_path = _theme_export_asset(wallpaper_ref, prefixes)
+            if wallpaper_path and wallpaper_path.suffix.lower() in THEME_ASSET_IMAGE_EXTS:
+                wallpaper_name = f"wallpaper{wallpaper_path.suffix.lower()}"
+                shutil.copy2(wallpaper_path, staging / wallpaper_name)
+                manifest["wallpaper"] = wallpaper_name
+
+        sounds = payload.get("sounds")
+        if isinstance(sounds, dict):
+            manifest_sounds = {}
+            (staging / "sounds").mkdir(exist_ok=True)
+            for key in THEME_SOUND_KEYS:
+                sound_path = _theme_export_asset(sounds.get(key), prefixes)
+                if not sound_path or sound_path.suffix.lower() not in THEME_ASSET_AUDIO_EXTS:
+                    continue
+                sound_name = f"{key}{sound_path.suffix.lower()}"
+                shutil.copy2(sound_path, staging / "sounds" / sound_name)
+                manifest_sounds[key] = f"sounds/{sound_name}"
+            if manifest_sounds:
+                manifest["sounds"] = manifest_sounds
+
+        icons = payload.get("icons")
+        if isinstance(icons, dict):
+            manifest_icons = {}
+            (staging / "icons").mkdir(exist_ok=True)
+            for key in THEME_STICKER_KEYS:
+                data, suffix = _decode_theme_icon(icons.get(key))
+                if data is None:
+                    continue
+                icon_name = f"{key}{suffix}"
+                (staging / "icons" / icon_name).write_bytes(data)
+                manifest_icons[key] = f"icons/{icon_name}"
+            if manifest_icons:
+                manifest["icons"] = manifest_icons
+
+        (staging / "preview.svg").write_text(_theme_preview_svg(palette), encoding="utf-8")
+        manifest["preview"] = "preview.svg"
+        (staging / "theme.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (staging / "README.txt").write_text(
+            "NeoTodo theme pack\n\n"
+            "Install with Settings -> 主题社区 -> Import .zip, or put this folder in\n"
+            f"{THEME_PACKS_DIR}\n\n"
+            "Share it by opening a pull request to community/themes.json.\n",
+            encoding="utf-8",
+        )
+        archive_path = THEME_EXPORTS_DIR / f"{theme_id}.zip"
+        tmp_archive = archive_path.with_suffix(".tmp")
+        with zipfile.ZipFile(tmp_archive, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in sorted(staging.rglob("*")):
+                if path.is_file():
+                    archive.write(path, path.relative_to(staging).as_posix())
+        tmp_archive.replace(archive_path)
+        return {
+            "id": theme_id,
+            "name": name,
+            "file": archive_path.name,
+            "path": str(archive_path),
+            "folder": str(THEME_EXPORTS_DIR),
+        }
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
 def picture_file_names() -> dict:
     ensure_pictures_dir()
     images, videos = [], []
@@ -334,12 +1440,15 @@ def sanitize_picture_name(value, extensions) -> str:
 
 
 def sanitize_wallpaper_static(value) -> str:
-    """A static wallpaper is either built-in postcard art or a picture file."""
+    """A static wallpaper is postcard art, a theme-pack image or a picture file."""
     if not isinstance(value, str):
         return ""
     name = value.strip()
     if name.startswith("art:"):
         return name if name[4:] in THEMES else ""
+    if name.startswith("theme:"):
+        pack = theme_pack_by_id(name[6:])
+        return name if pack and pack.get("wallpaper") else ""
     return sanitize_picture_name(name, PICTURE_IMAGE_EXTS)
 
 
@@ -347,7 +1456,7 @@ def sanitize_wallpaper_settings(settings: dict) -> None:
     """Keep pattern (wallpaper) and colour (theme) as independent choices."""
     ensure_pictures_dir()
     postcard = str(settings.get("resolved_postcard") or settings.get("postcard") or "violet")
-    if postcard not in THEMES:
+    if postcard not in THEMES and theme_pack_by_id(postcard) is None:
         postcard = "violet"
     mode = settings.get("wallpaper_mode")
     # Older builds treated the postcard art as part of the theme. That art is
@@ -467,7 +1576,8 @@ def default_data() -> dict:
             "focus_count": 0,
             "focus_log": [],
             "title_offset": 0,
-            "title_icon_size": 48,
+            "title_icon_size": 62,
+            "title_icon_size_v2": True,
             "caret_blink": False,
             "caret_shape": "line",
             "caret_color": "#1b1b1b",
@@ -599,9 +1709,17 @@ def load_data() -> dict:
             except (TypeError, ValueError):
                 settings["title_offset"] = 0
             try:
-                settings["title_icon_size"] = max(24, min(96, int(settings.get("title_icon_size", 48))))
+                settings["title_icon_size"] = max(24, min(96, int(settings.get("title_icon_size", 62))))
             except (TypeError, ValueError):
-                settings["title_icon_size"] = 48
+                settings["title_icon_size"] = 62
+            # Older builds shipped a 48px header icon whose red centre sat
+            # below the header's upper rule. Lift that default once, so an
+            # existing notebook gets the larger tissue icon while later
+            # choices from the settings slider are kept.
+            if not settings.get("title_icon_size_v2"):
+                if settings["title_icon_size"] <= 48:
+                    settings["title_icon_size"] = 62
+                settings["title_icon_size_v2"] = True
             try:
                 settings["focus_count"] = max(0, int(settings.get("focus_count", 0)))
             except (TypeError, ValueError):
@@ -785,7 +1903,12 @@ class Store:
         if not isinstance(settings, dict):
             settings = {}
         theme = settings.get("resolved_postcard") or settings.get("postcard") or "violet"
-        return {"paper": POSTCARD_PAPERS.get(str(theme), "#f7efe3")}
+        paper = POSTCARD_PAPERS.get(str(theme))
+        if paper is None:
+            pack = theme_pack_by_id(theme)
+            if pack:
+                paper = pack.get("palette", {}).get("paper")
+        return {"paper": paper or "#f7efe3"}
 
     def state(self) -> dict:
         with self.lock:
@@ -1288,6 +2411,32 @@ class Store:
                 except Exception as open_error:
                     error = str(open_error)
                 result["folder"] = str(NOTE_MATERIALS_DIR)
+            elif name == "open_plugins_folder":
+                ensure_plugins_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(PLUGINS_DIR))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(PLUGINS_DIR)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(PLUGINS_DIR)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(PLUGINS_DIR)
+            elif name in ("open_theme_packs_folder", "open_theme_exports_folder"):
+                folder = ensure_theme_packs_dir() if name == "open_theme_packs_folder" else ensure_theme_exports_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(folder))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(folder)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(folder)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(folder)
             elif name == "note_material_files":
                 result["files"] = note_material_file_names()
                 result["folder"] = str(NOTE_MATERIALS_DIR)
@@ -1445,18 +2594,19 @@ class Store:
                     error = "Invalid settings"
                 else:
                     current = self.data.setdefault("settings", {})
+                    allowed_themes = set(THEMES) | installed_theme_ids()
                     current["theme"] = "postcard"
-                    if incoming.get("postcard") in THEMES or incoming.get("postcard") == "random":
+                    if incoming.get("postcard") in allowed_themes or incoming.get("postcard") == "random":
                         current["postcard"] = incoming["postcard"]
-                    if incoming.get("resolved_postcard") in THEMES:
+                    if incoming.get("resolved_postcard") in allowed_themes:
                         current["resolved_postcard"] = incoming["resolved_postcard"]
-                    if incoming.get("light_postcard") in ("violet", "ocean", "forest", "vintage", "alpine", "desert", "emerald"):
+                    if incoming.get("light_postcard") in allowed_themes:
                         current["light_postcard"] = incoming["light_postcard"]
-                    if incoming.get("dark_postcard") in ("tokyo", "space", "aurora"):
+                    if incoming.get("dark_postcard") in allowed_themes:
                         current["dark_postcard"] = incoming["dark_postcard"]
-                    if current.get("theme") == "postcard" and current.get("postcard") in THEMES:
+                    if current.get("theme") == "postcard" and current.get("postcard") in allowed_themes:
                         current["resolved_postcard"] = current["postcard"]
-                    if current.get("resolved_postcard") not in THEMES:
+                    if current.get("resolved_postcard") not in allowed_themes:
                         current["resolved_postcard"] = "violet"
                     if incoming.get("font") in ("serif", "humanist", "bookman", "mono", "hand", "pen"):
                         current["font"] = incoming["font"]
@@ -1475,7 +2625,7 @@ class Store:
                     except (TypeError, ValueError):
                         pass
                     try:
-                        current["title_icon_size"] = max(24, min(96, int(incoming.get("title_icon_size", 48))))
+                        current["title_icon_size"] = max(24, min(96, int(incoming.get("title_icon_size", 62))))
                     except (TypeError, ValueError):
                         pass
                     if isinstance(incoming.get("caret_blink"), bool):
@@ -1512,6 +2662,20 @@ class Store:
                     if isinstance(incoming.get("wallpaper_dynamic"), str):
                         current["wallpaper_dynamic"] = incoming["wallpaper_dynamic"]
                     sanitize_wallpaper_settings(current)
+                    if "sound_overrides" in incoming:
+                        overrides = {}
+                        raw_overrides = incoming.get("sound_overrides")
+                        if isinstance(raw_overrides, dict):
+                            for key in THEME_SOUND_KEYS:
+                                url = raw_overrides.get(key)
+                                if not isinstance(url, str):
+                                    continue
+                                match = re.fullmatch(r"/theme-assets/([a-z0-9-]{2,64})/([^\s]+)", url)
+                                if not match:
+                                    continue
+                                if theme_pack_asset_path(match.group(1), match.group(2)) is not None:
+                                    overrides[key] = url
+                        current["sound_overrides"] = overrides
                     try:
                         scale = float(incoming.get("scale", 1))
                         current["scale"] = max(0.85, min(1.25, scale))
@@ -1587,6 +2751,41 @@ class AgentStore:
         self.shared_lock = threading.Lock()
         self.models_cache = None
         self.models_at = 0.0
+        # A previous process may have died mid-run. Never keep its streaming
+        # placeholder pending forever; it would render as "Interrupted" in
+        # every later render of that conversation.
+        try:
+            with self.lock:
+                data = self._load()
+                changed = False
+                for stored in data.get("agents", {}).values():
+                    if not isinstance(stored, dict):
+                        continue
+                    messages = stored.get("messages")
+                    if isinstance(messages, list):
+                        settled = self._settle_pending(messages)
+                        if settled != messages:
+                            stored["messages"] = settled
+                            changed = True
+                if changed:
+                    self._save(data)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _settle_pending(messages: list) -> list:
+        """Turn an orphaned streaming reply into a finished interrupted turn."""
+        settled = []
+        for message in messages if isinstance(messages, list) else []:
+            if isinstance(message, dict) and message.get("role") == "assistant" and message.get("pending"):
+                item = dict(message)
+                text = str(item.get("content") or "").strip()
+                item.pop("pending", None)
+                item["content"] = (text + "\n\n（已中断）").strip() if text else "已中断。"
+                settled.append(item)
+            else:
+                settled.append(message)
+        return settled
 
     def _load(self) -> dict:
         try:
@@ -1695,6 +2894,10 @@ class AgentStore:
             "The interface is HTML/CSS/JS; the backend is Python; the Linux shell is GTK4 + WebKitGTK; "
             "a Windows shell uses PySide6/Qt WebEngine. "
             "Be practical and concise. Use Markdown, complete code snippets, and exact file paths. "
+            + "Platform rule: this task is Linux-first. Do not launch the Android emulator "
+            "(android/run-emulator.sh, emulator, adb), do not run Gradle/Android builds, and do not "
+            "edit android/**, windows_app.py, installer.iss or .github/workflows/release.yml. "
+            "Windows and Android are updated together later in a separate platform-sync pass. "
             + (
                 "You may read and edit files in the project to complete the instruction. Keep changes scoped."
                 if allow_edits else
@@ -1740,7 +2943,10 @@ class AgentStore:
             f"Project root: {APP_DIR}\n"
             "Complete the user's instruction for this subtask. Keep edits scoped to this subtask; "
             "do not refactor unrelated modules or overlap other agents' work. Other agents may be handling "
-            "other subtasks, so only touch files needed for this subtask. The user has approved automatic execution.\n\n"
+            "other subtasks, so only touch files needed for this subtask. The user has approved automatic execution.\n"
+            "Platform rule: Linux-first only. Do not start the Android emulator (android/run-emulator.sh, "
+            "emulator, adb), do not run Gradle/Android builds, and do not edit android/**, windows_app.py, "
+            "installer.iss or .github/workflows/release.yml; Windows and Android are synced later.\n\n"
             f"Current workspace: {context}\n\n"
             f"User instruction:\n{message}"
         )
@@ -2535,6 +3741,7 @@ class AgentStore:
             data = self._load()
             agent = data.get("agents", {}).get(agent_id) or {"messages": []}
             history = agent.get("messages") if isinstance(agent.get("messages"), list) else []
+            history = self._settle_pending(history)
         mode = self._normalize_mode(payload.get("mode") or agent.get("mode"), kind)
         requested = str(payload.get("model") or agent.get("model") or "").strip()
         models = self._available_models()
@@ -2544,6 +3751,7 @@ class AgentStore:
             data = self._load()
             stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
             messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
+            messages = self._settle_pending(messages)
             messages = (messages + [{"role": "user", "content": message}])[-40:]
             messages.append({
                 "role": "assistant",
@@ -2835,6 +4043,90 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "library": music_manifest().get("name") or "Music Library",
             })
             return
+        if parsed.path == "/api/themes":
+            self._json(200, {
+                "ok": True,
+                "packs": discover_theme_packs(),
+                "folder": str(ensure_theme_packs_dir()),
+                "exports": str(ensure_theme_exports_dir()),
+                "catalog_url": THEME_CATALOG_URL,
+            })
+            return
+        if parsed.path == "/api/themes/community":
+            refresh = parse_qs(parsed.query).get("refresh", [""])[0].lower() in ("1", "true", "yes")
+            catalog = community_theme_catalog(refresh=refresh)
+            installed = {
+                pack["id"]: {"version": pack.get("version", ""), "source": pack.get("source", "")}
+                for pack in discover_theme_packs()
+            }
+            self._json(200, {"ok": True, **catalog, "installed": installed})
+            return
+        if parsed.path.startswith("/theme-assets/"):
+            rest = unquote(parsed.path[len("/theme-assets/"):])
+            theme_id, _, relative = rest.partition("/")
+            candidate = theme_pack_asset_path(theme_id, relative)
+            if candidate is None:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            try:
+                body = candidate.read_bytes()
+            except Exception as read_error:
+                self._json(500, {"ok": False, "error": str(read_error)})
+                return
+            content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+            if content_type.startswith("text/") or content_type in ("application/javascript", "image/svg+xml"):
+                content_type += "; charset=utf-8"
+            self._send(200, body, content_type)
+            return
+        if parsed.path == "/api/plugins":
+            self._json(200, {
+                "ok": True,
+                "plugins": discover_plugins(),
+                "folder": str(ensure_plugins_dir()),
+                "catalog_url": PLUGIN_CATALOG_URL,
+            })
+            return
+        if parsed.path == "/api/plugins/community":
+            refresh = parse_qs(parsed.query).get("refresh", [""])[0].lower() in ("1", "true", "yes")
+            catalog = community_catalog(refresh=refresh)
+            installed = {
+                plugin["id"]: {
+                    "version": plugin.get("version", ""),
+                    "source": plugin.get("source", ""),
+                }
+                for plugin in discover_plugins()
+            }
+            self._json(200, {"ok": True, **catalog, "installed": installed})
+            return
+        if parsed.path.startswith("/plugins/"):
+            rest = unquote(parsed.path[len("/plugins/"):])
+            candidate = None
+            # Shared files such as plugin-host.css and community-catalog.json
+            # live directly under web/plugins. Check them before treating the
+            # first path segment as a plugin id.
+            try:
+                shared_root = (WEB_DIR / "plugins").resolve()
+                shared = (shared_root / rest).resolve()
+                if shared.is_relative_to(shared_root) and shared.is_file():
+                    candidate = shared
+            except Exception:
+                candidate = None
+            if candidate is None:
+                plugin_id, _, relative = rest.partition("/")
+                candidate = plugin_file_path(plugin_id, relative or "index.html")
+            if candidate is None:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            try:
+                body = candidate.read_bytes()
+            except Exception as read_error:
+                self._json(500, {"ok": False, "error": str(read_error)})
+                return
+            content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+            if content_type.startswith("text/") or content_type in ("application/javascript",):
+                content_type += "; charset=utf-8"
+            self._send(200, body, content_type)
+            return
         if parsed.path == "/api/state":
             self._json(200, self.store.state())
             return
@@ -2873,14 +4165,75 @@ class ApiHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
-        if path not in ("/api/action", "/api/agent"):
+        allowed = (
+            "/api/action", "/api/agent",
+            "/api/plugins/install", "/api/plugins/uninstall",
+            "/api/themes/install", "/api/themes/uninstall", "/api/themes/export",
+        )
+        if path not in allowed:
             self._json(404, {"ok": False, "error": "Not found"})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
+            if length > 40_000_000:
+                raise ValueError("The uploaded file is too large")
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
             if path == "/api/agent":
                 result = self.agent_store.action(payload)
+            elif path == "/api/themes/install":
+                expected_id = str(payload.get("id") or "")
+                expected_sha = str(payload.get("sha256") or "")
+                data_url = str(payload.get("data") or "")
+                url = str(payload.get("url") or "")
+                if payload.get("bundled") is True:
+                    manifest = install_bundled_theme(expected_id)
+                elif data_url:
+                    try:
+                        data = base64.b64decode(data_url, validate=True)
+                    except Exception as error:
+                        raise ValueError("The uploaded theme data is not valid base64") from error
+                    manifest = install_theme_archive(data, expected_id=expected_id, expected_sha256=expected_sha)
+                elif url:
+                    data = download_theme_archive(url)
+                    manifest = install_theme_archive(data, expected_id=expected_id, expected_sha256=expected_sha)
+                else:
+                    raise ValueError("Provide a theme download URL, a bundled id or a .zip file")
+                result = {
+                    "ok": True,
+                    "theme": manifest,
+                    "packs": discover_theme_packs(),
+                    "folder": str(ensure_theme_packs_dir()),
+                }
+            elif path == "/api/themes/uninstall":
+                removed = uninstall_theme_pack(payload.get("id"))
+                result = {"ok": True, **removed, "packs": discover_theme_packs()}
+            elif path == "/api/themes/export":
+                exported = export_theme_pack(payload)
+                result = {"ok": True, **exported}
+            elif path == "/api/plugins/install":
+                expected_id = str(payload.get("id") or "")
+                expected_sha = str(payload.get("sha256") or "")
+                data_url = str(payload.get("data") or "")
+                url = str(payload.get("url") or "")
+                if data_url:
+                    try:
+                        data = base64.b64decode(data_url, validate=True)
+                    except Exception as error:
+                        raise ValueError("The uploaded plugin data is not valid base64") from error
+                elif url:
+                    data = download_plugin_archive(url)
+                else:
+                    raise ValueError("Provide a plugin download URL or a .zip file")
+                manifest = install_plugin_archive(data, expected_id=expected_id, expected_sha256=expected_sha)
+                result = {
+                    "ok": True,
+                    "plugin": manifest,
+                    "plugins": discover_plugins(),
+                    "folder": str(ensure_plugins_dir()),
+                }
+            elif path == "/api/plugins/uninstall":
+                removed = uninstall_plugin_files(payload.get("id"))
+                result = {"ok": True, **removed, "plugins": discover_plugins()}
             else:
                 result = self.store.action(payload)
             self._json(200 if result.get("ok") else 400, result)
@@ -2893,6 +4246,9 @@ def start_server(store: Store):
     ensure_note_materials_dir()
     ensure_pictures_dir()
     ensure_music_dir()
+    ensure_plugins_dir()
+    ensure_theme_packs_dir()
+    ensure_theme_exports_dir()
     # A fixed loopback port keeps the browser origin stable across launches,
     # so localStorage (volume, mute, panel geometry, caret choices) survives.
     # If another copy already owns it, fall back to an ephemeral port.
@@ -2907,12 +4263,17 @@ def start_server(store: Store):
     return server, server.server_address[1]
 
 
+# ============================================================================
+# [linux] GTK4 / WebKitGTK shell
+# Linux only. Do not copy this block into windows_app.py or Android; those
+# shells are updated together in the platform-sync step.
+# ============================================================================
 def run_gtk() -> None:
     import gi
     gi.require_version("Gtk", "4.0")
     gi.require_version("WebKit", "6.0")
     gi.require_version("Gdk", "4.0")
-    from gi.repository import Gdk, GLib, Gtk, WebKit
+    from gi.repository import Gdk, Gio, GLib, Gtk, WebKit
 
     # A single, steady caret in the note: no on/off blinking.
     try:
@@ -2940,7 +4301,12 @@ def run_gtk() -> None:
 
     class NeoTodoApp(Gtk.Application):
         def __init__(self):
-            super().__init__(application_id="io.github.neotodo")
+            flags = (
+                Gio.ApplicationFlags.NON_UNIQUE
+                if "--new-window" in sys.argv
+                else Gio.ApplicationFlags.DEFAULT_FLAGS
+            )
+            super().__init__(application_id="io.github.neotodo", flags=flags)
             self.window = None
 
         def do_activate(self):
@@ -3042,6 +4408,40 @@ def run_gtk() -> None:
                     except Exception:
                         uri = ""
                     parsed_uri = urlparse(uri)
+                    if parsed_uri.hostname == "neotodo.local" and parsed_uri.path == "/new-window":
+                        def open_new_main_window():
+                            new_view = WebKit.WebView()
+                            new_view.set_background_color(background)
+                            apply_view_settings(new_view)
+                            try:
+                                new_view.connect("web-process-terminated", recover_after_renderer_crash)
+                            except Exception:
+                                pass
+                            new_window = Gtk.Window()
+                            new_window.set_title("NeoTodo")
+                            try:
+                                new_window.set_icon_name("io.github.neotodo")
+                            except Exception:
+                                pass
+                            new_window.set_default_size(1280, 840)
+                            new_window.set_decorated(False)
+                            new_window.maximize()
+                            new_window.set_child(new_view)
+                            new_view.connect("decide-policy", decide_policy)
+                            def forget_new(_window, win=new_window):
+                                main_windows[:] = [item for item in main_windows if item is not win]
+                            new_window.connect("destroy", forget_new)
+                            main_windows.append(new_window)
+                            new_view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
+                            new_window.present()
+                            return False
+
+                        GLib.idle_add(open_new_main_window)
+                        try:
+                            decision.ignore()
+                        except Exception:
+                            pass
+                        return True
                     if parsed_uri.hostname == "neotodo.local" and parsed_uri.path == "/open":
                         try:
                             query = parse_qs(parsed_uri.query)
@@ -3075,6 +4475,7 @@ def run_gtk() -> None:
 
             detached_windows = []
             self.detached_windows = detached_windows
+            main_windows = []
 
             def open_detached_window(target_url=None, follow=False):
                 detached_view = WebKit.WebView()

@@ -1,3 +1,4 @@
+/* [shared] NeoTodo UI styles: Linux-first, synced to Android and reused by Windows. */
 :root {
   --paper: #f7f1e4;
   --paper-2: #f1e9d8;
@@ -6381,7 +6382,8 @@ html[data-theme] .page-body .notes-half.floating-notes .notes-head { border-bott
   transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2, 0.85, 0.2, 1);
 }
 .top-edge:hover ~ .top-tools,
-.top-tools:hover {
+.top-tools:hover,
+.top-tools.top-open {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
@@ -9054,9 +9056,10 @@ html[data-theme="postcard"] .head-title-inner .current-actions {
   font-size: calc(38px * var(--user-scale, 1));
 }
 
-/* Larger tissue icon; its red centre lands on the header's upper rule. */
+/* The tissue icon is bottom-aligned and sized so its red centre lands on the
+   header's upper rule; no extra downward nudge is needed. */
 html[data-theme="postcard"] .banner-icon {
-  transform: translateY(2.8px);
+  transform: none;
 }
 
 /* Fast, solid-paper category toggle (Obsidian-like). */
@@ -13369,6 +13372,34 @@ body.desk-handle-resizing * {
   will-change: top, height;
 }
 
+/* The note's paper is the heavy surface in this app: a wide soft drop shadow
+   plus (on glass) a 22px backdrop blur, both repainted across the whole sheet
+   on every line frame. A drag is direct manipulation, so the note drops those
+   two effects while the box moves and gets the full material back on release —
+   the same trade the top-edge stretch already makes. The long selector is
+   deliberate: it must outrank the per-theme `!important` paper rules. */
+html body.desk-handle-resizing .page-body > .notes-half.floating-notes:not(.notes-hidden) {
+  contain: layout paint;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  transition: none !important;
+}
+html body.desk-handle-resizing .page-body > .notes-half.floating-notes:not(.notes-hidden)::before {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html body.desk-handle-resizing .page-body > .notes-half.floating-notes .note-block,
+html body.desk-handle-resizing .page-body > .notes-half.floating-notes .note-block-editor,
+html body.desk-handle-resizing .page-body > .notes-half.floating-notes .notes-title,
+html body.desk-handle-resizing .page-body > .notes-half.floating-notes .notes-title > span {
+  text-shadow: none !important;
+}
+/* Scrolling content must not fight the resized box with scroll anchoring. */
+html body.desk-handle-resizing .page-body > .notes-half.floating-notes .note-live {
+  overflow-anchor: none;
+}
+
 /* The panel itself shrinks into a floating card that follows the pointer. */
 body.panel-drag-mode {
   cursor: grabbing;
@@ -14672,129 +14703,119 @@ html[data-theme="postcard"] .note-bg-choice.active {
 :root { --agent-terminal-height: calc(50% - var(--desk-bottom, 30px)); }
 
 /* ==========================================================================
-   NeoTodo wordmark — black-green street tag
-   The mark is a hand-tagged "NeoTodo": only the N and the T keep their
-   capitals, the rest stays lowercase. A marker face, a slight tag tilt and
-   layered black-green ink with a mint spray halo make it read as paint on the
-   paper. There is no closing dot: the word itself ends the mark. Dark
-   postcards flip to mint paint with a black-green keyline so it survives the
-   black paper.
+   NeoTodo wordmark — black-green doodle tag
+   A graffiti marker "NeoTodo" sits in the top-left corner: thick, round,
+   italic and slightly tilted. Only the N and the T keep their capitals; the
+   word itself is the mark, with no badge in front of it and no rule below.
+   Dark postcards repaint the tag in mint so it survives the black paper.
    ========================================================================== */
 
 @font-face {
-  font-family: "NeoTodo Marker";
+  font-family: "NeoTodo Doodle";
   src: url("/fonts/SedgwickAve-400.ttf") format("truetype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
 }
 
-html[data-theme] .brand .brand-name {
-  --wordmark-ink: #0b2f22;
-  --wordmark-accent: #178a4e;
-  --wordmark-key: #d5f3df;
-  --wordmark-shadow: #041c12;
+.nt-brand {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 2px 8px 2px 0;
+  color: #0b2f22;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The wordmark: a fat brush tag, rounded by the marker strokes. */
+.nt-brand .nt-word {
   position: relative;
   display: inline-block;
-  padding: 0 2px 3px 1px;
-  font-family: "NeoTodo Marker", "Permanent Marker", "Adwaita Sans", "Noto Sans", sans-serif;
-  font-size: 27px;
-  font-style: normal;
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  text-transform: none;
-  color: var(--wordmark-ink);
-  -webkit-text-stroke: 0;
+  padding: 0 2px 1px 1px;
+  font-family: "NeoTodo Doodle", "Sedgwick Ave", "Caveat", "Adwaita Sans", "Noto Sans", sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 0.95;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  background-image: linear-gradient(96deg, transparent 0, rgba(47, 191, 113, 0.05) 9%, rgba(47, 191, 113, 0.10) 24%, rgba(47, 191, 113, 0.03) 76%, transparent 100%);
+  background-size: 102% 46%;
+  background-position: -1% 66%;
+  background-repeat: no-repeat;
+  color: #0b2f22;
+  -webkit-text-stroke: 1.1px currentColor;
+  paint-order: stroke fill;
   -webkit-font-smoothing: antialiased;
   text-shadow:
-    0.7px 0 0 var(--wordmark-ink),
-    1.2px 1.2px 0 rgba(255, 255, 255, 0.55),
-    2.6px 2.6px 0 var(--wordmark-shadow),
-    5px 5px 0 rgba(23, 138, 78, 0.2),
-    0 0 13px rgba(74, 205, 137, 0.24);
-  transform: rotate(-2.2deg) skewX(-4deg);
+    1px 1px 0 rgba(255, 255, 255, 0.45),
+    0 1px 0 rgba(4, 28, 18, 0.28),
+    3px 3px 0 rgba(23, 138, 78, 0.18);
+  transform: translate(9px, 9px) rotate(-2.5deg) skewX(-4deg) scaleX(1.12);
   transform-origin: 0% 80%;
 }
-
-/* A faint mint spray smear behind the tag, not a dot or a badge. */
-html[data-theme] .brand .brand-name::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  left: -4px;
-  right: -3px;
-  bottom: 0;
-  height: 64%;
-  background: linear-gradient(96deg, transparent 0 5%, rgba(47, 191, 113, 0.24) 14%, rgba(47, 191, 113, 0.07) 58%, transparent 94%);
-  filter: blur(1.6px);
-  transform: rotate(-1.6deg);
-  pointer-events: none;
-}
-
-html[data-theme] .brand .brand-name .brand-n,
-html[data-theme] .brand .brand-name .brand-t {
+.nt-brand .nt-word .nt-cap {
   display: inline-block;
-  color: var(--wordmark-accent);
-  font-family: inherit;
-  font-size: 1.08em;
-  font-style: normal;
-  font-weight: inherit;
-  line-height: 0.9;
-  -webkit-text-stroke: 0;
-  transform-origin: 50% 80%;
+  color: #178a4e;
+  transform-origin: 50% 85%;
 }
+.nt-brand .nt-word .nt-cap:nth-of-type(1) { transform: rotate(-4deg); }
+.nt-brand .nt-word .nt-cap:nth-of-type(2) { transform: rotate(2deg); }
 
-html[data-theme] .brand .brand-name .brand-n {
-  transform: translateY(1px) rotate(-7deg);
+/* Dark postcards: mint paint, same doodle attitude. */
+html[data-postcard-dark="true"] .nt-brand {
+  color: #a9f5c2;
 }
-
-html[data-theme] .brand .brand-name .brand-t {
-  transform: translateY(-1px) rotate(4deg);
-}
-
-html[data-theme] .brand .brand-name .brand-rest {
-  display: inline;
-  color: var(--wordmark-ink);
-  font-family: inherit;
-  font-style: normal;
-  font-weight: inherit;
-  letter-spacing: 0.005em;
-  -webkit-text-stroke: 0;
-}
-
-/* Dark postcards: mint paint with a black-green keyline. */
-html[data-theme][data-postcard-dark="true"] .brand .brand-name {
-  --wordmark-ink: #a9f5c2;
-  --wordmark-accent: #5ee596;
-  --wordmark-key: #06251a;
-  --wordmark-shadow: #03170f;
-  color: var(--wordmark-ink);
+html[data-postcard-dark="true"] .nt-brand .nt-word {
+  background-image: linear-gradient(96deg, transparent 0, rgba(94, 229, 150, 0.04) 9%, rgba(94, 229, 150, 0.09) 24%, rgba(94, 229, 150, 0.025) 76%, transparent 100%);
+  color: #a9f5c2;
   text-shadow:
-    1.5px 1.5px 0 var(--wordmark-shadow),
-    4px 4px 0 rgba(6, 37, 26, 0.9),
-    0 0 16px rgba(79, 217, 141, 0.4);
+    1.5px 1.5px 0 rgba(3, 23, 15, 0.9),
+    4px 4px 0 rgba(6, 37, 26, 0.4),
+    0 0 14px rgba(79, 217, 141, 0.22);
+}
+html[data-postcard-dark="true"] .nt-brand .nt-word .nt-cap { color: #5ee596; }
+
+@media (max-width: 980px) {
+  .nt-brand .nt-word { font-size: 25px; transform: translate(7px, 8px) rotate(-2.5deg) skewX(-4deg) scaleX(1.1); }
 }
 
-html[data-theme][data-postcard-dark="true"] .brand .brand-name .brand-n,
-html[data-theme][data-postcard-dark="true"] .brand .brand-name .brand-t {
-  color: var(--wordmark-accent);
-  -webkit-text-stroke: 0.9px var(--wordmark-key);
+@media (max-width: 620px) {
+  .nt-brand { padding-right: 2px; }
+  .nt-brand .nt-word { font-size: 22px; transform: translate(4px, 7px) rotate(-2.5deg) skewX(-4deg) scaleX(1.08); }
+}
+
+@media (max-width: 460px) {
+  .nt-brand .nt-word {
+    font-size: 15px;
+    -webkit-text-stroke: 0.9px currentColor;
+    transform: translate(0, 7px) rotate(-2deg) skewX(-3deg);
+  }
+}
+
+/* Categories label: the spine speaks in the same artistic marker hand. */
+.index-head > span {
+  display: inline-block;
+  font-family: "NeoTodo Doodle", "Sedgwick Ave", "Caveat", var(--body, "Adwaita Sans", "Noto Sans", sans-serif);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 21px;
+  line-height: 0.95;
+  letter-spacing: 0.015em;
+  text-transform: none;
+  color: var(--ink);
+  -webkit-text-stroke: 0.25px currentColor;
   paint-order: stroke fill;
-}
-
-html[data-theme][data-postcard-dark="true"] .brand .brand-name .brand-rest {
-  color: var(--wordmark-ink);
-  -webkit-text-stroke: 0.9px var(--wordmark-key);
-  paint-order: stroke fill;
-}
-
-html[data-theme][data-postcard-dark="true"] .brand .brand-name::before {
-  background: linear-gradient(96deg, transparent 0 5%, rgba(94, 229, 150, 0.3) 14%, rgba(94, 229, 150, 0.08) 58%, transparent 94%);
+  transform: rotate(-1.5deg);
+  transform-origin: 0 70%;
 }
 
 @media (max-width: 980px) {
-  html[data-theme] .brand .brand-name { font-size: 22px; }
+  .index-head > span { font-size: 19px; }
+}
+@media (max-width: 720px) {
+  .index-head > span { font-size: 17px; letter-spacing: 0; }
 }
 
 /* The AI list is hidden for one frame while it is pinned to the newest turn,
@@ -15293,6 +15314,12 @@ html[data-wallpaper="dynamic"] .doing-peek::before { opacity: 0.50; }
   box-shadow: 0 3px 9px rgba(60, 40, 20, 0.1);
 }
 .plugin-icon img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.plugin-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  color: var(--pc-muted, var(--muted));
+}
 
 .plugin-copy { flex: 1 1 auto; min-width: 0; }
 .plugin-copy strong {
@@ -15462,4 +15489,561 @@ html[data-wallpaper="dynamic"] .doing-peek::before { opacity: 0.50; }
   .plugin-copy { flex: 1 1 calc(100% - 64px); }
   .plugin-power { margin-left: auto; }
   .plugin-detail-head { align-items: flex-start; }
+}
+
+/* ==========================================================================
+   PLUGIN COMMUNITY
+   --------------------------------------------------------------------------
+   A searchable shelf for plugins people share with each other. Installed
+   downloads also get a small tool-rail button, so they behave like the
+   bundled mini-apps without being compiled into the notebook.
+   ========================================================================== */
+.community-plugin-rail { display: contents; }
+
+.community-plugin-tool { overflow: visible; }
+.community-plugin-glyph {
+  width: 30px;
+  height: 30px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(60, 40, 20, 0.18));
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+.community-plugin-tool:hover .community-plugin-glyph { transform: translateY(-1px) scale(1.08); }
+.community-plugin-tool:active .community-plugin-glyph { transform: scale(0.95); }
+
+.community-head { margin-bottom: 14px; }
+.community-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.community-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 999px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.34));
+}
+.community-search svg {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  color: var(--pc-muted, var(--muted));
+}
+.community-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 12px;
+  outline: none;
+}
+.community-search input::placeholder { color: var(--pc-muted, var(--muted)); opacity: 0.8; }
+.community-search input::-webkit-search-cancel-button { opacity: 0.55; }
+.community-refresh { flex: 0 0 auto; }
+
+.community-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 0 2px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+}
+.community-status.offline { color: #b4573e; }
+.community-count b { color: var(--pc-ink, var(--ink)); font-weight: 600; }
+
+.community-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.community-filter {
+  padding: 4px 11px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 10.5px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.community-filter:hover { color: var(--pc-ink, var(--ink)); }
+.community-filter.active {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.14);
+  color: var(--pc-ink, var(--ink));
+}
+
+.community-plugin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 760px) {
+  .community-plugin-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.community-plugin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 11px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.3));
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.community-plugin-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 9px 22px rgba(50, 35, 20, 0.09);
+}
+.community-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.community-card-icon {
+  position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 4px;
+  border-radius: 12px;
+}
+.community-card-icon img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; display: block; }
+.community-card-fallback { position: absolute; inset: 8px; width: auto; height: auto; }
+.community-card-glyph {
+  width: 26px;
+  height: 26px;
+  display: block;
+  color: var(--pc-accent, var(--gold));
+}
+.community-card-title { flex: 1 1 auto; min-width: 0; }
+.community-card-title strong {
+  display: block;
+  overflow: hidden;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.community-card-title small {
+  display: block;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.community-origin {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 999px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.community-origin.official {
+  border-color: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.45);
+  color: var(--pc-accent, var(--gold));
+}
+.community-card-description {
+  margin: 0;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 11px;
+  line-height: 1.42;
+}
+.community-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+}
+.community-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.community-tags span {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.09);
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8px;
+}
+.community-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 2px;
+}
+.community-card-actions .btn { padding: 4px 10px; font-size: 10.5px; }
+.community-card-actions .btn.ghost,
+.community-callout-actions .btn.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+}
+.community-card-actions .btn.ghost:hover,
+.community-callout-actions .btn.ghost:hover { color: var(--pc-ink, var(--ink)); }
+.community-installed-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(80, 150, 100, 0.12);
+  color: #4c8a63;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.03em;
+}
+.community-installed-badge.built-in {
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.1);
+  color: var(--pc-muted, var(--muted));
+}
+.community-card-link {
+  margin-left: auto;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8.5px;
+  text-decoration: none;
+}
+.community-card-link:hover { color: var(--pc-ink, var(--ink)); text-decoration: underline; }
+.community-empty { padding: 18px 14px; text-align: center; }
+
+.plugin-community-promo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.plugin-community-promo > div { display: grid; gap: 3px; min-width: 0; }
+.plugin-community-promo .btn { flex: 0 0 auto; }
+
+.plugin-community-callout {
+  margin-top: 18px;
+  padding: 15px 16px;
+  border: 1px dashed var(--pc-border, var(--line));
+  border-radius: 11px;
+  background: linear-gradient(135deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.07), transparent 62%);
+}
+.community-callout-copy { display: grid; gap: 5px; }
+.community-callout-copy strong {
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+}
+.community-callout-copy p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.community-callout-copy code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.community-callout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+.community-callout-actions .btn { text-decoration: none; }
+.community-back-note { margin-top: 14px; }
+.inline-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pc-accent, var(--gold));
+  font-family: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+
+/* ==========================================================================
+   SETTINGS → 主题社区 / THEME COMMUNITY
+   --------------------------------------------------------------------------
+   A pack shelves a palette, a wallpaper, foley samples and achievement
+   stickers behind one zip. Cards keep the same paper-soft language as the
+   plugin shelf so the two communities feel like neighbours.
+   ========================================================================== */
+.theme-community-hero {
+  display: grid;
+  gap: 12px;
+  padding: 15px 16px;
+  border: 1px dashed var(--pc-border, var(--line));
+  border-radius: 12px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.3));
+}
+.theme-community-hero-copy strong {
+  display: block;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+}
+.theme-community-hero-copy p {
+  margin: 5px 0 0;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.theme-community-hero-copy code,
+.theme-community-publish code,
+.theme-community-empty code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+.theme-community-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.theme-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.theme-pack-card {
+  display: flex;
+  align-items: stretch;
+  gap: 11px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 11px;
+  background: var(--pc-paper2, rgba(255, 255, 255, 0.4));
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.theme-pack-card:hover {
+  border-color: var(--pc-accent, var(--gold));
+  box-shadow: 0 8px 22px rgba(50, 35, 18, 0.12);
+  transform: translateY(-1px);
+}
+.theme-pack-card.theme-pack-active {
+  border-color: var(--pc-accent, var(--gold));
+  box-shadow: inset 0 0 0 1px var(--pc-accent, var(--gold));
+}
+.theme-pack-preview {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 8px;
+  background: var(--pc-paper, var(--paper));
+}
+.theme-pack-preview img,
+.theme-pack-preview svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.theme-pack-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--pc-accent, var(--gold));
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 600;
+}
+.theme-pack-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.theme-pack-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 7px;
+}
+.theme-pack-head strong {
+  overflow: hidden;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-pack-head small,
+.theme-pack-meta {
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+}
+.theme-pack-meta { margin-top: 2px; }
+.theme-pack-body p {
+  display: -webkit-box;
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 10.5px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.theme-pack-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+}
+.theme-pack-badge {
+  padding: 2px 7px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 999px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 7.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.theme-pack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+.theme-community-empty {
+  display: grid;
+  gap: 3px;
+  padding: 16px;
+  border: 1px dashed var(--pc-border, var(--line));
+  border-radius: 10px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+.theme-community-empty strong {
+  color: var(--pc-ink, var(--ink));
+  font-size: 12px;
+  font-weight: 600;
+}
+.theme-community-warning {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(196, 92, 70, 0.35);
+  border-radius: 8px;
+  background: rgba(196, 92, 70, 0.08);
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 10.5px;
+}
+.theme-community-share {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 10px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.3));
+}
+.theme-community-share > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.theme-community-share strong {
+  display: block;
+  overflow: hidden;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-community-share span {
+  display: block;
+  margin-top: 2px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 8.5px;
+}
+.theme-community-sound-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 10.5px;
+}
+.theme-community-publish {
+  margin: 10px 0 0;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 10px;
+  line-height: 1.55;
+}
+.sound-pack-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--pc-border, var(--line));
+  border-radius: 8px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 10.5px;
+}
+
+@media (max-width: 760px) {
+  .theme-pack-grid { grid-template-columns: 1fr; }
 }

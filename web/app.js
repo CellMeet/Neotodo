@@ -1,3 +1,5 @@
+/* [shared] NeoTodo web UI: Linux-first, synced to Android and reused by
+   the Windows Qt shell. Keep platform-specific shells out of this file. */
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -523,6 +525,30 @@ const AudioFX = (() => {
     paperTear: "/user-sounds/paper-tear.wav",
     steamHiss: "/user-sounds/steam-hiss.mp3",
   };
+  const DEFAULT_SAMPLE_URLS = { ...SAMPLE_URLS };
+
+  // Theme packs may replace individual foley samples. Keep the default map
+  // intact so switching back to NeoTodo's own sounds is lossless.
+  function setSampleOverrides(overrides) {
+    const clean = {};
+    if (overrides && typeof overrides === "object") {
+      for (const [name, url] of Object.entries(overrides)) {
+        if (!(name in DEFAULT_SAMPLE_URLS) || typeof url !== "string" || !url) continue;
+        if (!url.startsWith("/theme-assets/") && !url.startsWith("/user-sounds/")) continue;
+        clean[name] = url;
+      }
+    }
+    for (const name of Object.keys(DEFAULT_SAMPLE_URLS)) {
+      const next = clean[name] || DEFAULT_SAMPLE_URLS[name];
+      if (SAMPLE_URLS[name] === next) continue;
+      SAMPLE_URLS[name] = next;
+      delete sampleBuffers[name];
+      sampleLoading[name] = null;
+      delete htmlPools[name];
+      delete htmlCursor[name];
+    }
+    return { ...SAMPLE_URLS };
+  }
 
   function preloadSamples() {
     const c = ensure();
@@ -1283,24 +1309,104 @@ const AudioFX = (() => {
     osc.stop(when + duration + 0.02);
   }
 
-  function tetrisMove(rotate = false) {
+  // A keyboard click with a tiny arcade sparkle. The bright noise tick leads,
+  // a very short high blip adds the Tetris colour, and a soft low thump gives
+  // the key a physical bottom-out. Everything lands inside ~40ms, so it reads
+  // as typing rather than a melody.
+  const TETRIS_TYPE_NOTES = [1174.66, 1244.51, 1318.51, 1396.91, 1567.98];
+
+  function tetrisBlip(freq) {
     const c = ensure();
     if (!c) return;
     const now = c.currentTime;
+
+    // The dominant sound: a dry, bright key tick.
+    const tick = c.createBufferSource();
+    tick.buffer = airBuffer();
+    const band = c.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 3600 + Math.random() * 1200;
+    band.Q.value = 0.7;
+    const tickGain = c.createGain();
+    tickGain.gain.setValueAtTime(0.0001, now);
+    tickGain.gain.linearRampToValueAtTime(0.052, now + 0.001);
+    tickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.016);
+    tick.connect(band);
+    band.connect(tickGain);
+    tickGain.connect(masterOutput(c));
+    tick.start(now, Math.random() * 0.1, 0.02);
+    tick.stop(now + 0.022);
+
+    // A quiet high blip keeps the Tetris character without turning the
+    // keyboard into a tune.
     const osc = c.createOscillator();
-    osc.type = "square";
-    // A left/right nudge is a low two-step blip; a rotation answer is the
-    // same shape a minor third higher, so typing reads as falling pieces.
-    osc.frequency.setValueAtTime(rotate ? 330 : 262, now);
-    osc.frequency.setValueAtTime(rotate ? 494 : 392, now + 0.028);
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(freq, now);
     const gain = c.createGain();
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.055, now + 0.006);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+    gain.gain.linearRampToValueAtTime(0.013, now + 0.0015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.032);
     osc.connect(gain);
     gain.connect(masterOutput(c));
     osc.start(now);
-    osc.stop(now + 0.09);
+    osc.stop(now + 0.035);
+
+    // A soft low body for the key bottoming out.
+    const thump = c.createOscillator();
+    thump.type = "sine";
+    thump.frequency.setValueAtTime(165, now);
+    const thumpGain = c.createGain();
+    thumpGain.gain.setValueAtTime(0.0001, now);
+    thumpGain.gain.linearRampToValueAtTime(0.018, now + 0.002);
+    thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.028);
+    thump.connect(thumpGain);
+    thumpGain.connect(masterOutput(c));
+    thump.start(now);
+    thump.stop(now + 0.03);
+  }
+
+  function tetrisMove() {
+    const base = TETRIS_TYPE_NOTES[Math.floor(Math.random() * TETRIS_TYPE_NOTES.length)];
+    // A few cents of drift makes repeated keys feel like separate physical
+    // presses instead of one synthesised loop.
+    const freq = base * Math.pow(2, (Math.random() * 30 - 15) / 1200);
+    tetrisBlip(freq);
+  }
+
+  function tetrisErase() {
+    // Backspace is a dry high-passed swipe with a tiny low body, so deleting
+    // text feels like lifting a block instead of another musical note.
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const src = c.createBufferSource();
+    src.buffer = airBuffer();
+    src.playbackRate.value = 1.1;
+    const high = c.createBiquadFilter();
+    high.type = "highpass";
+    high.frequency.setValueAtTime(2400, now);
+    high.frequency.exponentialRampToValueAtTime(1200, now + 0.06);
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.028, now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+    src.connect(high);
+    high.connect(gain);
+    gain.connect(masterOutput(c));
+    src.start(now, Math.random() * 0.1, 0.08);
+    src.stop(now + 0.08);
+
+    const osc = c.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(160, now);
+    const body = c.createGain();
+    body.gain.setValueAtTime(0.0001, now);
+    body.gain.linearRampToValueAtTime(0.018, now + 0.003);
+    body.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+    osc.connect(body);
+    body.connect(masterOutput(c));
+    osc.start(now);
+    osc.stop(now + 0.055);
   }
 
   function tetrisClear() {
@@ -1849,8 +1955,8 @@ const AudioFX = (() => {
     seal, chime, ding, trainWhistle, categoryTap, achievementTap, timerTap, addTap,
     completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle,
     startLeafStretch, stopLeafStretch, unlock, preloadSamples, wake, toggle,
-    tetrisMove, tetrisClear,
-    setVolume, getVolume,
+    tetrisMove, tetrisErase, tetrisClear,
+    setVolume, getVolume, setSampleOverrides,
     sampleFiles: () => ({ ...SAMPLE_URLS }),
     audition: (name) => {
       const wasMuted = muted;
@@ -1862,7 +1968,7 @@ const AudioFX = (() => {
   };
 })();
 
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "violet", resolved_postcard: "violet", light_postcard: "violet", dark_postcard: "tokyo", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 48, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_background: "", note_background_image: "", note_blur: 16, sticker_backgrounds: {}, wallpaper_mode: "static", wallpaper_static: "art:violet", wallpaper_dynamic: "", plugins: {} };
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "violet", resolved_postcard: "violet", light_postcard: "violet", dark_postcard: "tokyo", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 62, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_background: "", note_background_image: "", note_blur: 16, sticker_backgrounds: {}, wallpaper_mode: "static", wallpaper_static: "art:violet", wallpaper_dynamic: "", plugins: {}, sound_overrides: {} };
 // Each header achievement keeps its own picture and crop, so the artwork for
 // the headphone and the tomato can be chosen independently.
 const STICKER_TARGETS = [
@@ -1990,6 +2096,25 @@ let archiveOpen = false;
 let trashOpen = false;
 let openPluginId = null;
 let pluginThemeObserver = null;
+// Theme packs are installed into the user's data folder. They extend THEMES
+// with a palette, and may also carry a wallpaper, foley samples and stickers.
+let themePacks = [];
+let themeCatalog = null;
+let themeCatalogBusy = false;
+let themePackBusy = "";
+let themeCatalogAt = 0;
+const THEME_SOUND_LABELS = {
+  type: "Typing",
+  enter: "Enter",
+  drawerOpen: "Drawer open",
+  drawerClose: "Drawer close",
+  waterFlow: "Water flow",
+  trickle: "Trickle",
+  windScroll: "Wind scroll",
+  train: "Train whistle",
+  paperTear: "Paper tear",
+  steamHiss: "Steam hiss",
+};
 // Small installable tools live in /plugins/<id>/. Each manifest describes the
 // plugin well enough for Settings → Plugins to list, toggle, open, and remove
 // it without the main notebook knowing anything about the plugin internals.
@@ -2033,6 +2158,17 @@ const PLUGIN_REGISTRY = {
 };
 let pluginDetailId = null;
 let pluginPendingUninstallId = null;
+// The community index is cached in memory after the first open. Downloads land
+// in the user's data folder and are detected through /api/plugins, so a plugin
+// never has to be compiled into the notebook.
+let pluginCatalog = null;
+let pluginCatalogLoading = false;
+let pluginCatalogError = "";
+let pluginCatalogRequest = null;
+let pluginCommunityFilter = "all";
+let pluginCommunityQuery = "";
+let pluginInstalling = new Set();
+let installedUserPlugins = [];
 let restoringTrashId = null;
 let expandedArchiveCardId = null;
 let archiveCardSwipeUntil = 0;
@@ -2054,7 +2190,6 @@ const COMPLETED_ROW_FLIGHT_MS = 480;
 let historyCursor = -1;
 let lastTypeSoundAt = 0;
 let lastTetrisKeyAt = 0;
-let tetrisRotateToggle = false;
 
 function playTypeSound() {
   const now = performance.now();
@@ -2064,17 +2199,15 @@ function playTypeSound() {
   AudioFX.type();
 }
 
-// The AI composer is a Tetris board, not a typewriter: each keystroke is a
-// piece move or rotation blip, and Enter clears a line. The two cues alternate
-// so a burst of typing keeps the falling-piece rhythm without stacking into
-// one long tone.
-function playTetrisKeySound() {
+// The AI composer is a keyboard with a Tetris tint: every edit gets a bright
+// key click, while deletes land on a separate dry swipe.
+function playTetrisKeySound(inputType = "") {
   const now = performance.now();
   if (now - lastTetrisKeyAt < 30) return;
   lastTetrisKeyAt = now;
-  tetrisRotateToggle = !tetrisRotateToggle;
   AudioFX.unlock();
-  AudioFX.tetrisMove(tetrisRotateToggle);
+  if (String(inputType).startsWith("delete")) AudioFX.tetrisErase();
+  else AudioFX.tetrisMove();
 }
 let historyScrollTop = null;
 let indexOpenWidth = 320;
@@ -5468,6 +5601,9 @@ function renderAgentTerminal() {
     let html = "";
     messages.forEach((message, index) => {
       const role = message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user";
+      // The pending assistant is what is currently streaming below. Rendering
+      // it here would label every live run as "Interrupted".
+      if (role === "assistant" && message.pending && busy) return;
       if (role === "user") {
         html += `<div class="agent-line user" data-agent-msg-index="${index}"><div class="agent-line-text">${esc(message.content || "")}</div>${agentAttachedChips(message.attachments)}<button type="button" class="agent-user-copy" data-agent-copy-index="${index}" aria-label="Copy message"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg></button></div>`;
       } else if (role === "system") {
@@ -5862,6 +5998,15 @@ function windowBridge(path, params = {}) {
   }
   const query = new URLSearchParams({ ...params, t: String(Date.now()) });
   bridge.src = `https://neotodo.local/${path}?${query.toString()}`;
+}
+
+function openNewWindow() {
+  try {
+    windowBridge("new-window");
+    toast("Opening a new window");
+  } catch (error) {
+    try { window.open(location.href, "_blank"); } catch (inner) {}
+  }
 }
 
 function nativeWindowCommand(action, x, y) {
@@ -7286,6 +7431,108 @@ function pluginEnabled(pluginId) {
   return Boolean(state?.installed && state.enabled);
 }
 
+function pluginAssetUrl(pluginId, relative) {
+  const rel = String(relative || "").replace(/^\/+/, "");
+  return `/plugins/${encodeURIComponent(pluginId)}/${rel.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function pluginCategoryLabel(value) {
+  const raw = String(value || "Interface").trim();
+  if (!raw) return "Interface";
+  const lower = raw.toLowerCase();
+  if (lower === "ai") return "AI";
+  if (lower === "ui") return "UI";
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+/** Turn a manifest returned by the backend into a PLUGIN_REGISTRY record. */
+function pluginManifestEntry(manifest) {
+  const id = String(manifest?.id || "");
+  if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(id)) return null;
+  const icon = String(manifest.icon || "").trim();
+  const entry = String(manifest.entry || "index.html").trim();
+  const settings = Array.isArray(manifest.settings)
+    ? manifest.settings.filter((item) => item && item.type === "toggle" && typeof item.id === "string")
+    : [];
+  const tags = Array.isArray(manifest.tags) ? manifest.tags.filter((tag) => typeof tag === "string").slice(0, 6) : [];
+  return {
+    id,
+    title: String(manifest.name || id),
+    englishTitle: String(manifest.englishName || id),
+    version: String(manifest.version || "1.0.0"),
+    author: String(manifest.author || "Community"),
+    category: pluginCategoryLabel(manifest.category),
+    description: String(manifest.description || ""),
+    icon: icon ? pluginAssetUrl(id, icon) : "",
+    entry: pluginAssetUrl(id, entry),
+    settings,
+    source: manifest.source === "user" ? "user" : "bundled",
+    homepage: String(manifest.homepage || ""),
+    repository: String(manifest.repository || ""),
+    license: String(manifest.license || ""),
+    tags,
+  };
+}
+
+/** Merge discovered folders into the registry and remember downloaded ones. */
+function mergePluginManifests(manifests) {
+  const users = [];
+  for (const manifest of Array.isArray(manifests) ? manifests : []) {
+    const entry = pluginManifestEntry(manifest);
+    if (!entry) continue;
+    const existing = PLUGIN_REGISTRY[entry.id];
+    if (entry.source === "user") {
+      // A downloaded plugin replaces the built-in record and can be updated in
+      // place without losing its settings.
+      PLUGIN_REGISTRY[entry.id] = { ...(existing || {}), ...entry };
+      users.push(entry);
+      continue;
+    }
+    // Bundled plugins stay opt-in for the registry: several of them are wired
+    // directly into index.html and should not sprout confusing host switches.
+    if (existing) {
+      existing.source = "bundled";
+      existing.version = entry.version || existing.version;
+      existing.homepage = entry.homepage || existing.homepage || "";
+      existing.repository = entry.repository || existing.repository || "";
+      existing.license = entry.license || existing.license || "";
+      existing.tags = entry.tags.length ? entry.tags : existing.tags || [];
+    }
+  }
+  installedUserPlugins = users;
+}
+
+async function loadInstalledPlugins() {
+  try {
+    const response = await fetch("/api/plugins", { cache: "no-store" });
+    if (!response.ok) return;
+    const result = await response.json();
+    if (!result?.ok || !Array.isArray(result.plugins)) return;
+    mergePluginManifests(result.plugins);
+    renderPluginRail();
+  } catch (error) {
+    // Older builds do not expose /api/plugins; the bundled registry still works.
+  }
+}
+
+function pluginRailGlyph(plugin) {
+  if (plugin.icon) {
+    return `<img class="community-plugin-glyph" src="${esc(plugin.icon)}" alt="">`;
+  }
+  return `<svg class="community-plugin-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v5a3 3 0 0 0 3 3h3v6h-5a3 3 0 0 0-3 3v1H7v-4a3 3 0 0 0-3-3H3V9h5a3 3 0 0 0 3-3V3Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+
+function renderPluginRail() {
+  const rail = $("#community-plugin-rail");
+  if (!rail) return;
+  const plugins = Object.values(PLUGIN_REGISTRY).filter((plugin) => plugin.source === "user");
+  rail.innerHTML = plugins.map((plugin) => `<button class="tool-button community-plugin-tool" type="button" data-action="open-community-plugin" data-plugin="${esc(plugin.id)}" data-plugin-id="${esc(plugin.id)}" aria-label="${esc(plugin.title)}" title="${esc(plugin.title)}">
+      ${pluginRailGlyph(plugin)}
+    </button>`).join("");
+  applyPluginState();
+}
+
+
 function applyPluginState() {
   document.querySelectorAll("[data-plugin]").forEach((node) => {
     node.classList.toggle("plugin-hidden", !pluginEnabled(node.dataset.plugin));
@@ -7310,6 +7557,7 @@ function setPluginEnabled(pluginId, enabled) {
   refreshPluginSurface(pluginId);
   AudioFX.categoryTap();
   if (settingsTab === "plugins") renderSettings();
+  else if (settingsTab === "community") updatePluginCommunityResults();
   toast(`${plugin.title} ${state.enabled ? "turned on" : "turned off"}`);
 }
 
@@ -7324,7 +7572,8 @@ function installPlugin(pluginId) {
   applyPluginState();
   refreshPluginSurface(pluginId);
   AudioFX.ding();
-  renderSettings();
+  if (settingsTab === "community") updatePluginCommunityResults();
+  else renderSettings();
   toast(`${plugin.title} installed`);
 }
 
@@ -7338,10 +7587,35 @@ function requestPluginUninstall(pluginId) {
   if (scroll) scroll.scrollTop = 0;
 }
 
-function confirmPluginUninstall(pluginId) {
+async function confirmPluginUninstall(pluginId) {
   const plugin = PLUGIN_REGISTRY[pluginId];
   const state = pluginState(pluginId);
   if (!plugin || !state) return;
+  if (plugin.source === "user") {
+    try {
+      const response = await fetch("/api/plugins/uninstall", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pluginId }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) throw new Error(result?.error || "Could not remove the plugin");
+      delete PLUGIN_REGISTRY[pluginId];
+      if (settings.plugins) delete settings.plugins[pluginId];
+      if (openPluginId === pluginId) closePluginPanel();
+      pluginPendingUninstallId = null;
+      pluginDetailId = null;
+      saveSettings();
+      applyPluginState();
+      renderPluginRail();
+      renderSettings();
+      AudioFX.paper();
+      toast(`${plugin.title} removed`);
+    } catch (error) {
+      toast(error?.message || "Could not remove the plugin", true);
+    }
+    return;
+  }
   state.installed = false;
   state.enabled = false;
   pluginPendingUninstallId = null;
@@ -7401,6 +7675,277 @@ function openPluginMenu(button, pluginId) {
     "-",
     { label: "Uninstall", icon: TRASH_ICON, danger: true, run: () => requestPluginUninstall(pluginId) },
   ]);
+}
+
+function pluginVersionNewer(candidate, current) {
+  const parse = (value) => String(value || "0").split(/[._-]/).map((part) => parseInt(part, 10) || 0);
+  const left = parse(candidate);
+  const right = parse(current);
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const a = left[index] || 0;
+    const b = right[index] || 0;
+    if (a !== b) return a > b;
+  }
+  return false;
+}
+
+function pluginCommunityIcon(entry) {
+  const plugin = PLUGIN_REGISTRY[entry.id];
+  const icon = String(entry.icon || "");
+  let source = plugin?.icon || "";
+  if (!source && /^https?:\/\//i.test(icon)) source = icon;
+  if (!source && entry.bundled && icon) source = pluginAssetUrl(entry.id, icon);
+  const fallback = `<svg class="community-card-glyph community-card-fallback" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v5a3 3 0 0 0 3 3h3v6h-5a3 3 0 0 0-3 3v1H7v-4a3 3 0 0 0-3-3H3V9h5a3 3 0 0 0 3-3V3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  if (!source) return fallback;
+  return `${fallback}<img src="${esc(source)}" alt="" loading="lazy" onerror="this.remove()">`;
+}
+
+function pluginCategoryOptions(entries) {
+  const seen = new Set();
+  const options = [];
+  for (const entry of entries) {
+    const label = pluginCategoryLabel(entry.category);
+    if (seen.has(label.toLowerCase())) continue;
+    seen.add(label.toLowerCase());
+    options.push(label);
+  }
+  return options;
+}
+
+function pluginCatalogEntries() {
+  const entries = Array.isArray(pluginCatalog?.plugins) ? pluginCatalog.plugins : [];
+  if (entries.length) return entries;
+  return Object.values(PLUGIN_REGISTRY).map((plugin) => ({
+    id: plugin.id,
+    name: plugin.title,
+    englishName: plugin.englishTitle,
+    version: plugin.version,
+    description: plugin.description,
+    author: plugin.author,
+    category: plugin.category,
+    icon: plugin.icon,
+    tags: plugin.tags || [],
+    bundled: plugin.source !== "user",
+    official: plugin.author === "NeoTodo",
+  }));
+}
+
+function pluginCommunityVisibleEntries() {
+  const query = pluginCommunityQuery.trim().toLowerCase();
+  return pluginCatalogEntries().filter((entry) => {
+    const category = pluginCategoryLabel(entry.category).toLowerCase();
+    if (pluginCommunityFilter === "featured" && !entry.featured) return false;
+    if (pluginCommunityFilter !== "all" && pluginCommunityFilter !== "featured" && category !== pluginCommunityFilter) return false;
+    if (!query) return true;
+    const haystack = [
+      entry.name,
+      entry.englishName,
+      entry.author,
+      entry.description,
+      ...(Array.isArray(entry.tags) ? entry.tags : []),
+    ].join(" ").toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function pluginCommunityCard(entry) {
+  const plugin = PLUGIN_REGISTRY[entry.id];
+  const state = plugin ? pluginState(entry.id) : null;
+  const installed = Boolean(state?.installed);
+  const enabled = Boolean(state?.enabled);
+  const installing = pluginInstalling.has(entry.id);
+  const update = Boolean(installed && plugin && entry.version && pluginVersionNewer(entry.version, plugin.version));
+  const canInstall = Boolean(plugin || entry.download);
+  const official = entry.official || entry.author === "NeoTodo";
+  const tags = (Array.isArray(entry.tags) ? entry.tags : []).slice(0, 4);
+  let actions = "";
+  if (installing) {
+    actions = `<button class="btn small community-install" type="button" disabled>Installing…</button>`;
+  } else if (installed) {
+    actions = `<span class="community-installed-badge">${enabled ? "Installed" : "Turned off"}</span>`;
+    if (enabled) actions += `<button class="btn small" type="button" data-action="open-community-plugin" data-plugin-id="${esc(entry.id)}">Open</button>`;
+    if (update) actions += `<button class="btn small community-install" type="button" data-action="install-community-plugin" data-plugin-id="${esc(entry.id)}">Update</button>`;
+    actions += `<button class="btn small ghost" type="button" data-action="open-plugin-details" data-plugin-id="${esc(entry.id)}">Manage</button>`;
+  } else if (entry.bundled && !plugin) {
+    actions = `<span class="community-installed-badge built-in">Built in</span>`;
+  } else if (canInstall) {
+    actions = `<button class="btn small community-install" type="button" data-action="install-community-plugin" data-plugin-id="${esc(entry.id)}">Install</button>`;
+  } else {
+    actions = `<span class="community-installed-badge">Coming soon</span>`;
+  }
+  return `<article class="community-plugin-card" data-community-plugin="${esc(entry.id)}">
+    <div class="community-card-top">
+      <span class="plugin-icon community-card-icon">${pluginCommunityIcon(entry)}</span>
+      <div class="community-card-title">
+        <strong>${esc(entry.name || entry.id)}</strong>
+        <small>${esc(entry.englishName || entry.id)} · v${esc(entry.version || "1.0.0")}</small>
+      </div>
+      <span class="community-origin ${official ? "official" : ""}">${official ? "Official" : "Community"}</span>
+    </div>
+    <p class="community-card-description">${esc(entry.description || "")}</p>
+    <div class="community-card-meta">
+      <span>by ${esc(entry.author || "Community")}</span>
+      <span>${esc(pluginCategoryLabel(entry.category))}</span>
+      ${entry.bundled ? "<span>Built in</span>" : ""}
+      ${entry.license ? `<span>${esc(entry.license)}</span>` : ""}
+    </div>
+    ${tags.length ? `<div class="community-tags">${tags.map((tag) => `<span>${esc(tag)}</span>`).join("")}</div>` : ""}
+    <div class="community-card-actions">
+      ${actions}
+      ${entry.homepage ? `<a class="community-card-link" href="${esc(entry.homepage)}" data-external-link="${esc(entry.homepage)}">Homepage</a>` : ""}
+    </div>
+  </article>`;
+}
+
+function pluginCommunityResultsMarkup() {
+  const entries = pluginCommunityVisibleEntries();
+  if (!entries.length) {
+    return `<div class="plugin-empty community-empty">No plugins match this search yet. Try another word, or submit the first one.</div>`;
+  }
+  return `<div class="community-plugin-grid">${entries.map(pluginCommunityCard).join("")}</div>`;
+}
+
+function updatePluginCommunityResults() {
+  const results = $("#plugin-community-results");
+  if (!results) return;
+  results.innerHTML = pluginCommunityResultsMarkup();
+  const count = $("#plugin-community-count");
+  if (count) count.textContent = String(pluginCommunityVisibleEntries().length);
+  document.querySelectorAll("[data-plugin-filter]").forEach((chip) => {
+    chip.classList.toggle("active", chip.dataset.pluginFilter === pluginCommunityFilter);
+  });
+}
+
+async function loadPluginCatalog(force = false) {
+  if (pluginCatalogLoading) return;
+  pluginCatalogLoading = true;
+  pluginCatalogError = "";
+  if (settingsTab === "community") renderSettings();
+  try {
+    const response = await fetch(`/api/plugins/community${force ? "?refresh=1" : ""}`, { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok || !result?.ok) throw new Error(result?.error || "Could not load the community catalog");
+    pluginCatalog = result;
+    pluginCatalogError = result.catalog_error || "";
+  } catch (error) {
+    pluginCatalogError = error?.message || "Could not load the community catalog";
+    if (!pluginCatalog) pluginCatalog = { plugins: [] };
+  } finally {
+    pluginCatalogLoading = false;
+    if (settingsTab === "community") renderSettings();
+  }
+}
+
+function ensurePluginCatalog() {
+  if (!pluginCatalog && !pluginCatalogLoading) loadPluginCatalog(false);
+}
+
+async function installCommunityPlugin(pluginId) {
+  const entry = pluginCatalogEntries().find((item) => item.id === pluginId);
+  const plugin = PLUGIN_REGISTRY[pluginId];
+  const wasInstalled = Boolean(plugin && pluginState(pluginId)?.installed);
+  if (!entry) return;
+  if (!entry.download || (entry.bundled && plugin)) {
+    installPlugin(pluginId);
+    return;
+  }
+  if (entry.bundled && !plugin) {
+    toast("This plugin ships inside NeoTodo", true);
+    return;
+  }
+  pluginInstalling.add(pluginId);
+  updatePluginCommunityResults();
+  if (openPluginId === pluginId) closePluginPanel();
+  try {
+    const response = await fetch("/api/plugins/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: entry.download, id: pluginId, sha256: entry.sha256 || "" }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result?.ok) throw new Error(result?.error || "The plugin could not be installed");
+    mergePluginManifests(result.plugins || (result.plugin ? [result.plugin] : []));
+    const state = pluginState(pluginId);
+    if (state) {
+      state.installed = true;
+      if (!wasInstalled) state.enabled = true;
+    }
+    saveSettings();
+    applyPluginState();
+    renderPluginRail();
+    refreshPluginSurface(pluginId);
+    AudioFX.ding();
+    toast(`${entry.name || pluginId} ${plugin ? "updated" : "installed"}`);
+  } catch (error) {
+    toast(error?.message || "The plugin could not be installed", true);
+  } finally {
+    pluginInstalling.delete(pluginId);
+    if (settingsTab === "community") updatePluginCommunityResults();
+    if (pluginDetailId) renderSettings();
+  }
+}
+
+async function uploadPluginArchive(data, filename) {
+  pluginInstalling.add("__upload__");
+  updatePluginCommunityResults();
+  if (openPluginId) closePluginPanel();
+  try {
+    const response = await fetch("/api/plugins/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename, data }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result?.ok) throw new Error(result?.error || "The plugin could not be installed");
+    mergePluginManifests(result.plugins || (result.plugin ? [result.plugin] : []));
+    const pluginId = result.plugin?.id;
+    const state = pluginId ? pluginState(pluginId) : null;
+    if (state) {
+      state.installed = true;
+      state.enabled = true;
+    }
+    saveSettings();
+    applyPluginState();
+    renderPluginRail();
+    AudioFX.ding();
+    toast(`${result.plugin?.name || filename} installed`);
+    if (settingsTab === "community") renderSettings();
+  } catch (error) {
+    toast(error?.message || "The plugin could not be installed", true);
+  } finally {
+    pluginInstalling.delete("__upload__");
+  }
+}
+
+function choosePluginArchive() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".zip,application/zip,application/x-zip-compressed";
+  input.style.display = "none";
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (!file) return;
+    if (file.size > 24_000_000) {
+      toast("Plugin archives must be smaller than 24 MB", true);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => toast("Could not read that file", true);
+    reader.onload = () => {
+      const raw = String(reader.result || "");
+      const data = raw.includes(",") ? raw.slice(raw.indexOf(",") + 1) : "";
+      if (!data) {
+        toast("Could not read that file", true);
+        return;
+      }
+      uploadPluginArchive(data, file.name);
+    };
+    reader.readAsDataURL(file);
+  });
+  document.body.appendChild(input);
+  input.click();
 }
 
 async function restoreTrashSubtask(id, row) {
@@ -8967,6 +9512,42 @@ async function handleAction(actionName, element) {
   if (actionName === "confirm-plugin-uninstall") { confirmPluginUninstall(element?.dataset.pluginId || ""); return; }
   if (actionName === "cancel-plugin-uninstall") { pluginPendingUninstallId = null; renderSettings(); return; }
   if (actionName === "open-plugin") { openPluginFromSettings(element?.dataset.pluginId || ""); return; }
+  if (actionName === "open-plugin-community") {
+    settingsTab = "community";
+    pluginDetailId = null;
+    pluginPendingUninstallId = null;
+    AudioFX.paper();
+    renderSettings();
+    const scroll = $(".settings-scroll");
+    if (scroll) scroll.scrollTop = 0;
+    return;
+  }
+  if (actionName === "open-plugin-list") {
+    settingsTab = "plugins";
+    pluginDetailId = null;
+    renderSettings();
+    const scroll = $(".settings-scroll");
+    if (scroll) scroll.scrollTop = 0;
+    return;
+  }
+  if (actionName === "refresh-plugin-catalog") { loadPluginCatalog(true); return; }
+  if (actionName === "install-community-plugin") { installCommunityPlugin(element?.dataset.pluginId || ""); return; }
+  if (actionName === "open-community-plugin") {
+    const pluginId = element?.dataset.pluginId || "";
+    if (!pluginEnabled(pluginId)) { toast("Turn the plugin on first", true); return; }
+    closeSettings();
+    openPluginPanel(pluginId);
+    return;
+  }
+  if (actionName === "install-plugin-archive") { choosePluginArchive(); return; }
+  if (actionName === "open-plugins-folder") { silentAction("open_plugins_folder"); return; }
+  if (actionName === "plugin-community-filter") {
+    pluginCommunityFilter = element?.dataset.pluginFilter || "all";
+    AudioFX.categoryTap();
+    updatePluginCommunityResults();
+    return;
+  }
+  if (actionName === "open-plugin-details") { openPluginSettingsPage(element?.dataset.pluginId || ""); return; }
   if (actionName === "open-trash") { openTrashDrawer(); return; }
   if (actionName === "close-trash") { closeTrashDrawer(); return; }
   if (actionName === "clear-trash") { clearTrash(); return; }
@@ -8989,6 +9570,18 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "open-sounds-folder") { silentAction("open_sounds_folder"); return; }
+  if (actionName === "import-theme-pack") { document.querySelector("[data-theme-pack-input]")?.click(); return; }
+  if (actionName === "install-theme-pack") {
+    installThemeFromCatalog(element?.dataset.themeId || "", element?.dataset.themeBundled === "1");
+    return;
+  }
+  if (actionName === "apply-theme-pack") { applyThemePackById(element?.dataset.themeId || ""); return; }
+  if (actionName === "remove-theme-pack") { removeThemePackById(element?.dataset.themeId || ""); return; }
+  if (actionName === "open-theme-packs-folder") { silentAction("open_theme_packs_folder"); return; }
+  if (actionName === "open-theme-exports-folder") { silentAction("open_theme_exports_folder"); return; }
+  if (actionName === "refresh-theme-catalog") { loadThemeCatalog(true); return; }
+  if (actionName === "export-theme-pack") { exportCurrentThemePack(); return; }
+  if (actionName === "reset-theme-sounds") { resetThemeSounds(); return; }
   if (actionName === "open-pictures-folder") { silentAction("open_pictures_folder"); return; }
   if (actionName === "refresh-wallpaper-files") { loadWallpaperFiles(); return; }
   if (actionName === "clear-wallpaper") {
@@ -9385,7 +9978,14 @@ function loadSettings() {
   settings.show_clock = settings.show_clock !== false;
   settings.focus_count = Math.max(0, Math.floor(Number(settings.focus_count) || 0));
   settings.title_offset = Math.max(-500, Math.min(500, Math.round(Number(settings.title_offset) || 0)));
-  settings.title_icon_size = Math.max(24, Math.min(96, Math.round(Number(settings.title_icon_size) || 48)));
+  settings.title_icon_size = Math.max(24, Math.min(96, Math.round(Number(settings.title_icon_size) || 62)));
+  // One-time lift of the old 48px tissue icon: it was too small and its red
+  // centre sat below the header's upper rule. Keep any later slider choice.
+  if (!settings.title_icon_size_v2) {
+    if (settings.title_icon_size <= 48) settings.title_icon_size = 62;
+    settings.title_icon_size_v2 = true;
+    if (state.data) saveSettings();
+  }
   if (!Array.isArray(settings.focus_log)) settings.focus_log = [];
   if (!FONT_OPTIONS.some((font) => font.id === settings.font)) settings.font = "serif";
   if (!FONT_OPTIONS.some((font) => font.id === settings.note_font)) settings.note_font = "serif";
@@ -9437,10 +10037,25 @@ function loadSettings() {
   const pictureName = (value, pattern) => typeof value === "string" && pattern.test(value) && !value.includes("/") && !value.includes("\\") && !value.includes("..") ? value : "";
   const rawStatic = typeof settings.wallpaper_static === "string" ? settings.wallpaper_static : "";
   const artId = rawStatic.startsWith("art:") ? rawStatic.slice(4) : "";
+  const themeWallpaperId = rawStatic.startsWith("theme:") ? rawStatic.slice(6) : "";
+  const themeWallpaperPack = themeWallpaperId
+    ? themePacks.find((pack) => pack.id === themeWallpaperId && pack.wallpaper)
+    : null;
   settings.wallpaper_static = artId && THEMES[artId]
     ? `art:${artId}`
-    : pictureName(rawStatic, /\.(jpe?g|png|webp|gif|avif)$/i);
+    : themeWallpaperPack
+      ? `theme:${themeWallpaperPack.id}`
+      : pictureName(rawStatic, /\.(jpe?g|png|webp|gif|avif)$/i);
   settings.wallpaper_dynamic = pictureName(settings.wallpaper_dynamic, /\.(mp4|webm|mov|m4v|ogv)$/i);
+  const soundOverrides = {};
+  if (settings.sound_overrides && typeof settings.sound_overrides === "object" && !Array.isArray(settings.sound_overrides)) {
+    for (const [key, url] of Object.entries(settings.sound_overrides)) {
+      if (!(key in AudioFX.sampleFiles()) || typeof url !== "string") continue;
+      if (!url.startsWith("/theme-assets/") && !url.startsWith("/user-sounds/")) continue;
+      soundOverrides[key] = url;
+    }
+  }
+  settings.sound_overrides = soundOverrides;
   // The old build painted the postcard art inside the theme. That exact art is
   // now the default static wallpaper, so upgrading keeps the same look while
   // letting the pattern and the colour palette change independently.
@@ -9557,6 +10172,485 @@ function flushSettingsSave() {
   return Promise.resolve(null);
 }
 
+// ---------------------------------------------------------------------------
+// Theme community
+// ---------------------------------------------------------------------------
+function themeAssetUrl(packId, relative) {
+  const id = String(packId || "").replace(/[^a-z0-9-]/gi, "");
+  const rel = String(relative || "")
+    .split("/")
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  return id && rel ? `/theme-assets/${id}/${rel}` : "";
+}
+
+function themeColor(value, fallback) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value) : fallback;
+}
+
+function communityPackArt(theme) {
+  const paper2 = theme.paper2 || theme.paper;
+  const accent = theme.accent || theme.ink;
+  const accent2 = theme.accent2 || accent;
+  const ink = theme.ink || "#332b2d";
+  return `<svg viewBox="0 0 1000 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="1000" height="300" fill="${esc(paper2)}"/>
+    <rect width="1000" height="118" fill="${esc(theme.paper)}"/>
+    <circle cx="782" cy="78" r="43" fill="${esc(accent)}" opacity=".92"/>
+    <circle cx="782" cy="78" r="61" fill="none" stroke="${esc(accent)}" stroke-width="1" opacity=".32"/>
+    <path d="M0 214 C170 178 320 240 500 206 C690 170 830 236 1000 198 L1000 300 L0 300Z" fill="${esc(accent2)}" opacity=".55"/>
+    <path d="M0 250 C190 220 360 274 550 242 C730 212 860 266 1000 236 L1000 300 L0 300Z" fill="${esc(ink)}" opacity=".62"/>
+    <g stroke="${esc(ink)}" stroke-width="2" opacity=".25">
+      <path d="M0 138 C160 104 330 150 500 122 C690 90 840 138 1000 108"/>
+      <path d="M0 158 C180 126 350 174 530 146 C710 118 860 164 1000 136"/>
+      <path d="M0 178 C200 148 370 196 560 168 C740 142 880 184 1000 158"/>
+    </g>
+    <g fill="${esc(accent)}" opacity=".8">
+      <circle cx="120" cy="262" r="2.6"/><circle cx="230" cy="278" r="2.1"/>
+      <circle cx="340" cy="258" r="2.4"/><circle cx="806" cy="268" r="2.3"/>
+      <circle cx="910" cy="252" r="2.1"/>
+    </g>
+  </svg>`;
+}
+
+function packTheme(pack) {
+  const palette = pack?.palette || {};
+  const paper = themeColor(palette.paper, "#f4ecfa");
+  const ink = themeColor(palette.ink, "#3d2f4a");
+  const accent = themeColor(palette.accent, ink);
+  const dark = hexLuminance(paper) < 0.45;
+  return {
+    _themePack: true,
+    name: String(pack?.name || pack?.id || "Theme"),
+    motif: String(palette.motif || "✦").slice(0, 4),
+    airmail: false,
+    paper,
+    paper2: themeColor(palette.paper2, paper),
+    ink,
+    muted: themeColor(palette.muted, ink),
+    accent,
+    accent2: themeColor(palette.accent2, accent),
+    border: themeColor(palette.border, paper),
+    stamp: themeColor(palette.stamp, accent),
+    glow: typeof palette.glow === "string" && palette.glow.startsWith("rgba")
+      ? palette.glow
+      : `rgba(${hexToRgb(accent)}, .18)`,
+    display: dark
+      ? '"Adwaita Sans","Noto Sans","Noto Sans CJK SC",sans-serif'
+      : '"Noto Serif","Liberation Serif",Georgia,serif',
+    body: '"Adwaita Sans","Noto Sans","Noto Sans CJK SC",sans-serif',
+    quote: String(palette.quote || "A theme from the NeoTodo community.").slice(0, 220),
+    art(paletteTheme) { return communityPackArt(paletteTheme || this); },
+  };
+}
+
+function registerThemePacks(packs) {
+  const live = new Set();
+  for (const pack of Array.isArray(packs) ? packs : []) {
+    if (!pack?.id || !pack?.palette) continue;
+    // A community pack may never shadow a built-in palette id.
+    if (THEMES[pack.id] && !THEMES[pack.id]._themePack) continue;
+    live.add(pack.id);
+    THEMES[pack.id] = packTheme(pack);
+  }
+  for (const [id, theme] of Object.entries(THEMES)) {
+    if (theme?._themePack && !live.has(id)) delete THEMES[id];
+  }
+}
+
+async function loadThemePacks() {
+  try {
+    const response = await fetch("/api/themes", { cache: "no-store" });
+    const data = await response.json();
+    if (!data?.ok || !Array.isArray(data.packs)) return false;
+    themePacks = data.packs;
+    registerThemePacks(themePacks);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function loadThemeCatalog(refresh = false) {
+  if (themeCatalogBusy) return;
+  themeCatalogBusy = true;
+  if (settingsTab === "themes") renderSettings();
+  try {
+    const response = await fetch(`/api/themes/community${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
+    const data = await response.json();
+    if (data?.ok) {
+      themeCatalog = data;
+      themeCatalogAt = Date.now();
+    }
+  } catch (error) {
+    // The bundled catalog still works offline; keep whatever we already had.
+  } finally {
+    themeCatalogBusy = false;
+    if (settingsTab === "themes") renderSettings();
+  }
+}
+
+async function themeCommunityPost(path, payload) {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await response.json();
+  } catch (error) {
+    return { ok: false, error: "Could not reach the theme community" };
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(new Error("Could not read that file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function themePackSounds(pack) {
+  return pack?.sounds && typeof pack.sounds === "object" ? Object.keys(pack.sounds) : [];
+}
+
+function themePackIcons(pack) {
+  return pack?.icons && typeof pack.icons === "object" ? Object.keys(pack.icons) : [];
+}
+
+function themePreviewMarkup(pack, catalogEntry = null) {
+  const preview = catalogEntry ? catalogEntry.preview : pack?.preview;
+  const id = pack?.id || catalogEntry?.id || "";
+  const localPreview = Boolean(pack) || Boolean(catalogEntry?.bundled);
+  if (preview && (/^https?:\/\//i.test(preview) || localPreview)) {
+    const src = /^https?:\/\//i.test(preview) ? preview : themeAssetUrl(id, preview);
+    if (src) return `<img src="${esc(src)}" alt="" loading="lazy">`;
+  }
+  const palette = pack?.palette || catalogEntry?.palette || {};
+  if (palette.paper && palette.ink) {
+    const theme = packTheme({ id, name: pack?.name || catalogEntry?.name, palette });
+    return theme.art(theme);
+  }
+  return `<span class="theme-pack-fallback">${esc(String(pack?.name || catalogEntry?.name || id || "T").slice(0, 1))}</span>`;
+}
+
+function themePackBadges(pack) {
+  const badges = [];
+  if (pack.wallpaper) badges.push("Wallpaper");
+  const soundCount = themePackSounds(pack).length;
+  if (soundCount) badges.push(`${soundCount} sound${soundCount === 1 ? "" : "s"}`);
+  const iconCount = themePackIcons(pack).length;
+  if (iconCount) badges.push(`${iconCount} icon${iconCount === 1 ? "" : "s"}`);
+  if (!badges.length) badges.push("Palette");
+  return badges.map((badge) => `<span class="theme-pack-badge">${esc(badge)}</span>`).join("");
+}
+
+function themePackCardMarkup(pack, catalogEntry = null) {
+  const id = pack?.id || catalogEntry?.id || "";
+  const entry = catalogEntry || pack || {};
+  const name = entry.name || id;
+  const english = entry.englishName || "";
+  const version = entry.version || "1.0.0";
+  const author = entry.author || "Community";
+  const description = entry.description || "";
+  const applied = !catalogEntry && settings.resolved_postcard === id;
+  const busy = themePackBusy === id;
+  const source = catalogEntry
+    ? (catalogEntry.bundled ? "Included with NeoTodo" : (catalogEntry.official ? "Official" : "Community"))
+    : (pack?.source === "bundled" ? "Bundled" : "Installed");
+  const actions = catalogEntry
+    ? `<button class="btn small primary" type="button" data-action="install-theme-pack" data-theme-id="${esc(id)}" data-theme-bundled="${catalogEntry.bundled ? "1" : "0"}" ${busy ? "disabled" : ""}>${busy ? "Installing…" : "Install"}</button>`
+    : `<button class="btn small ${applied ? "" : "primary"}" type="button" data-action="apply-theme-pack" data-theme-id="${esc(id)}" ${applied || busy ? "disabled" : ""}>${applied ? "Applied" : (busy ? "Applying…" : "Apply")}</button>
+       <button class="btn small" type="button" data-action="remove-theme-pack" data-theme-id="${esc(id)}" ${busy ? "disabled" : ""}>Remove</button>`;
+  return `<article class="theme-pack-card ${applied ? "theme-pack-active" : ""}" data-theme-pack-card="${esc(id)}">
+    <span class="theme-pack-preview">${themePreviewMarkup(pack, catalogEntry)}</span>
+    <div class="theme-pack-body">
+      <div class="theme-pack-head">
+        <strong>${esc(name)}</strong>
+        <small>${esc(english || id)} · v${esc(version)}</small>
+      </div>
+      <div class="theme-pack-meta">${esc(author)} · ${esc(source)}</div>
+      ${description ? `<p>${esc(description)}</p>` : ""}
+      <div class="theme-pack-badges">${themePackBadges(pack || { palette: entry.palette, sounds: {}, icons: {} })}</div>
+      <div class="theme-pack-actions">${actions}</div>
+    </div>
+  </article>`;
+}
+
+function themeCommunitySettings() {
+  const installed = themePacks || [];
+  const installedIds = new Set(installed.map((pack) => pack.id));
+  const catalogEntries = (themeCatalog?.themes || []).filter((entry) => !installedIds.has(entry.id));
+  const catalogNote = themeCatalog
+    ? `${themeCatalog.catalog_source === "remote" ? "Online" : themeCatalog.catalog_source === "cache" ? "Cached" : "Offline"} · ${themeCatalog.themes?.length || 0} themes`
+    : (themeCatalogBusy ? "Loading…" : "Not loaded");
+  const overrideCount = Object.keys(settings.sound_overrides || {}).length;
+  return `<div class="settings-head"><h2>主题社区</h2><p>图标、主题与音效，都可以装进一只能分享的纸包。</p></div>
+    <div class="settings-section theme-community-hero">
+      <div class="theme-community-hero-copy">
+        <strong>Make NeoTodo yours — together.</strong>
+        <p>导入别人做的 <code>.zip</code> 主题包，或者把当前的纸色、壁纸、音效和成就图标导出成一只包，上传到社区与朋友分享。</p>
+      </div>
+      <div class="theme-community-actions">
+        <button class="btn small primary" type="button" data-action="import-theme-pack" ${themePackBusy === "import" ? "disabled" : ""}>${themePackBusy === "import" ? "Importing…" : "Import .zip"}</button>
+        <button class="btn small" type="button" data-action="open-theme-packs-folder">Open packs folder</button>
+        <button class="btn small" type="button" data-action="refresh-theme-catalog" ${themeCatalogBusy ? "disabled" : ""}>${themeCatalogBusy ? "Refreshing…" : "Refresh catalog"}</button>
+      </div>
+      <input type="file" accept=".zip,application/zip" data-theme-pack-input hidden>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Installed <span>${installed.length}</span></div>
+      ${installed.length
+        ? `<div class="theme-pack-grid">${installed.map((pack) => themePackCardMarkup(pack)).join("")}</div>`
+        : `<div class="theme-community-empty"><strong>No theme packs yet.</strong><span>Install one from the catalog below, or import a <code>.zip</code> a friend sent you.</span></div>`}
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Community catalog <span>${esc(catalogNote)}</span></div>
+      ${themeCatalog?.catalog_error ? `<div class="theme-community-warning">Catalog refresh failed: ${esc(themeCatalog.catalog_error)}. Showing the offline shelf.</div>` : ""}
+      ${catalogEntries.length
+        ? `<div class="theme-pack-grid">${catalogEntries.map((entry) => themePackCardMarkup(null, entry)).join("")}</div>`
+        : `<div class="theme-community-empty"><strong>${themeCatalog ? "Everything here is installed." : "Loading the shelf…"}</strong><span>${themeCatalog ? "New community packs will appear here when the catalog refreshes." : "The bundled catalog keeps this page working offline."}</span></div>`}
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Share your theme <span>create a pack</span></div>
+      <div class="theme-community-share">
+        <div>
+          <strong>${esc(postcardName(currentPostcardId()))}</strong>
+          <span>Current palette${settings.wallpaper_mode === "static" && settings.wallpaper_static && !settings.wallpaper_static.startsWith("art:") && !settings.wallpaper_static.startsWith("theme:") ? " · wallpaper" : ""}${overrideCount ? ` · ${overrideCount} custom sounds` : ""}${Object.keys(settings.sticker_backgrounds || {}).length ? " · stickers" : ""}</span>
+        </div>
+        <button class="btn small" type="button" data-action="open-theme-exports-folder">Open exports</button>
+        <button class="btn small primary" type="button" data-action="export-theme-pack">Export .zip</button>
+      </div>
+      ${overrideCount ? `<div class="theme-community-sound-row"><span>Theme sound pack is on.</span><button class="btn small" type="button" data-action="reset-theme-sounds">Use NeoTodo sounds</button></div>` : ""}
+      <p class="theme-community-publish">Publishing is a pull request: drop your zip in <code>community/packs/</code> and add an entry to <code>community/themes.json</code>. The full format is documented in <code>docs/theme-community.md</code>.</p>
+    </div>`;
+}
+
+async function importThemePackFile(file) {
+  if (!file) return;
+  if (file.size > 24_000_000) {
+    toast("That theme pack is too large (24 MB max)", true);
+    return;
+  }
+  themePackBusy = "import";
+  if (settingsTab === "themes") renderSettings();
+  try {
+    const data = await fileToBase64(file);
+    const result = await themeCommunityPost("/api/themes/install", { data });
+    if (!result?.ok) throw new Error(result?.error || "Could not install that theme pack");
+    themePacks = result.packs || themePacks;
+    registerThemePacks(themePacks);
+    toast(`${result.theme?.name || "Theme pack"} installed`);
+  } catch (error) {
+    toast(error.message || "Could not install that theme pack", true);
+  } finally {
+    themePackBusy = "";
+    await loadThemePacks();
+    if (settingsTab === "themes") renderSettings();
+  }
+}
+
+async function installThemeFromCatalog(id, bundled) {
+  const entry = (themeCatalog?.themes || []).find((item) => item.id === id);
+  if (!entry) return;
+  themePackBusy = id;
+  if (settingsTab === "themes") renderSettings();
+  try {
+    const payload = bundled
+      ? { id, bundled: true }
+      : (entry.download ? { id, url: entry.download, sha256: entry.sha256 || "" } : { id, bundled: true });
+    const result = await themeCommunityPost("/api/themes/install", payload);
+    if (!result?.ok) throw new Error(result?.error || "Could not install that theme");
+    themePacks = result.packs || themePacks;
+    registerThemePacks(themePacks);
+    toast(`${entry.name} installed`);
+  } catch (error) {
+    toast(error.message || "Could not install that theme", true);
+  } finally {
+    themePackBusy = "";
+    await loadThemePacks();
+    if (settingsTab === "themes") renderSettings();
+  }
+}
+
+async function themeAssetDataUrl(url) {
+  const response = await fetch(url, { cache: "force-cache" });
+  if (!response.ok) throw new Error("Could not read a theme asset");
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read a theme asset"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function applyThemePackById(id) {
+  const pack = themePacks.find((item) => item.id === id);
+  if (!pack) return;
+  themePackBusy = id;
+  if (settingsTab === "themes") renderSettings();
+  try {
+    const wallpaperTheme = THEMES[id] || packTheme(pack);
+    settings.theme = "postcard";
+    settings.postcard = id;
+    settings.resolved_postcard = id;
+    if (postcardIsDark(id)) settings.dark_postcard = id;
+    else settings.light_postcard = id;
+    if (pack.wallpaper) {
+      settings.wallpaper_mode = "static";
+      settings.wallpaper_static = `theme:${id}`;
+    } else if (String(settings.wallpaper_static || "").startsWith("theme:")) {
+      settings.wallpaper_mode = "static";
+      settings.wallpaper_static = `art:${id}`;
+    }
+    const overrides = {};
+    for (const [key, relative] of Object.entries(pack.sounds || {})) {
+      const url = themeAssetUrl(id, relative);
+      if (url) overrides[key] = url;
+    }
+    settings.sound_overrides = overrides;
+    AudioFX.setSampleOverrides(overrides);
+    if (pack.icons && Object.keys(pack.icons).length) {
+      settings.sticker_backgrounds = settings.sticker_backgrounds && typeof settings.sticker_backgrounds === "object"
+        ? { ...settings.sticker_backgrounds }
+        : {};
+      for (const [target, relative] of Object.entries(pack.icons)) {
+        if (!STICKER_TARGETS.some((item) => item.id === target)) continue;
+        try {
+          const image = await themeAssetDataUrl(themeAssetUrl(id, relative));
+          if (image && image.length <= 4_000_000) {
+            settings.sticker_backgrounds[target] = { image, zoom: 1, x: 50, y: 50 };
+          }
+        } catch (error) {}
+      }
+    }
+    saveSettings();
+    applySettings();
+    renderCategories();
+    renderStage();
+    if (archiveOpen) renderArchive();
+    toast(`${wallpaperTheme.name} applied`);
+  } catch (error) {
+    toast(error.message || "Could not apply that theme", true);
+  } finally {
+    themePackBusy = "";
+    if (settingsTab === "themes") renderSettings();
+  }
+}
+
+async function removeThemePackById(id) {
+  const pack = themePacks.find((item) => item.id === id);
+  if (!pack) return;
+  const ok = await confirmDialog({
+    kicker: "Theme community",
+    title: `Remove ${pack.name}?`,
+    message: "The palette, wallpaper and sound overrides it contributed will stop being available. Your tasks, notes and saved artwork stay untouched.",
+    confirmLabel: "Remove",
+    danger: true,
+  });
+  if (!ok) return;
+  themePackBusy = id;
+  if (settingsTab === "themes") renderSettings();
+  try {
+    const result = await themeCommunityPost("/api/themes/uninstall", { id });
+    if (!result?.ok) throw new Error(result?.error || "Could not remove that theme");
+    if (settings.resolved_postcard === id) {
+      settings.postcard = "violet";
+      settings.resolved_postcard = "violet";
+      if (settings.light_postcard === id) settings.light_postcard = "violet";
+      if (settings.dark_postcard === id) settings.dark_postcard = "tokyo";
+      if (String(settings.wallpaper_static || "").startsWith(`theme:${id}`)) {
+        settings.wallpaper_mode = "static";
+        settings.wallpaper_static = "art:violet";
+      }
+    }
+    settings.sound_overrides = {};
+    AudioFX.setSampleOverrides({});
+    saveSettings();
+    applySettings();
+    renderCategories();
+    renderStage();
+    toast(`${pack.name} removed`);
+  } catch (error) {
+    toast(error.message || "Could not remove that theme", true);
+  } finally {
+    themePackBusy = "";
+    await loadThemePacks();
+    renderSettings();
+  }
+}
+
+async function exportCurrentThemePack() {
+  const name = await promptDialog({
+    kicker: "Theme community",
+    title: "Name this theme pack",
+    message: "A zip will be saved to your theme-exports folder, ready to share or upload.",
+    placeholder: "My NeoTodo theme",
+    confirmLabel: "Export",
+  });
+  if (!name) return;
+  const theme = THEMES[currentPostcardId()] || THEMES.violet;
+  const sounds = {};
+  for (const [key, url] of Object.entries(settings.sound_overrides || {})) {
+    if (typeof url === "string" && (url.startsWith("/user-sounds/") || url.startsWith("/theme-assets/"))) {
+      sounds[key] = url;
+    }
+  }
+  const icons = {};
+  for (const target of STICKER_TARGETS) {
+    const image = settings.sticker_backgrounds?.[target.id]?.image;
+    if (image) icons[target.id] = image;
+  }
+  const staticWallpaper = settings.wallpaper_mode === "static" ? String(settings.wallpaper_static || "") : "";
+  let wallpaper = "";
+  if (staticWallpaper.startsWith("theme:")) {
+    const pack = themePacks.find((item) => item.id === staticWallpaper.slice(6));
+    if (pack?.wallpaper) wallpaper = themeAssetUrl(pack.id, pack.wallpaper);
+  } else if (staticWallpaper && !staticWallpaper.startsWith("art:")) {
+    wallpaper = wallpaperUrl(staticWallpaper);
+  }
+  const result = await themeCommunityPost("/api/themes/export", {
+    name,
+    author: "You",
+    description: `Exported from NeoTodo on ${new Date().toLocaleDateString()}.`,
+    theme: {
+      paper: theme.paper,
+      paper2: theme.paper2,
+      ink: theme.ink,
+      muted: theme.muted,
+      accent: theme.accent,
+      accent2: theme.accent2,
+      border: theme.border,
+      stamp: theme.stamp,
+      glow: theme.glow,
+      motif: theme.motif,
+      quote: theme.quote,
+    },
+    wallpaper,
+    sounds,
+    icons,
+  });
+  if (!result?.ok) {
+    toast(result?.error || "Could not export that theme", true);
+    return;
+  }
+  toast(`Theme pack saved: ${result.file}`);
+  setStatus(`Exported ${result.file}`);
+}
+
+function resetThemeSounds() {
+  settings.sound_overrides = {};
+  AudioFX.setSampleOverrides({});
+  saveSettings();
+  applySettings();
+  renderSettings();
+  toast("NeoTodo sounds restored");
+}
+
 function stickerSettingsFor(id) {
   if (!settings.sticker_backgrounds || typeof settings.sticker_backgrounds !== "object") {
     settings.sticker_backgrounds = {};
@@ -9635,6 +10729,12 @@ function activeWallpaper() {
     if (value.startsWith("art:")) {
       const artId = value.slice(4);
       if (THEMES[artId]) return { mode: "static", kind: "art", artId, key: `static:art:${artId}` };
+    } else if (value.startsWith("theme:")) {
+      const packId = value.slice(6);
+      const pack = themePacks.find((item) => item.id === packId);
+      if (pack?.wallpaper) {
+        return { mode: "static", kind: "theme", packId, file: pack.wallpaper, key: `static:theme:${packId}` };
+      }
     } else if (value) {
       return { mode: "static", kind: "image", file: value, key: `static:file:${value}` };
     }
@@ -9657,8 +10757,10 @@ function wallpaperMediaMarkup(extraClass = "", { autoplay = true } = {}) {
     const theme = THEMES[wallpaper.artId] || THEMES.violet;
     return `<div class="wallpaper-media wallpaper-art ${extraClass}">${theme.art(theme)}</div>`;
   }
-  const src = esc(wallpaperUrl(wallpaper.file));
-  if (wallpaper.kind === "image") {
+  const src = esc(wallpaper.kind === "theme"
+    ? themeAssetUrl(wallpaper.packId, wallpaper.file)
+    : wallpaperUrl(wallpaper.file));
+  if (wallpaper.kind === "image" || wallpaper.kind === "theme") {
     return `<img class="wallpaper-media ${extraClass}" src="${src}" alt="" draggable="false">`;
   }
   return `<video class="wallpaper-media ${extraClass}" src="${src}" muted loop playsinline preload="auto"${autoplay ? " autoplay" : ""}></video>`;
@@ -9666,6 +10768,7 @@ function wallpaperMediaMarkup(extraClass = "", { autoplay = true } = {}) {
 
 function wallpaperDisplayName(wallpaper = activeWallpaper()) {
   if (wallpaper.kind === "art") return `Static · ${postcardName(wallpaper.artId)}`;
+  if (wallpaper.kind === "theme") return `Theme · ${themePacks.find((item) => item.id === wallpaper.packId)?.name || wallpaper.packId}`;
   if (wallpaper.kind === "image") return `Static · ${wallpaper.file}`;
   if (wallpaper.kind === "video") return `Dynamic · ${wallpaper.file}`;
   if (settings.wallpaper_mode === "dynamic") return "Choose a film";
@@ -9801,6 +10904,7 @@ function applySettings() {
   root.style.setProperty("--title-icon-size", `${settings.title_icon_size}px`);
   document.body.classList.toggle("clock-hidden", !settings.show_clock);
   document.body.classList.add("custom-caret");
+  AudioFX.setSampleOverrides(settings.sound_overrides);
   applyPluginState();
   scheduleCustomCaret();
   updateTopClock();
@@ -10283,6 +11387,10 @@ function soundSettings() {
     </div>
     <div class="settings-section">
       <div class="settings-label">Audio files</div>
+      ${Object.keys(settings.sound_overrides || {}).length ? `<div class="sound-pack-note">
+        <span>A theme pack is replacing ${Object.keys(settings.sound_overrides).length} sample(s).</span>
+        <button class="btn small" type="button" data-action="reset-theme-sounds">Use NeoTodo sounds</button>
+      </div>` : ""}
       <div class="sound-settings-list">${files}</div>
       <button class="btn small" type="button" data-action="open-sounds-folder">Open sounds folder</button>
     </div>`;
@@ -10306,15 +11414,21 @@ function aboutSettings() {
 }
 
 function pluginIconMarkup(plugin, extraClass = "") {
-  return `<span class="plugin-icon ${extraClass}"><img src="${esc(plugin.icon || "/plugins/pindou/pindou.svg")}" alt=""></span>`;
+  const icon = plugin.icon
+    ? `<img src="${esc(plugin.icon)}" alt="">`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v5a3 3 0 0 0 3 3h3v6h-5a3 3 0 0 0-3 3v1H7v-4a3 3 0 0 0-3-3H3V9h5a3 3 0 0 0 3-3V3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  return `<span class="plugin-icon ${extraClass}">${icon}</span>`;
 }
 
 function pluginUninstallConfirmMarkup(plugin) {
   if (!plugin) return "";
+  const downloaded = plugin.source === "user";
   return `<div class="plugin-uninstall-confirm">
     <div>
       <strong>Uninstall ${esc(plugin.title)}?</strong>
-      <p>It will leave your notebook and its tool rail button will disappear. The plugin files and your saved artwork stay on disk, so you can install it again from Available.</p>
+      <p>${downloaded
+        ? "The downloaded plugin files will be removed from your plugin folder. You can install it again from the community catalog at any time."
+        : "It will leave your notebook and its tool rail button will disappear. The plugin files and your saved artwork stay on disk, so you can install it again from Available."}</p>
     </div>
     <div class="plugin-uninstall-actions">
       <button class="btn small" type="button" data-action="cancel-plugin-uninstall">Cancel</button>
@@ -10364,9 +11478,65 @@ function pluginsSettings() {
       <div class="settings-label">Available <span>built in</span></div>
       <div class="plugin-list">${availableRows}</div>
     </div>` : ""}
-    <div class="plugin-market-note">
-      <strong>More plugins are coming.</strong>
-      <span>Notes, AI, and more will become independent plugins, so the notebook itself can stay small.</span>
+    <div class="plugin-market-note plugin-community-promo">
+      <div>
+        <strong>Plugin Community</strong>
+        <span>Browse tools made by other NeoTodo users, install a <code>.zip</code>, or share your own plugin with one pull request.</span>
+      </div>
+      <button class="btn small" type="button" data-action="open-plugin-community">Browse community</button>
+    </div>`;
+}
+
+function communitySettings() {
+  ensurePluginCatalog();
+  const entries = pluginCatalogEntries();
+  const loading = pluginCatalogLoading && !pluginCatalog;
+  const source = pluginCatalog?.catalog_source || "";
+  const updated = pluginCatalog?.updated || "";
+  let status = "Bundled index · refresh to look for new plugins";
+  if (loading) status = "Loading the community index…";
+  else if (pluginCatalogError) status = `Offline copy · ${pluginCatalogError}`;
+  else if (source === "remote") status = `Live index${updated ? ` · updated ${updated}` : ""}`;
+  else if (source === "cache") status = `Cached index${updated ? ` · updated ${updated}` : ""}`;
+  const categories = pluginCategoryOptions(entries);
+  const filters = [
+    { id: "all", label: "All" },
+    { id: "featured", label: "Featured" },
+    ...categories.map((label) => ({ id: label.toLowerCase(), label })),
+  ].filter((filter) => filter.id !== "featured" || entries.some((entry) => entry.featured));
+  const chips = filters.map((filter) => `<button class="community-filter ${pluginCommunityFilter === filter.id ? "active" : ""}" type="button" data-action="plugin-community-filter" data-plugin-filter="${esc(filter.id)}">${esc(filter.label)}</button>`).join("");
+  return `<div class="settings-head community-head">
+      <h2>Plugin Community</h2>
+      <p>Small tools built by people who use NeoTodo. Install one, switch it off, or share your own.</p>
+    </div>
+    <div class="community-toolbar">
+      <label class="community-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m15.4 15.4 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input type="search" data-plugin-search value="${esc(pluginCommunityQuery)}" placeholder="Search plugins, authors, tags…" autocomplete="off">
+      </label>
+      <button class="btn small community-refresh" type="button" data-action="refresh-plugin-catalog" ${loading ? "disabled" : ""}>${loading ? "Refreshing…" : "Refresh"}</button>
+    </div>
+    <div class="community-status ${pluginCatalogError ? "offline" : ""}">
+      <span>${esc(status)}</span>
+      <span class="community-count"><b id="plugin-community-count">${pluginCommunityVisibleEntries().length}</b> plugins</span>
+    </div>
+    <div class="community-filters">${chips}</div>
+    <div id="plugin-community-results">${loading ? `<div class="plugin-empty community-empty">Fetching the latest catalog…</div>` : pluginCommunityResultsMarkup()}</div>
+    <div class="plugin-community-callout">
+      <div class="community-callout-copy">
+        <strong>Build the next small thing</strong>
+        <p>Every plugin is a folder with a manifest and an HTML page. Package it as a <code>.zip</code>, open a pull request against the community catalog, and it appears here for everyone.</p>
+        <div class="community-callout-actions">
+          <button class="btn small" type="button" data-action="install-plugin-archive">Install from .zip</button>
+          <button class="btn small" type="button" data-action="open-plugins-folder">Open plugin folder</button>
+          <a class="btn small ghost" href="https://github.com/CellMeet/Neotodo/blob/main/community/README.md" data-external-link="https://github.com/CellMeet/Neotodo/blob/main/community/README.md">Builder guide</a>
+          <a class="btn small ghost" href="https://github.com/CellMeet/Neotodo/issues/new?template=plugin-submission.yml" data-external-link="https://github.com/CellMeet/Neotodo/issues/new?template=plugin-submission.yml">Submit a plugin</a>
+        </div>
+      </div>
+    </div>
+    <div class="plugin-market-note community-back-note">
+      <strong>Looking for your installed shelf?</strong>
+      <span>Turn plugins on or off, change their settings, or remove them from <button class="inline-link" type="button" data-action="open-plugin-list">Settings → Plugins</button>.</span>
     </div>`;
 }
 
@@ -10413,7 +11583,10 @@ function pluginDetailSettings(pluginId) {
         <div><span>Version</span><small>${esc(plugin.version || "1.0.0")}</small></div>
         <div><span>Category</span><small>${esc(plugin.category || "Plugin")}</small></div>
         <div><span>Author</span><small>${esc(plugin.author || "NeoTodo")}</small></div>
+        <div><span>Source</span><small>${plugin.source === "user" ? "Downloaded from the community" : "Built into NeoTodo"}</small></div>
         <div><span>Entry</span><small>${esc(plugin.entry || "")}</small></div>
+        ${plugin.license ? `<div><span>License</span><small>${esc(plugin.license)}</small></div>` : ""}
+        ${plugin.homepage ? `<div><span>Homepage</span><small><a class="about-link" href="${esc(plugin.homepage)}" data-external-link="${esc(plugin.homepage)}">${esc(plugin.homepage)}</a></small></div>` : ""}
       </div>
     </div>
     ${pluginUninstallConfirmMarkup(pending)}
@@ -10429,6 +11602,8 @@ function renderSettings() {
   const view = settingsTab === "typography" ? typographySettings()
     : settingsTab === "pictures" ? picturesSettings()
     : settingsTab === "plugins" ? (pluginDetailId ? pluginDetailSettings(pluginDetailId) : pluginsSettings())
+    : settingsTab === "themes" ? themeCommunitySettings()
+    : settingsTab === "community" ? communitySettings()
     : settingsTab === "sound" ? soundSettings()
     : settingsTab === "about" ? aboutSettings()
     : appearanceSettings();
@@ -10438,6 +11613,8 @@ function renderSettings() {
       <button class="settings-nav-item ${settingsTab === "typography" ? "active" : ""}" data-settings-tab="typography">Typography</button>
       <button class="settings-nav-item ${settingsTab === "pictures" ? "active" : ""}" data-settings-tab="pictures">Pictures</button>
       <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
+      <button class="settings-nav-item ${settingsTab === "themes" ? "active" : ""}" data-settings-tab="themes">主题社区</button>
+      <button class="settings-nav-item ${settingsTab === "community" ? "active" : ""}" data-settings-tab="community">Community</button>
       <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Sound</button>
       <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
     </aside>
@@ -10855,6 +12032,10 @@ function bindEvents() {
         settings.theme = "postcard";
         settings.postcard = cached;
         settings.resolved_postcard = cached;
+        if (String(settings.wallpaper_static || "").startsWith("theme:")) {
+          settings.wallpaper_static = `art:${cached}`;
+          settings.wallpaper_mode = "static";
+        }
         saveSettings();
         applySettings();
         renderCategories();
@@ -10884,6 +12065,10 @@ function bindEvents() {
         themeModeTab = chosenMode;
         if (chosenMode === "dark") settings.dark_postcard = choice;
         else settings.light_postcard = choice;
+        if (String(settings.wallpaper_static || "").startsWith("theme:")) {
+          settings.wallpaper_static = `art:${choice}`;
+          settings.wallpaper_mode = "static";
+        }
       }
       themeFamiliesOpen = true;
       themeFamilyOpen = false;
@@ -10978,6 +12163,11 @@ function bindEvents() {
       pluginPendingUninstallId = null;
       renderSettings();
       if (settingsTab === "pictures") loadWallpaperFiles();
+      if (settingsTab === "community") ensurePluginCatalog();
+      if (settingsTab === "themes") {
+        loadThemePacks().then(() => renderSettings());
+        if (!themeCatalog && !themeCatalogBusy) loadThemeCatalog(false);
+      }
       const settingsScroll = $(".settings-scroll");
       if (settingsScroll) settingsScroll.scrollTop = 0;
       return;
@@ -11175,7 +12365,7 @@ function bindEvents() {
       // AI typing owns the Tetris cues. Enter is handled in keydown, where it
       // sends the message; here only actual text edits should click.
       if (inputType !== "insertLineBreak" && inputType !== "insertParagraph" && inputType !== "insertFromPaste") {
-        playTetrisKeySound();
+        playTetrisKeySound(inputType);
       }
     } else if (typingTarget.matches("[data-note-block-editor], input[type=text], input[type=search], textarea, [contenteditable='true']")) {
       if (inputType !== "insertLineBreak" && inputType !== "insertParagraph" && inputType !== "insertFromPaste") {
@@ -11185,6 +12375,11 @@ function bindEvents() {
           playTypeSound();
         }
       }
+    }
+    if (event.target.matches("[data-plugin-search]")) {
+      pluginCommunityQuery = event.target.value;
+      updatePluginCommunityResults();
+      return;
     }
     if (event.target.id === "title-offset-range") {
       settings.title_offset = Math.max(-320, Math.min(320, Number(event.target.value)));
@@ -11346,6 +12541,13 @@ function bindEvents() {
       reader.readAsDataURL(file);
       return;
     }
+    if (event.target.matches("[data-theme-pack-input]")) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      importThemePackFile(file);
+      return;
+    }
     if (event.target.matches("[data-sticker-input]")) {
       const id = event.target.dataset.stickerInput;
       const file = event.target.files?.[0];
@@ -11399,6 +12601,19 @@ function bindEvents() {
           run: () => dockDetachedPanel(),
         },
       ], detachedMode === "ai" ? "agent" : "note");
+      return;
+    }
+    const brand = event.target.closest("#nt-brand");
+    if (brand) {
+      event.preventDefault();
+      event.stopPropagation();
+      openContextMenu(event.clientX, event.clientY, [
+        {
+          label: "New Window",
+          icon: NEW_WINDOW_ICON,
+          run: () => openNewWindow(),
+        },
+      ]);
       return;
     }
     const panel = event.target.closest("#notes-half, #agent-terminal");
@@ -12133,9 +13348,31 @@ function bindEvents() {
   }
 
   document.addEventListener("mousemove", (event) => {
-    if (event.clientX <= 24) document.body.classList.add("tools-open");
-    else if (event.clientX > 90) document.body.classList.remove("tools-open");
+    const open = document.body.classList.contains("tools-open");
+    if (event.clientX <= 24) {
+      if (!open) document.body.classList.add("tools-open");
+    } else if (event.clientX > 90 && open) {
+      document.body.classList.remove("tools-open");
+    }
   });
+
+  // Touch shells have no hover. A tap on the left or top edge reveals the
+  // hidden tool rail and utility bar, and a tap further inside dismisses them.
+  if (window.NeoTodoAndroid) {
+    document.addEventListener("pointerdown", (event) => {
+      const topTools = $("#top-tools");
+      if (event.clientX <= 36) {
+        document.body.classList.add("tools-open");
+      } else if (event.clientX > 110) {
+        document.body.classList.remove("tools-open");
+      }
+      if (event.clientY <= 36) {
+        topTools?.classList.add("top-open");
+      } else if (event.clientY > 96) {
+        topTools?.classList.remove("top-open");
+      }
+    }, true);
+  }
 
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;
@@ -12445,6 +13682,8 @@ function toggleSoundPanel() {
 
 async function init() {
   if (new URLSearchParams(location.search).has("still")) document.body.classList.add("still");
+  await loadInstalledPlugins();
+  await loadThemePacks();
   loadSettings();
   applySettings();
   bindEvents();

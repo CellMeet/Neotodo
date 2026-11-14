@@ -1,3 +1,4 @@
+# [linux] Desktop entry. Windows/Android have their own packaging.
 [Desktop Entry]
 Type=Application
 Name=NeoTodo
@@ -9,3 +10,9 @@ Terminal=false
 Categories=Utility;
 StartupWMClass=io.github.neotodo
 StartupNotify=true
+Actions=NewWindow;
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec=/home/arch/MyCode/NeoTodo/run.sh --new-window
+Icon=/home/arch/MyCode/NeoTodo/icon-check.svg

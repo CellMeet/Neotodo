@@ -6,6 +6,8 @@
        (equivalent to a click on the line)
      - press + release without moving: click, toggles the note
      - press + move: drag, adjusts note height
+     - press + pull up on the closed door: opens the note and stretches it
+       from the bottom in one gesture (the line follows the pointer)
    Independent state from the AI handle on purpose.
    ========================================================================== */
 
@@ -20,6 +22,17 @@
   let lastCross = 0;
 
   const getPanel = () => document.querySelector("#notes-half");
+  // The desk starts at the page baseline (right below the task list). The note
+  // may fill that area but never climb into the tasks, so the drag stops there
+  // instead of lifting the sheet off its bottom edge.
+  const deskBaseline = () => {
+    const layer = document.querySelector(".page-body");
+    const todos = document.querySelector(".todos-section");
+    if (!layer) return 0;
+    const rect = layer.getBoundingClientRect();
+    const top = todos ? todos.getBoundingClientRect().bottom - rect.top : 0;
+    return Math.max(0, Math.round(top));
+  };
   const openNow = () => !notesHidden && !notesClosing;
   const toggle = () => {
     deskHandleSwipeSuppress = performance.now() + 500;
@@ -96,6 +109,9 @@
       panel,
       desk,
       startTop: panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0,
+      baselineTop: deskBaseline(),
+      // A closed sheet has no box to pull, so the upward drag opens it first.
+      closed: notesHidden || !panelRect || panelRect.height <= 0,
       minHeight: desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120,
       x0: x,
       y0: y,
@@ -110,12 +126,32 @@
   const applyResize = (dy) => {
     const g = session;
     if (!g || !g.panel || !g.desk) return;
-    const top = Math.max(0, Math.min(g.desk.height - g.minHeight, g.startTop + dy));
-    const height = g.desk.height - top;
+    const maxTop = Math.max(0, g.desk.height - g.minHeight);
+    const minTop = Math.min(g.baselineTop || 0, maxTop);
+    // Whole pixels: fractional top/height made the sheet repaint its blurred
+    // paper edges on every event instead of landing on the raster grid.
+    const top = Math.round(Math.max(minTop, Math.min(maxTop, g.startTop + dy)));
+    const height = Math.round(g.desk.height - top);
     g.panel.style.setProperty("top", `${top}px`, "important");
     g.panel.style.setProperty("height", `${height}px`, "important");
     g.panel.style.setProperty("bottom", "auto", "important");
-    handle.style.setProperty("top", `${g.desk.top + top + 6}px`, "important");
+    handle.style.setProperty("top", `${Math.round(g.desk.top + top + 6)}px`, "important");
+  };
+
+  // Pointer events arrive faster than the screen refreshes (a mouse drag also
+  // delivers a mousemove twin for every pointermove). Committing the new box
+  // once per frame leaves the main thread time to paint, which is why the AI
+  // line feels lighter even though both gestures share this code shape.
+  let resizeFrame = 0;
+  let pendingDy = 0;
+  const commitResize = () => {
+    resizeFrame = 0;
+    if (!session) return;
+    applyResize(pendingDy);
+  };
+  const scheduleResize = (dy) => {
+    pendingDy = dy;
+    if (!resizeFrame) resizeFrame = requestAnimationFrame(commitResize);
   };
 
   const move = (x, y) => {
@@ -127,21 +163,52 @@
     g.moved = true;
     if (!g.panel || !g.desk) return;
     if (!g.resizing) {
-      g.resizing = true;
-      AudioFX.startLeafStretch();
-      document.body.classList.add("desk-handle-resizing");
+      // Pulling a closed door upward opens the note under the pointer instead
+      // of resizing a hidden box. Downward movement keeps the door closed.
+      if (g.closed && !openNow()) {
+        if (g.lastDy >= 0) return;
+        g.resizing = true;
+        // Mark the drag before opening: the sheet-geometry observer re-applies
+        // the remembered height on body class changes unless a drag is active.
+        document.body.classList.add("desk-handle-resizing");
+        AudioFX.startLeafStretch();
+        showNotesPanel(true);
+        g.panel = getPanel();
+        g.desk = agentDeskRect() || g.desk;
+        if (!g.panel || !g.desk) {
+          g.resizing = false;
+          document.body.classList.remove("desk-handle-resizing");
+          AudioFX.stopLeafStretch();
+          return;
+        }
+        // Start from the shortest allowed sheet so the line follows the finger
+        // in a straight 1:1 pull from the bottom door.
+        g.startTop = Math.max(g.baselineTop || 0, g.desk.height - g.minHeight);
+        g.closed = false;
+        handle.classList.remove("handle-vanish");
+      } else {
+        g.resizing = true;
+        AudioFX.startLeafStretch();
+        document.body.classList.add("desk-handle-resizing");
+      }
       g.panel.classList.add("panel-handle-resizing");
       g.panel.style.setProperty("transition", "none", "important");
       g.panel.style.setProperty("will-change", "top, height");
       handle.style.setProperty("transition", "none", "important");
     }
-    applyResize(g.lastDy);
+    scheduleResize(g.lastDy);
   };
 
   const finish = () => {
     const g = session;
     if (!g || g.finished) return;
     g.finished = true;
+    // Commit the last pending frame first, so the drop point is never lost.
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+      applyResize(pendingDy);
+    }
     document.body.classList.remove("desk-handle-resizing");
     g.panel?.classList.remove("panel-handle-resizing");
     if (g.panel) {
@@ -207,7 +274,6 @@
    ========================================================================== */
 (function () {
   const HEIGHT_KEY = "neotodo.notesSheetHeight";
-  const MIN_HEIGHT = 220;
   const BOTTOM_GAP = 40;
   const root = document.documentElement;
   const body = () => document.querySelector(".page-body");
@@ -224,8 +290,13 @@
 
   const deskHeight = () => Math.max(1, body()?.clientHeight || window.innerHeight);
 
+  // One minimum for both the line gesture and this box. They used to disagree
+  // (190px while dragging, 220px remembered), so releasing a full shrink made
+  // the sheet jump 30px back up under the finger.
+  const minSheetHeight = () => Math.min(220, Math.max(120, deskHeight() * 0.28));
+
   const clampHeight = (value) => Math.round(
-    Math.max(MIN_HEIGHT, Math.min(Number(value) || 0, deskHeight() - BOTTOM_GAP)),
+    Math.max(minSheetHeight(), Math.min(Number(value) || 0, deskHeight() - BOTTOM_GAP)),
   );
 
   const defaultHeight = () => {
@@ -337,7 +408,18 @@
       };
     }
 
-    new MutationObserver(applyGeometry).observe(document.body, {
+    // Body classes are touched by unrelated hover handlers (the tool drawer
+    // re-writes `tools-open` on every mouse move). Re-applying the remembered
+    // box during the bottom-line drag was resetting the note to its old height
+    // on each frame, which is why the line could be pressed but never pulled.
+    const dragging = () => document.body.classList.contains("desk-handle-resizing")
+      || document.body.classList.contains("agent-split-resizing")
+      || Boolean(panel()?.classList.contains("panel-handle-resizing"));
+
+    new MutationObserver(() => {
+      if (dragging()) return;
+      applyGeometry();
+    }).observe(document.body, {
       attributes: true,
       attributeFilter: ["class"],
     });

@@ -1,0 +1,26 @@
+{
+  "id": "linen-garden",
+  "name": "亚麻花园",
+  "englishName": "Linen Garden",
+  "version": "1.0.0",
+  "description": "亚麻色的纸和一面很轻的植物底纹。把任务写成一张放在窗边的便签，完成时也不会惊动午后的光。",
+  "author": "NeoTodo",
+  "license": "CC BY 4.0",
+  "tags": ["light", "garden", "wallpaper", "calm"],
+  "theme": {
+    "paper": "#f2f0e4",
+    "paper2": "#e6e3d2",
+    "ink": "#2f382b",
+    "muted": "#77806b",
+    "accent": "#6f8f5a",
+    "accent2": "#b08a5a",
+    "border": "#cfcbb4",
+    "stamp": "#5f7d4c",
+    "glow": "rgba(111,143,90,.17)",
+    "motif": "❧",
+    "quote": "Tend the list like a small garden."
+  },
+  "preview": "preview.svg",
+  "icon": "icon.svg",
+  "wallpaper": "wallpaper.svg"
+}

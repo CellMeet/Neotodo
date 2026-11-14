@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "name": "NeoTodo Theme Community",
+  "homepage": "https://github.com/CellMeet/Neotodo/tree/main/community",
+  "updated": "2026-11-14",
+  "themes": [
+    {
+      "id": "paper-moon",
+      "name": "纸月",
+      "englishName": "Paper Moon",
+      "version": "1.0.0",
+      "description": "暖米的纸、旧书页的墨，和一枚安静的月亮。适合白天慢慢写字，也适合把完成的一周收进明信片。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": ["light", "paper", "moon", "quiet"],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#f7f1e8",
+        "paper2": "#efe3d1",
+        "ink": "#3b3026",
+        "muted": "#8a7862",
+        "accent": "#c8845a",
+        "accent2": "#7c9c8a",
+        "border": "#dccab0",
+        "stamp": "#b86b45"
+      },
+      "bundled": true,
+      "official": true,
+      "featured": true
+    },
+    {
+      "id": "ember-terminal",
+      "name": "余烬终端",
+      "englishName": "Ember Terminal",
+      "version": "1.0.0",
+      "description": "深色机房里的青色荧光和一点橙色余烬。附带更清脆的按键与翻页声，以及两张终端风格的成就图标。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": ["dark", "terminal", "sound", "icons"],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#0f1418",
+        "paper2": "#171f24",
+        "ink": "#d9f2e8",
+        "muted": "#87a89b",
+        "accent": "#4ee0a8",
+        "accent2": "#ffb454",
+        "border": "#294238",
+        "stamp": "#4ee0a8"
+      },
+      "bundled": true,
+      "official": true,
+      "featured": true
+    },
+    {
+      "id": "linen-garden",
+      "name": "亚麻花园",
+      "englishName": "Linen Garden",
+      "version": "1.0.0",
+      "description": "亚麻色的纸和一面很轻的植物底纹。把任务写成一张放在窗边的便签，完成时也不会惊动午后的光。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": ["light", "garden", "wallpaper", "calm"],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#f2f0e4",
+        "paper2": "#e6e3d2",
+        "ink": "#2f382b",
+        "muted": "#77806b",
+        "accent": "#6f8f5a",
+        "accent2": "#b08a5a",
+        "border": "#cfcbb4",
+        "stamp": "#5f7d4c"
+      },
+      "bundled": true,
+      "official": true
+    }
+  ]
+}

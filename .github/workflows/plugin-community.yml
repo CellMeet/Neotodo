@@ -1,0 +1,32 @@
+name: Plugin community
+
+on:
+  pull_request:
+    paths:
+      - "community/**"
+      - "web/plugins/**"
+      - "tools/pack-plugin.py"
+      - "tools/validate_community.py"
+      - ".github/workflows/plugin-community.yml"
+  push:
+    branches: [main]
+    paths:
+      - "community/**"
+      - "web/plugins/**"
+      - "tools/validate_community.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate catalog and manifests
+        run: python3 tools/validate_community.py
+      - name: Package the starter plugin
+        run: python3 tools/pack-plugin.py community/template --out dist/plugins --force --no-entry

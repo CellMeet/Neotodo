@@ -98,10 +98,13 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 - 🧷 **Sticker cropping.** The Completed and Pomodoro stickers accept your own image with zoom and crop controls.
 - 🔊 **A tiny foley studio.** Typewriter keys, paper tears, water, wind, a train whistle and a steam hiss accompany everyday actions.
 - 🎚️ **Sound control.** Toggle sound from the header, adjust volume, preview every sample, or drop your own audio files into the sounds folder.
+- 🧩 **A theme community.** Install a `.zip` theme pack to change the palette, wallpaper, foley sounds and achievement stickers together. Export your current look as a shareable pack; publishing is one pull request to [`community/themes.json`](community/themes.json). See [`docs/theme-community.md`](docs/theme-community.md).
 
 ### 🧩 Plugins and small tools
 - 🧰 **A plugin shelf.** Open the tool rail or **Settings → Plugins** to install, turn off, reconfigure or uninstall each mini-app without touching the notebook core.
 - 🪟 **Isolated mini-apps.** Each plugin runs in its own iframe and receives the live light/dark theme, so a plugin can never break the notebook.
+- 🌍 **A plugin community.** **Settings → Community** lists plugins shared by other people, with search, tags, authors and one-tap install. The index refreshes from this repository and falls back to an offline copy.
+- 📦 **Bring your own plugin.** Install a packaged `.zip` from disk, or publish yours with `tools/pack-plugin.py` and one pull request to `community/catalog.json`.
 - 🧵 **The notebook stays small.** Notes, AI and more are on the roadmap as independent plugins, keeping the default workspace light.
 
 ### 🪟 Panels, doors and gestures
@@ -123,6 +126,11 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 | 🎵 | **Music Player** | A neon electronic-music player with a record rail icon, synced LRC lyrics, left/right switching, a clickable library and local imports. |
 | 🧵 | **Perler Bead Studio** | A calm bead-by-bead studio for flowers, hearts, stars, mushrooms and cats, with little clicks and a finish chime. |
 | 🔍 | **Subtask Search** | A magnifier card in the left rail opens a slide-out search field and jumps to matching subtasks. |
+
+**Community shelf.** Open **Settings → Community** to browse the shared plugin
+index, install a `.zip` someone sent you, or package your own plugin with
+`python3 tools/pack-plugin.py <folder>`. The catalog and the submission guide
+live in [`community/`](community/README.md).
 
 ## 🚀 Run from source
 
@@ -161,12 +169,14 @@ The Android build embeds the same Python backend and web workspace with Chaquopy
 ./android/run-emulator.sh
 ```
 
-- 📱 The emulator AVD is `NeoTodo` (API 35, x86_64 tablet); `adb` lives in `$ANDROID_HOME/platform-tools`.
+- 📱 The windowed emulator AVD is `NeoTodo` (API 35, x86_64 tablet, port `5558`); `adb` lives in `$ANDROID_HOME/platform-tools`.
+- ⚙️ Override the AVD or port with `NEOTODO_AVD` / `NEOTODO_PORT`. The emulator cold-boots (about a minute) and keeps app data between launches.
+- 🖥️ Software GL is the default because the host GPU backend can drop color buffers here; set `NEOTODO_EMU_GPU=host` to try hardware acceleration.
 - 🔌 Manual install:
 
 ```sh
-adb install -r NeoTodo-Android.apk
-adb shell am start -n io.github.neotodo/.MainActivity
+adb -s emulator-5558 install -r NeoTodo-Android.apk
+adb -s emulator-5558 shell am start -n io.github.neotodo/.MainActivity
 ```
 
 - ↩️ Back closes the topmost dialog, drawer or panel first, then sends the task to the background.
@@ -176,9 +186,11 @@ adb shell am start -n io.github.neotodo/.MainActivity
 
 ```sh
 python3 tests/test_model_icons.py
+python3 tests/test_plugin_community.py
 ```
 
-- ✅ The test checks that every provider mark exists, is non-empty, and uses the page ink instead of a fixed grey plate.
+- ✅ The model test checks that every provider mark exists, is non-empty, and uses the page ink instead of a fixed grey plate.
+- ✅ The plugin test covers archive validation, checksum checks, install/uninstall and path traversal.
 
 ### 🧱 Build releases
 
@@ -219,6 +231,7 @@ git push origin v0.0.1
 - [x] 🐧 Linux
 - [x] 🪟 Windows x64
 - [x] 🤖 Android (local debug build + emulator)
+- [x] 🧩 Plugin community catalog + install from `.zip`
 - [ ] 🍎 macOS
 - [ ] 📱 iOS
 - [ ] 🧩 Notes and AI as independent plugins

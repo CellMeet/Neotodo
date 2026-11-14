@@ -1,0 +1,25 @@
+{
+  "id": "paper-moon",
+  "name": "纸月",
+  "englishName": "Paper Moon",
+  "version": "1.0.0",
+  "description": "暖米的纸、旧书页的墨，和一枚安静的月亮。适合白天慢慢写字，也适合把完成的一周收进明信片。",
+  "author": "NeoTodo",
+  "license": "CC BY 4.0",
+  "tags": ["light", "paper", "moon", "quiet"],
+  "theme": {
+    "paper": "#f7f1e8",
+    "paper2": "#efe3d1",
+    "ink": "#3b3026",
+    "muted": "#8a7862",
+    "accent": "#c8845a",
+    "accent2": "#7c9c8a",
+    "border": "#dccab0",
+    "stamp": "#b86b45",
+    "glow": "rgba(200,132,90,.18)",
+    "motif": "☾",
+    "quote": "Let the paper keep the quiet parts."
+  },
+  "preview": "preview.svg",
+  "icon": "icon.svg"
+}

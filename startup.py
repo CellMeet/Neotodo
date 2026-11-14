@@ -1,3 +1,4 @@
+# [shared] Linux-first startup helpers, also synced to Android.
 """Startup splash helpers.
 
 This module owns the last-page screenshot and the Gtk.Picture preview. Keeping

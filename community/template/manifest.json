@@ -1,0 +1,24 @@
+{
+  "id": "hello-paper",
+  "name": "Hello Paper",
+  "englishName": "Hello Paper",
+  "version": "1.0.0",
+  "description": "A tiny starter plugin: one paper card, one button, and a counter that remembers how many quiet wins you have logged.",
+  "icon": "hello-paper.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "play",
+  "kind": "chrome",
+  "homepage": "https://github.com/CellMeet/Neotodo/tree/main/community/template",
+  "license": "MIT",
+  "tags": ["starter", "template", "hello"],
+  "settings": [
+    {
+      "id": "sparkle",
+      "label": "Sparkle",
+      "detail": "Show a small star when the counter changes.",
+      "type": "toggle",
+      "default": true
+    }
+  ]
+}

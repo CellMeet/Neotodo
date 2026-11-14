@@ -49,6 +49,8 @@ the plugin toggles so the switch can remove it cleanly.
 
 ## Add a plugin
 
+### Bundled plugins
+
 1. Create `plugins/<id>/` with an entry HTML file and a `manifest.json`.
 2. Add the id/entry to `PLUGIN_REGISTRY` in `web/app.js`.
 3. Add a `.tool-button` with a `data-action` that calls
@@ -56,6 +58,18 @@ the plugin toggles so the switch can remove it cleanly.
 
 The host sends `{ type: "neotodo-theme", dark }` messages to the iframe and
 listens for `{ type: "neotodo-plugin-close" }` so a plugin can close itself.
+
+### Community plugins
+
+Downloaded plugins do not need a registry entry. The backend scans
+`<data>/plugins/<id>/manifest.json`, the host merges the manifest at startup,
+and a downloaded plugin automatically gets a tool-rail button. See
+[`community/README.md`](../../community/README.md) in the repository root for
+the manifest contract, `tools/pack-plugin.py`, and the catalog submission flow.
+
+The community catalog is `plugins/community-catalog.json` here. It is the
+offline copy of `community/catalog.json` in the repository root; both must list
+the same plugin ids. `python3 tools/validate_community.py` checks them.
 
 ## Installed plugins
 

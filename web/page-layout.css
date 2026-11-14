@@ -14,11 +14,13 @@
        │ desk: note / AI panes        │  fills the rest of the page
        └──────────────────────────────┘
 
-   The baseline, the task region and the desk are peers. Opening, closing,
-   splitting or dragging a note/AI pane can never change the task region or
-   the baseline; it only changes the pane's own geometry inside the desk.
-   Layer order is explicit (see the --page-layer-* variables), so z-index
-   accidents in other stylesheets cannot erase the boundary.
+   The baseline, the task region and the desk are peers. The baseline is the
+   top edge of the lower desk region, not an overlay: where a note/AI card
+   occupies the desk top, that card's own top border is the visible line.
+   Opening, closing, splitting or dragging a pane can never change the task
+   region or move the boundary. Layer order is explicit (see the
+   --page-layer-* variables), so z-index accidents in other stylesheets
+   cannot put the line on top of a card.
    ========================================================================== */
 
 :root {
@@ -33,12 +35,14 @@
      region: the desk height is the hard ceiling. */
   --page-sheet-h: min(var(--agent-terminal-height, var(--page-desk-h)), var(--page-desk-h));
 
-  /* Explicit paint order for the page regions. */
+  /* Explicit paint order for the page regions. The desk border is painted
+     below the sheets: it belongs to the lower region, it must never sit on
+     top of a note or AI card. */
   --page-layer-tasks: 2;
+  --page-layer-desk-border: 1;
   --page-layer-ai: 11;
   --page-layer-note: 12;
   --page-layer-note-float: 13;
-  --page-layer-baseline: 14;
   --page-layer-split: 15;
   --page-layer-chooser: 16;
 
@@ -114,26 +118,38 @@
   background-clip: border-box !important;
 }
 
-/* --------------------------------------------------------- page baseline --- */
+/* --------------------------------------------------- desk top border --- */
 
-/* A page-level region, not a child of the task block: its position and paint
-   order are fixed no matter which sheet is open. It keeps the final pixel of
-   the task region and sits above every pane layer. */
+/* This is the top border of the lower (desk) region. It is painted below the
+   sheets: when a note or AI card occupies the desk top, that card's own top
+   border is the visible line. The rule is only exposed where the desk is
+   empty, so it can never sit on top of a rounded card. */
 .page-body::before {
   content: "";
   position: absolute;
-  top: calc(var(--page-desk-top) - 1px);
+  top: var(--page-desk-top);
   right: 0;
   left: 0;
   height: 1px;
   background: var(--page-baseline-color);
   pointer-events: none;
-  z-index: var(--page-layer-baseline);
+  z-index: var(--page-layer-desk-border);
+}
+
+/* A sheet docked at the desk top carries the same 1px border, so the line
+   follows its rounded corners instead of cutting across them. */
+.page-body > #notes-half:not(.notes-hidden),
+.page-body > #agent-terminal.open {
+  border-top: 1px solid var(--page-baseline-color) !important;
 }
 
 /* A detached window is a sheet on its own; there is no page boundary. */
 body.detached-mode .page-body::before {
   display: none;
+}
+body.detached-mode .page-body > #notes-half,
+body.detached-mode .page-body > #agent-terminal {
+  border-top: 0 !important;
 }
 
 /* ---------------------------------------------------------- desk panes --- */

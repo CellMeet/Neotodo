@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300">
+  <defs>
+    <pattern id="linen-preview" width="46" height="46" patternUnits="userSpaceOnUse">
+      <path d="M0 23 H46 M23 0 V46" stroke="#2f382b" stroke-width="1" opacity=".08"/>
+    </pattern>
+  </defs>
+  <rect width="1000" height="300" fill="#f2f0e4"/>
+  <rect width="1000" height="300" fill="url(#linen-preview)"/>
+  <circle cx="784" cy="80" r="40" fill="#b08a5a" opacity=".9"/>
+  <path d="M0 238 C170 198 320 258 500 224 C690 188 830 252 1000 214 L1000 300 L0 300Z" fill="#6f8f5a" opacity=".56"/>
+  <g stroke="#5f7d4c" stroke-width="4" fill="none" opacity=".7">
+    <path d="M786 236 C776 206 782 184 798 166"/>
+    <path d="M798 196 C784 192 776 182 774 172"/>
+    <path d="M792 214 C806 208 814 198 816 186"/>
+  </g>
+  <g stroke="#2f382b" stroke-width="8" stroke-linecap="round" opacity=".72">
+    <path d="M70 118 H342"/><path d="M70 148 H286"/><path d="M70 178 H318"/>
+  </g>
+  <rect x="70" y="58" width="118" height="8" rx="4" fill="#2f382b" opacity=".26"/>
+</svg>
