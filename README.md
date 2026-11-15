@@ -249,10 +249,4 @@ git push origin v0.0.1
 
 If NeoTodo helps you, you can support its development with a small donation. Every contribution goes into paper, ink and the next quiet detail.
 
-<img src="web/donate-alipay-qr.png" width="180" alt="Alipay donation QR code">
-
-## 🔗 Project
-
-- 🌐 **Repository:** https://github.com/CellMeet/Neotodo
-- ✉️ **Email:** cellmeet@163.com
-- 🏷️ **Version:** 0.0.1
+<img src="web/donate-alipay-qr.png" width="240" alt="Alipay donation QR code">
