@@ -1,0 +1,106 @@
+/* ==========================================================================
+   CARD STACK
+   --------------------------------------------------------------------------
+   The floating cards are a pile on the desk, not rectangles pasted over one
+   another. The order is fixed and physical:
+
+       the task page                (printed on the room, never lifts)
+       the finished-subtasks card   lies ON the task page
+       the Doing card               lies ON the finished-subtasks card
+
+   Depth is made the way a sheet of paper makes it:
+
+     - a tight dark seam where the card touches the sheet under it,
+     - a soft shadow thrown down-left, because the light is at the top-right.
+
+   That is why a card never reads as a flat layer covering the next one: the
+   upper card presses the lower one with its seam and paints its shadow onto
+   the lower sheet, and the lower sheet's edge still shows under it. The two
+   levels differ: the Doing card is one step higher, so its seam, shadow and
+   edge are stronger than the finished card's.
+
+   The cards clip their own children (overflow: hidden), so a pseudo-element
+   sheet would be cut off; the depth lives on the card itself in box-shadow.
+   The categories spine is deliberately absent: it is part of the room and is
+   never a card. The defensive block at the bottom keeps it that way.
+   ========================================================================== */
+
+:root {
+  /* A sheet lying directly on the task page. No coloured edge: the cards carry
+     one ink-green outline (--subcard-outline) and the shadow is the only depth,
+     so nothing paints a second line around or under them. */
+  --card-lift-page:
+    -1px 3px 5px -3px rgba(26, 17, 9, 0.34),
+    -4px 9px 16px -10px rgba(26, 17, 9, 0.40),
+    -12px 26px 46px -26px rgba(26, 17, 9, 0.44),
+    -24px 54px 84px -48px rgba(26, 17, 9, 0.32);
+
+  /* A sheet lying on top of another card: same light, one step higher. */
+  --card-lift-card:
+    -2px 4px 7px -3px rgba(26, 17, 9, 0.44),
+    -7px 14px 22px -12px rgba(26, 17, 9, 0.50),
+    -20px 38px 64px -34px rgba(26, 17, 9, 0.56),
+    -40px 80px 120px -64px rgba(26, 17, 9, 0.44);
+}
+
+/* Top of the pile: the right-edge Doing card rests on the finished card. */
+body #doing-peek {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-lift-card) !important;
+}
+
+/* The finished-subtasks card rests on the task page below it. */
+body .completed-subtask-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-lift-page) !important;
+}
+
+/* With a wallpaper the picture pane supplies the face edge to edge. The
+   element's own 1px border is painted the same ink green as the pane's inset
+   stroke, so the two read as one border: a transparent border here would let
+   the room show through as a thin line tinted by the background. The lift is
+   what makes the card sit on the sheet below, and the wallpaper-scoped
+   selectors out-rank the "just a shadow below" fallback in
+   wallpaper-layers.css. */
+html[data-wallpaper] body #doing-peek {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-lift-card) !important;
+}
+
+html[data-wallpaper] body .completed-subtask-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-lift-page) !important;
+}
+
+/* The two cards share the same desk without one shoving the other: sliding the
+   Doing card out must never move the finished-subtasks card off its column.
+   The seam and the shadow already say which sheet lies on top, so the finished
+   card keeps its own box whether the Doing card is open or tucked away. */
+
+/* A card docked on the left border throws its shadow into the room, to the
+   right: same light, mirrored side. */
+body.doing-dock-left #doing-peek {
+  box-shadow:
+    2px 4px 7px -3px rgba(26, 17, 9, 0.44),
+    7px 14px 22px -12px rgba(26, 17, 9, 0.50),
+    20px 38px 64px -34px rgba(26, 17, 9, 0.56),
+    40px 80px 120px -64px rgba(26, 17, 9, 0.44) !important;
+}
+
+/* ------------------------------------------------- categories is not a card --- */
+
+/* The spine belongs to the room. Strip any card radius or shadow a theme might
+   have added, so the categories can never read as another sheet in the pile.
+   The row rules, the selection wash and the cat-dot are untouched. */
+.index,
+.index-head,
+.category-list,
+.index-foot,
+.category-item {
+  border-radius: 0 !important;
+}
+
+.index,
+.category-list {
+  box-shadow: none !important;
+}

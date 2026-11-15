@@ -13,11 +13,11 @@ your own starter.
 
 ## For people using NeoTodo
 
-1. Open **Settings → Community**.
+1. Open **Settings → Community → 插件**.
 2. Search by name, author or tag, then press **Install**.
 3. The plugin downloads into your NeoTodo data folder and gets a small button
    in the left tool rail.
-4. Turn it off, change its settings, or remove it from **Settings → Plugins**.
+4. Turn it off, change its settings, or remove it from the same **插件** shelf.
 5. No account is needed. The notebook itself never uploads your tasks or notes.
 
 You can also install a plugin you received as a file with **Install from .zip**
@@ -86,7 +86,7 @@ my-plugin/
 | `author` | Your name or team. |
 | `category` | `interface`, `play`, `productivity`, `utility`, `ai`… |
 | `license` | Optional, but strongly recommended. |
-| `tags` | Up to 6 short words for search. |
+| `tags` | Up to 6 short words for search. Include `achievement` (or `成就`) to claim a top-right header slot next to the headphone achievement. |
 | `settings` | Only `toggle` settings are rendered by the host today. |
 
 ### The host contract

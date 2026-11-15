@@ -2,15 +2,28 @@
   "id": "head-bar",
   "name": "Head Bar",
   "englishName": "Head Bar",
-  "version": "2.0.0",
-  "description": "悬停时间数字时，一条短短的、蓝白剔透的水晶宝石灵动岛从上边框滑出。点击后整个工作区向上收起，只留下原始壁纸；再次点击恢复。",
+  "version": "2.1.4",
+  "description": "悬停时间数字时，一条短短的、海盐瓶水晶质感的灵动岛从上边框滑出。点击后整个工作区向上收起，只留下原始壁纸，小岛也一起隐藏；把光标移回顶部它会再次出现，点击即可恢复。",
   "icon": "head-bar.svg",
   "entry": "index.html",
   "author": "NeoTodo",
   "category": "interface",
   "kind": "chrome",
+  "settings": [
+    {
+      "id": "bottle",
+      "type": "choice",
+      "label": "Bottle style",
+      "detail": "海之盐蓝瓶 / 粉瓶",
+      "default": "blue",
+      "options": [
+        { "value": "blue", "label": "海之盐 · 蓝", "detail": "Maldives blue bottle" },
+        { "value": "pink", "label": "海之盐 · 粉", "detail": "Peach pink bottle" }
+      ]
+    }
+  ],
   "colors": {
-    "accent": "#86b8e4",
+    "accent": "#4fc3ec",
     "paper": "#1c1c1e"
   }
 }

@@ -22,6 +22,12 @@ def main() -> int:
         json.loads((ROOT / "web" / "theme-packs" / "community-catalog.json").read_text(encoding="utf-8"))
     )
     assert catalog and catalog["themes"], "bundled catalog is empty"
+    assert app.normalize_theme_chrome({
+        "baseline": "#abc",
+        "row": "#123456",
+        "submit": "not-a-colour",
+    }) == {"baseline": "#aabbcc", "row": "#123456"}
+    assert app.normalize_theme_chrome({}) is None
     ids = [entry["id"] for entry in catalog["themes"]]
     for theme_id in ids:
         pack = app.bundled_theme_pack(theme_id)
@@ -29,18 +35,76 @@ def main() -> int:
         assert pack["palette"]["paper"].startswith("#")
         assert pack["palette"]["ink"].startswith("#")
         assert app.theme_pack_asset_path(theme_id, "preview.svg") is not None
+        # Every bundled pack ships a notebook palette and an AI console palette,
+        # including the colour of their rules and drag handles.
+        assert pack["note"]["rule"].startswith("#"), f"{theme_id} has no note rule colour"
+        assert pack["ai"]["line"].startswith("#"), f"{theme_id} has no AI rule colour"
+        # A bundled pack also owns the page chrome: underline, add accent and
+        # the selected-cell wash ride along with the wallpaper.
+        for key in app.THEME_CHROME_KEYS:
+            assert pack["chrome"] and pack["chrome"].get(key, "").startswith("#"), (
+                f"{theme_id} has no chrome.{key}"
+            )
 
     root = Path(tempfile.mkdtemp(prefix="neotodo-theme-test-"))
     try:
         app.THEME_PACKS_DIR = root / "packs"
         app.THEME_EXPORTS_DIR = root / "exports"
+        app.NOTE_THEMES_DIR = root / "note-theme"
+        app.AI_THEMES_DIR = root / "ai-theme"
         app.PICTURES_DIR = root / "pictures"
         app.SOUNDS_DIR = root / "sounds"
-        for folder in (app.THEME_PACKS_DIR, app.THEME_EXPORTS_DIR, app.PICTURES_DIR, app.SOUNDS_DIR):
+        for folder in (app.THEME_PACKS_DIR, app.THEME_EXPORTS_DIR, app.NOTE_THEMES_DIR, app.AI_THEMES_DIR, app.PICTURES_DIR, app.SOUNDS_DIR):
             folder.mkdir(parents=True, exist_ok=True)
+
+        # The notebook and the console read their palettes from their own
+        # folders, never from the app theme shelf.
+        app.PANE_THEME_SHELVES["note"] = app.NOTE_THEMES_DIR
+        app.PANE_THEME_SHELVES["ai"] = app.AI_THEMES_DIR
 
         installed = app.install_bundled_theme("linen-garden")
         assert installed["wallpaper"] == "wallpaper.svg"
+        assert installed["chrome"]["highlight"].startswith("#")
+        assert [pack["id"] for pack in app.discover_theme_packs()] == ["linen-garden"]
+        note_themes = app.discover_pane_themes("note")
+        ai_themes = app.discover_pane_themes("ai")
+        assert [theme["id"] for theme in note_themes] == ["linen-garden"]
+        assert [theme["id"] for theme in ai_themes] == ["linen-garden"]
+        assert note_themes[0]["palette"] == installed["note"]
+        assert ai_themes[0]["palette"] == installed["ai"]
+        assert (app.NOTE_THEMES_DIR / "linen-garden.json").is_file()
+        assert (app.AI_THEMES_DIR / "linen-garden.json").is_file()
+
+        # A hand-written notebook palette in note-theme/ is a user file: an app
+        # theme install or removal must leave it alone.
+        mine = app.write_pane_theme("note", {
+            "id": "my-paper",
+            "name": "My paper",
+            "palette": {"paper": "#fffdf6", "ink": "#2a2620"},
+        })
+        assert mine.is_file()
+        assert app.write_pane_theme("ai", {
+            "id": "my-console",
+            "name": "My console",
+            "palette": {"bg": "#101216", "ink": "#e8eaf0"},
+        }).is_file()
+        assert {theme["id"] for theme in app.discover_pane_themes("note")} == {"linen-garden", "my-paper"}
+
+        custom = app.save_theme_pack({
+            "name": "Line Test",
+            "theme": {
+                "paper": "#fff7ee",
+                "ink": "#2b2118",
+                "line": "#7cc2b0",
+                "accent": "#d17a53",
+            },
+        })
+        assert custom["palette"]["line"] == "#7cc2b0"
+        custom_folder = app.THEME_PACKS_DIR / custom["id"]
+        assert (custom_folder / "theme.json").is_file()
+        assert (custom_folder / "preview.svg").is_file()
+        assert {pack["id"] for pack in app.discover_theme_packs()} == {"linen-garden", custom["id"]}
+        app.uninstall_theme_pack(custom["id"])
         assert [pack["id"] for pack in app.discover_theme_packs()] == ["linen-garden"]
 
         settings = {
@@ -60,6 +124,9 @@ def main() -> int:
             "name": "Round Trip",
             "id": "round-trip",
             "theme": installed["palette"],
+            "chrome": installed["chrome"],
+            "note": installed["note"],
+            "ai": installed["ai"],
             "wallpaper": "/user-pictures/mine.jpg",
             "sounds": {"type": "/user-sounds/click.wav"},
             "icons": {"completed": icon},
@@ -75,6 +142,11 @@ def main() -> int:
         assert round_trip["wallpaper"] == "wallpaper.jpg"
         assert round_trip["sounds"] == {"type": "sounds/type.wav"}
         assert round_trip["icons"] == {"completed": "icons/completed.png"}
+        assert round_trip["note"] == installed["note"]
+        assert round_trip["ai"] == installed["ai"]
+        assert round_trip["chrome"] == installed["chrome"]
+        assert app.read_pane_theme("note", "round-trip")["palette"] == installed["note"]
+        assert app.read_pane_theme("ai", "round-trip")["palette"] == installed["ai"]
 
         try:
             app.install_theme_archive(b"not a zip")
@@ -98,6 +170,15 @@ def main() -> int:
             raise AssertionError("built-in theme ids must be reserved")
 
         assert app.theme_pack_asset_path("round-trip", "../theme.json") is None
+
+        # Removing an app theme drops only the palettes that pack contributed;
+        # hand-written note/ai files and other packs stay untouched.
+        app.uninstall_theme_pack("linen-garden")
+        assert app.read_pane_theme("note", "linen-garden") is None
+        assert app.read_pane_theme("ai", "linen-garden") is None
+        assert app.read_pane_theme("note", "my-paper") is not None
+        assert app.read_pane_theme("ai", "my-console") is not None
+        assert app.read_pane_theme("note", "round-trip") is not None
     finally:
         import shutil
         shutil.rmtree(root, ignore_errors=True)

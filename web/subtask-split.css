@@ -212,6 +212,52 @@
   transition: none;
 }
 
+/* While a finished row is gliding into the card, the card itself must not
+   slide: its entrance would move the landing spot under the flying row. It
+   fades in at its final box instead, and the row carries the movement. */
+.completed-subtask-drawer.flight-target,
+.completed-subtask-drawer.flight-target.open {
+  transform: none;
+  transition: opacity 0.16s ease;
+}
+
+/* The flying row is drawn on the page, not inside the cards: the drawer and its
+   lane both clip their children, so the real row would be invisible for most of
+   the trip. The trip itself only moves and clips the ghost: the width is fixed
+   at the pending row's width and the narrower landing box is reached by
+   clipping the right edge, so no frame has to lay the row out again. */
+.subtask-flight {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  will-change: transform, clip-path;
+  contain: layout paint;
+}
+
+/* What travels is the row's paper: its bottom line, its fan and its name. The
+   accent wash under a selected row stays in the pending lane — it marks where
+   the reader is working, and a wash moving with the row would paint a coloured
+   block over the page and leave it on the finished card. */
+.subtask-flight,
+.subtask-flight.selected,
+.subtask-flight::before,
+.subtask-flight::after {
+  background: none !important;
+  box-shadow: none !important;
+}
+
+/* The click answers before the row leaves: the fan dips into its paper and the
+   row lifts a hair, so waiting for the backend never looks like a freeze. */
+.current-subtask.subtask-completing {
+  transform: translateY(-1px);
+  transition: transform 0.12s ease;
+}
+.current-subtask.subtask-completing .sub-fan {
+  transform: scale(0.94);
+  opacity: 0.86;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
 .completed-subtask-sheet {
   display: flex;
   flex: 1 1 auto;

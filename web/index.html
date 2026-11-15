@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/note-shape.css">
   <link rel="stylesheet" href="/note-materials/paper.css">
   <link rel="stylesheet" href="/note-materials/glass.css">
+  <link rel="stylesheet" href="/note-materials/focus.css">
   <link rel="stylesheet" href="/agent-shape.css">
   <link rel="stylesheet" href="/desk-handle.css">
   <link rel="stylesheet" href="/completed.css">
@@ -25,9 +26,34 @@
   <link rel="stylesheet" href="/effects/light.css">
   <link rel="stylesheet" href="/effects/dark.css">
   <link rel="stylesheet" href="/plugins/firelight/firelight.css">
+  <link rel="stylesheet" href="/plugins/fireflies/fireflies.css">
+  <link rel="stylesheet" href="/plugins/lightning/lightning.css">
+  <link rel="stylesheet" href="/plugins/storage-box/storage-box.css">
   <!-- Page geometry is authoritative: it loads after every visual stylesheet
        so no theme, material or plugin rule can move the page regions. -->
   <link rel="stylesheet" href="/page-layout.css">
+  <!-- One surface for the floating cards (Doing, finished subtasks, subtask
+       search). Loaded last so no component can repaint its own paper. -->
+  <link rel="stylesheet" href="/overlay-paper.css">
+  <!-- When a wallpaper is active the working surface sits bare on the room and
+       floating cards become frosted panes over it. -->
+  <link rel="stylesheet" href="/wallpaper-layers.css">
+  <!-- The left tool shelf is a five-icon window with a fading edge; its smooth,
+       remembered scroll lives in tool-rail-scroll.js. -->
+  <link rel="stylesheet" href="/tool-rail-scroll.css">
+  <!-- The rule rhythm continues past the last row in the category spine and
+       the Doing card, so their sheets are never half-printed. -->
+  <link rel="stylesheet" href="/ruled-fill.css">
+  <!-- The user-owned hairline inside the floating cards (Doing and finished
+       subtasks). Loaded after the card paper so a theme cannot repaint it. -->
+  <link rel="stylesheet" href="/baseline-rules.css">
+  <!-- Floating cards sit in a small pile: one ink-green outline and the sheets
+       peeking out behind the front card. -->
+  <link rel="stylesheet" href="/card-stack.css">
+  <!-- page_line is the single owner of the page's horizontal dividers. It loads
+       after every surface and theme stylesheet so one object paints the header,
+       the task rows and the empty desk with the same line. -->
+  <link rel="stylesheet" href="/page-line.css">
   <!-- BOOT_DATA -->
   <script>
     document.documentElement.classList.add("booting");
@@ -37,7 +63,6 @@
       root.dataset.theme = "postcard";
       root.dataset.font = s.font || "serif";
       root.style.setProperty("--user-scale", String(s.scale || 1));
-      root.style.setProperty("--boot-paper", window.__BOOT_PAPER__ || "#f7efe3");
     } catch (error) {}
   </script>
 </head>
@@ -574,8 +599,12 @@
             <stop offset=".55" stop-color="#b3272f" stop-opacity=".2"/>
             <stop offset="1" stop-color="#000000" stop-opacity="0"/>
           </radialGradient>
+          <!-- Only the blade cluster turns: r stays above the blade tips
+               (~268 from the hub) and below the wheel's own shading (~297),
+               so the spinning copy never paints over the icon's rim or the
+               paper behind it. -->
           <clipPath id="fan-wheel-clip" clipPathUnits="userSpaceOnUse">
-        <circle cx="493" cy="422" r="356"/>
+        <circle cx="493" cy="422" r="286"/>
       </clipPath>
 
       <symbol id="gojo-sticker" viewBox="0 0 180 84">
@@ -766,17 +795,20 @@
   <div class="app-shell">
     <header class="notebook-head">
       <div class="nt-brand" id="nt-brand" role="img" aria-label="NeoTodo">
+        <span class="nt-sparks" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </span>
         <span class="nt-word"><span class="nt-cap">N</span>eo<span class="nt-cap">T</span>odo</span>
       </div>
       <div class="header-clock" id="header-clock" aria-hidden="true"></div>
       <div class="head-right">
         <span class="week-stamp" id="week-stamp">—</span>
-        <button class="trophy-button" data-action="show-completed">
+        <button class="trophy-button" data-achievement="completed" data-achievement-tag="achievement" data-action="show-completed">
           <span class="ach-sticker" aria-hidden="true"><img src="/stickers/yuji-battle.jpg" alt=""></span>
           <svg class="chalice-icon trophy-glyph" aria-hidden="true"><use id="achievement-icon-use" href="#headphone"></use></svg>
           <span id="trophy-count">0</span>
         </button>
-        <div class="tomato-counter" data-action="open-timer-achievement" aria-label="Pomodoro achievement">
+        <div class="tomato-counter plugin-hidden" data-plugin="pomodoro" data-achievement-plugin="pomodoro" data-achievement-tag="achievement" data-action="open-timer-achievement" aria-label="Pomodoro achievement">
           <span class="ach-sticker" aria-hidden="true"><img src="/stickers/gojo-battle.jpg" alt=""></span>
           <svg class="tomato-glyph" aria-hidden="true"><use href="#tomato-clock"></use></svg>
           <span id="tomato-count">0</span>
@@ -799,7 +831,7 @@
   </div>
 
   <div class="top-edge" id="top-edge" aria-hidden="true"></div>
-  <div class="top-tools" id="top-tools" aria-label="Application tools">
+  <div class="top-tools" id="top-tools" data-wallpaper-surface="top-tools" aria-label="Application tools">
     <button id="sound-toggle" class="sound-toggle" type="button" aria-label="Toggle sounds">
       <svg class="sound-icon" aria-hidden="true"><use href="#music"></use></svg>
     </button>
@@ -816,17 +848,20 @@
   <div id="sound-panel" class="sound-panel" hidden aria-label="Sound settings"></div>
 
   <div class="tool-rail" id="tool-rail" aria-label="Tools">
-    <button class="tool-button" data-action="open-timer" aria-label="Focus timer">
+    <button class="tool-button timer-button plugin-hidden" data-action="open-timer" data-plugin="pomodoro" aria-label="Focus timer">
       <svg aria-hidden="true"><use href="#tomato-detail"></use></svg>
     </button>
     <button class="tool-button" data-action="notes-button" aria-label="Notes">
       <svg aria-hidden="true"><use href="#notebook"></use></svg>
     </button>
-    <button class="tool-button pindou-button" type="button" data-action="open-pindou" data-plugin="pindou" aria-label="拼豆工坊" title="拼豆工坊">
+    <button class="tool-button pindou-button" type="button" data-action="open-pindou" data-plugin="pindou" aria-label="拼豆工坊">
       <img class="pindou-glyph" src="/plugins/pindou/pindou.svg" alt="">
     </button>
-    <button class="tool-button forktree-button" type="button" data-action="open-forktree" data-plugin="forktree" aria-label="Forktree 分支地图" title="Forktree 分支地图">
+    <button class="tool-button forktree-button" type="button" data-action="open-forktree" data-plugin="forktree" aria-label="Forktree 分支地图">
       <img class="forktree-glyph" src="/plugins/forktree/forktree.svg" alt="">
+    </button>
+    <button class="tool-button storage-box-button" type="button" data-plugin="storage-box" aria-label="收纳箱">
+      <img class="storage-box-glyph" src="/plugins/storage-box/storage-box.svg" alt="">
     </button>
     <button class="tool-button magic-hat-button" type="button" data-action="open-trash" aria-label="Deleted subtasks">
       <img class="magic-hat-img" src="/magic-hat.svg" alt="">
@@ -892,10 +927,15 @@
   <script src="/handle-position.js"></script>
   <script src="/ai-handle.js"></script>
   <script src="/note-handle.js"></script>
+  <script src="/plugins/forktree/fork-store.js"></script>
   <script src="/app.js"></script>
   <script src="/plugins/firelight/firelight.js"></script>
+  <script src="/plugins/fireflies/fireflies.js"></script>
+  <script src="/plugins/lightning/lightning.js"></script>
+  <script src="/plugins/storage-box/storage-box.js"></script>
   <script src="/plugins/head-bar/head-bar.js"></script>
   <script src="/plugins/subtask-search/subtask-search.js"></script>
   <script src="/plugins/music-player/music-player.js"></script>
+  <script src="/tool-rail-scroll.js"></script>
 </body>
 </html>

@@ -7,8 +7,8 @@
      - one dark-grey line in both themes, with a faint light halo
      - a taller invisible hit area for easy swipes
      - instant vanish (no fade, no slide) when its panel opens/closes
-     - the closed neighbour tucks below the bottom border and slides up on
-       bottom-strip hover (handle-tucked)
+     - a closed line rests hidden below the bottom border and pops up into the
+       bottom slot while the pointer visits that strip (handle-tucked)
    ========================================================================== */
 
 .desk-handle-ai,

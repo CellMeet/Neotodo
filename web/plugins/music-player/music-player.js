@@ -121,7 +121,6 @@
   railButton.dataset.plugin = PLUGIN_ID;
   railButton.setAttribute("aria-label", "打开白噪音播放器");
   railButton.setAttribute("aria-expanded", "false");
-  railButton.title = "白噪音播放器 · 电子乐";
   railButton.innerHTML = `<img class="music-player-glyph" src="${ICON}" alt="">`;
 
   function mountRailButton() {
@@ -153,7 +152,7 @@
           </div>
           <div class="mb-stage-tools">
             <button class="mb-chip" type="button" data-mb="library">曲库 <b class="mb-count">0</b></button>
-            <button class="mb-icon" type="button" data-mb="stage-close" aria-label="收起歌词" title="收起歌词">${I.chevron}</button>
+            <button class="mb-icon" type="button" data-mb="stage-close" aria-label="收起歌词">${I.chevron}</button>
           </div>
         </div>
 
@@ -192,9 +191,9 @@
         </div>
 
         <div class="mb-controls">
-          <button class="mb-control" type="button" data-mb="prev" aria-label="上一首" title="上一首">${I.prev}</button>
-          <button class="mb-play" type="button" data-mb="play" aria-label="播放" title="播放 / 暂停">${I.play}</button>
-          <button class="mb-control" type="button" data-mb="next" aria-label="下一首" title="下一首">${I.next}</button>
+          <button class="mb-control" type="button" data-mb="prev" aria-label="上一首">${I.prev}</button>
+          <button class="mb-play" type="button" data-mb="play" aria-label="播放">${I.play}</button>
+          <button class="mb-control" type="button" data-mb="next" aria-label="下一首">${I.next}</button>
         </div>
 
         <div class="mb-timeline">
@@ -204,11 +203,11 @@
         </div>
 
         <div class="mb-bar-tools">
-          <button class="mb-icon mb-stage-toggle" type="button" data-mb="stage-toggle" aria-label="显示或收起歌词" title="歌词界面">${I.lyrics}</button>
-          <button class="mb-icon mb-library-toggle" type="button" data-mb="library" aria-label="打开曲库" title="曲库列表">${I.list}</button>
-          <button class="mb-icon mb-volume-toggle" type="button" data-mb="volume-toggle" aria-label="静音" title="静音">${I.volume}</button>
+          <button class="mb-icon mb-stage-toggle" type="button" data-mb="stage-toggle" aria-label="显示或收起歌词">${I.lyrics}</button>
+          <button class="mb-icon mb-library-toggle" type="button" data-mb="library" aria-label="打开曲库">${I.list}</button>
+          <button class="mb-icon mb-volume-toggle" type="button" data-mb="volume-toggle" aria-label="静音">${I.volume}</button>
           <input class="mb-volume" data-volume type="range" min="0" max="1" step="0.01" value="0.72" aria-label="音量">
-          <button class="mb-icon mb-close" type="button" data-mb="close" aria-label="关闭播放器" title="关闭播放器">${I.close}</button>
+          <button class="mb-icon mb-close" type="button" data-mb="close" aria-label="关闭播放器">${I.close}</button>
         </div>
       </div>
 
@@ -232,7 +231,7 @@
           <button type="button" data-mb="folder">${I.folder} 打开文件夹</button>
         </div>
 
-        <div class="mb-lib-folder" data-mb="copy-folder" title="复制曲库路径">
+        <div class="mb-lib-folder" data-mb="copy-folder">
           ${I.folder}<span data-folder>内置曲库</span>
         </div>
 
@@ -746,7 +745,6 @@
     mergeTracks();
     nodes.count.textContent = String(state.all.length);
     nodes.folder.textContent = state.folder || "内置曲库（music 文件夹）";
-    nodes.folder.title = state.folder ? `点击复制曲库路径：${state.folder}` : "内置曲库";
     nodes.libraryName.textContent = (state.libraryName || "NEOTODO ORIGINAL").toUpperCase();
 
     if (!state.all.length) {
@@ -816,7 +814,7 @@
             </span>
             <span class="mb-track-tags">${tags}</span>
           </button>
-          ${track.local ? `<button class="mb-track-remove" type="button" data-remove-local="${esc(track.id)}" aria-label="从本地曲库移除 ${esc(track.title)}" title="从本地曲库移除">×</button>` : ""}
+          ${track.local ? `<button class="mb-track-remove" type="button" data-remove-local="${esc(track.id)}" aria-label="从本地曲库移除 ${esc(track.title)}">×</button>` : ""}
         </div>`;
     }).join("");
   }

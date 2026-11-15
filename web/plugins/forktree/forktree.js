@@ -64,6 +64,11 @@
 
   const counts = { categories: 0, todos: 0, subtasks: 0, forks: 0 };
 
+  // The plugin's own fork apps (see fork-store.js). They are not NeoTodo
+  // categories: each one hangs under the todo it came from, so every fork of
+  // the same todo is drawn together, however deep the tree goes.
+  const forkStore = window.NeoTodoFork || null;
+
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
   function escapeHtml(value) {
@@ -120,9 +125,24 @@
   // Data → tree
   // ------------------------------------------------------------------------
   function buildTree(data) {
-    const categories = Array.isArray(data?.categories) ? data.categories : [];
+    // Fork boards from the first build were imported into the plugin store;
+    // their old categories are hidden so they do not appear twice on the map.
+    const migratedLegacy = new Set((forkStore?.migratedLegacyIds?.() || []).map(String));
+    const categories = (Array.isArray(data?.categories) ? data.categories : [])
+      .filter((category) => !(
+        category?.forked_from && migratedLegacy.has(String(category.id))
+      ));
     const forksBySubtask = new Map();
     const extrasByRoot = new Map();
+
+    // Fork apps live in the plugin store, not in /api/state.
+    const appBranches = forkStore ? forkStore.list() : [];
+    const appById = new Map(appBranches.map((branch) => [String(branch.id), branch]));
+    const appByTodo = new Map();
+    const appTodoSeen = new Set();
+    for (const branch of appBranches) {
+      addToMap(appByTodo, String(branch.source?.todoId || ""), branch);
+    }
 
     for (const category of categories) {
       if (!category || typeof category !== "object") continue;
@@ -222,6 +242,86 @@
       node.children = subtasks
         .map((subtask) => subtaskNode(subtask, category, todo, nextSubtask))
         .filter(Boolean);
+
+      // Every fork app that came out of this todo hangs right here, so two
+      // forks of different subtasks of the same todo share one todo card.
+      const apps = (appByTodo.get(String(todo.id)) || [])
+        .filter((branch) => !branch.fromBranchId || !appById.has(String(branch.fromBranchId)))
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+      if (apps.length) {
+        appTodoSeen.add(String(todo.id));
+        node.children.push(...apps.map((branch) => appNode(branch)).filter(Boolean));
+      }
+      return node;
+    }
+
+    // A fork app is the forked subtask promoted to a main task. Its own
+    // checklist is drawn under it, and any row that was forked again grows a
+    // deeper app, so 二次/三次 fork read as one continuous branch.
+    function appNode(branch, visited = new Set()) {
+      if (!branch || visited.has(branch.id)) return null;
+      visited.add(branch.id);
+      const done = (branch.subtasks || []).filter((item) => item.done).length;
+      const total = (branch.subtasks || []).length;
+      const kids = appBranches.filter((item) => item.fromBranchId === branch.id);
+      const node = {
+        id: `app:${branch.id}`,
+        kind: "forkapp",
+        branchId: String(branch.id),
+        name: branch.name || "Fork",
+        kicker: branch.done ? "FORK · DONE" : "FORK · 子应用",
+        meta: `${done}/${total} 子任务${branch.fromBranchName ? ` · 来自 ${branch.fromBranchName}` : ""}`,
+        categoryId: String(branch.source?.categoryId || ""),
+        todoId: String(branch.source?.todoId || ""),
+        subtaskId: String(branch.source?.subtaskId || ""),
+        color: "#de6a34",
+        done: Boolean(branch.done),
+        current: false,
+        children: [],
+        height: 0,
+        x: 0,
+        y: 0,
+        subtreeHeight: 0,
+        visibleChildren: [],
+      };
+      counts.forks += 1;
+      const rows = (branch.subtasks || []).map((subtask) => appSubtaskNode(branch, subtask, visited));
+      const orphanApps = kids
+        .filter((item) => !(branch.subtasks || []).some(
+          (subtask) => String(subtask.id) === String(item.source?.subtaskId)
+        ))
+        .map((item) => appNode(item, visited));
+      node.children = [...rows, ...orphanApps].filter(Boolean);
+      return node;
+    }
+
+    function appSubtaskNode(branch, subtask, visited) {
+      if (!subtask) return null;
+      const kids = appBranches.filter(
+        (item) => item.fromBranchId === branch.id
+          && String(item.source?.subtaskId) === String(subtask.id)
+      );
+      const node = {
+        id: `appsub:${branch.id}:${subtask.id}`,
+        kind: "forksub",
+        branchId: String(branch.id),
+        name: subtask.name || "Untitled",
+        kicker: subtask.done ? "待办 · DONE" : "待办",
+        meta: kids.length ? `fork × ${kids.length}` : "",
+        categoryId: String(branch.source?.categoryId || ""),
+        todoId: String(branch.source?.todoId || ""),
+        subtaskId: "",
+        color: "#de6a34",
+        done: Boolean(subtask.done),
+        current: false,
+        children: kids.map((item) => appNode(item, visited)).filter(Boolean),
+        height: 0,
+        x: 0,
+        y: 0,
+        subtreeHeight: 0,
+        visibleChildren: [],
+      };
+      counts.subtasks += 1;
       return node;
     }
 
@@ -319,6 +419,35 @@
       if (node) root.children.push(node);
     }
 
+    // Fork apps whose original todo was deleted are still reachable: they hang
+    // from the workspace root instead of vanishing from the map.
+    const orphanApps = appBranches
+      .filter((branch) => !appTodoSeen.has(String(branch.source?.todoId || "")))
+      .filter((branch) => !branch.fromBranchId || !appById.has(String(branch.fromBranchId)))
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    if (orphanApps.length) {
+      const orphanWrap = {
+        id: "orphan:apps",
+        kind: "forkapps",
+        name: "孤儿 fork",
+        kicker: "FORK · 已失去主任务",
+        meta: `${orphanApps.length} 个子应用`,
+        categoryId: "",
+        todoId: "",
+        subtaskId: "",
+        color: "#de6a34",
+        done: false,
+        current: false,
+        children: orphanApps.map((branch) => appNode(branch)).filter(Boolean),
+        height: 0,
+        x: 0,
+        y: 0,
+        subtreeHeight: 0,
+        visibleChildren: [],
+      };
+      root.children.push(orphanWrap);
+    }
+
     root.meta = `${counts.categories} 分类 · ${counts.forks} 条分支`;
     return root;
   }
@@ -330,10 +459,10 @@
     if (node.kind === "root") {
       return '<span class="ft-mark"><img src="forktree.svg" alt=""></span>';
     }
-    if (node.kind === "fork") {
+    if (node.kind === "fork" || node.kind === "forkapp" || node.kind === "forkapps") {
       return '<span class="ft-mark"><img src="/fork-flame.svg" alt=""></span>';
     }
-    if (node.kind === "todo" || node.kind === "subtask") {
+    if (node.kind === "todo" || node.kind === "subtask" || node.kind === "forksub") {
       return '<span class="ft-status" aria-hidden="true"></span>';
     }
     return `<span class="ft-mark" aria-hidden="true">
@@ -359,7 +488,6 @@
       ? "回到全图"
       : `${node.name} · 点击打开`;
     el.setAttribute("aria-label", title);
-    el.title = title;
 
     const hasChildren = node.children.length > 0;
     el.innerHTML = `${markHtml(node)}
@@ -483,7 +611,7 @@
   function lineClass(parent, child) {
     const classes = ["link"];
     if (parent.kind === "root") classes.push("link-root");
-    if (child.kind === "fork") classes.push("link-fork");
+    if (child.kind === "fork" || child.kind === "forkapp") classes.push("link-fork");
     if (child.done) classes.push("link-done");
     return classes.join(" ");
   }
@@ -857,6 +985,27 @@
       fitView();
       return;
     }
+    // A fork app (or one of its rows) opens as its own window: it is a focus
+    // tool for one subtask, not a NeoTodo page and not an overlay.
+    if (node.kind === "forkapp" || node.kind === "forksub") {
+      if (!node.branchId) return;
+      if (window.parent !== window) {
+        window.parent.postMessage(
+          { type: "neotodo-fork-open-window", branchId: String(node.branchId) },
+          window.location.origin
+        );
+        return;
+      }
+      // A standalone map opens the branch's own port window/app directly.
+      const branch = forkStore?.get?.(String(node.branchId));
+      if (branch?.url) {
+        window.location.href = branch.url;
+        return;
+      }
+      window.NeoTodoForkWorkspace?.open(node.branchId);
+      return;
+    }
+    if (node.kind === "forkapps") return;
     const target = {
       categoryId: node.categoryId || "",
       todoId: node.todoId || "",
@@ -1052,6 +1201,20 @@
   // Boot
   // ------------------------------------------------------------------------
   syncTheme();
+
+  // A fork app edits its own data; when the workspace closes, the map redraws
+  // so the new branch shows up without a manual refresh.
+  forkStore?.subscribe(() => {
+    if (window.NeoTodoForkWorkspace?.isOpen()) return;
+    refresh();
+  });
+  window.addEventListener("neotodo-fork-map-refresh", () => {
+    if (window.NeoTodoForkWorkspace?.isOpen()) return;
+    // The map was hidden while the sub-app had the screen, so fit it again
+    // instead of restoring a viewport measured at zero width.
+    refresh().then(() => requestAnimationFrame(() => initialView()));
+  });
+
   refresh();
 
   // A tiny failsafe: if anything above throws before the first paint, the

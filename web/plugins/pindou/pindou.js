@@ -371,7 +371,7 @@
     templates.innerHTML = TEMPLATES.map((template) => `
       <button class="pd-chip ${template.id === state.template ? "is-active" : ""}" type="button"
         role="tab" data-template="${template.id}" aria-selected="${template.id === state.template ? "true" : "false"}"
-        title="${escapeHtml(template.note)}">
+       >
         ${templateThumb(template)}
         <span>${escapeHtml(template.name)}</span>
       </button>`).join("");
@@ -383,7 +383,7 @@
       const tone = COLORS[color.id];
       return `<button class="pd-swatch ${color.id === state.color ? "is-active" : ""}" type="button"
         role="option" data-color="${color.id}" aria-selected="${color.id === state.color ? "true" : "false"}"
-        aria-label="${escapeHtml(color.name)}" title="${escapeHtml(color.name)}"
+        aria-label="${escapeHtml(color.name)}"
         style="--c:${tone.hex};--c-light:${tone.light};--c-dark:${tone.dark}"></button>`;
     }).join("");
   }
@@ -477,7 +477,6 @@
     soundButton.dataset.sound = state.sound ? "on" : "off";
     soundButton.setAttribute("aria-pressed", state.sound ? "true" : "false");
     soundButton.setAttribute("aria-label", state.sound ? "关闭声音" : "打开声音");
-    soundButton.title = state.sound ? "声音：开" : "声音：关";
   }
 
   function notifyParentSettings() {

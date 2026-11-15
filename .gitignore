@@ -15,3 +15,6 @@ android/app/src/main/python/web/
 
 # Local Android test APK — keep it off the remote
 /NeoTodo-Android.apk
+
+# Local HTML scratch pages for manual probing
+/web/__*.html

@@ -1,7 +1,7 @@
 /* ==========================================================================
-   HEAD BAR PLUGIN — an ice-blue crystal Dynamic Island for the notebook.
+   HEAD BAR PLUGIN — a sea-salt crystal Dynamic Island for the notebook.
    --------------------------------------------------------------------------
-   Hover the clock and a small blue-white crystal capsule drops out of the top
+   Hover the clock and a small rounded sea-salt capsule drops out of the top
    border.
    Click it and the whole working surface rolls upward, leaving only the room's
    wallpaper. Click the island again to return.
@@ -47,35 +47,77 @@ body.app-ready.head-bar-ready .head-bar {
 /* Disabled through Settings → Plugins. */
 [data-plugin].plugin-hidden { display: none !important; }
 
-/* An ice-blue crystal cabochon: blue-white body, fine angled facets, one
-   crisp specular glint and a slightly deeper blue rim that makes the capsule
-   read as a faint blue stick. No outer halo. */
+/* Detached AI / note windows are dedicated surfaces; the parent app owns the
+   Head Bar, so never show it there. */
+body.detached-mode .head-bar { display: none !important; }
+
+/* A sea-salt bottle rod: a translucent glass body with vertical hexagonal
+   facets, a bright central light shaft and a luminous lower edge. The colours
+   are variables so the plugin can switch between the blue and pink bottles. */
 .head-bar-island {
+  --hb-bottle-top: #f7fdff;
+  --hb-bottle-upper: #d8f6ff;
+  --hb-bottle-mid: #8edcf7;
+  --hb-bottle-low: #4fc3ec;
+  --hb-bottle-bottom: #1a9fd5;
+  --hb-rim: rgba(28, 132, 170, 0.75);
+  --hb-rim-dark: rgba(16, 96, 128, 0.32);
+  --hb-facet: rgba(255, 255, 255, 0.42);
+  --hb-facet-dark: rgba(20, 105, 140, 0.18);
+  --hb-glow: rgba(190, 245, 255, 0.65);
+  --hb-shadow: rgba(5, 45, 65, 0.32);
   position: absolute;
-  top: 3px;
+  top: 2px;
   left: 50%;
   width: var(--head-bar-island-width);
-  height: 10px;
+  height: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   overflow: hidden;
   background:
-    repeating-linear-gradient(
-      114deg,
-      rgba(255, 255, 255, 0) 0 21px,
-      rgba(255, 255, 255, 0.36) 21px 22px,
-      rgba(112, 160, 206, 0.18) 22px 22.8px,
-      rgba(255, 255, 255, 0) 22.8px 43px
+    /* Central prism light shaft. */
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0 30%,
+      rgba(255, 255, 255, 0.16) 36%,
+      rgba(255, 255, 255, 0.62) 44%,
+      rgba(255, 255, 255, 0.16) 50%,
+      rgba(255, 255, 255, 0) 56% 100%
     ),
-    linear-gradient(180deg, #fbfdff 0%, #e2f1ff 30%, #bfddf7 64%, #86b8e4 100%);
-  border: 1px solid rgba(88, 142, 196, 0.58);
+    /* Narrow vertical faces of the hexagonal prism. */
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0 17px,
+      var(--hb-facet) 17px 17.6px,
+      var(--hb-facet-dark) 17.6px 18.2px,
+      rgba(255, 255, 255, 0) 18.2px 35px
+    ),
+    /* A diagonal specular pane across the glass. */
+    linear-gradient(
+      112deg,
+      rgba(255, 255, 255, 0) 0 18%,
+      rgba(255, 255, 255, 0.22) 20%,
+      rgba(255, 255, 255, 0.02) 38%,
+      rgba(255, 255, 255, 0) 46% 100%
+    ),
+    linear-gradient(
+      180deg,
+      var(--hb-bottle-top) 0%,
+      var(--hb-bottle-upper) 20%,
+      var(--hb-bottle-mid) 50%,
+      var(--hb-bottle-low) 78%,
+      var(--hb-bottle-bottom) 100%
+    );
+  border: 1px solid var(--hb-rim);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(70, 124, 178, 0.38),
+    0 1px 3px var(--hb-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 var(--hb-glow),
+    inset 0 -3px 4px var(--hb-rim-dark),
     inset 1px 0 0 rgba(255, 255, 255, 0.50),
-    inset -1px 0 0 rgba(88, 142, 196, 0.28);
+    inset -1px 0 0 var(--hb-rim);
   opacity: 0;
   transform: translate(-50%, -175%) scaleY(0.55);
   transform-origin: 50% 0%;
@@ -83,6 +125,21 @@ body.app-ready.head-bar-ready .head-bar {
     opacity 0.15s ease,
     transform 0.46s cubic-bezier(0.16, 1.32, 0.3, 1);
   pointer-events: none;
+}
+
+/* Sea Salt Pink: the same prismatic glass in the blush bottle colour. */
+body[data-head-bar-style="pink"] .head-bar-island {
+  --hb-bottle-top: #fff8fa;
+  --hb-bottle-upper: #ffe4ed;
+  --hb-bottle-mid: #fbc1d4;
+  --hb-bottle-low: #f792b2;
+  --hb-bottle-bottom: #df6b93;
+  --hb-rim: rgba(190, 92, 126, 0.75);
+  --hb-rim-dark: rgba(150, 58, 88, 0.30);
+  --hb-facet: rgba(255, 255, 255, 0.44);
+  --hb-facet-dark: rgba(170, 70, 105, 0.18);
+  --hb-glow: rgba(255, 220, 233, 0.72);
+  --hb-shadow: rgba(80, 20, 40, 0.30);
 }
 
 /* A long, angled ice pane catches the light across the left half. */
@@ -127,10 +184,16 @@ body.app-ready.head-bar-ready .head-bar {
 
 .head-bar:hover .head-bar-island,
 .head-bar:focus-visible .head-bar-island,
-.head-bar:active .head-bar-island,
-body.head-bar-collapsed .head-bar-island {
+.head-bar:active .head-bar-island{
   opacity: 1;
   transform: translate(-50%, 0) scaleY(1);
+}
+
+/* Just after a collapse the pointer is still on the trigger strip. Keep the
+   island hidden until the pointer leaves and comes back to the top. */
+.head-bar.head-bar-suppress-hover .head-bar-island {
+  opacity: 0 !important;
+  transform: translate(-50%, -175%) scaleY(0.55) !important;
 }
 
 /* The clock zone owns this strip: the old hidden top bar must not unfold the
@@ -152,7 +215,9 @@ body.head-bar-hover .top-tools {
    -------------------------------------------------------------------------- */
 
 body.head-bar-collapsed .head-bar {
-  height: 28px !important;
+  /* Collapsed: a nearly invisible top strip. Move the pointer here and the
+     island drops back out, ready to restore the workspace. */
+  height: 44px !important;
 }
 
 body.head-bar-ready .app-shell > .notebook-head,
@@ -185,26 +250,67 @@ body.head-bar-collapsed .app-shell {
   box-shadow: none !important;
 }
 
-html[data-wallpaper="static"] body.head-bar-collapsed .app-shell,
-html[data-wallpaper="dynamic"] body.head-bar-collapsed .app-shell {
+/* The collapsed room follows the same recipe as the right-hand Doing card.
+
+     - A still wallpaper gives the room that wallpaper's own theme: the theme's
+       sheet is laid over the picture at the same gentle strength the still
+       card uses (18% → 5%), and a hairline inner edge gives the whole window
+       the card's cut edge. The picture itself is never covered or moved.
+
+     - A film cannot be read as one palette, so it keeps its motion and takes
+       the reading mask instead — the same denser sheet the film card wears,
+       eased a little because no rows have to be read across the whole room. */
+
+html[data-wallpaper] body.head-bar-collapsed .app-shell {
   background-color: transparent !important;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 18%, transparent),
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 10%, transparent) 42%,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 5%, transparent)
+  ) !important;
+  box-shadow: inset 0 0 0 1px var(--wallpaper-glass-edge, rgba(0, 0, 0, 0.16)) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
 
-html[data-wallpaper="static"] body.head-bar-collapsed .app-shell::before,
-html[data-wallpaper="static"] body.head-bar-collapsed .app-shell::after,
-html[data-wallpaper="dynamic"] body.head-bar-collapsed .app-shell::before,
-html[data-wallpaper="dynamic"] body.head-bar-collapsed .app-shell::after {
+/* A film: the picture moves under a paper mask, never under a still tint. */
+html[data-wallpaper][data-wallpaper-motion="film"] body.head-bar-collapsed .app-shell {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 46%, transparent),
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 34%, transparent) 42%,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 24%, transparent)
+  ) !important;
+}
+
+html[data-wallpaper] body.head-bar-collapsed .app-shell::before,
+html[data-wallpaper] body.head-bar-collapsed .app-shell::after{
   opacity: 0 !important;
+}
+
+/* Older engines without color-mix() still get a mask, just a flat one. */
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  html[data-wallpaper] body.head-bar-collapsed .app-shell {
+    background-image: linear-gradient(
+      180deg,
+      rgba(247, 239, 227, 0.14),
+      rgba(247, 239, 227, 0.06)
+    ) !important;
+  }
+  html[data-wallpaper][data-wallpaper-motion="film"] body.head-bar-collapsed .app-shell {
+    background-image: linear-gradient(
+      180deg,
+      rgba(247, 239, 227, 0.38),
+      rgba(247, 239, 227, 0.24)
+    ) !important;
+  }
 }
 
 /* Floating workspace pieces live outside .app-shell, so hide them explicitly. */
 body.head-bar-collapsed .top-edge,
 body.head-bar-collapsed .top-tools,
 body.head-bar-collapsed .tool-rail,
-body.head-bar-collapsed .desk-handle-ai,
-body.head-bar-collapsed .notes-handle-bottom,
 body.head-bar-collapsed #doing-peek,
 body.head-bar-collapsed .archive-drawer,
 body.head-bar-collapsed .archive-backdrop,
@@ -219,11 +325,131 @@ body.head-bar-collapsed .toast {
   pointer-events: none !important;
 }
 
+/* The two bottom door lines are fixed to the viewport, so they would otherwise
+   pop back in the instant the workspace starts returning. Keep them hidden
+   until the page has landed; head-bar-restoring is cleared by the plugin. */
+body.head-bar-collapsed .desk-handle-ai,
+body.head-bar-collapsed .notes-handle-bottom,
+body.head-bar-restoring .desk-handle-ai,
+body.head-bar-restoring .notes-handle-bottom {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Every fixed piece waits for the page to land. This keeps the right-hand
+   Doing card, timer and drawers from appearing before the workspace returns. */
+body.head-bar-restoring .top-edge,
+body.head-bar-restoring .top-tools,
+body.head-bar-restoring .tool-rail,
+body.head-bar-restoring #doing-peek,
+body.head-bar-restoring .archive-drawer,
+body.head-bar-restoring .archive-backdrop,
+body.head-bar-restoring .trash-drawer,
+body.head-bar-restoring .sound-panel,
+body.head-bar-restoring #sound-panel,
+body.head-bar-restoring #timer-root,
+body.head-bar-restoring #modal-root,
+body.head-bar-restoring .toast {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.head-bar-reveal #doing-peek.open {
+  animation: head-bar-card-reveal 0.36s cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+
+@keyframes head-bar-card-reveal {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Settings → Plugins: bottle-style choice row.
+   -------------------------------------------------------------------------- */
+
+.plugin-setting-choice { display: grid; gap: 10px; padding: 2px 0; }
+.plugin-setting-choice + .plugin-setting-choice { margin-top: 10px; }
+.plugin-setting-choice-head { display: grid; gap: 3px; }
+.plugin-setting-choice-head strong {
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display, serif);
+  font-size: 13px;
+  font-weight: 600;
+}
+.plugin-setting-choice-head small {
+  color: var(--pc-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.45;
+}
+.plugin-choice-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.plugin-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 10px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.3));
+  color: var(--pc-ink, var(--ink));
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+.plugin-choice:hover {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.06);
+  transform: translateY(-1px);
+}
+.plugin-choice.active {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.10);
+  box-shadow: inset 0 0 0 1px rgba(var(--pc-accent-rgb, 157, 111, 28), 0.14);
+}
+.plugin-choice-swatch {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(30, 80, 110, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -2px 2px rgba(20, 70, 95, 0.24);
+}
+.plugin-choice-swatch[data-swatch="blue"] {
+  background: linear-gradient(180deg, #d8f6ff, #4fc3ec 70%, #1a9fd5);
+  border-color: rgba(28, 132, 170, 0.55);
+}
+.plugin-choice-swatch[data-swatch="pink"] {
+  background: linear-gradient(180deg, #ffe4ed, #f792b2 70%, #df6b93);
+  border-color: rgba(190, 92, 126, 0.55);
+}
+.plugin-choice-copy { display: grid; gap: 2px; min-width: 0; }
+.plugin-choice-copy strong { font-size: 11.5px; font-weight: 650; line-height: 1.25; }
+.plugin-choice-copy small { color: var(--pc-muted, var(--muted)); font-size: 10px; line-height: 1.3; }
+
+@media (max-width: 560px) {
+  .plugin-choice-row { grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .head-bar,
-  .head-bar-island,
-  body.head-bar-ready .app-shell > .notebook-head,
-  body.head-bar-ready .app-shell > .notebook {
+.head-bar,
+.head-bar-island,
+body.head-bar-ready .app-shell > .notebook-head,
+body.head-bar-ready .app-shell > .notebook {
     transition: none !important;
   }
+  .plugin-choice { transition: none; }
 }

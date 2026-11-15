@@ -144,6 +144,112 @@ class PluginCommunityTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in catalog["plugins"]], ["good-plugin"])
         self.assertEqual(catalog["plugins"][0]["download"], "https://example.com/good.zip")
 
+    def test_bundled_entries_fill_a_stale_cache(self) -> None:
+        merged = neotodo._merge_bundled_catalog(
+            {"name": "Cache", "plugins": [{"id": "old-plugin"}]},
+            {
+                "name": "Bundled",
+                "plugins": [
+                    {"id": "old-plugin", "version": "1.0.0"},
+                    {"id": "pomodoro", "tags": ["achievement"]},
+                ],
+            },
+        )
+        self.assertEqual([item["id"] for item in merged["plugins"]], ["old-plugin", "pomodoro"])
+
+    def test_plugin_switch_state_survives_save_settings(self) -> None:
+        cleaned = neotodo.sanitize_plugin_states(
+            {
+                "lightning": {"installed": True, "enabled": False, "settings": {"bottle": "pink"}},
+                "pomodoro": {"installed": False, "enabled": True},
+                "Bad Id": {"enabled": True},
+                "pindou": {"installed": "yes", "settings": {"sound": True, "bad key": 1}},
+            }
+        )
+        self.assertEqual(cleaned["lightning"]["enabled"], False)
+        self.assertEqual(cleaned["lightning"]["settings"], {"bottle": "pink"})
+        self.assertEqual(cleaned["pomodoro"], {"installed": False, "enabled": True, "settings": {}})
+        self.assertNotIn("Bad Id", cleaned)
+        self.assertEqual(cleaned["pindou"], {"settings": {"sound": True}})
+
+    def test_manifest_keeps_choice_setting_rows(self) -> None:
+        folder = neotodo.PLUGINS_DIR / "head-bar"
+        folder.mkdir(parents=True)
+        (folder / "index.html").write_text("<!doctype html>", encoding="utf-8")
+        (folder / "manifest.json").write_text(
+            json.dumps(
+                {
+                    **manifest("head-bar"),
+                    "settings": [
+                        {
+                            "id": "bottle",
+                            "type": "choice",
+                            "label": "Bottle style",
+                            "default": "pink",
+                            "options": [
+                                {"value": "blue", "label": "Blue"},
+                                {"value": "pink", "label": "Pink"},
+                                {"value": "", "label": "Bad"},
+                            ],
+                        },
+                        {"id": "sound", "type": "toggle", "label": "Sound", "default": True},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        discovered = neotodo.discover_plugins()
+        self.assertEqual(len(discovered), 1)
+        rows = discovered[0]["settings"]
+        self.assertEqual([row["id"] for row in rows], ["bottle", "sound"])
+        bottle = rows[0]
+        self.assertEqual(bottle["type"], "choice")
+        self.assertEqual(bottle["default"], "pink")
+        self.assertEqual([option["value"] for option in bottle["options"]], ["blue", "pink"])
+        self.assertEqual(rows[1]["type"], "toggle")
+
+    def test_choice_setting_survives_save_and_reopen(self) -> None:
+        path = Path(self.temp.name) / "NeoTodo.json"
+        store = neotodo.Store(path)
+        result = store.action(
+            {
+                "action": "save_settings",
+                "settings": {
+                    "saved_at": 456,
+                    "plugins": {
+                        "head-bar": {
+                            "installed": True,
+                            "enabled": True,
+                            "settings": {"bottle": "pink"},
+                        }
+                    },
+                },
+            }
+        )
+        self.assertTrue(result.get("ok"), result)
+        reopened = neotodo.Store(path).state()
+        self.assertEqual(
+            reopened["settings"]["plugins"]["head-bar"]["settings"]["bottle"], "pink"
+        )
+
+    def test_save_settings_persists_plugin_switches(self) -> None:
+        path = Path(self.temp.name) / "NeoTodo.json"
+        store = neotodo.Store(path)
+        result = store.action(
+            {
+                "action": "save_settings",
+                "settings": {
+                    "saved_at": 123,
+                    "plugins": {"lightning": {"installed": True, "enabled": False}},
+                },
+            }
+        )
+        self.assertTrue(result.get("ok"), result)
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["settings"]["plugins"]["lightning"]["enabled"], False)
+        reopened = neotodo.Store(path).state()
+        self.assertEqual(reopened["settings"]["plugins"]["lightning"]["enabled"], False)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

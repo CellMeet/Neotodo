@@ -32,8 +32,11 @@
   --page-desk-half-h: calc(var(--page-desk-h) / 2);
 
   /* A sheet may request a taller size, but it can never grow into the task
-     region: the desk height is the hard ceiling. */
+     region: the desk height is the hard ceiling. The two sheets never share a
+     size: the AI card reads its own variable, the note reads its own, and
+     neither can move the other. */
   --page-sheet-h: min(var(--agent-terminal-height, var(--page-desk-h)), var(--page-desk-h));
+  --page-note-h: min(var(--notes-sheet-height, var(--page-desk-h)), var(--page-desk-h));
 
   /* Explicit paint order for the page regions. The desk border is painted
      below the sheets: it belongs to the lower region, it must never sit on
@@ -46,7 +49,9 @@
   --page-layer-split: 15;
   --page-layer-chooser: 16;
 
-  --page-baseline-color: var(--pc-line, var(--line));
+  /* The page baseline is user-owned. app.js paints the colour stored in
+     baseline-color.json; this fixed fallback never follows the app theme. */
+  --page-baseline-color: #333333;
 }
 
 /* ---------------------------------------------------------------- shell --- */
@@ -118,6 +123,13 @@
   background-clip: border-box !important;
 }
 
+/* The finished-subtask card floats above the page instead of ending on the
+   baseline, so its last row keeps its own rule. Without this the drawer's
+   newest finished subtask looked as if it had no line underneath. */
+.page-body > .todos-section .completed-subtask-drawer .current-subtasks > .current-subtask:last-child {
+  border-bottom-color: var(--pc-line, var(--line));
+}
+
 /* --------------------------------------------------- desk top border --- */
 
 /* This is the top border of the lower (desk) region. It is painted below the
@@ -175,6 +187,8 @@ body.detached-mode .page-body > #agent-terminal {
 }
 
 .page-body > #notes-half {
+  /* The note's own height variable, never the AI card's `--page-sheet-h`. */
+  height: var(--page-note-h);
   z-index: var(--page-layer-note);
 }
 
@@ -194,12 +208,21 @@ body.agent-terminal-open:not(.agent-notes-split) .page-body > #notes-half:not(.n
 /* ------------------------------------------------------------- splitting --- */
 
 /* A split always divides the desk, never the task region. */
-body.agent-notes-split .page-body > #notes-half:not(.notes-hidden),
 body.agent-notes-split .page-body > #agent-terminal {
   top: var(--page-desk-top) !important;
   bottom: auto !important;
   height: var(--page-desk-h) !important;
   max-height: none !important;
+}
+
+/* A side-by-side split divides the width, not the height. The note stays a
+   bottom sheet with its own height so the AI card's size (and its line drag)
+   can never resize it. */
+body.agent-notes-split .page-body > #notes-half:not(.notes-hidden) {
+  top: auto !important;
+  bottom: var(--page-desk-bottom) !important;
+  height: var(--page-note-h) !important;
+  max-height: var(--page-desk-h) !important;
 }
 
 body.agent-notes-split .page-body > #notes-half:not(.notes-hidden) {

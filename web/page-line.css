@@ -1,0 +1,297 @@
+/* ==========================================================================
+   PAGE LINE — page_line
+   --------------------------------------------------------------------------
+   The page has exactly one horizontal divider object: `page_line`.
+
+   It owns the ruled grid of the working sheet:
+
+     .notebook-head        the rule under the brand and the clock
+     .page-head            the two header rows
+     .history-half         the seven completed rows (fixed grid)
+     .page-body::after     the empty desk under the task block
+     .category-item        one ruled row per category, and the spine filler
+     .doing-list           one ruled row per Doing todo / subtask, and filler
+
+   The live subtask lane is intentionally not on that fixed grid: each
+   `.current-subtask` carries its own bottom rule, so the line travels with the
+   subtask name. Empty filler rows carry one too, so the lane stays ruled.
+
+   The sheet boundary is the last line of the seven task rows, so it belongs to
+   the same grid; the old standalone 1px bar is switched off.
+
+   Priority: a wallpaper (picture or film) is the room, priority 1. These
+   dividers print straight on top of it, priority 2. Every region reads the same
+   painted colour, so a row that carries text and a row that is an empty filler
+   can never receive a different line colour: there is only one page_line.
+
+   The page is not only the middle sheet. The top bar, the categories spine and
+   the right-hand Doing card are ruled from the same object as well: their
+   rules take the page_line paint and weight, and a category / Doing row takes
+   one page_line pitch. Those regions keep their own geometry, but the line
+   language is never a second private one.
+
+   Settings live in page-line.json (app.py) and app.js publishes them as the
+   variables below. No other stylesheet reads them, so this file cannot repaint
+   a card, a button, a note or the AI console.
+
+     --page-line-paint      final rgba() colour
+     --page-line-row        one ruled row, in px (layout)
+     --page-line-thickness  line weight, in px (layout)
+   ========================================================================== */
+
+:root {
+  --page-line-color: #333333;
+  --page-line-opacity: 1;
+  --page-line-paint: #333333;
+  --page-line-row: 40px;
+  --page-line-thickness: 1px;
+  --page-line-gap: calc(var(--page-line-row) - var(--page-line-thickness));
+
+  /* Seven ruled rows make the task block; the header is two rows. Both are
+     derived from the same pitch, so the grid never drifts out of step. */
+  --page-task-h: calc(var(--page-line-row) * 7);
+}
+
+/* ------------------------------------------------------------ the grid --- */
+
+/* One gradient, painted by the sheet itself. The header, the history lane and
+   the empty desk share it, including over a wallpaper. The live subtask lane
+   is deliberately absent: its lines belong to the rows (see below).
+   `!important` is deliberate: older theme rules still set a per-column rule
+   colour, and the wallpaper layer removes every background image from the
+   bare surface. */
+html[data-theme="postcard"] .page-head,
+html[data-theme="postcard"] .page-body > .todos-section > .history-half,
+html[data-theme="postcard"] body .page-body::after {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 var(--page-line-gap),
+    var(--page-line-paint) var(--page-line-gap) var(--page-line-row)
+  ) !important;
+  background-position: 0 0 !important;
+  background-size: auto !important;
+}
+
+/* The empty desk continues the same rhythm below the task block. It sits on
+   top of the wallpaper layer instead of disappearing behind it. */
+html[data-theme="postcard"] body .page-body::after {
+  display: block !important;
+  content: "";
+  position: absolute;
+  top: var(--page-task-h);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* The sheet boundary is the last line of the seven task rows; the grid already
+   paints it, so the separate 1px bar would only add a second pixel or a
+   darker pair when the line is translucent. */
+html[data-theme="postcard"] .page-body::before {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------- layout --- */
+
+/* Header = two rows, task block = seven rows. Defaults (40px) reproduce the
+   original 80px and 280px exactly; a different pitch stays aligned. */
+html[data-theme="postcard"] .page-head {
+  flex: 0 0 calc(var(--page-line-row) * 2) !important;
+  height: calc(var(--page-line-row) * 2) !important;
+  min-height: calc(var(--page-line-row) * 2) !important;
+}
+
+html[data-theme="postcard"] .page-body > .todos-section {
+  flex: 0 0 var(--page-task-h) !important;
+  height: var(--page-task-h) !important;
+  max-height: var(--page-task-h) !important;
+}
+
+html[data-theme="postcard"] .page-body > .todos-section > .current-half::before {
+  height: var(--page-task-h) !important;
+}
+
+html[data-theme="postcard"] .page-body > .todos-section .history-reel,
+html[data-theme="postcard"] .page-body > .todos-section .current-inner {
+  max-height: var(--page-task-h) !important;
+}
+
+html[data-theme="postcard"] .page-body > .todos-section > .history-half .history-row,
+html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner .current-subtask {
+  height: var(--page-line-row) !important;
+  flex: 0 0 var(--page-line-row) !important;
+}
+
+/* ------------------------------------------------- live subtask lane --- */
+
+/* The live subtask lane is the exception: every subtask owns the line under
+   its own name. The rule is a row border, so when the name moves — a new
+   subtask opening, a finished row sliding away, the lane scrolling — the line
+   moves with it instead of staying pinned to a fixed grid. Empty filler rows
+   are rows too, so the blank part of the lane still reads as ruled paper.
+   The drawer is a floating card and is not selected here. */
+html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .subtask-lanes .current-subtask,
+html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .current-subtasks > .current-subtask {
+  border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;
+  border-image: none !important;
+}
+
+/* The history lane keeps the fixed sheet grid, so its rows hand their own
+   border to that grid. */
+html[data-theme="postcard"] .page-body > .todos-section > .history-half .history-row {
+  border-bottom-color: transparent !important;
+  border-image: none !important;
+}
+
+/* The lane always ends on a fixed rule at the foot of the task block. A row
+   clipped by scrolling can no longer leave the bottom open: the line stays on
+   the edge even while the names (and their own lines) move underneath. */
+html[data-theme="postcard"] .page-body > .todos-section > .current-half::after {
+  content: "";
+  display: block !important;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--page-line-thickness);
+  background: var(--page-line-paint);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* When the list is not scrolled, that fixed rule is already the last row's
+   line; drop the row border so a translucent page_line is never painted twice
+   on the same pixel. */
+html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .subtask-lanes .current-subtasks > .current-subtask:last-child,
+html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .current-subtasks > .current-subtask:last-child {
+  border-bottom-color: transparent !important;
+}
+
+/* ------------------------------------------ other ruled regions --- */
+
+/* The top bar is the first band of the sheet: the line under the brand and the
+   clock is page_line, not a separate hairline. */
+html[data-theme="postcard"] .notebook-head {
+  border-bottom-style: solid !important;
+  border-bottom-color: var(--page-line-paint) !important;
+  border-bottom-width: var(--page-line-thickness) !important;
+}
+
+/* The categories spine is the left continuation of the same ruled sheet. Its
+   header takes exactly one page_line row, so the "Categories" rule sits on the
+   page's first line and every category below it lands on the same grid as the
+   task rows. One category occupies exactly one page_line row. */
+html[data-theme="postcard"] .index {
+  padding-top: 0 !important;
+  /* The spine reaches the foot of the sheet: with the same bottom edge as the
+     page, its filler's last rule lands on the page's last rule. */
+  padding-bottom: 0 !important;
+}
+
+html[data-theme="postcard"] .index-head {
+  flex: 0 0 var(--page-line-row) !important;
+  height: var(--page-line-row) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-bottom-style: solid !important;
+  border-bottom-color: var(--page-line-paint) !important;
+  border-bottom-width: var(--page-line-thickness) !important;
+}
+
+html[data-theme="postcard"] .category-item {
+  height: var(--page-line-row) !important;
+  border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;
+  border-image: none !important;
+}
+
+/* The empty spine below the last category keeps the same grid instead of going
+   blank. The gradient is the page's own, so the filler line lands exactly where
+   the next category row would have drawn it. It also holds on a wallpaper: the
+   room is the paper, but the rule language stays, so the categories never turn
+   into an unruled panel beside a ruled page. */
+html[data-theme="postcard"] .category-list::after {
+  display: block !important;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 var(--page-line-gap),
+    var(--page-line-paint) var(--page-line-gap) var(--page-line-row)
+  ) !important;
+  background-position: 0 0 !important;
+  background-size: auto !important;
+}
+
+/* The spine's foot rule closes the same grid. */
+html[data-theme="postcard"] .index-foot {
+  border-top-style: solid !important;
+  border-top-color: var(--page-line-paint) !important;
+  border-top-width: var(--page-line-thickness) !important;
+}
+
+/* The right-hand Doing card is printed on the same sheet: every header or
+   subtask row is one page_line row, its rules take the page paint and weight,
+   and the blank area under the last item continues the page grid. The card
+   keeps its own position and width; only the line language is shared. */
+html[data-theme="postcard"] #doing-peek .doing-head,
+html[data-theme="postcard"] #doing-peek .doing-sub {
+  min-height: var(--page-line-row) !important;
+}
+
+/* No private gap between an expanded todo and the next one: the next rule must
+   land on the page pitch, not four pixels below it. */
+html[data-theme="postcard"] #doing-peek .doing-subs {
+  padding-bottom: 0 !important;
+}
+
+html[data-theme="postcard"] #doing-peek .doing-item,
+html[data-theme="postcard"] #doing-peek .doing-sub {
+  border-color: var(--page-line-paint) !important;
+  border-width: var(--page-line-thickness) !important;
+  border-image: none !important;
+}
+
+html[data-theme="postcard"] .doing-list::after {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 var(--page-line-gap),
+    var(--page-line-paint) var(--page-line-gap) var(--page-line-row)
+  ) !important;
+}
+
+/* The finished-subtasks drawer is a floating card, not the page sheet: the
+   live-lane rules above stop at the drawer, so it keeps the rule that
+   baseline-rules.css gives it. That rule now uses the page_line paint too, so
+   a finished subtask never carries a second colour.
+
+   A finished subtask opened inside the history lane is the same row: its rule
+   takes the live lane's paint as well. */
+html[data-theme="postcard"] .history-subtask {
+  border-bottom-color: var(--page-line-paint) !important;
+  border-image: none !important;
+}
+
+/* A docked note or AI card carries the sheet boundary on its rounded top
+   edge; it is the same page line, not a separate colour. */
+html[data-theme="postcard"] .page-body > #notes-half:not(.notes-hidden),
+html[data-theme="postcard"] .page-body > #agent-terminal.open {
+  border-top-color: var(--page-line-paint) !important;
+  border-top-width: var(--page-line-thickness) !important;
+}
+
+/* ---------------------------------------------------------- previews --- */
+
+.page-line-swatch {
+  display: inline-block;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 18px;
+  border-radius: 2px;
+  background-color: var(--pc-paper, #f7efe3);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 calc(var(--preview-row, 6px) - var(--preview-weight, 1px)),
+    var(--preview-color, #333333) calc(var(--preview-row, 6px) - var(--preview-weight, 1px)) var(--preview-row, 6px)
+  );
+  box-shadow: inset 0 0 0 1px rgba(70, 58, 40, 0.18);
+}

@@ -11,6 +11,57 @@
   const power = document.getElementById("ss-power");
   const title = document.getElementById("ss-power-title");
   const detail = document.getElementById("ss-power-detail");
+  const blurInput = document.getElementById("ss-blur");
+  const blurValue = document.getElementById("ss-blur-value");
+
+  // The search pane's blur radius. The host page reads the same localStorage
+  // key and repaints --ss-search-blur, so the drawer and this preview move
+  // together while the slider is dragged.
+  const BLUR_KEY = "neotodo.subtask-search.blur";
+  const BLUR_DEFAULT = 26;
+  const BLUR_MAX = 80;
+
+  function normalizeBlur(value) {
+    const px = Math.round(Number(value));
+    if (!Number.isFinite(px)) return BLUR_DEFAULT;
+    return Math.max(0, Math.min(BLUR_MAX, px));
+  }
+
+  function readLocalBlur() {
+    try {
+      const raw = localStorage.getItem(BLUR_KEY);
+      if (raw === null || raw === "") return BLUR_DEFAULT;
+      return normalizeBlur(raw);
+    } catch (error) {
+      return BLUR_DEFAULT;
+    }
+  }
+
+  function paintBlur(value) {
+    const px = normalizeBlur(value);
+    if (blurInput) blurInput.value = String(px);
+    if (blurValue) blurValue.textContent = `${px} px`;
+    try {
+      document.documentElement.style.setProperty("--ss-search-blur", `${px}px`);
+    } catch (error) {}
+  }
+
+  function setBlur(value) {
+    const px = normalizeBlur(value);
+    try { localStorage.setItem(BLUR_KEY, String(px)); } catch (error) {}
+    paintBlur(px);
+    if (window.parent !== window) {
+      try {
+        if (typeof window.parent.setSubtaskSearchBlur === "function") {
+          window.parent.setSubtaskSearchBlur(px);
+        }
+        window.parent.postMessage(
+          { type: "neotodo-subtask-search-blur", value: px },
+          window.location.origin
+        );
+      } catch (error) {}
+    }
+  }
 
   const inHost = (() => {
     try {
@@ -85,6 +136,10 @@
     render();
   });
 
+  blurInput?.addEventListener("input", () => {
+    setBlur(blurInput.value);
+  });
+
   document.querySelectorAll("[data-close]").forEach((button) => {
     button.addEventListener("click", closePage);
   });
@@ -100,6 +155,7 @@
     if (!document.hidden) render();
   });
 
+  paintBlur(readLocalBlur());
   render();
   requestAnimationFrame(() => document.documentElement.classList.remove("ss-booting"));
 })();

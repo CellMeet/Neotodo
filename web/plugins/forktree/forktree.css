@@ -639,6 +639,44 @@ html.ft-booting .ft-app { opacity: 0; }
 
 .ft-node-branch .ft-mark { border-radius: 7px; }
 
+/* Fork sub-app ------------------------------------------------------------ */
+/* A fork app is the forked subtask promoted to a main task. It is drawn as a
+   flame card with its own checklist underneath, and forks of its rows grow
+   deeper cards, so 二次/三次 fork stay one continuous branch. */
+
+.ft-node-forkapp {
+  --node-color: var(--ft-fork);
+  border-color: color-mix(in srgb, var(--ft-fork) 38%, var(--ft-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ft-fork) 13%, var(--ft-panel)), var(--ft-panel));
+}
+
+.ft-node-forkapp .ft-kicker { color: var(--ft-fork); }
+.ft-node-forkapp .ft-mark { background: color-mix(in srgb, var(--ft-fork) 16%, transparent); }
+.ft-node-forkapp.is-done { opacity: 0.78; }
+
+.ft-node-forksub {
+  width: 216px;
+  padding: 8px 13px 8px 11px;
+  border-radius: 10px;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--ft-fork) 24%, var(--ft-border));
+  background: color-mix(in srgb, var(--ft-panel) 58%, transparent);
+  box-shadow: 0 4px 12px rgba(80, 55, 30, 0.06);
+  --node-color: var(--ft-fork);
+}
+
+.ft-node-forksub::before { top: 8px; bottom: 8px; width: 2px; opacity: 0.5; }
+.ft-node-forksub .ft-name { font-size: 12px; font-weight: 500; }
+.ft-node-forksub.is-done { opacity: 0.66; }
+
+.ft-node-forkapps {
+  --node-color: var(--ft-fork);
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+}
+
 /* Root -------------------------------------------------------------------- */
 
 .ft-node-root {

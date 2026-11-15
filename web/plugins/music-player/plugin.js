@@ -89,11 +89,9 @@
       sourceState.textContent = tracks.some((track) => track.local) ? "LOCAL" : "FOLDER";
       if (data.folder) {
         folderPath.textContent = data.folder;
-        folderPath.title = `点击复制：${data.folder}`;
         folderPath.dataset.path = data.folder;
       } else {
         folderPath.textContent = "内置曲库（music 文件夹）";
-        folderPath.title = "内置曲库";
         folderPath.dataset.path = "";
       }
     } catch (error) {

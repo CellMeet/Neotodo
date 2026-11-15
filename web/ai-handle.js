@@ -97,6 +97,7 @@
       y0: y,
       lastDx: 0,
       lastDy: 0,
+      lastTop: null,
       moved: false,
       resizing: false,
       finished: false,
@@ -106,12 +107,36 @@
   const applyResize = (dy) => {
     const g = session;
     if (!g || !g.panel || !g.desk) return;
-    const top = Math.max(0, Math.min(g.desk.height - g.minHeight, g.startTop + dy));
-    const height = g.desk.height - top;
+    const maxTop = Math.max(0, g.desk.height - g.minHeight);
+    // Whole pixels: fractional top/height made the blurred paper edges of a
+    // split sheet re-raster on every event instead of landing on the grid.
+    const top = Math.round(Math.max(0, Math.min(maxTop, g.startTop + dy)));
+    if (top === g.lastTop) return;
+    g.lastTop = top;
+    const height = Math.round(g.desk.height - top);
     g.panel.style.setProperty("top", `${top}px`, "important");
     g.panel.style.setProperty("height", `${height}px`, "important");
-    g.panel.style.setProperty("bottom", "auto", "important");
-    handle.style.setProperty("top", `${g.desk.top + top + 6}px`, "important");
+    const handleTop = Math.round(g.desk.top + top + 6);
+    if (handleTop !== g.lastHandleTop) {
+      g.lastHandleTop = handleTop;
+      handle.style.setProperty("top", `${handleTop}px`, "important");
+    }
+  };
+
+  // Pointer events arrive faster than the screen refreshes (a mouse drag also
+  // delivers a mousemove twin for every pointermove). Committing the new box
+  // once per frame leaves the main thread time to paint, and whole-pixel
+  // dedupe skips the frames that would not move the sheet at all.
+  let resizeFrame = 0;
+  let pendingDy = 0;
+  const commitResize = () => {
+    resizeFrame = 0;
+    if (!session) return;
+    applyResize(pendingDy);
+  };
+  const scheduleResize = (dy) => {
+    pendingDy = dy;
+    if (!resizeFrame) resizeFrame = requestAnimationFrame(commitResize);
   };
 
   const move = (x, y) => {
@@ -125,32 +150,49 @@
     if (!g.resizing) {
       g.resizing = true;
       AudioFX.startLeafStretch();
-      document.body.classList.add("desk-handle-resizing");
+      setDeskHandleResizing(true);
       g.panel.classList.add("panel-handle-resizing");
+      // The sheet now carries the drag class, so its line belongs to the
+      // gesture alone; the shared layout pass must not re-place it mid-frame.
+      document.body.dataset.deskHandleDrag = "ai";
       g.panel.style.setProperty("transition", "none", "important");
       g.panel.style.setProperty("will-change", "top, height");
+      // Written once: repeating it on every frame only dirties the style.
+      g.panel.style.setProperty("bottom", "auto", "important");
       handle.style.setProperty("transition", "none", "important");
+      handle.style.setProperty("cursor", "ns-resize", "important");
     }
-    applyResize(g.lastDy);
+    scheduleResize(g.lastDy);
   };
 
   const finish = () => {
     const g = session;
     if (!g || g.finished) return;
     g.finished = true;
-    document.body.classList.remove("desk-handle-resizing");
+    // Commit the last pending frame first, so the drop point is never lost.
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+      applyResize(pendingDy);
+    }
+    setDeskHandleResizing(false);
+    delete document.body.dataset.deskHandleDrag;
     g.panel?.classList.remove("panel-handle-resizing");
     if (g.panel) {
       g.panel.style.removeProperty("transition");
       g.panel.style.removeProperty("will-change");
     }
     handle.style.removeProperty("transition");
+    handle.style.removeProperty("cursor");
     session = null;
     if (g.resizing) {
       AudioFX.stopLeafStretch();
       deskHandleSwipeSuppress = performance.now() + 400;
       protectDeskHandles(420);
       positionDeskHandles();
+      // The sheet now carries a deliberate box; keep it as the workspace shape
+      // so a relaunch restores this exact page.
+      if (typeof saveViewState === "function") saveViewState();
       return;
     }
     // No movement at all: a click.

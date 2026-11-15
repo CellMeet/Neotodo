@@ -43,11 +43,11 @@
       <div class="ss-title">
         <span class="ss-kicker">PLUGIN · INTERFACE</span>
         <h1>子任务搜索</h1>
-        <p>一个不闭合的横向【形搜索框，从左栏打开时从子任务上边框滑出。</p>
+        <p>一条直角玻璃搜索框，从左栏打开时从子任务上边框滑出。</p>
       </div>
 
       <div class="ss-copy">
-        <p>开启后，左侧工具栏会出现橙色放大镜。点一下打开搜索栏，再点一下收起。搜索框是空白的，输入关键词后，匹配的子任务会以带底线的结果行排列在下方；点击结果会回到它原来的位置，搜索栏保持打开，只用左侧卡片开关。</p>
+        <p>开启后，左侧工具栏会出现深黑色放大镜。点一下打开搜索栏，再点一下收起。输入关键词后，匹配的子任务会按最近活跃时间从上到下排列，右侧显示几分钟、几小时或几天前；已完成子任务也会一起列出，点击即可回到它原来的位置并选中它，搜索栏保持打开。搜索框有自己独立的一套磨砂玻璃蒙版材质：黑色字直接落在蒙版上，直角裁切，下方的结果框用同一种材质；磨砂的模糊半径在下面的 Blur 里调。</p>
       </div>
 
       <button class="ss-power" id="ss-power" type="button" aria-pressed="true">
@@ -58,10 +58,20 @@
         <span class="ss-switch" aria-hidden="true"><span class="ss-thumb"></span></span>
       </button>
 
+      <label class="ss-blur" for="ss-blur">
+        <span class="ss-blur-copy">
+          <strong>Blur</strong>
+          <small>搜索栏磨砂的模糊半径，拖大可得到更柔的霜面。</small>
+        </span>
+        <input class="ss-blur-range" id="ss-blur" type="range" min="0" max="80" step="2" value="26" aria-label="Search blur radius">
+        <output class="ss-blur-value" id="ss-blur-value" for="ss-blur">26 px</output>
+      </label>
+
       <div class="ss-hints">
         <span><b>Click</b> 开关搜索栏</span>
-        <span><b>Type</b> 下方列出结果</span>
-        <span><b>Esc</b> 清空搜索</span>
+        <span><b>Type</b> 按时间排列</span>
+        <span><b>Done</b> 已完成也能搜</span>
+        <span><b>Blur</b> 调整磨砂半径</span>
       </div>
 
       <button class="ss-done" type="button" data-close>Back to NeoTodo</button>

@@ -27,6 +27,32 @@
   --oc-file: #a9741a;
   --oc-file-dim: #c19a55;
 
+  /* The console reads only the console palette. style.css still contains
+     rules that point the app's generic slots at the NeoTodo paper; remapping
+     them here keeps the AI pane independent of the app theme. */
+  --paper: var(--oc-bg);
+  --paper-2: var(--oc-soft);
+  --ink: var(--oc-ink);
+  --ink-soft: var(--oc-ink-soft);
+  --muted: var(--oc-muted);
+  --faint: var(--oc-faint);
+  --line: var(--oc-line);
+  --rule: var(--oc-line);
+  --gold: var(--oc-accent);
+  --gold-soft: var(--oc-accent);
+  --gold-bright: var(--oc-accent);
+  --pc-paper: var(--oc-bg);
+  --pc-paper2: var(--oc-soft);
+  --pc-ink: var(--oc-ink);
+  --pc-ink-soft: var(--oc-ink-soft);
+  --pc-muted: var(--oc-muted);
+  --pc-faint: var(--oc-faint);
+  --pc-line: var(--oc-line);
+  --pc-rule: var(--oc-line);
+  --pc-accent: var(--oc-accent);
+  --pc-accent-2: var(--oc-accent);
+  --pc-border: var(--oc-line-strong);
+
   background: var(--oc-bg) !important;
   color: var(--oc-ink) !important;
 }
@@ -95,31 +121,25 @@ html[data-postcard-dark="true"] .agent-terminal {
   color: var(--oc-ink) !important;
 }
 
-/* AI context menu uses the OpenCode palette, not the NeoTodo postcard one. */
+/* AI context menu uses the AI theme palette, not the NeoTodo postcard one.
+   The palette is published on :root by app.js (auto, light, dark or a
+   community AI theme), so the menu follows whatever the console shows. */
 html[data-theme="postcard"] .context-menu.context-agent,
 .context-menu.context-agent {
-  background: #ffffff !important;
-  color: #171718;
-  border-color: #ececee;
+  background: var(--oc-menu-bg, #ffffff) !important;
+  color: var(--oc-menu-ink, #171718);
+  border-color: var(--oc-menu-line, #ececee);
   box-shadow: 0 14px 34px rgba(20, 20, 24, 0.18), 0 3px 8px rgba(20, 20, 24, 0.08);
   font-family: "DejaVu Sans Mono", ui-monospace, monospace;
-}
-html[data-postcard-dark="true"] .context-menu.context-agent {
-  background: #202126 !important;
-  color: #e8e8ec;
-  border-color: #3a3b42;
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.5), 0 3px 10px rgba(0, 0, 0, 0.3);
 }
 /* Every AI menu row uses the same ink, danger included. The trash icon alone
    carries the destructive hint so the two labels never look mismatched. */
 .context-menu.context-agent .context-item,
 .context-menu.context-agent .context-item.context-danger { color: inherit !important; }
-.context-menu.context-agent .context-item:hover { background: rgba(79, 124, 255, 0.12); }
-.context-menu.context-agent .context-icon { color: #4f7cff; }
-.context-menu.context-agent .context-danger .context-icon { color: #cf6a43; }
-html[data-postcard-dark="true"] .context-menu.context-agent .context-danger .context-icon { color: #e08a63; }
-.context-menu.context-agent .context-sep { background: #ececee; }
-html[data-postcard-dark="true"] .context-menu.context-agent .context-sep { background: #3a3b42; }
+.context-menu.context-agent .context-item:hover { background: var(--oc-menu-hover, rgba(79, 124, 255, 0.12)); }
+.context-menu.context-agent .context-icon { color: var(--oc-menu-accent, #4f7cff); }
+.context-menu.context-agent .context-danger .context-icon { color: var(--oc-menu-notice, #cf6a43); }
+.context-menu.context-agent .context-sep { background: var(--oc-menu-line, #ececee); }
 
 /* One readable ink for every line inside the AI dialog. */
 .agent-terminal .agent-line,

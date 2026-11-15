@@ -20,6 +20,34 @@
     "motif": "▮",
     "quote": "Small commits. Clean exit."
   },
+  "chrome": {
+    "baseline": "#294238",
+    "row": "#294238",
+    "submit": "#4ee0a8",
+    "highlight": "#4ee0a8"
+  },
+  "note": {
+    "paper": "#121a1e",
+    "ink": "#d9f2e8",
+    "muted": "#87a89b",
+    "rule": "#355247",
+    "accent": "#4ee0a8",
+    "accent2": "#ffb454",
+    "handle": "#c7d8d0"
+  },
+  "ai": {
+    "bg": "#0f1418",
+    "soft": "#182126",
+    "ink": "#d9f2e8",
+    "inkSoft": "#b3d4c7",
+    "muted": "#87a89b",
+    "faint": "#5c7268",
+    "line": "#294238",
+    "lineStrong": "#3d5a4e",
+    "accent": "#4ee0a8",
+    "notice": "#ffb454",
+    "handle": "#c7d8d0"
+  },
   "preview": "preview.svg",
   "icon": "icon.svg",
   "sounds": {

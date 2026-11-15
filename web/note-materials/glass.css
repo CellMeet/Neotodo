@@ -2,11 +2,11 @@
    The mask fills the whole centre area; the old 10px inset frame is gone. */
 html[data-note-material="blur"] .notes-half.floating-notes {
   --note-paper: transparent;
-  --note-ink: #171713;
-  --note-muted: rgba(30, 30, 25, 0.55);
-  --note-rule: rgba(30, 30, 24, 0.14);
-  --note-accent: #6d3f18;
-  --note-accent-2: #8a5a2a;
+  --note-ink: var(--note-theme-ink, #171713);
+  --note-muted: var(--note-theme-muted, rgba(30, 30, 25, 0.55));
+  --note-rule: var(--note-theme-rule, rgba(30, 30, 24, 0.14));
+  --note-accent: var(--note-theme-accent, #6d3f18);
+  --note-accent-2: var(--note-theme-accent2, #8a5a2a);
   color: var(--note-ink) !important;
   padding: 20px 30px 26px !important;
   background-color: transparent !important;

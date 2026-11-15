@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-hb-dark="false">
+<html lang="zh-CN" data-hb-dark="false" data-hb-style="blue">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -32,11 +32,11 @@
       <div class="hb-title">
         <span class="hb-kicker">PLUGIN · INTERFACE</span>
         <h1>Head Bar</h1>
-        <p>悬停时钟，让短短的蓝白水晶小岛从上边框滑出。</p>
+        <p>悬停时钟，让短短的海盐色水晶小岛从上边框滑出。</p>
       </div>
 
       <div class="hb-copy">
-        <p>点击小岛，整个工作区向上收起，只留下原始壁纸。再点一次，所有内容回到原位。它安静地藏在顶部，不占用任何空间。</p>
+        <p>点击小岛，整个工作区向上收起，只留下原始壁纸，小岛也会隐藏。把光标移回顶部，小岛会再次出现，点击就能恢复原状。它安静地藏在顶部，不占用任何空间。</p>
       </div>
 
       <button class="hb-power" id="hb-power" type="button" aria-pressed="true">
@@ -46,6 +46,20 @@
         </span>
         <span class="hb-switch" aria-hidden="true"><span class="hb-thumb"></span></span>
       </button>
+
+      <div class="hb-style-picker" role="group" aria-label="Bottle style">
+        <span class="hb-style-label">Sea Salt bottle</span>
+        <div class="hb-style-options">
+          <button class="hb-style-option active" type="button" data-hb-style="blue" aria-pressed="true">
+            <span class="hb-style-swatch blue" aria-hidden="true"></span>
+            <span class="hb-style-copy"><strong>海之盐 · 蓝</strong><small>Sea Salt Blue</small></span>
+          </button>
+          <button class="hb-style-option" type="button" data-hb-style="pink" aria-pressed="false">
+            <span class="hb-style-swatch pink" aria-hidden="true"></span>
+            <span class="hb-style-copy"><strong>海之盐 · 粉</strong><small>Sea Salt Pink</small></span>
+          </button>
+        </div>
+      </div>
 
       <div class="hb-hints">
         <span><b>Hover</b> 时间数字</span>

@@ -7,9 +7,11 @@
      - the results list that appears under the field.
 
    Typing does not reshuffle the live subtask rows any more. Matches are listed
-   below the field as ruled rows; clicking one closes the drawer and brings the
-   original subtask row back into view. The rail button opens and closes the
-   drawer, and the drawer slides down from the top edge of the task block.
+   below the field as ruled rows, newest activity first with a relative time on
+   the right. Clicking one keeps the drawer open, selects the original subtask
+   exactly like a click on the row does, and brings it back into view. The rail
+   button opens and closes the drawer, and the drawer slides down from the top
+   edge of the task block.
 
    It registers itself with the NeoTodo plugin host so Settings → Plugins can
    turn it on or off like any other plugin. No source file outside this folder
@@ -31,7 +33,7 @@
     version: "1.0.0",
     author: "NeoTodo",
     category: "Interface",
-    description: "左栏放大镜卡片可以开关子任务搜索栏。搜索栏从子任务上边框滑出，匹配结果以带底线的行排列在下方；点击结果会回到原来的子任务位置，搜索栏保持打开并清空本次搜索。",
+    description: "左栏放大镜卡片可以开关子任务搜索栏。匹配结果按最近活跃时间从上到下排列，右侧显示几分钟、几小时或几天前；已完成子任务也会列出，点击即可跳转并选中它；搜索栏的磨砂模糊可在插件页调整。",
     icon: "/plugins/subtask-search/subtask-search.svg",
     entry: "/plugins/subtask-search/index.html",
     kind: "chrome",
@@ -43,11 +45,63 @@
   let syncFrame = 0;
   let resultToken = 0;
   let clearTimer = 0;
+  let clockTimer = 0;
+
+  // ------------------------------------------------------------------------
+  // The glass blur is the user's setting, tuned on the plugin's own control
+  // page (it shares this origin, so the value travels through localStorage).
+  // ------------------------------------------------------------------------
+  const BLUR_KEY = "neotodo.subtask-search.blur";
+  const BLUR_DEFAULT = 26;
+  const BLUR_MAX = 80;
+
+  function normalizeBlur(value) {
+    const px = Math.round(Number(value));
+    if (!Number.isFinite(px)) return BLUR_DEFAULT;
+    return Math.max(0, Math.min(BLUR_MAX, px));
+  }
+
+  function readBlur() {
+    try {
+      const raw = localStorage.getItem(BLUR_KEY);
+      if (raw === null || raw === "") return BLUR_DEFAULT;
+      return normalizeBlur(raw);
+    } catch (error) {
+      return BLUR_DEFAULT;
+    }
+  }
+
+  function setSearchBlur(value, persist) {
+    const px = normalizeBlur(value);
+    if (persist) {
+      try { localStorage.setItem(BLUR_KEY, String(px)); } catch (error) {}
+    }
+    try {
+      document.documentElement.style.setProperty("--ss-search-blur", `${px}px`);
+    } catch (error) {}
+    return px;
+  }
 
   function cancelScheduledClear() {
     if (!clearTimer) return;
     window.clearTimeout(clearTimer);
     clearTimer = 0;
+  }
+
+  function startClock() {
+    if (clockTimer) return;
+    clockTimer = window.setInterval(() => {
+      if (!panelOpen) return;
+      const input = currentInput();
+      if (!input || !input.value.trim()) return;
+      renderResults();
+    }, 60000);
+  }
+
+  function stopClock() {
+    if (!clockTimer) return;
+    window.clearInterval(clockTimer);
+    clockTimer = 0;
   }
 
   // ------------------------------------------------------------------------
@@ -80,7 +134,6 @@
   railButton.dataset.plugin = PLUGIN_ID;
   railButton.setAttribute("aria-label", "打开子任务搜索");
   railButton.setAttribute("aria-expanded", "false");
-  railButton.title = "子任务搜索";
   railButton.innerHTML = '<img class="subtask-search-rail-icon" src="/plugins/subtask-search/subtask-search.svg" alt="">';
 
   function mountRailButton() {
@@ -201,6 +254,7 @@
     if (!currentPanel()) return false;
     cancelScheduledClear();
     panelOpen = true;
+    startClock();
     paintOpenState();
     refreshLaneScrollers();
     renderResults();
@@ -218,6 +272,7 @@
 
   function closePanel({ clear = true, focusRail = false } = {}) {
     panelOpen = false;
+    stopClock();
     paintOpenState();
     refreshLaneScrollers();
     if (clear) {
@@ -241,25 +296,92 @@
 
   // ------------------------------------------------------------------------
   // Results: matching rows are gathered from the live lane (including the
-  // completed drawer) and rendered as a ruled list below the field. The live
-  // rows are never hidden or reordered.
+  // completed drawer), sorted by their latest activity, and rendered as a
+  // ruled list below the field. The live rows are never hidden or reordered.
   // ------------------------------------------------------------------------
+  function currentTodoData() {
+    try {
+      return typeof currentTodo === "function" ? currentTodo() : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function rowActivityStamp(subtask) {
+    if (!subtask) return 0;
+    try {
+      if (typeof subtaskActivityStamp === "function") {
+        const stamp = Number(subtaskActivityStamp(subtask));
+        if (Number.isFinite(stamp) && stamp > 0) return stamp;
+      }
+    } catch (error) {}
+    const parse = (value) => {
+      const stamp = Date.parse(String(value || ""));
+      return Number.isNaN(stamp) ? 0 : stamp;
+    };
+    return Math.max(parse(subtask.created_at), parse(subtask.completed_at));
+  }
+
+  function timeBucket(stamp) {
+    if (!stamp) return "is-old";
+    const diff = Math.max(0, Date.now() - stamp);
+    if (diff < 60 * 60 * 1000) return "is-fresh";
+    if (diff < 24 * 60 * 60 * 1000) return "is-recent";
+    return "is-old";
+  }
+
+  function relativeTimeText(stamp) {
+    if (!stamp) return "";
+    const diff = Math.max(0, Date.now() - stamp);
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diff < minute) return "刚刚";
+    if (diff < hour) return `${Math.max(1, Math.floor(diff / minute))}分钟前`;
+    if (diff < day) return `${Math.floor(diff / hour)}小时前`;
+    const days = Math.floor(diff / day);
+    if (days < 30) return `${Math.max(1, days)}天前`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${Math.max(1, months)}个月前`;
+    return `${Math.max(1, Math.floor(days / 365))}年前`;
+  }
+
+  function absoluteTimeText(stamp) {
+    try {
+      const date = new Date(stamp);
+      const pad = (value) => String(value).padStart(2, "0");
+      return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    } catch (error) {
+      return "";
+    }
+  }
+
   function collectRows(inner, terms) {
     const rows = [...inner.querySelectorAll(".current-subtask[data-subtask-id]")];
+    const todo = currentTodoData();
+    const dataById = new Map(
+      (todo?.subtasks || []).map((subtask) => [String(subtask.id), subtask])
+    );
     const matches = [];
-    for (const row of rows) {
+    rows.forEach((row, index) => {
       const label = row.querySelector(".sub-name, .sub-name-input");
       const name = String(label?.value ?? label?.textContent ?? "").trim();
       const done = row.classList.contains("done")
         || Boolean(row.closest('.subtask-lane[data-lane="done"]'));
-      if (terms.length && !terms.every((term) => name.toLowerCase().includes(term))) continue;
+      if (terms.length && !terms.every((term) => name.toLowerCase().includes(term))) return;
+      const subtask = dataById.get(String(row.dataset.subtaskId));
       matches.push({
         id: row.dataset.subtaskId,
         name,
         done,
+        stamp: rowActivityStamp(subtask),
+        order: index,
       });
-    }
-    return { total: rows.length, matches };
+    });
+    // The newest conversation/activity leads the list. DOM order only breaks
+    // exact timestamp ties, so completed and unfinished work intermix by time.
+    matches.sort((a, b) => b.stamp - a.stamp || a.order - b.order);
+    return { matches };
   }
 
   function resultCheck() {
@@ -313,19 +435,13 @@
       name.textContent = match.name || "Untitled subtask";
       button.appendChild(name);
 
-      if (match.done) {
-        const kind = document.createElement("span");
-        kind.className = "subtask-search-result-kind";
-        kind.textContent = "已完成";
-        button.appendChild(kind);
-        button.appendChild(resultCheck());
-      } else {
-        const go = document.createElement("span");
-        go.className = "subtask-search-result-go";
-        go.setAttribute("aria-hidden", "true");
-        go.textContent = "↗";
-        button.appendChild(go);
-      }
+      if (match.done) button.appendChild(resultCheck());
+
+      const time = document.createElement("span");
+      time.className = `subtask-search-result-time ${timeBucket(match.stamp)}`;
+      time.textContent = relativeTimeText(match.stamp);
+      if (match.stamp) time.title = absoluteTimeText(match.stamp);
+      button.appendChild(time);
 
       button.addEventListener("pointerdown", (event) => event.stopPropagation());
       button.addEventListener("click", (event) => {
@@ -351,13 +467,35 @@
 
   // ------------------------------------------------------------------------
   // Jump back to the original row. Completed rows may still be behind the
-  // finished-task drawer, so open that first, then centre the row in its lane.
+  // finished-task drawer, so open that first, then select the row through the
+  // app's own row handler (the same path a pointer click takes), and finally
+  // centre it in its lane. Selecting here makes the search one action: the
+  // note is already on the picked subtask, no second click needed.
   // ------------------------------------------------------------------------
-  function jumpToResult(subtaskId, done) {
+  function rowFor(subtaskId) {
     const inner = currentInner();
-    const row = inner?.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(String(subtaskId))}"]`);
-    if (!row) return;
+    return inner?.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(String(subtaskId))}"]`) || null;
+  }
 
+  function selectRow(row) {
+    if (!row) return false;
+    try {
+      if (typeof selectCurrentSubtaskNote === "function") {
+        selectCurrentSubtaskNote(row);
+        return true;
+      }
+    } catch (error) {}
+    // Older/other shells: replay a real click on the row so the app's own
+    // delegated handler performs the selection.
+    try {
+      row.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function jumpToResult(subtaskId, done) {
     const drawer = document.getElementById("completed-subtask-drawer");
     if (done && drawer && !drawer.classList.contains("open")) {
       try {
@@ -365,25 +503,39 @@
       } catch (error) {}
     }
 
+    const picked = rowFor(subtaskId);
+    if (!picked) return;
+    selectRow(picked);
+
     // The left rail card is the drawer's switch, so it stays open. The query is
     // cleared right away: this search is finished, and the field is ready for
     // the next one.
 
-    const lane = row.closest(".subtask-lane") || inner;
-    const rowRect = row.getBoundingClientRect();
-    const laneRect = lane.getBoundingClientRect();
-    const rowTop = rowRect.top - laneRect.top + lane.scrollTop;
-    const target = Math.max(
-      0,
-      Math.min(
-        rowTop - (lane.clientHeight - row.offsetHeight) / 2,
-        Math.max(0, lane.scrollHeight - lane.clientHeight)
-      )
-    );
+    // The highlight starts at once, on the row that was just selected.
+    picked.classList.remove("subtask-search-hit");
+    void picked.offsetWidth;
+    picked.classList.add("subtask-search-hit");
+    window.setTimeout(() => picked.classList.remove("subtask-search-hit"), 1700);
 
+    // Centre the row in its own lane. This is measured inside the frame because
+    // opening the finished-task drawer resets its lane scroll in its own
+    // frame; measuring now would aim at the old scroll position.
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     requestAnimationFrame(() => {
+      const row = rowFor(subtaskId) || picked;
       if (!row.isConnected) return;
+      const lane = row.closest(".subtask-lane") || currentInner();
+      if (!lane) return;
+      const rowRect = row.getBoundingClientRect();
+      const laneRect = lane.getBoundingClientRect();
+      const rowTop = rowRect.top - laneRect.top + lane.scrollTop;
+      const target = Math.max(
+        0,
+        Math.min(
+          rowTop - (lane.clientHeight - row.offsetHeight) / 2,
+          Math.max(0, lane.scrollHeight - lane.clientHeight)
+        )
+      );
       try {
         lane.scrollTo({ top: target, behavior: reduced ? "auto" : "smooth" });
       } catch (error) {
@@ -391,14 +543,9 @@
       }
     });
 
-    row.classList.remove("subtask-search-hit");
-    void row.offsetWidth;
-    row.classList.add("subtask-search-hit");
-    window.setTimeout(() => row.classList.remove("subtask-search-hit"), 1700);
-
     // The jump means this search is done. Empty the field and the result rows
     // so the next search starts from a clean drawer; the drawer itself stays
-    // open and the highlighted row keeps the context visible.
+    // open and the selected row keeps the context visible.
     clearSearch(false);
   }
 
@@ -407,6 +554,7 @@
   // ------------------------------------------------------------------------
   function resetView() {
     cancelScheduledClear();
+    stopClock();
     document.querySelectorAll(".subtask-search-drawer").forEach((node) => node.remove());
     document.querySelectorAll(".subtask-search-hit").forEach((node) => {
       node.classList.remove("subtask-search-hit");
@@ -448,6 +596,7 @@
       // and open state never carry into a different task's rows.
       activeTodoId = todoId;
       panelOpen = false;
+      stopClock();
       query = "";
       body.classList.remove("subtask-search-open");
     }
@@ -527,6 +676,20 @@
     try {
       if (typeof applyPluginState === "function") applyPluginState();
     } catch (error) {}
+
+    // Paint the saved blur before the first drawer opens, then follow the
+    // control page: it writes localStorage and posts a message.
+    setSearchBlur(readBlur(), false);
+    window.setSubtaskSearchBlur = (value) => setSearchBlur(value, false);
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "neotodo-subtask-search-blur") return;
+      setSearchBlur(event.data.value, false);
+    });
+    window.addEventListener("storage", (event) => {
+      if (event.key !== BLUR_KEY) return;
+      setSearchBlur(event.newValue === null ? BLUR_DEFAULT : event.newValue, false);
+    });
 
     const stage = document.querySelector("#stage");
     if (stage && window.MutationObserver) {

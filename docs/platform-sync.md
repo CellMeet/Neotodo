@@ -11,6 +11,9 @@ Add Linux-first changes that still need a Windows/Android pass here.
 - AI attachment pasting: `add_paths` API, amber file chips, `agent-file-pin` symbol.
 - AI async chat queue (12 parallel), draft persistence, copy-on-select,
   interrupt handling and the scroll cache.
+- Storage box plugin: `web/plugins/storage-box/`, its `PLUGIN_REGISTRY` entry and
+  `visibleCategories()` hook in `web/app.js`, and the rail button in
+  `web/index.html`.
 
 ## How to sync
 

@@ -14,12 +14,41 @@ when GitHub cannot be reached.
 
 | Part | File | Notes |
 | --- | --- | --- |
-| Palette | `theme.json` → `theme` | Paper, paper2, ink, muted, accent, accent2, border, stamp, glow, motif, quote. |
+| Palette | `theme.json` → `theme` | Paper, paper2, ink, muted, accent, accent2, border, stamp, optional line/rule, glow, motif, quote. |
+| Chrome | `theme.json` → `chrome` | Optional colours for the page dividers (`baseline`), the add / complete accent (`submit`) and the selected-cell wash (`highlight`). The finished-subtasks and Doing card hairlines follow the page line, so `row` / `row2` are still accepted for older packs but no longer paint a private card colour. Applied by writing the normal `page-line.json` / `baseline-rule.json` files and the highlight setting. |
+| Note theme | `theme.json` → `note` | Optional notebook palette: `paper`, `ink`, `muted`, `rule`, `accent`, `accent2`, `handle`. Saved by the app as `<data>/note-theme/<id>.json` and listed under **Note** in the **Settings → Theme** menu. |
+| AI theme | `theme.json` → `ai` | Optional console palette: `bg`, `ink`, `soft`, `line`, `accent`, `notice`, `handle`. Saved as `<data>/ai-theme/<id>.json` and listed under **AI** in the **Settings → Theme** menu. |
 | Wallpaper | `theme.json` → `wallpaper` | Optional image inside the pack (`jpg`, `png`, `webp`, `gif`, `avif`, `svg`). |
 | Foley | `theme.json` → `sounds` | Optional per-cue audio files (`wav`, `mp3`, `ogg`, `flac`, `m4a`). |
 | Icons | `theme.json` → `icons` | Optional `completed` / `focus` achievement pictures. |
 | Card art | `preview.svg` / any image | Shown in the community shelf. |
 | Cover icon | `icon.svg` / any image | Optional square mark for future shelves and listings. |
+
+## Three independent theme shelves
+
+NeoTodo stores an app theme, a note theme and an AI theme in three separate
+folders. They never read each other's files:
+
+```
+<data>/theme-packs/<pack-id>/theme.json   app paper, wallpaper, sounds, icons
+<data>/note-theme/<id>.json               notebook palette (paper, ink, rules)
+<data>/ai-theme/<id>.json                 AI console palette (bg, ink, lines)
+```
+
+- Applying a NeoTodo theme only changes the app paper. It never rewrites
+  `settings.note_theme` or `settings.ai_theme`.
+- Installing a pack with a `note` / `ai` palette drops a copy of that palette
+  into the matching pane folder; removing the pack deletes only those copies.
+- You can add your own palette by dropping a JSON file into the folder:
+  ```json
+  {
+    "id": "my-paper",
+    "name": "My paper",
+    "palette": { "paper": "#fffdf6", "ink": "#2a2620", "rule": "#d9d2c2" }
+  }
+  ```
+  Note palettes need `paper` and `ink`; AI palettes need `bg` and `ink`.
+  Files marked `"source": "user"` are never deleted by a pack uninstall.
 
 ## Pack layout
 
@@ -57,9 +86,19 @@ my-theme/
     "accent2": "#ffb454",
     "border": "#294238",
     "stamp": "#4ee0a8",
+    "line": "#4ee0a8",
+    "rule": "#294238",
+    "lineAlpha": 0.42,
+    "ruleAlpha": 0.28,
     "glow": "rgba(78,224,168,.2)",
     "motif": "▮",
     "quote": "Small commits. Clean exit."
+  },
+  "chrome": {
+    "baseline": "#294238",
+    "row": "#294238",
+    "submit": "#4ee0a8",
+    "highlight": "#4ee0a8"
   },
   "preview": "preview.svg",
   "icon": "icon.svg",
@@ -77,24 +116,44 @@ my-theme/
 ```
 
 Only `paper` and `ink` are strictly required. The app derives missing colours
-from those so a tiny palette-only pack still works. All asset paths are relative
-to the pack folder; absolute paths and `..` are rejected.
+from those so a tiny palette-only pack still works. `line` and `rule` are
+optional underline colours; when omitted the app keeps its subtle ink-derived
+rules. Optional `lineAlpha` / `ruleAlpha` values (0.03–1) control their
+strength. All asset paths are relative to the pack folder; absolute paths and
+`..` are rejected.
 
 Supported sound keys: `type`, `enter`, `drawerOpen`, `drawerClose`,
 `waterFlow`, `trickle`, `windScroll`, `train`, `paperTear`, `steamHiss`.
 
 Supported icon keys: `completed`, `focus`.
 
+The optional `chrome` block turns a theme into a complete room, not just a
+paper colour. `baseline` sets the page dividers, `submit` the colour of the
+add / complete actions and `highlight` the wash behind the selected cell. The
+finished-subtasks card and the Doing card share that page line, so `row` /
+`row2` remain readable for older packs but no longer introduce a second card
+colour. Applying the theme writes these into the reader's normal
+`page-line.json`, `baseline-rule.json` and highlight setting, so they can
+still be adjusted afterwards in **Settings → Theme**.
+
 ## Install and apply
 
-1. **Settings → 主题社区 → Import .zip** installs the pack into:
+1. **Settings → Community → 主题 (Themes) → Import .zip** installs the pack into:
    - Linux: `~/.local/share/neotodo/theme-packs/<id>/`
    - Windows: `%APPDATA%\NeoTodo\theme-packs\<id>\`
    - macOS: `~/Library/Application Support/NeoTodo/theme-packs/<id>/`
 2. The shelf lists installed packs. **Apply** switches the postcard palette,
-   uses the pack wallpaper when present, swaps its foley samples and loads its
-   achievement stickers.
-3. **Remove** deletes only the pack folder. Tasks, notes and other artwork stay.
+   uses the pack wallpaper when present, applies its chrome colours (underline,
+   add accent, selection wash), swaps its foley samples and loads its
+   achievement stickers. It leaves the notebook and console themes untouched.
+   Inside **Settings → Theme**, the **Theme** row is the selector itself, with
+   the current accent dot and a small arrow. Its menu uses the same
+   names-and-checkmarks list for every palette; at the top, **Note theme ›** and
+   **AI theme ›** rows switch the whole Theme row to that palette (and back to
+   **Theme ›**). Choosing a theme applies it and leaves the row in that mode.
+   **Manage** (app) and **Folder** (note/AI) sit beside the menu.
+3. **Remove** deletes only the pack folder and the pane palettes it contributed.
+   Tasks, notes and other artwork stay.
 
 The catalog install button has two paths:
 
@@ -111,12 +170,14 @@ Set `NEOTODO_THEME_CATALOG` to a local JSON file (or `off`) while developing.
 
 ## Export and upload
 
-**Settings → 主题社区 → Export .zip** writes a pack to `theme-exports/` with:
+**Settings → Community → 主题 (Themes) → Export .zip** writes a pack to `theme-exports/` with:
 
 - the current palette,
-- the current static wallpaper if it is your own picture,
+- the current wallpaper when it comes from a theme pack or the old pictures
+  folder (a file picked from elsewhere is only read in place, so it is not
+  packed),
 - the active theme-pack foley overrides,
-- the current Completed / Pomodoro sticker images,
+- the current Completed trophy / Pomodoro tomato sticker images,
 - a generated `preview.svg` and `README.txt`.
 
 To publish:

@@ -53,7 +53,8 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 - 🗓️ **Finished weeks archive themselves.** At the start of a new week, the previous week's completed items become a dated postcard in the archive drawer.
 - 🎡 **Seasonal archive drawer.** The windmill icon opens every postcard, with entry counts and a per-card summary; click a card to relive the week.
 - 🏆 **Trophies and tomatoes.** The header keeps a completion trophy and a focus count, with searchable logs for both achievements.
-- 🖼️ **Postcard art as wallpaper.** Use the current postcard scene as a static wallpaper, or swap in your own picture without changing the paper palette.
+- 🖼️ **Your own wallpaper.** Pick any picture or film already on your computer from **Settings → Theme**. NeoTodo remembers the path and reads the file in place — nothing is copied, and the postcard paper shows through when no file is picked.
+- 🃏 **Sub-cards.** The right-edge Doing card and the finished-subtasks card are marked `data-subcard`. Each one is baked ahead of time out of the wallpaper right where it opens — never from a global copy of the background — so it is already finished before it shows. A film is baked from its paused middle frame, so its card is a still of the same scene. The cards show that picture edge to edge, one complete card with one fixed ink-green outline (`--subcard-outline`), so nothing draws a dark frame on one side or a white line on the other. The categories spine is printed on the room, and the top hidden box borrows the wallpaper as a plain background (`data-wallpaper-surface`, no card outline) — neither is a sub-card. Any new panel can join the standard by carrying the marker.
 
 ### ✅ Todos, subtasks and the right-click toolbox
 - 🎯 **One active todo per category.** Complete it, celebrate, and the next task rises to the top of the page.
@@ -89,21 +90,22 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 ### 🍅 Focus timer and achievements
 - ⏱️ **A 25-minute tomato clock.** Name the task, start the timer, and a hand-drawn tomato keeps the minutes visible.
 - 🍅 **Focus log.** Completed sessions are recorded with their task names, searchable from the tomato counter.
-- 🖼️ **Achievement stickers.** The trophy and tomato counters use picture stickers; crop, zoom and replace them in **Settings → Pictures**.
+- 🖼️ **Achievement stickers.** The trophy and tomato counters use picture stickers; replace them in **Settings → Stickers**.
 
 ### 🎨 Make it yours
-- 🃏 **Appearance.** Pick a postcard style per mode, a note material, note background and blur, caret shape and colour, clock visibility, time cost, title position and header icon size.
-- 🔤 **Typography.** Six body and note font stacks — Art Serif, Humanist, Bookman, Typewriter, Handwritten and Pen Script — with 85–125% sizing.
-- 🖼️ **Pictures.** Static wallpaper from postcard art or your own JPG/PNG/WEBP/GIF/AVIF, or a dynamic wallpaper from a looping MP4/WEBM/MOV.
-- 🧷 **Sticker cropping.** The Completed and Pomodoro stickers accept your own image with zoom and crop controls.
+- 🎨 **Theme.** The **Theme** row folds out: its chips show the current app, note and AI palettes at a glance, and opening it reveals the app theme dropdown, **Manage**, and **Note theme / AI theme** tabs with preview cards — click the note or AI chip to jump straight to that tab. Pick any installed theme by name, and **Manage** to import a `.zip`, create a theme or browse the community. A theme brings its wallpaper, the underline under task text, the add / complete accent and the selected-cell wash with it, while the colour fields still let you fine-tune them. The notebook and the AI console keep their own palettes, each owning its ink and the colour of its horizontal rules. Pick a note material, note background and blur, caret shape and colour, clock visibility, time cost, title position and header icon size.
+- 🔤 **Font.** Six body and note font stacks — Art Serif, Humanist, Bookman, Typewriter, Handwritten and Pen Script — with 85–125% sizing.
+- 🖼️ **Wallpaper.** One wallpaper option inside **Theme**, picked from wherever your pictures live: a JPG/PNG/WEBP/GIF/AVIF still or a looping MP4/WEBM/MOV film. The file is read where it is — nothing is copied and no extra folder is created. The last few picks stay in the section so switching back is one click.
+- 🧷 **Stickers.** The trophy and tomato badges take your own picture. Stickers are stored inside the notebook, so they travel with it; **Default** brings the original artwork back.
+- 🧷 **Achievement stickers.** The completed trophy and the Pomodoro tomato accept your own picture; only achievement-tagged plugins get this option.
 - 🔊 **A tiny foley studio.** Typewriter keys, paper tears, water, wind, a train whistle and a steam hiss accompany everyday actions.
 - 🎚️ **Sound control.** Toggle sound from the header, adjust volume, preview every sample, or drop your own audio files into the sounds folder.
-- 🧩 **A theme community.** Install a `.zip` theme pack to change the palette, wallpaper, foley sounds and achievement stickers together. Export your current look as a shareable pack; publishing is one pull request to [`community/themes.json`](community/themes.json). See [`docs/theme-community.md`](docs/theme-community.md).
+- 🧩 **A theme community.** Install a `.zip` theme pack to change the palette, wallpaper, chrome colours, foley sounds and achievement stickers together; bundled packs include **Tokyo Night**, **Catppuccin Mocha**, **Nord**, **Gruvbox Dark** and **Solarized Light**. Packs can also carry a **Note theme** and an **AI theme**, saved into their own `note-theme/` and `ai-theme/` folders so the app theme never repaints the notebook or console. Export your current look as a shareable pack; publishing is one pull request to [`community/themes.json`](community/themes.json). See [`docs/theme-community.md`](docs/theme-community.md).
 
 ### 🧩 Plugins and small tools
-- 🧰 **A plugin shelf.** Open the tool rail or **Settings → Plugins** to install, turn off, reconfigure or uninstall each mini-app without touching the notebook core.
+- 🧰 **A plugin shelf.** Open the tool rail, **Settings → Plugins** (right above Community) or **Settings → Community → 插件** to install, turn off, reconfigure or uninstall each mini-app without touching the notebook core.
 - 🪟 **Isolated mini-apps.** Each plugin runs in its own iframe and receives the live light/dark theme, so a plugin can never break the notebook.
-- 🌍 **A plugin community.** **Settings → Community** lists plugins shared by other people, with search, tags, authors and one-tap install. The index refreshes from this repository and falls back to an offline copy.
+- 🌍 **A plugin community.** **Settings → Community** unites themes, games and plugins behind one switcher; the 插件 shelf lists plugins shared by other people, with search, tags, authors and one-tap install. The index refreshes from this repository and falls back to an offline copy.
 - 📦 **Bring your own plugin.** Install a packaged `.zip` from disk, or publish yours with `tools/pack-plugin.py` and one pull request to `community/catalog.json`.
 - 🧵 **The notebook stays small.** Notes, AI and more are on the roadmap as independent plugins, keeping the default workspace light.
 
@@ -113,7 +115,7 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 - 🫳 **Long-press to lift away.** Pick up an open panel as a small preview card, then release near an edge to tile it, or over the sidebar to detach it into its own OS window.
 - 🧲 **Dock anywhere.** Left, right, top or bottom splits keep the panes flush, with a draggable divider and a smooth FLIP swap when sides change.
 - 🔎 **Context menus built in.** Right-click editable text for Cut, Copy, Paste and Select all, with the same clipboard flow across notes, the AI input and task names.
-- 🖱️ **Right-edge Doing card.** Hover the subtask column's right border to peek at open todos and expand their subtasks; the card borrows the current wallpaper.
+- 🖱️ **Right-edge Doing card.** Hover the subtask column's border to peek at open todos and expand their subtasks; the card borrows the current wallpaper. Pull the card sideways and drop it on the subtask column's other border to dock it there without changing its size or height; in a popped-out note/AI window the same drawer docks to that window's own left or right edge. The fan beside a subtask turns at the subtask column's own pace while its agent is working, then rests when the run ends.
 
 ## 🧩 Built-in plugins
 

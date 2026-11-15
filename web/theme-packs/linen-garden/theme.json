@@ -20,6 +20,34 @@
     "motif": "❧",
     "quote": "Tend the list like a small garden."
   },
+  "chrome": {
+    "baseline": "#c8c4ac",
+    "row": "#c8c4ac",
+    "submit": "#6f8f5a",
+    "highlight": "#6f8f5a"
+  },
+  "note": {
+    "paper": "#f2f0e4",
+    "ink": "#2f382b",
+    "muted": "#77806b",
+    "rule": "#c8c4ac",
+    "accent": "#6f8f5a",
+    "accent2": "#b08a5a",
+    "handle": "#5c6457"
+  },
+  "ai": {
+    "bg": "#f5f4ec",
+    "soft": "#ebe9dc",
+    "ink": "#2f382b",
+    "inkSoft": "#525c4a",
+    "muted": "#77806b",
+    "faint": "#b1b6a2",
+    "line": "#dedbcb",
+    "lineStrong": "#c5c2ad",
+    "accent": "#6f8f5a",
+    "notice": "#b08a5a",
+    "handle": "#5c6457"
+  },
   "preview": "preview.svg",
   "icon": "icon.svg",
   "wallpaper": "wallpaper.svg"

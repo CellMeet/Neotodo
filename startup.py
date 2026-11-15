@@ -1,10 +1,11 @@
 # [shared] Linux-first startup helpers, also synced to Android.
-"""Startup splash helpers.
+"""Startup helpers shared by the launcher.
 
-This module owns the last-page screenshot and the Gtk.Picture preview. Keeping
-it separate from app.py makes the first frame deterministic: either the last
-rendered page is shown instantly, or the window stays hidden until the live
-page is ready. It never paints a half-initialised theme.
+The notebook no longer paints a cached picture of the last page at launch: the
+live page restores its own category, selection and open note/AI sheets before
+its first paint, and the window stays hidden until that page reports ready.
+`make_preview`/`capture_view` remain for the detached note/AI windows, which
+reuse a capture of the page that was on screen when they were opened.
 """
 
 from pathlib import Path

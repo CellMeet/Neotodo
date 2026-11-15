@@ -5,25 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Forktree · NeoTodo</title>
   <script>
-    // The host sends the postcard theme once the iframe loads. Reading the
-    // parent first avoids a bright flash before that message arrives.
+    // In the plugin panel the host page supplies the postcard palette. In a
+    // standalone fork window the palette travels in the query string, so the
+    // sub-app still looks like the NeoTodo that opened it.
     (() => {
+      const params = new URLSearchParams(location.search);
       try {
-        if (window.parent === window) return;
-        const parentRoot = window.parent.document.documentElement;
-        document.documentElement.dataset.ftDark =
-          parentRoot.dataset.postcardDark === "true" ? "true" : "false";
-        const styles = window.parent.getComputedStyle(parentRoot);
-        for (const [name, key] of [
-          ["--pc-paper", "--ft-paper"],
-          ["--pc-paper2", "--ft-paper2"],
-          ["--pc-ink", "--ft-ink"],
-          ["--pc-muted", "--ft-muted"],
-          ["--pc-border", "--ft-border"],
-          ["--pc-line", "--ft-line"],
-        ]) {
-          const value = styles.getPropertyValue(name).trim();
-          if (value) document.documentElement.style.setProperty(key, value);
+        if (window.parent !== window) {
+          const parentRoot = window.parent.document.documentElement;
+          document.documentElement.dataset.ftDark =
+            parentRoot.dataset.postcardDark === "true" ? "true" : "false";
+          const styles = window.parent.getComputedStyle(parentRoot);
+          for (const [name, key] of [
+            ["--pc-paper", "--ft-paper"],
+            ["--pc-paper2", "--ft-paper2"],
+            ["--pc-ink", "--ft-ink"],
+            ["--pc-muted", "--ft-muted"],
+            ["--pc-border", "--ft-border"],
+            ["--pc-line", "--ft-line"],
+          ]) {
+            const value = styles.getPropertyValue(name).trim();
+            if (value) document.documentElement.style.setProperty(key, value);
+          }
+        } else {
+          if (params.get("dark") === "1") {
+            document.documentElement.dataset.ftDark = "true";
+          }
+          for (const [name, key] of [
+            ["paper", "--ft-paper"],
+            ["paper2", "--ft-paper2"],
+            ["ink", "--ft-ink"],
+            ["muted", "--ft-muted"],
+            ["border", "--ft-border"],
+            ["line", "--ft-line"],
+            ["accent", "--ft-accent"],
+          ]) {
+            const value = params.get(name);
+            if (value) document.documentElement.style.setProperty(key, value);
+          }
         }
       } catch (error) {}
       document.documentElement.classList.add("ft-booting");
@@ -34,6 +53,7 @@
     })();
   </script>
   <link rel="stylesheet" href="forktree.css">
+  <link rel="stylesheet" href="fork-workspace.css">
 </head>
 <body>
   <div class="ft-app">
@@ -64,14 +84,14 @@
           <kbd>/</kbd>
         </label>
 
-        <button class="ft-icon-button" type="button" data-ft-action="refresh" aria-label="刷新分支图" title="刷新">
+        <button class="ft-icon-button" type="button" data-ft-action="refresh" aria-label="刷新分支图">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M19.5 8.4A8 8 0 1 0 20 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
             <path d="M20 5.4v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
 
-        <button class="ft-icon-button ft-close" type="button" data-ft-action="close" aria-label="关闭 Forktree" title="关闭">
+        <button class="ft-icon-button ft-close" type="button" data-ft-action="close" aria-label="关闭 Forktree">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
         </button>
       </div>
@@ -109,23 +129,27 @@
       </div>
 
       <div class="ft-zoom" role="group" aria-label="缩放与展开">
-        <button type="button" data-ft-action="zoom-out" aria-label="缩小" title="缩小">−</button>
+        <button type="button" data-ft-action="zoom-out" aria-label="缩小">−</button>
         <span class="ft-zoom-label" id="ft-zoom-label">100%</span>
-        <button type="button" data-ft-action="zoom-in" aria-label="放大" title="放大">+</button>
+        <button type="button" data-ft-action="zoom-in" aria-label="放大">+</button>
         <span class="ft-zoom-sep" aria-hidden="true"></span>
-        <button type="button" data-ft-action="fit" aria-label="适应窗口" title="适应窗口 (0)">
+        <button type="button" data-ft-action="fit" aria-label="适应窗口">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <button type="button" data-ft-action="expand" aria-label="展开全部分支" title="展开全部">展开</button>
-        <button type="button" data-ft-action="collapse" aria-label="收起全部分支" title="收起分支">收起</button>
+        <button type="button" data-ft-action="expand" aria-label="展开全部分支">展开</button>
+        <button type="button" data-ft-action="collapse" aria-label="收起全部分支">收起</button>
       </div>
 
-      <p class="ft-hint">拖动平移 · 滚轮缩放 · 点击节点跳转</p>
+      <p class="ft-hint">拖动平移 · 滚轮缩放 · 点击节点跳转 · fork 卡片打开子应用</p>
     </main>
+
+    <div class="ft-workspace" id="ft-workspace" hidden></div>
   </div>
 
+  <script src="fork-store.js"></script>
+  <script src="fork-workspace.js"></script>
   <script src="forktree.js"></script>
 </body>
 </html>

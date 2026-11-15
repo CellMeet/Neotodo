@@ -1,0 +1,16 @@
+{
+  "id": "storage-box",
+  "name": "收纳箱",
+  "englishName": "Storage Box",
+  "version": "1.0.0",
+  "description": "把暂时不用的分类收进左下角的箱子：点箱子打开收纳模式，点分类把它放进去；再点箱子里的分类就能放回列表最后。",
+  "icon": "storage-box.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#FFC963",
+    "paper": "#f7efe3"
+  }
+}

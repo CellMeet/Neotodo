@@ -20,6 +20,34 @@
     "motif": "☾",
     "quote": "Let the paper keep the quiet parts."
   },
+  "chrome": {
+    "baseline": "#d9c5a8",
+    "row": "#d9c5a8",
+    "submit": "#c8845a",
+    "highlight": "#c8845a"
+  },
+  "note": {
+    "paper": "#f7f1e8",
+    "ink": "#3b3026",
+    "muted": "#8a7862",
+    "rule": "#d9c5a8",
+    "accent": "#c8845a",
+    "accent2": "#7c9c8a",
+    "handle": "#6a6054"
+  },
+  "ai": {
+    "bg": "#fbf7f0",
+    "soft": "#f3ece1",
+    "ink": "#3b3026",
+    "inkSoft": "#6b5c4b",
+    "muted": "#8a7862",
+    "faint": "#c3b5a1",
+    "line": "#e8ddcc",
+    "lineStrong": "#d3c2aa",
+    "accent": "#c8845a",
+    "notice": "#b86b45",
+    "handle": "#6a6054"
+  },
   "preview": "preview.svg",
   "icon": "icon.svg"
 }

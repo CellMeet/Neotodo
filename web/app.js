@@ -4,6 +4,55 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const THEMES = {
+  // The two plain bases every app ships: a neutral light page and a neutral
+  // dark page. Their ruled lines are explicit so dark stays deep and light
+  // keeps its bright white rules.
+  light: {
+    name: "Light", motif: "☼", airmail: false,
+    paper: "#ededf0", paper2: "#e3e3e8", ink: "#1e1f23", muted: "#6b6f78",
+    accent: "#3f7cff", accent2: "#7c5cff", border: "#d6d7dd", stamp: "#2f6bdb",
+    line: "#ffffff", rule: "#ffffff", lineAlpha: 0.7, ruleAlpha: 0.5,
+    glow: "rgba(63,124,255,.18)",
+    display: '"Adwaita Sans","Noto Sans","Noto Sans CJK SC",sans-serif',
+    body: '"Adwaita Sans","Noto Sans","Noto Sans CJK SC",sans-serif',
+    quote: "A clean page for the next thing.",
+    art(p) { return `<svg viewBox="0 0 1000 300" preserveAspectRatio="xMidYMid slice">
+      <rect width="1000" height="300" fill="${p.paper}"/>
+      <rect y="196" width="1000" height="104" fill="${p.paper2}"/>
+      <circle cx="778" cy="74" r="38" fill="${p.accent}" opacity=".9"/>
+      <circle cx="778" cy="74" r="56" fill="none" stroke="${p.accent}" stroke-width="1" opacity=".28"/>
+      <g stroke="${p.line}" stroke-width="2" opacity=".9">
+        <path d="M0 220 H1000"/><path d="M0 250 H1000"/><path d="M0 280 H1000"/>
+      </g>
+      <g stroke="${p.ink}" stroke-width="7" stroke-linecap="round" opacity=".24">
+        <path d="M70 92 H300"/><path d="M70 122 H246"/><path d="M70 152 H276"/>
+      </g>
+      <path d="M0 196 H1000" stroke="${p.border}" stroke-width="1.5"/>
+    </svg>`; }
+  },
+  dark: {
+    name: "Dark", motif: "☾", airmail: false,
+    paper: "#151517", paper2: "#1d1d21", ink: "#f1f1f5", muted: "#9b9ba5",
+    accent: "#6ea8ff", accent2: "#a78bfa", border: "#2b2b31", stamp: "#6ea8ff",
+    line: "#000000", rule: "#000000", lineAlpha: 0.82, ruleAlpha: 0.62,
+    glow: "rgba(110,168,255,.22)",
+    display: '"Adwaita Sans","Noto Sans","Noto Sans CJK SC",sans-serif',
+    body: '"Adwaita Sans","Noto Sans","Noto Sans CJK SC",sans-serif',
+    quote: "Quiet contrast, clear focus.",
+    art(p) { return `<svg viewBox="0 0 1000 300" preserveAspectRatio="xMidYMid slice">
+      <rect width="1000" height="300" fill="${p.paper}"/>
+      <rect y="196" width="1000" height="104" fill="${p.paper2}"/>
+      <circle cx="778" cy="74" r="38" fill="${p.accent}" opacity=".9"/>
+      <circle cx="778" cy="74" r="56" fill="none" stroke="${p.accent}" stroke-width="1" opacity=".24"/>
+      <g stroke="${p.line}" stroke-width="2" opacity=".9">
+        <path d="M0 220 H1000"/><path d="M0 250 H1000"/><path d="M0 280 H1000"/>
+      </g>
+      <g stroke="${p.ink}" stroke-width="7" stroke-linecap="round" opacity=".22">
+        <path d="M70 92 H300"/><path d="M70 122 H246"/><path d="M70 152 H276"/>
+      </g>
+      <path d="M0 196 H1000" stroke="${p.border}" stroke-width="1.5"/>
+    </svg>`; }
+  },
   violet: {
     name: "Violet", motif: "☾", airmail: false,
     paper: "#f4ecfa", paper2: "#e7d8f3", ink: "#3d2f4a", muted: "#8c7a9c",
@@ -1968,14 +2017,50 @@ const AudioFX = (() => {
   };
 })();
 
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "violet", resolved_postcard: "violet", light_postcard: "violet", dark_postcard: "tokyo", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 62, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_background: "", note_background_image: "", note_blur: 16, sticker_backgrounds: {}, wallpaper_mode: "static", wallpaper_static: "art:violet", wallpaper_dynamic: "", plugins: {}, sound_overrides: {} };
-// Each header achievement keeps its own picture and crop, so the artwork for
-// the headphone and the tomato can be chosen independently.
+// `wallpaper` is the single wallpaper choice: a picture or film the reader
+// picked (an absolute path), a legacy bare name from the old pictures folder,
+// a built-in postcard (`art:<id>`) or a theme-pack picture (`theme:<pack-id>`).
+// Images and films share the same option now; there is no separate
+// static/dynamic switch.
+const WALLPAPER_RECENT_LIMIT = 12;
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 62, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], plugins: {}, sound_overrides: {} };
+// The page baseline is saved in its own baseline-color.json file, outside the
+// theme and outside the notebook settings. This is only the first-paint
+// fallback until /api/state answers with the stored colour.
+const BASELINE_COLOR_DEFAULT = "#333333";
+// The row baseline (subtask / Doing hairlines) is stored in baseline-rule.json.
+// It is structured, not a single colour string: solid, a gradient along the
+// line, or a vertical ramp where each row samples a different stop.
+const BASELINE_ROW_MODES = ["solid", "gradient", "height"];
+const BASELINE_ROW_DEFAULT = {
+  mode: "solid",
+  color: BASELINE_COLOR_DEFAULT,
+  color2: "#a8691f",
+  angle: 0,
+};
+// Achievement stickers. Built-in achievements and achievement-tagged plugins
+// each get one picture; a plugin without the "achievement" tag never appears
+// here, because it has no header slot to decorate.
 const STICKER_TARGETS = [
-  { id: "completed", name: "Completed", detail: "Headphone achievement", selector: ".head-right .trophy-button .ach-sticker img", fallback: "/stickers/yuji-battle.jpg" },
-  { id: "focus", name: "Pomodoro", detail: "Tomato achievement", selector: ".head-right .tomato-counter .ach-sticker img", fallback: "/stickers/gojo-battle.jpg" },
+  { id: "completed", name: "Completed trophy", hint: "The trophy that counts finished tasks", selector: ".head-right .trophy-button .ach-sticker img", fallback: "/stickers/yuji-battle.jpg" },
+  { id: "focus", name: "Pomodoro tomato", hint: "The tomato that counts focus rounds", plugin: "pomodoro", selector: ".head-right .tomato-counter .ach-sticker img", fallback: "/stickers/gojo-battle.jpg" },
 ];
-const NOTE_BG_PRESETS = {};
+
+/** A target is available when it is built in or its plugin is achievement-tagged. */
+function stickerTargetAvailable(target) {
+  if (!target) return false;
+  if (!target.plugin) return true;
+  return pluginHasAchievementTag(target.plugin);
+}
+
+function availableStickerTargets() {
+  return STICKER_TARGETS.filter(stickerTargetAvailable);
+}
+const NOTE_BG_PRESETS = {
+  forest: "/notes-forest.jpg",
+  mist: "/notes-mist.jpg",
+  dusk: "/notes-dusk.jpg",
+};
 const POSTCARD_IDS = ["violet", "tokyo", "space", "aurora", "ocean", "forest", "vintage", "alpine", "desert", "emerald"];
 // Wallpaper art is independent of the picker's curated postcard list, so an
 // older saved theme (rain, field, deco, bauhaus…) can still become a pattern.
@@ -1997,19 +2082,51 @@ const FONT_STACKS = {
   pen: '"Z003", "HYYeYXSJ", "P052", "URW Bookman", serif',
 };
 let settings = { ...DEFAULT_SETTINGS };
-let settingsTab = "appearance";
-let noteMaterialFiles = ["paper.css", "glass.css"];
+let settingsTab = "theme";
+// Settings → AI. `aiConfig` mirrors the backend's ai-config.json; the catalog
+// holds every model OpenCode reports plus custom provider rows.
+let aiConfig = null;
+let aiCatalog = { models: [], enabled_models: [], providers: [], skills: [], backends: {}, activity: [], paths: {}, default_model: "" };
+let aiSettingsTab = "basic";
+let aiModelQuery = "";
+let aiProviderDraft = null;
+let aiCommandDraft = null;
+let aiConfigLoading = null;
+let aiConfigLoaded = false;
+let aiInstructionsTimer = null;
+let noteMaterialFiles = ["paper.css", "glass.css", "focus.css"];
 let noteMaterialMenuOpen = false;
-let wallpaperFiles = { images: [], videos: [] };
-let wallpaperFilesRequest = null;
 let wallpaperMediaKey = "";
 let wallpaperVisibilityBound = false;
+// Pre-rendered static wallpapers. Rasterising the postcard art (or decoding a
+// large photo) is the expensive part of mounting a card pane, so it happens
+// once per wallpaper and every card reuses the same decoded picture.
+const wallpaperBitmapCache = new Map();
 const wallpaperTintCache = new Map();
 let settingsSaveTimer = null;
 let randomPicked = false;
-let themeModeTab = null;
-let themeFamiliesOpen = false;
-let themeFamilyOpen = false;
+// The theme picker keeps only two fixed bases (Light/Dark); every
+// built-in postcard and every installed pack lives under Custom.
+const BASE_LIGHT_THEME = "light";
+const BASE_DARK_THEME = "dark";
+const CUSTOM_THEME_COLOR_KEYS = ["paper", "ink", "line", "accent"];
+let customThemesOpen = false;
+let themeManageOpen = false;
+let customThemeEditorOpen = false;
+let customThemeDraft = null;
+let customThemeBusy = false;
+let pendingCustomThemeDeleteId = null;
+// Settings → Theme uses one row with two selectors: the left "Theme" label
+// switches the unit (the NeoTodo theme, the notebook palette, the AI console
+// palette) and the right pill picks the theme inside that unit. New units can
+// be appended here and inherit the same label, dot and current-theme summary.
+const THEME_UNITS = [
+  { id: "app", label: "Theme" },
+  { id: "note", label: "Note theme" },
+  { id: "ai", label: "AI theme" },
+];
+// `themeFieldMode` is the unit currently shown in the row.
+let themeFieldMode = "app";
 const fontPanelsOpen = { body: false, note: false };
 
 function randomPostcardId(exclude = null) {
@@ -2019,7 +2136,7 @@ function randomPostcardId(exclude = null) {
 
 function currentPostcardId() {
   const id = settings.resolved_postcard;
-  return THEMES[id] ? id : "violet";
+  return THEMES[id] ? id : "light";
 }
 
 function postcardIsDark(id) {
@@ -2029,8 +2146,82 @@ function postcardIsDark(id) {
 
 function postcardName(id) {
   const theme = THEMES[id];
-  if (!theme) return "紫罗兰 · Violet";
+  if (!theme) return "Light";
   return id === "violet" ? "紫罗兰 · Violet" : theme.name;
+}
+
+function themeModeFor(id) {
+  if (id === BASE_LIGHT_THEME) return "light";
+  if (id === BASE_DARK_THEME) return "dark";
+  return "custom";
+}
+
+function applyThemeChoice(id) {
+  const theme = THEMES[id];
+  if (!theme) return false;
+  settings.theme = "postcard";
+  settings.postcard = id;
+  settings.resolved_postcard = id;
+  randomPicked = true;
+  if (postcardIsDark(id)) settings.dark_postcard = id;
+  else settings.light_postcard = id;
+  const pack = themePacks.find((item) => item.id === id);
+  // A theme brings its own room: the pack wallpaper when it ships one, the
+  // built-in card art otherwise. The underline, add accent and selection wash
+  // ride along in applyThemeChrome.
+  settings.wallpaper = pack?.wallpaper ? `theme:${id}` : `art:${id}`;
+  applyThemeChrome(id);
+  saveSettings();
+  applySettings();
+  renderCategories();
+  renderStage();
+  if (archiveOpen) renderArchive();
+  return true;
+}
+
+/** The theme-owned chrome colours: underline, add accent and selection wash. */
+function themeChromeFor(id) {
+  const pack = themePacks.find((item) => item.id === id);
+  const chrome = pack && pack.chrome && typeof pack.chrome === "object" ? pack.chrome : null;
+  return chrome || {};
+}
+
+/**
+ * Apply the small colours a theme owns. They are written to the normal
+ * page-line.json / baseline-rule.json files so the reader can still tweak them
+ * afterwards; a theme without a chrome block leaves those files alone.
+ */
+function applyThemeChrome(id) {
+  const chrome = themeChromeFor(id);
+  const baseline = normalizeBaselineColorInput(chrome.baseline || "");
+  if (baseline) {
+    savePageLine({ color: baseline }, { immediate: true });
+  }
+  const row = normalizeBaselineColorInput(chrome.row || "");
+  if (row) {
+    saveBaselineRowRule({
+      mode: "solid",
+      color: row,
+      color2: normalizeBaselineColorInput(chrome.row2 || "") || row,
+    }, { immediate: true });
+  }
+  // An empty highlight means "follow this theme's accent"; the custom wash of
+  // the previous theme must never leak into the new one.
+  settings.highlight = normalizeHighlightColorInput(chrome.highlight || "");
+  applyHighlight();
+}
+
+function defaultCustomThemeDraft() {
+  const theme = THEMES[currentPostcardId()] || THEMES.light;
+  return {
+    name: "My theme",
+    paper: theme.paper || "#f4ecfa",
+    ink: theme.ink || "#3d2f4a",
+    line: theme.line || theme.border || theme.accent2 || "#d4c0e6",
+    accent: theme.accent || "#8d63b8",
+    lineAlpha: Number.isFinite(Number(theme.lineAlpha)) ? Number(theme.lineAlpha) : 0.42,
+    ruleAlpha: Number.isFinite(Number(theme.ruleAlpha)) ? Number(theme.ruleAlpha) : 0.28,
+  };
 }
 
 function themeSymbol(kind) {
@@ -2099,6 +2290,11 @@ let pluginThemeObserver = null;
 // Theme packs are installed into the user's data folder. They extend THEMES
 // with a palette, and may also carry a wallpaper, foley samples and stickers.
 let themePacks = [];
+// The notebook and the console read their palettes from their own folders
+// (note-theme/ and ai-theme/). Keeping them out of theme-packs means applying a
+// NeoTodo theme can never repaint either pane.
+let paneThemes = { note: [], ai: [] };
+let paneThemeFolders = { note: "", ai: "" };
 let themeCatalog = null;
 let themeCatalogBusy = false;
 let themePackBusy = "";
@@ -2116,7 +2312,7 @@ const THEME_SOUND_LABELS = {
   steamHiss: "Steam hiss",
 };
 // Small installable tools live in /plugins/<id>/. Each manifest describes the
-// plugin well enough for Settings → Plugins to list, toggle, open, and remove
+// plugin well enough for Settings → Community → 插件 to list, toggle, open, and remove
 // it without the main notebook knowing anything about the plugin internals.
 const PLUGIN_REGISTRY = {
   pindou: {
@@ -2144,16 +2340,43 @@ const PLUGIN_REGISTRY = {
     icon: "/plugins/completed-drawer/completed-drawer.svg",
     entry: "/plugins/completed-drawer/index.html",
   },
+  "storage-box": {
+    id: "storage-box",
+    title: "收纳箱",
+    englishTitle: "Storage Box",
+    version: "1.0.0",
+    author: "NeoTodo",
+    category: "Interface",
+    description: "把暂时不用的分类收进左下角的箱子：点箱子打开收纳模式，点分类把它放进去；再点箱子里的分类就能放回列表最后。",
+    icon: "/plugins/storage-box/storage-box.svg",
+    entry: "/plugins/storage-box/index.html",
+  },
   forktree: {
     id: "forktree",
     title: "Forktree",
     englishTitle: "Fork Tree",
+    version: "1.2.0",
+    author: "NeoTodo",
+    category: "Interface",
+    description: "把子任务 fork 成独立端口的 NeoTodo 窗口：子任务变成假 todo，完成不计入主应用成就，保留原笔记与 AI 对话，并可以继续添加子子任务。",
+    icon: "/plugins/forktree/forktree.svg",
+    entry: "/plugins/forktree/index.html",
+  },
+  // The tomato clock starts out as an optional achievement plugin. Plugins
+  // tagged "achievement" own a slot in the top-right header; installing this
+  // one reveals the tomato counter and shifts the headphone left for it.
+  pomodoro: {
+    id: "pomodoro",
+    title: "番茄钟",
+    englishTitle: "Pomodoro",
     version: "1.0.0",
     author: "NeoTodo",
     category: "Interface",
-    description: "把分类、任务、子任务以及所有 fork 展开成从左到右的思维导图。点击任意节点，就能回到对应的任务页面。",
-    icon: "/plugins/forktree/forktree.svg",
-    entry: "/plugins/forktree/index.html",
+    description: "番茄钟带“成就”标记：安装后，右上角会出现番茄计数器。每完成一次 25 分钟的专注，番茄数就加一。",
+    icon: "/plugins/pomodoro/pomodoro.svg",
+    entry: "/plugins/pomodoro/index.html",
+    tags: ["achievement", "focus", "timer", "成就"],
+    defaultInstalled: false,
   },
 };
 let pluginDetailId = null;
@@ -2167,6 +2390,11 @@ let pluginCatalogError = "";
 let pluginCatalogRequest = null;
 let pluginCommunityFilter = "all";
 let pluginCommunityQuery = "";
+// Community is its own window with three shelves. The last shelf stays put
+// while the user toggles plugins, so coming back never loses their place.
+let communitySection = "plugins";
+// Community and Settings are separate sheets: opening one closes the other.
+let communityModalOpen = false;
 let pluginInstalling = new Set();
 let installedUserPlugins = [];
 let restoringTrashId = null;
@@ -2185,8 +2413,12 @@ let suppressCompletedSubtaskToggleUntil = 0;
 // Finishing a subtask pops the card open so the row can fly into it. Once the
 // row has landed the card lingers for a beat, then tucks itself away again.
 let completedSubtasksAutoCloseTimer = null;
-const COMPLETED_DRAWER_DWELL_MS = 600;
-const COMPLETED_ROW_FLIGHT_MS = 480;
+const COMPLETED_DRAWER_DWELL_MS = 300;
+const COMPLETED_ROW_FLIGHT_MS = 440;
+// While a finished row is in the air, its flight owns the frame budget: heavy
+// card work (baking wallpaper panes, rebuilding the Doing card) waits for the
+// landing instead of stealing the animation's first frames.
+let completionFlightUntil = 0;
 let historyCursor = -1;
 let lastTypeSoundAt = 0;
 let lastTetrisKeyAt = 0;
@@ -2218,6 +2450,9 @@ let trophyDisplayHold = null;
 let suppressSubtaskRenameUntil = 0;
 let subtaskDragStart = null;
 let justCompletedSubtaskId = null;
+// Reopening is async; a second click on the same finished fan must not send a
+// duplicate request that ends in an error toast.
+let reopeningSubtaskIds = new Set();
 let lastAddedSubtaskId = null;
 let categoryDrag = null;
 let suppressCategoryClickUntil = 0;
@@ -2233,6 +2468,23 @@ let doingCardWidth = 380;
 let doingCardTop = 0;
 let doingCardHeight = 600;
 let doingPanelRect = null;
+// The Doing card is a drawer on the subtask column's border. Hold the card and
+// pull it to the other border to hide or open it there; nothing else about the
+// card changes: same size, same height, same trigger band, only the anchored
+// border moves. The chosen border is remembered like the AI split side.
+const DOING_DOCK_SIDE_KEY = "neotodo.doingDockSide.v1";
+let doingDockSide = (() => {
+  try {
+    const saved = localStorage.getItem(DOING_DOCK_SIDE_KEY);
+    if (saved === "left" || saved === "right") return saved;
+  } catch (error) {}
+  return "right";
+})();
+// The measured subtask column; its own left/right borders are the two homes.
+let doingHome = null;
+let doingDrag = null;
+let doingPress = null;
+let doingDragClickUntil = 0;
 let doingPointerFrame = 0;
 let agentTerminalOpen = false;
 let panelPreview = null;
@@ -2243,8 +2495,14 @@ let detachedNoteTargetOverride = null;
 // A fork window keeps its own index: the branch category plus any categories
 // created inside that branch, while the main window still lists everything.
 let forkRootId = null;
+// Forks from the first Forktree build were stored as categories. Once they
+// have been imported into the plugin store, their old rows stay hidden.
+let legacyForkCategoryIds = new Set();
 let agentSessions = {};
 const agentBusyIds = new Set();
+// Runs the user stopped on purpose. They settle with a reply, but they are
+// not "finished work", so the board must not play the completion ceremony.
+const agentPausedIds = new Set();
 const agentQueuedIds = new Set();
 const agentQueuePositions = {};
 const agentRunMessages = {};
@@ -2295,6 +2553,8 @@ try {
 // claim the same file in the same project.
 let agentModels = [];
 let agentDefaultModel = "deepseek/deepseek-flash";
+let agentDefaultModels = {};
+let agentDefaultModes = {};
 
 // Last model used by each subtask agent, shown to the left of its fan.
 let pendingProjectFolder = "";
@@ -2513,8 +2773,81 @@ function syncRunningAgentMemory() {
   return true;
 }
 
+// Runs that survive an app restart live only on the backend until the page
+// asks for them. Ask on boot and whenever the window wakes up, so a resumed
+// agent's fan spins (and can be paused) exactly like a run started here.
+let agentRunningSyncAt = 0;
+let agentRunningSyncBusy = false;
+async function syncBackendRunningAgents(force = false) {
+  if (agentRunningSyncBusy) return false;
+  if (!force && Date.now() - agentRunningSyncAt < 4000) return false;
+  agentRunningSyncAt = Date.now();
+  agentRunningSyncBusy = true;
+  try {
+    const data = await agentPost({ action: "running" });
+    if (!data.ok || !Array.isArray(data.running)) return false;
+    const live = new Set(data.running.map((id) => String(id)));
+    let changed = false;
+    const lost = [];
+    for (const id of Object.keys(runningAgentStamps)) {
+      // A run this window just started may reach the backend a poll later;
+      // never drop its stamp in that gap.
+      if (!live.has(id) && !agentBusyIds.has(id)) {
+        delete runningAgentStamps[id];
+        changed = true;
+        lost.push(id);
+      }
+    }
+    for (const id of live) {
+      if (!(id in runningAgentStamps)) {
+        runningAgentStamps[id] = Date.now();
+        changed = true;
+      }
+    }
+    if (!changed) return false;
+    saveRunningAgentStamps();
+    // The visible rows follow the stamps: a resumed run's fan starts or stops
+    // here, without waiting for the next full render.
+    document.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
+      const subtaskId = row.dataset.subtaskId;
+      const on = agentIsRunning(`subtask:${subtaskId}`);
+      if (row.classList.contains("agent-running") !== on) {
+        updateSubtaskAgentDom(subtaskId, { running: on });
+      }
+    });
+    syncAgentFanSpins();
+    reorderCurrentSubtaskRows();
+    if (doingPeekOpen) updateDoingPeek(true);
+    // A resumed run can finish while its conversation is closed. Read the
+    // settled turn once so the board still lights its finished-work hint.
+    for (const id of lost) {
+      if (id.startsWith("subtask:") && !agentPausedIds.has(id)) {
+        noteBackendRunFinished(id.slice(8));
+      }
+    }
+    return true;
+  } catch (error) {
+    return false;
+  } finally {
+    agentRunningSyncBusy = false;
+  }
+}
+
+/** Mark a backend-only run as finished unless the user paused it. */
+function noteBackendRunFinished(subtaskId) {
+  agentPost({ action: "get", agent_id: `subtask:${subtaskId}` })
+    .then((data) => {
+      const messages = Array.isArray(data?.agent?.messages) ? data.agent.messages : [];
+      const last = messages[messages.length - 1];
+      if (!last || last.pending || last.interrupted) return;
+      noteSubtaskAgentFinished(subtaskId);
+    })
+    .catch(() => {});
+}
+
 /** Update the visible order after an AI run happens in another window. */
 function refreshAgentFinishViews() {
+  syncBackendRunningAgents().catch(() => {});
   const runningChanged = syncRunningAgentMemory();
   const finishedChanged = syncAgentFinishMemory();
   if (!runningChanged && !finishedChanged) return;
@@ -2769,6 +3102,11 @@ function saveNotesPanelRect() {
 // Remember the last workspace shape so relaunching the app lands the user on
 // the same category, selection and open note/AI sheets. Only the main notebook
 // writes this: fork and detached windows must not overwrite it.
+//
+// There is no cached page: `stageWorkspaceView()` puts the saved shape in place
+// before the first `render()`, so relaunching paints the page the user left as
+// the live page in one pass instead of opening a default page, then moving the
+// panels, or painting a screenshot of the previous session over the window.
 const VIEW_STATE_KEY = "neotodo.viewState.v1";
 let viewStateReady = false;
 
@@ -2779,6 +3117,25 @@ function readViewState() {
   } catch (error) { return null; }
 }
 
+// The AI sheet keeps its own box, and a door-line drag writes that box
+// directly (top/height on the panel), so the rendered height -- not the root
+// variable -- is the page's real shape. A stacked note/AI split owns the
+// geometry itself and must not leak into the remembered height.
+function rememberedAiSheetHeight() {
+  if (!agentTerminalOpen || document.body.classList.contains("agent-notes-axis-y")) return 0;
+  const panel = $("#agent-terminal");
+  if (!panel) return 0;
+  // Only a deliberately sized sheet is worth remembering. The default box is
+  // re-measured from the subtask area on every launch, so a window resize can
+  // move it without leaving a stale pixel height behind.
+  const boxed = sheetHeightCustom
+    || panel.style.getPropertyValue("height")
+    || panel.style.getPropertyValue("top");
+  if (!boxed) return 0;
+  const height = panel.getBoundingClientRect().height || 0;
+  return height > 0 ? Math.round(height) : 0;
+}
+
 function saveViewState() {
   if (!viewStateReady || detachedMode || !state.data) return;
   const target = activeNoteTarget();
@@ -2786,6 +3143,7 @@ function saveViewState() {
     localStorage.setItem(VIEW_STATE_KEY, JSON.stringify({
       notesOpen: !notesHidden,
       aiOpen: agentTerminalOpen,
+      aiHeight: rememberedAiSheetHeight(),
       categoryId: state.selectedCategoryId || "",
       todoId: target?.todo?.id || "",
       subtaskId: selectedSubtaskId || "",
@@ -2795,41 +3153,63 @@ function saveViewState() {
   } catch (error) {}
 }
 
-function restoreWorkspaceView(saved) {
+// Everything that decides what the page looks like is set before the first
+// render: category, history selection, the note/AI open flags and a custom AI
+// sheet height. renderStage() then paints that exact page once.
+function stageWorkspaceView(saved) {
   if (!saved || detachedMode) return;
   const category = selectedCategory();
-  if (!category) return;
-  if (saved.historyTodoId) {
-    const done = doneTodos(category);
-    const index = done.findIndex((todo) => todo.id === saved.historyTodoId);
-    if (index >= 0) {
-      historyCursor = index;
-      historyExpanded.add(index);
-      selectedHistoryId = saved.historyTodoId;
-    }
-  }
-  if (saved.subtaskId) {
-    const inCurrent = (currentTodo()?.subtasks || []).some((subtask) => subtask.id === saved.subtaskId);
-    const doneOwner = (category.todos || []).find((todo) => todo.done
-      && (todo.subtasks || []).some((subtask) => subtask.id === saved.subtaskId));
-    if (inCurrent || doneOwner) {
-      selectedSubtaskId = saved.subtaskId;
-      if (doneOwner && !selectedHistoryId) {
-        selectedHistoryId = doneOwner.id;
-        const index = doneTodos(category).findIndex((todo) => todo.id === doneOwner.id);
-        historyCursor = index >= 0 ? index : 0;
-        if (index >= 0) historyExpanded.add(index);
+  if (category) {
+    if (saved.historyTodoId) {
+      const done = doneTodos(category);
+      const index = done.findIndex((todo) => todo.id === saved.historyTodoId);
+      if (index >= 0) {
+        historyCursor = index;
+        historyExpanded.add(index);
+        selectedHistoryId = saved.historyTodoId;
       }
     }
+    if (saved.subtaskId) {
+      const inCurrent = (currentTodo()?.subtasks || []).some((subtask) => subtask.id === saved.subtaskId);
+      const doneOwner = (category.todos || []).find((todo) => todo.done
+        && (todo.subtasks || []).some((subtask) => subtask.id === saved.subtaskId));
+      if (inCurrent || doneOwner) {
+        selectedSubtaskId = saved.subtaskId;
+        if (doneOwner && !selectedHistoryId) {
+          selectedHistoryId = doneOwner.id;
+          const index = doneTodos(category).findIndex((todo) => todo.id === doneOwner.id);
+          historyCursor = index >= 0 ? index : 0;
+          if (index >= 0) historyExpanded.add(index);
+        }
+      }
+    }
+    // Mark the category as already visited, otherwise renderStage() resets the
+    // restored history cursor/selection as if the user just switched boards.
+    lastCategoryId = category.id;
   }
-  if (selectedSubtaskId || selectedHistoryId) {
-    renderStage();
-    renderNotesPanel();
-    updateHistorySelection();
-    updateSubtaskSelection();
+  notesClosing = false;
+  notesHidden = !saved.notesOpen;
+  document.body.classList.toggle("notes-hidden", notesHidden);
+  agentClosing = false;
+  agentTerminalOpen = Boolean(saved.aiOpen);
+  document.body.classList.toggle("agent-terminal-open", agentTerminalOpen);
+  const height = Number(saved.aiHeight);
+  if (agentTerminalOpen && Number.isFinite(height) && height >= 120) {
+    sheetHeightCustom = true;
+    document.documentElement.style.setProperty(
+      "--agent-terminal-height",
+      `${Math.round(height)}px`,
+    );
   }
-  if (saved.notesOpen) showNotesPanel(true);
-  if (saved.aiOpen) openAgentTerminal(true);
+}
+
+// After the page is in the DOM, only measuring is left: the default AI box
+// (when the user never dragged it) and the split/door-line geometry.
+function settleWorkspaceView() {
+  if (detachedMode) return;
+  refreshDefaultSheetHeight();
+  updateAgentSplitLayout();
+  positionDeskHandles();
 }
 
 // Default sheet height: start right below the bordered subtask area so the
@@ -2837,6 +3217,12 @@ function restoreWorkspaceView(saved) {
 let sheetHeightCustom = false;
 function refreshDefaultSheetHeight() {
   if (sheetHeightCustom) return;
+  // A door-line drag writes the sheet's box explicitly on every frame, so the
+  // shared default is not consulted until the drag is over. Rewriting the root
+  // height variable mid-gesture restyles the whole page (25-30ms, it is
+  // inherited by every element) for no visible gain, and that freeze is what
+  // made the first frame of a door drag stutter.
+  if (deskHandleResizing()) return;
   const body = $(".page-body");
   const todos = $(".todos-section");
   if (!body || !todos) return;
@@ -2882,8 +3268,14 @@ function positionNotesHandle() {
 function followPageLayout(duration = 360) {
   const start = performance.now();
   const step = () => {
-    positionTimerRoot();
-    positionNotesHandle();
+    // A door-line drag writes its own sheet box and its line's `top` once per
+    // frame. Measuring the page and re-placing the lines here would force a
+    // layout inside that same frame, so the loop stands down while a line is
+    // held and picks the geometry up again the moment the pointer is released.
+    if (!deskHandleResizing()) {
+      positionTimerRoot();
+      positionNotesHandle();
+    }
     if (performance.now() - start < duration) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -3017,8 +3409,377 @@ function normalizedCaretColor() {
   return /^#[0-9a-f]{6}$/i.test(String(settings.caret_color || "")) ? settings.caret_color : "#1b1b1b";
 }
 
+/** The stored page-baseline colour; it never reads the active theme. */
+function baselineColor() {
+  const stored = state.data?.baseline_color;
+  return /^#[0-9a-f]{6}$/i.test(String(stored || ""))
+    ? String(stored).toLowerCase()
+    : BASELINE_COLOR_DEFAULT;
+}
+
+/** Accept #rrggbb, rrggbb or #rgb from the baseline settings fields. */
+function normalizeBaselineColorInput(raw) {
+  const value = String(raw || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+  if (/^[0-9a-f]{6}$/i.test(value)) return `#${value.toLowerCase()}`;
+  if (/^#[0-9a-f]{3}$/i.test(value)) {
+    return `#${value.slice(1).split("").map((char) => char + char).join("").toLowerCase()}`;
+  }
+  return "";
+}
+
+// Colour pickers fire `input` for every pixel while the user drags. The line
+// repaints immediately, but only the last colour is written to
+// baseline-color.json, so dragging cannot flood the backend.
+let baselineColorSaveTimer = null;
+
+function saveBaselineColor(color, { immediate = false } = {}) {
+  if (state.data) state.data.baseline_color = color;
+  document.documentElement.style.setProperty("--page-baseline-color", color);
+  clearTimeout(baselineColorSaveTimer);
+  const send = () => {
+    baselineColorSaveTimer = null;
+    fetch("/api/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "save_baseline_color", color }),
+    }).catch(() => {
+      // The colour is still on screen; the next edit retries the file write.
+    });
+  };
+  if (immediate) send();
+  else baselineColorSaveTimer = setTimeout(send, 180);
+}
+
+// ---------------------------------------------------------------------------
+// page_line — the single owner of the page's horizontal dividers.
+//
+// The header, the seven task rows and the empty desk are printed from one
+// seeded grid, so a row that carries text and a row that is an empty filler
+// can never receive a different line. Colour, opacity, row pitch and line
+// weight live together in page-line.json; nothing here reads a theme.
+// ---------------------------------------------------------------------------
+const PAGE_LINE_DEFAULT = {
+  color: BASELINE_COLOR_DEFAULT,
+  opacity: 1,
+  row: 40,
+  thickness: 1,
+};
+
+/** Normalise the stored page line; a hand-edited file can never break CSS. */
+function pageLine() {
+  const raw = state.data?.page_line;
+  const source = raw && typeof raw === "object" ? raw : {};
+  const color = /^#[0-9a-f]{6}$/i.test(String(source.color || ""))
+    ? String(source.color).toLowerCase()
+    : PAGE_LINE_DEFAULT.color;
+  const opacityRaw = Number(source.opacity);
+  const opacity = Number.isFinite(opacityRaw)
+    ? Math.max(0, Math.min(1, opacityRaw))
+    : PAGE_LINE_DEFAULT.opacity;
+  const rowRaw = Math.round(Number(source.row));
+  const row = Number.isFinite(rowRaw)
+    ? Math.max(32, Math.min(64, rowRaw))
+    : PAGE_LINE_DEFAULT.row;
+  const thicknessRaw = Math.round(Number(source.thickness));
+  const thickness = Number.isFinite(thicknessRaw)
+    ? Math.max(1, Math.min(4, thicknessRaw))
+    : PAGE_LINE_DEFAULT.thickness;
+  return { color, opacity, row, thickness };
+}
+
+/** The one colour every page divider is painted with. */
+function pageLinePaint(line = pageLine()) {
+  return `rgba(${hexToRgb(line.color)}, ${line.opacity})`;
+}
+
+/** Publish page_line on :root; page-line.css is the only reader. */
+function applyPageLine() {
+  const line = pageLine();
+  const root = document.documentElement;
+  root.style.setProperty("--page-line-color", line.color);
+  root.style.setProperty("--page-line-opacity", String(line.opacity));
+  root.style.setProperty("--page-line-paint", pageLinePaint(line));
+  root.style.setProperty("--page-line-row", `${line.row}px`);
+  root.style.setProperty("--page-line-thickness", `${line.thickness}px`);
+  root.style.setProperty("--page-task-h", `calc(${line.row}px * 7)`);
+  applyOverlayTop();
+}
+
+// ---------------------------------------------------------------------------
+// Overlay sheets hang from the page grid.
+//
+// Settings, the archive and the chronicle used to start at an offset of their
+// own, which left a ruled line floating next to the sheet's top border. Their
+// top edge is now snapped to a page rule: it sits level with the postcard's
+// top edge less one ruled row, then walks up to the nearest rule — never above
+// the first rule under the header. style.css keeps the same expression as the
+// no-JS fallback; this pass quantises it onto the notebook lines.
+// ---------------------------------------------------------------------------
+let overlayTopBound = false;
+let overlayTopRetries = 0;
+
+function overlayTop() {
+  const row = Math.max(8, Math.round(Number(pageLine().row) || 40));
+  const viewport = window.innerHeight || 0;
+  const page = document.querySelector("#stage") || document.querySelector(".page");
+  const pageTop = page ? page.getBoundingClientRect().top : 0;
+  if (pageTop <= 0) return 0;
+  // Keep in step with the postcard viewer's frame (style.css --postcard-height).
+  let cardHeight = Math.min(560, viewport * 0.8);
+  if (window.innerWidth <= 980) cardHeight = Math.min(540, viewport * 0.82);
+  if (viewport <= 720) cardHeight = viewport * 0.96 - 30;
+  const ideal = (viewport - cardHeight) / 2 - row;
+  const snapped = pageTop + Math.floor((ideal - pageTop) / row) * row;
+  return Math.max(0, Math.round(Math.max(pageTop, snapped)));
+}
+
+/** Publish the snapped top edge; re-run on resize so the grid stays aligned. */
+function applyOverlayTop() {
+  if (!overlayTopBound) {
+    overlayTopBound = true;
+    window.addEventListener("resize", applyOverlayTop, { passive: true });
+  }
+  const top = overlayTop();
+  if (top > 0) {
+    overlayTopRetries = 0;
+    document.documentElement.style.setProperty("--overlay-top", `${top}px`);
+    return;
+  }
+  // The first paint can run before the page has a box; try again next frame.
+  if (overlayTopRetries < 20) {
+    overlayTopRetries += 1;
+    requestAnimationFrame(applyOverlayTop);
+  }
+}
+
+let pageLineSaveTimer = null;
+
+/** Repaint at once, then write the object to page-line.json. */
+function savePageLine(patch, { immediate = false } = {}) {
+  const line = { ...pageLine(), ...patch };
+  if (state.data) state.data.page_line = line;
+  applyPageLine();
+  clearTimeout(pageLineSaveTimer);
+  const send = () => {
+    pageLineSaveTimer = null;
+    silentAction("save_page_line", { page_line: line });
+  };
+  if (immediate) send();
+  else pageLineSaveTimer = setTimeout(send, 180);
+}
+
+/** Repaint the compact preview strip in Settings; nothing else. */
+function syncPageLineSwatch(line = pageLine()) {
+  document.querySelectorAll("[data-page-line-swatch]").forEach((node) => {
+    node.style.setProperty("--preview-color", pageLinePaint(line));
+    node.style.setProperty("--preview-row", "6px");
+    node.style.setProperty("--preview-weight", `${Math.min(3, line.thickness)}px`);
+  });
+}
+
+/** Keep the page-line controls in step without rebuilding the settings sheet. */
+function syncPageLineControls(line = pageLine()) {
+  const picker = $("#page-line-color");
+  if (picker) picker.value = line.color;
+  const hex = $("#page-line-hex");
+  if (hex) hex.value = line.color;
+  const opacity = $("#page-line-opacity");
+  if (opacity) opacity.value = String(line.opacity);
+  const opacityValue = $("#page-line-opacity-value");
+  if (opacityValue) opacityValue.textContent = `${Math.round(line.opacity * 100)}%`;
+  const row = $("#page-line-row");
+  if (row) row.value = String(line.row);
+  const rowValue = $("#page-line-row-value");
+  if (rowValue) rowValue.textContent = `${line.row} px`;
+  const thickness = $("#page-line-thickness");
+  if (thickness) thickness.value = String(line.thickness);
+  const thicknessValue = $("#page-line-thickness-value");
+  if (thicknessValue) thicknessValue.textContent = `${line.thickness} px`;
+  syncPageLineSwatch(line);
+}
+
+// ---------------------------------------------------------------------------
+// Row baseline — the hairline inside the finished-subtasks drawer. The page,
+// the live subtask lane, the categories spine and the Doing panel all read the
+// page_line colour; this setting only shapes the finished card. Unlike the page
+// dividers, a card row line is short enough to carry a gradient. The "height"
+// mode gives every row a different stop so the colour travels down a list. Both
+// live in baseline-rule.json, never in a theme.
+// ---------------------------------------------------------------------------
+
+/** Normalise the stored row rule; a hand-edited file can never break CSS. */
+function baselineRowRule() {
+  const raw = state.data?.baseline_rule;
+  const source = raw && typeof raw === "object" ? raw : {};
+  const mode = BASELINE_ROW_MODES.includes(String(source.mode || "").toLowerCase())
+    ? String(source.mode).toLowerCase()
+    : BASELINE_ROW_DEFAULT.mode;
+  const color = /^#[0-9a-f]{6}$/i.test(String(source.color || ""))
+    ? String(source.color).toLowerCase()
+    : BASELINE_ROW_DEFAULT.color;
+  const color2 = /^#[0-9a-f]{6}$/i.test(String(source.color2 || ""))
+    ? String(source.color2).toLowerCase()
+    : BASELINE_ROW_DEFAULT.color2;
+  const angle = Math.max(0, Math.min(180, Number(source.angle) || 0));
+  return { mode, color, color2, angle };
+}
+
+/** Give each row its stop on the vertical gradient when height mode is active. */
+function applyBaselineRowHeights(scope = document) {
+  const rule = baselineRowRule();
+  const groups = scope.querySelectorAll?.(".current-subtasks, .history-rows, .doing-list") || [];
+  groups.forEach((group) => {
+    const rows = [...group.children].filter((row) => (
+      row.matches(".current-subtask, .history-row, .doing-item")
+    ));
+    const last = Math.max(1, rows.length - 1);
+    rows.forEach((row, index) => {
+      if (rule.mode === "height") {
+        row.style.setProperty(
+          "--baseline-row-color",
+          mixHex(rule.color, rule.color2, index / last)
+        );
+      } else {
+        row.style.removeProperty("--baseline-row-color");
+      }
+    });
+  });
+}
+
+/** Publish the row rule on :root; CSS only chooses how to paint it. */
+function applyBaselineRowRule() {
+  const rule = baselineRowRule();
+  const root = document.documentElement;
+  root.dataset.baselineRows = rule.mode;
+  root.style.setProperty("--baseline-row-color", rule.color);
+  root.style.setProperty("--baseline-row-color-2", rule.color2);
+  root.style.setProperty("--baseline-row-angle", `${rule.angle}deg`);
+  root.style.setProperty(
+    "--baseline-row-image",
+    `linear-gradient(${rule.angle + 90}deg, ${rule.color}, ${rule.color2})`
+  );
+  applyBaselineRowHeights();
+}
+
+let baselineRowSaveTimer = null;
+
+/** Repaint at once, then write the structured rule to baseline-rule.json. */
+function saveBaselineRowRule(patch, { immediate = false } = {}) {
+  const rule = { ...baselineRowRule(), ...patch };
+  if (state.data) state.data.baseline_rule = rule;
+  applyBaselineRowRule();
+  clearTimeout(baselineRowSaveTimer);
+  const send = () => {
+    baselineRowSaveTimer = null;
+    silentAction("save_baseline_rule", { rule });
+  };
+  if (immediate) send();
+  else baselineRowSaveTimer = setTimeout(send, 180);
+}
+
+/** Keep the row-rule controls in step without rebuilding the settings sheet. */
+function syncBaselineRowControls(rule = baselineRowRule()) {
+  const picker = $("#baseline-row-color");
+  if (picker) picker.value = rule.color;
+  const hex = $("#baseline-row-color-hex");
+  if (hex) hex.value = rule.color;
+  const picker2 = $("#baseline-row-color2");
+  if (picker2) picker2.value = rule.color2;
+  const hex2 = $("#baseline-row-color2-hex");
+  if (hex2) hex2.value = rule.color2;
+  const angle = $("#baseline-row-angle");
+  if (angle) angle.value = String(rule.angle);
+  const angleLabel = $("#baseline-row-angle-value");
+  if (angleLabel) angleLabel.textContent = `${rule.angle}°`;
+  const preview = $(".baseline-row-preview");
+  if (preview) {
+    preview.className = `baseline-row-preview ${rule.mode}`;
+    preview.style.setProperty("--a", rule.color);
+    preview.style.setProperty("--b", rule.color2);
+    preview.style.setProperty("--angle", `${rule.angle}deg`);
+  }
+  document.querySelectorAll(".baseline-row-choice").forEach((button) => {
+    const active = button.dataset.action === `baseline-rows-${rule.mode}`;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  const second = $(".baseline-row-second");
+  if (second) second.classList.toggle("is-hidden", rule.mode === "solid");
+  const angleRow = $(".baseline-row-angle-row");
+  if (angleRow) angleRow.classList.toggle("is-hidden", rule.mode !== "gradient");
+}
+
+// ---------------------------------------------------------------------------
+// Selection highlight — the wash behind the row or menu item you are in.
+// Every theme marks the active subtask and the hovered menu entry with an
+// accent tint. "Auto" keeps that theme-derived wash; a saved colour replaces
+// only the wash, never the accent ink, so text and icons keep their theme.
+// ---------------------------------------------------------------------------
+
+/** Accept #rrggbb, rrggbb or #rgb from the highlight settings fields. */
+function normalizeHighlightColorInput(raw) {
+  const value = String(raw || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+  if (/^[0-9a-f]{6}$/i.test(value)) return `#${value.toLowerCase()}`;
+  if (/^#[0-9a-f]{3}$/i.test(value)) {
+    return `#${value.slice(1).split("").map((char) => char + char).join("").toLowerCase()}`;
+  }
+  return "";
+}
+
+/** The saved highlight colour, or "" when the theme still owns the wash. */
+function highlightColor() {
+  return normalizeHighlightColorInput(settings.highlight);
+}
+
+/** Keep the picker, the hex field, the sample and the Auto button in step. */
+function syncHighlightFields(color, source = "") {
+  if (source !== "picker") {
+    const picker = $("#highlight-color");
+    if (picker) picker.value = color;
+  }
+  if (source !== "hex") {
+    const hex = $("#highlight-color-hex");
+    if (hex) hex.value = color;
+  }
+  document.querySelectorAll(".highlight-live-sample").forEach((sample) => {
+    sample.style.setProperty("--sample", color);
+  });
+  const mode = document.querySelector(".highlight-mode");
+  if (mode) mode.textContent = "Custom colour";
+  const auto = document.querySelector('[data-action="reset-highlight-color"]');
+  if (auto) {
+    auto.disabled = false;
+    auto.classList.remove("primary");
+    auto.classList.remove("active");
+  }
+}
+
+/** Publish the wash colour. Called on every theme pass and while the picker drags. */
+function applyHighlight() {
+  const root = document.documentElement;
+  const color = highlightColor();
+  if (color) {
+    root.dataset.select = "custom";
+    root.style.setProperty("--select-wash-rgb", hexToRgb(color));
+  } else {
+    // Hand the wash back to the active theme's accent.
+    delete root.dataset.select;
+    root.style.removeProperty("--select-wash-rgb");
+  }
+}
+
+function aiThemeIsDark() {
+  // The AI console may run a dark theme while the notebook is light (or the
+  // other way round), so its caret follows the console palette, not the app.
+  const palette = resolvedAiTheme()?.palette;
+  if (palette?.bg) return hexLuminance(palette.bg) < 0.45;
+  return document.documentElement.dataset.postcardDark === "true";
+}
+
 function aiCaretColor() {
-  const dark = document.documentElement.dataset.postcardDark === "true";
+  const dark = aiThemeIsDark();
   const value = dark ? settings.ai_caret_dark : settings.ai_caret_light;
   return /^#[0-9a-f]{6}$/i.test(String(value || ""))
     ? value
@@ -3280,8 +4041,9 @@ async function action(name, payload = {}) {
     state.selectedCategoryId = result.created;
   }
   const selected = state.selectedCategoryId;
-  if (selected && !state.data.categories.some((category) => category.id === selected)) {
-    state.selectedCategoryId = state.data.selected_category || state.data.categories[0]?.id || null;
+  const visible = visibleCategories();
+  if (selected && !visible.some((category) => category.id === selected)) {
+    state.selectedCategoryId = visible[0]?.id || null;
   }
   render();
   setStatus("Saved");
@@ -3302,24 +4064,277 @@ async function silentAction(name, payload = {}) {
   }
 }
 
-function chooseProjectFolder() {
+// The napkin hands the working-folder question to the desktop itself: a click
+// opens the system file manager on the folder's parent with the folder
+// selected, exactly like clicking that folder once in the window. NeoTodo draws
+// no file list of its own. Right-click (or long-press) keeps a small card for
+// changing or unlinking the folder, because only the native picker can choose.
+function revealProjectFolder(todo = null) {
+  const targetTodo = todo || activeNoteTarget()?.todo || null;
+  closeProjectFolderCard();
+  AudioFX.unlock();
+  playPianoKey();
+  silentAction("open_project_folder", targetTodo ? { id: targetTodo.id } : {}).then((result) => {
+    if (result?.ok === false) {
+      toast(result.error || "Could not open the folder in your file manager", true);
+      return;
+    }
+    // Unlinked todos still have a real workspace (NeoTodo's own folder); say so
+    // once, and point at the right-click card that binds a project instead.
+    setStatus(
+      targetTodo?.project_folder
+        ? "Opened in your file manager"
+        : "NeoTodo's own folder · right-click the napkin to link a project",
+    );
+  });
+}
+
+function projectFolderCardRoot() {
+  let root = document.getElementById("project-folder-root");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "project-folder-root";
+    document.body.appendChild(root);
+  }
+  return root;
+}
+
+function closeProjectFolderCard() {
+  const root = document.getElementById("project-folder-root");
+  if (root) root.innerHTML = "";
+}
+
+const PROJECT_FOLDER_GLYPHS = {
+  dir: '<svg class="project-folder-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 4.2h4.1l1.2 1.5h7.1v7a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+  file: '<svg class="project-folder-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 1.9h5l3.5 3.4v8.8a1 1 0 0 1-1 1H4.2a1 1 0 0 1-1-1V2.9a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><path d="M9.2 1.9v3.4h3.5" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>',
+};
+
+// The card answers "where do this todo's subtask agents work?" with the folder
+// path and a real directory tree: folders first, then files, nested by depth.
+// Only the open folder's level is fetched, so expanding a big project stays
+// quick and the card never freezes on a full recursive scan.
+let projectFolderEntries = [];
+let projectFolderTruncated = false;
+let projectFolderLinked = false;
+let projectFolderMissingLink = false;
+let projectFolderEffective = "";
+let projectFolderTodoId = "";
+const projectFolderChildren = new Map();
+const projectFolderExpanded = new Set();
+
+function projectFolderEntryDepth(entry) {
+  return Math.min(String(entry?.path || "").split("/").length - 1, 8);
+}
+
+function projectFolderVisibleEntries() {
+  const visible = [];
+  const walk = (entries) => {
+    (entries || []).forEach((entry) => {
+      visible.push(entry);
+      if (entry.dir && projectFolderExpanded.has(entry.path)) {
+        walk(projectFolderChildren.get(entry.path));
+      }
+    });
+  };
+  walk(projectFolderEntries);
+  return visible;
+}
+
+function renderProjectFolderTree(holder) {
+  if (!holder) return;
+  const visible = projectFolderVisibleEntries();
+  if (!visible.length) {
+    holder.innerHTML = '<span class="project-folder-file-empty">The folder is empty.</span>';
+    return;
+  }
+  const rows = visible.map((entry) => {
+    const depth = projectFolderEntryDepth(entry);
+    const open = entry.dir && projectFolderExpanded.has(entry.path);
+    const loading = entry.dir && projectFolderExpanded.has(entry.path) && !projectFolderChildren.has(entry.path);
+    const count = entry.dir && Number(entry.count) ? `<span class="project-folder-count">${Number(entry.count)}</span>` : "";
+    return `<div class="project-folder-entry ${entry.dir ? "is-dir" : "is-file"} ${open ? "open" : ""} ${loading ? "loading" : ""}" style="--depth:${depth}"${entry.dir ? ` data-folder-path="${esc(entry.path)}"` : ""} title="${esc(entry.path || entry.name)}"><span class="project-folder-caret" aria-hidden="true"></span>${entry.dir ? PROJECT_FOLDER_GLYPHS.dir : PROJECT_FOLDER_GLYPHS.file}<span class="project-folder-entry-name">${esc(entry.name)}</span>${count}</div>`;
+  }).join("");
+  const note = projectFolderTruncated
+    ? '<span class="project-folder-file-empty">Listing stops at the first 160 entries.</span>'
+    : "";
+  holder.innerHTML = rows + note;
+  const dirs = projectFolderEntries.filter((entry) => entry.dir).length;
+  const files = projectFolderEntries.length - dirs;
+  const meta = document.querySelector("[data-project-folder-meta]");
+  if (meta) {
+    const status = projectFolderMissingLink
+      ? "Linked folder missing · using default"
+      : projectFolderLinked ? "Linked" : "Default";
+    meta.textContent = `${status} · ${dirs} ${dirs === 1 ? "folder" : "folders"} · ${files} ${files === 1 ? "file" : "files"}`;
+  }
+}
+
+function loadProjectFolderFiles(todoId) {
+  const holder = document.querySelector("[data-project-folder-files]");
+  if (!holder) return;
+  projectFolderTodoId = todoId;
+  silentAction("project_files", { id: todoId }).then((result) => {
+    if (!holder.isConnected) return;
+    if (result?.ok === false) {
+      holder.innerHTML = `<span class="project-folder-file-empty">${esc(result.error || "Could not read this folder.")}</span>`;
+      return;
+    }
+    projectFolderEntries = Array.isArray(result?.entries) ? result.entries : [];
+    projectFolderTruncated = Boolean(result?.truncated);
+    projectFolderLinked = Boolean(result?.linked);
+    projectFolderMissingLink = Boolean(result?.linked && result?.linked_exists === false);
+    if (result?.folder) projectFolderEffective = String(result.folder);
+    const pathNode = document.querySelector("[data-project-folder-path]");
+    if (pathNode && result?.folder) pathNode.textContent = String(result.folder);
+    const hintNode = document.querySelector("[data-project-folder-hint]");
+    if (hintNode && projectFolderMissingLink) {
+      hintNode.textContent = "The linked folder is missing, so subtask AI works in NeoTodo's own folder.";
+    }
+    projectFolderChildren.clear();
+    projectFolderExpanded.clear();
+    if (!projectFolderEntries.length) {
+      holder.innerHTML = `<span class="project-folder-file-empty">${result?.exists === false ? "This folder is no longer on disk." : "The folder is empty."}</span>`;
+      return;
+    }
+    renderProjectFolderTree(holder);
+  });
+}
+
+function toggleProjectFolderDir(path, holder) {
+  if (!path || !holder) return;
+  if (projectFolderExpanded.has(path)) {
+    projectFolderExpanded.delete(path);
+    renderProjectFolderTree(holder);
+    return;
+  }
+  projectFolderExpanded.add(path);
+  if (projectFolderChildren.has(path)) {
+    renderProjectFolderTree(holder);
+    return;
+  }
+  renderProjectFolderTree(holder);
+  silentAction("project_files", { id: projectFolderTodoId, path }).then((result) => {
+    if (!holder.isConnected) return;
+    projectFolderChildren.set(path, Array.isArray(result?.entries) ? result.entries : []);
+    renderProjectFolderTree(holder);
+  });
+}
+
+function openProjectFolderCard() {
   const target = activeNoteTarget();
   const todo = target?.todo || null;
-  if (todo && (target.completed || todo.done)) return;
+  const linkedFolder = String(todo?.project_folder || "");
+  // Todos without a linked folder still have a real workspace: the agent
+  // falls back to NeoTodo's own folder (or the crew runner's folder). Show
+  // that path so the napkin always answers "where does the AI work?".
+  const pendingFolder = !todo ? String(pendingProjectFolder || "") : "";
+  const fallbackFolder = pendingFolder || String(state.data?.default_project_folder || "");
+  const folder = linkedFolder || fallbackFolder;
+  const linked = Boolean(linkedFolder);
+  const category = selectedCategory();
+  const count = Number(todo?.project_file_count) || 0;
+  const locked = Boolean(todo && (target?.completed || todo.done));
+  const categoryLine = category
+    ? `<div class="project-folder-context">Category · ${esc(category.name)}</div>`
+    : "";
+  const subtaskLine = target?.kind === "subtask" && target.subtask
+    ? `<div class="project-folder-context">Subtask · ${esc(target.subtask.name)}</div>`
+    : "";
+  const hint = linked
+    ? "Subtask AI reads and writes in this folder. A plain click on the napkin shows it in your file manager."
+    : todo
+      ? "No folder linked, so subtask AI works in NeoTodo's own folder. Choose a folder to point it at your project."
+      : "Pick the folder the next todo's AI should work in. Until then, AI uses NeoTodo's own folder.";
+  AudioFX.paper();
+  projectFolderEntries = [];
+  projectFolderTruncated = false;
+  projectFolderLinked = false;
+  projectFolderMissingLink = false;
+  projectFolderEffective = folder;
+  projectFolderTodoId = "";
+  projectFolderChildren.clear();
+  projectFolderExpanded.clear();
+  projectFolderCardRoot().innerHTML = `<div class="project-folder-stage" role="dialog" aria-modal="true" aria-labelledby="project-folder-title">
+    <div class="project-folder-card">
+      <div class="project-folder-kicker">Working folder${linked ? "" : " · default"}</div>
+      <h3 id="project-folder-title">${esc(todo?.name || "No current todo")}</h3>
+      ${categoryLine}
+      ${subtaskLine}
+      <p class="project-folder-hint" data-project-folder-hint>${hint}</p>
+      ${folder ? `
+        <div class="project-folder-path">
+          <code data-project-folder-path>${esc(folder)}</code>
+          <button class="project-folder-copy" type="button" data-project-folder-copy>Copy</button>
+        </div>
+        <div class="project-folder-meta"><span data-project-folder-meta>${linked ? "Linked folder" : "NeoTodo folder"}${count ? ` · ${count} files` : ""}</span></div>
+        ${todo
+          ? '<div class="project-folder-files" data-project-folder-files>Reading folder…</div>'
+          : '<div class="project-folder-empty">The next todo will start its AI here.</div>'}
+      ` : '<div class="project-folder-empty">Could not resolve a working folder for this todo.</div>'}
+      <div class="project-folder-actions">
+        ${locked ? "" : `<button class="btn small primary" type="button" data-project-folder-pick>${linked ? "Change folder" : "Choose folder"}</button>`}
+        ${todo && folder ? '<button class="btn small" type="button" data-project-folder-open>Show in file manager</button>' : ""}
+        <span class="project-folder-spacer"></span>
+        ${linked && !locked ? '<button class="btn small danger" type="button" data-project-folder-clear>Unlink</button>' : ""}
+        <button class="btn small" type="button" data-project-folder-close>Close</button>
+      </div>
+    </div>
+  </div>`;
+  const stage = document.querySelector(".project-folder-stage");
+  stage?.addEventListener("mousedown", (event) => {
+    if (event.target === stage) closeProjectFolderCard();
+  });
+  const tree = document.querySelector("[data-project-folder-files]");
+  tree?.addEventListener("click", (event) => {
+    const row = event.target.closest?.("[data-folder-path]");
+    if (!row || !tree.contains(row)) return;
+    event.stopPropagation();
+    toggleProjectFolderDir(row.dataset.folderPath, tree);
+  });
+  document.querySelector("[data-project-folder-close]")?.addEventListener("click", closeProjectFolderCard);
+  document.querySelector("[data-project-folder-copy]")?.addEventListener("click", async (event) => {
+    await copyPlainText(projectFolderEffective || folder);
+    const button = event.currentTarget;
+    button.textContent = "Copied";
+    setTimeout(() => { if (button.isConnected) button.textContent = "Copy"; }, 1200);
+    setStatus("Project folder path copied");
+  });
+  document.querySelector("[data-project-folder-pick]")?.addEventListener("click", () => {
+    pickProjectFolder(todo);
+  });
+  document.querySelector("[data-project-folder-open]")?.addEventListener("click", () => {
+    if (!todo) return;
+    silentAction("open_project_folder", { id: todo.id }).then((result) => {
+      if (result?.ok === false) toast(result.error || "Could not open the folder", true);
+    });
+  });
+  document.querySelector("[data-project-folder-clear]")?.addEventListener("click", async () => {
+    if (!todo) return;
+    await clearProjectFolder();
+    openProjectFolderCard();
+  });
+  if (folder && todo) loadProjectFolderFiles(todo.id);
+}
+
+function pickProjectFolder(todo = null) {
+  const targetTodo = todo || activeNoteTarget()?.todo || null;
+  if (targetTodo && targetTodo.done) return;
   // Even with no current todo (for example while the new-todo input is empty)
   // the picker opens; the chosen folder waits for the todo that is created next.
   AudioFX.unlock();
   playPianoKey();
   silentAction("choose_project_folder").then(async (picked) => {
     if (!picked?.path) return;
-    if (!todo) {
+    if (!targetTodo) {
       pendingProjectFolder = picked.path;
       setStatus("Project folder ready for the next todo");
+      closeProjectFolderCard();
       return;
     }
-    const bound = await action("bind_project_folder", { id: todo.id, path: picked.path });
+    const bound = await action("bind_project_folder", { id: targetTodo.id, path: picked.path });
     if (bound?.ok) {
       setStatus(`Project folder linked · ${(bound.files || []).length} files`);
+      openProjectFolderCard();
     }
   });
 }
@@ -3341,10 +4356,27 @@ async function clearProjectFolder() {
   await action("clear_project_folder", { id: target.todo.id });
 }
 
+function isLegacyForkCategory(category) {
+  return Boolean(category?.forked_from)
+    && legacyForkCategoryIds.has(String(category.id || ""));
+}
+
+// The notebook only sees categories that are not old fork boards and are not
+// currently stored in the storage box plugin. Both are deliberate hiding
+// layers: the boards still exist in state, they are just not on the index.
+function visibleCategories() {
+  const categories = state.data?.categories || [];
+  const boxed = typeof storageBoxedIds === "function" ? storageBoxedIds() : null;
+  if (!legacyForkCategoryIds.size && !boxed?.size) return categories;
+  return categories.filter((category) => (
+    !isLegacyForkCategory(category) && !boxed?.has(String(category.id))
+  ));
+}
+
 function selectedCategory() {
-  if (!state.data) return null;
-  return state.data.categories.find((category) => category.id === state.selectedCategoryId)
-    || state.data.categories[0]
+  const categories = visibleCategories();
+  return categories.find((category) => category.id === state.selectedCategoryId)
+    || categories[0]
     || null;
 }
 
@@ -3407,7 +4439,7 @@ function categoryCountHtml(category) {
 function categoryMarkHtml(category) {
   // Forked boards keep the flame of the subtask they branched from.
   if (category?.forked_from) {
-    return `<span class="cat-dot cat-fork" title="Fork"><img src="/fork-flame.svg" alt=""></span>`;
+    return `<span class="cat-dot cat-fork"><img src="/fork-flame.svg" alt=""></span>`;
   }
   return `<span class="cat-dot"></span>`;
 }
@@ -3415,14 +4447,17 @@ function categoryMarkHtml(category) {
 function renderCategories() {
   const list = $("#category-list");
   const summary = $("#category-summary");
-  if (!state.data.categories.length) {
-    list.innerHTML = `<div class="drawer-empty" style="padding:20px 6px;font-size:12px;line-height:1.8">No categories.<br>Press + to begin.</div>`;
+  const categories = visibleCategories().filter((category) => (
+    !forkRootId || category.id === forkRootId || category.fork_root === forkRootId
+  ));
+  if (!categories.length) {
+    const boxedCount = typeof storageBoxedIds === "function" ? (storageBoxedIds()?.size || 0) : 0;
+    list.innerHTML = boxedCount
+      ? `<div class="drawer-empty" style="padding:20px 6px;font-size:12px;line-height:1.8">Categories are in the storage box.<br>Open the box to bring one back.</div>`
+      : `<div class="drawer-empty" style="padding:20px 6px;font-size:12px;line-height:1.8">No categories.<br>Press + to begin.</div>`;
     summary.textContent = "";
     return;
   }
-  const categories = forkRootId
-    ? state.data.categories.filter((category) => category.id === forkRootId || category.fork_root === forkRootId)
-    : state.data.categories;
   const existing = [...list.querySelectorAll(".category-item[data-category-id]")];
   const sameRows = existing.length === categories.length
     && existing.every((row, index) => row.dataset.categoryId === categories[index].id);
@@ -3555,22 +4590,6 @@ function findTodo(todoId) {
 
 function currentTodo() {
   return selectedCategory()?.todos?.find((todo) => !todo.done) || null;
-}
-
-function todoImages(owner) {
-  if (!owner) return [];
-  const images = Array.isArray(owner.images) ? owner.images.filter(Boolean) : [];
-  if (images.length) return images;
-  return owner.image ? [owner.image] : [];
-}
-
-function noteOwner(target) {
-  if (!target) return null;
-  return target.kind === "subtask" ? target.subtask : target.todo;
-}
-
-function noteImages(target) {
-  return todoImages(noteOwner(target));
 }
 
 function activeNoteTarget() {
@@ -4052,7 +5071,7 @@ function notesHtml() {
   const category = selectedCategory();
   const active = activeNoteTarget();
   const notesIconSvg = `<svg class="notes-icon" aria-hidden="true"><use href="#${themeSymbol("notes")}"></use></svg>`;
-  const notesIcon = `<button class="notes-icon-button" type="button" data-action="choose-project-folder" aria-label="Link project folder">${notesIconSvg}</button>`;
+  const notesIcon = `<button class="notes-icon-button" type="button" data-action="reveal-project-folder" aria-label="Open working folder in your file manager">${notesIconSvg}</button>`;
   // The note header carries only the pen and the current todo/subtask name.
   // Folder details live on the page-header napkin, not beside the title.
   const quill = '<div class="notes-quill" aria-hidden="true"><svg><use href="#feather"></use></svg></div>';
@@ -4070,12 +5089,8 @@ function notesHtml() {
     const memory = noteCaretMemory.get(noteTargetKey(active));
     noteEditingBlock = memory && noteBlocks[memory.block] ? memory.block : 0;
   }
-  const images = noteImages(active);
-  // One template for every note: todo, subtask and completed notes share the
-  // same right column, divider and picture controls. Only the content differs.
-  const pictures = `<button class="picture-link" data-action="add-picture">Add pictures</button>
-       ${images.length ? `<button class="picture-link" data-action="show-pictures">Added pictures <span>(${images.length})</span></button>` : ""}
-       <input type="file" id="note-image-input" accept="image/*" multiple hidden>`;
+  // Every note is text only: todo, subtask and completed notes share one
+  // template, and there is no picture column to fill.
   const blocks = noteBlocks.map((block, index) => index === noteEditingBlock
     ? `<textarea class="note-block-editor" data-note-block-editor="${index}" spellcheck="false">${esc(block.raw || NOTE_ZERO_WIDTH)}</textarea>`
     : `<div class="note-block markdown" data-note-block="${index}">${block.raw.trim() ? renderMarkdown(block.raw) : ""}</div>`).join("");
@@ -4083,7 +5098,7 @@ function notesHtml() {
     ? '<span class="note-empty-placeholder" aria-hidden="true">Write something ...</span>'
     : "";
   return `${topHandle}${quill}<div class="notes-head"><div class="notes-title">${notesIcon}<span>${esc(noteTitle)}</span></div></div>
-    <div class="notes-body"><div class="note-live" id="note-live">${notePlaceholder}${blocks}</div><div class="note-pictures">${pictures}</div></div>${noteSubtitle}`;
+    <div class="notes-body"><div class="note-live" id="note-live">${notePlaceholder}${blocks}</div></div>${noteSubtitle}`;
 }
 
 function renderNotesPanel() {
@@ -4538,7 +5553,7 @@ function setupNotesPanel() {
   if (!panel.dataset.pointerBound) {
     panel.dataset.pointerBound = "1";
     panel.addEventListener("click", (event) => {
-      if (event.target.closest("button, a, input, textarea, .note-block, .note-block-editor, .notes-head, .note-pictures")) return;
+      if (event.target.closest("button, a, input, textarea, .note-block, .note-block-editor, .notes-head")) return;
       focusActiveNoteEditor(false);
     });
   }
@@ -4846,12 +5861,114 @@ function startSubtaskRename(span, event) {
   input.addEventListener("blur", () => commit(true));
 }
 
+// The current todo is renamed in place, exactly like a subtask: a click puts
+// the caret in the title and the name is edited in the line itself. The title
+// span keeps its theme typography (size, italic face, per-theme nudge), so the
+// only thing the editor changes is that the line can take the caret.
+function todoCaretAtPoint(span, event) {
+  const selection = window.getSelection?.();
+  if (!selection) return;
+  if (event && typeof document.caretRangeFromPoint === "function") {
+    const range = document.caretRangeFromPoint(event.clientX, event.clientY);
+    if (range && span.contains(range.startContainer)) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return;
+    }
+  }
+  const end = document.createRange();
+  end.selectNodeContents(span);
+  end.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(end);
+}
+
+function startTodoRename(span, event) {
+  const line = span?.closest("[data-current-line]");
+  const todoId = line?.dataset.currentTodo;
+  // Finished todos live in the history reel and stay locked, so only the todo
+  // on screen can be opened for editing.
+  if (!span || !todoId || span.isContentEditable) return;
+  const name = span.textContent;
+  let done = false;
+  const onKeydown = (event) => {
+    // The page's own shortcuts must not fire while the title is being typed.
+    event.stopPropagation();
+    if (done) return;
+    if (event.key === "Enter") {
+      // Enter belongs to the IME while a composition is open.
+      if (event.isComposing) return;
+      event.preventDefault();
+      commit(true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      commit(false);
+    }
+  };
+  // A title is one line of plain text: pasted rich text and line breaks would
+  // otherwise leave markup inside the theme's span.
+  const onPaste = (event) => {
+    event.preventDefault();
+    if (done) return;
+    const text = String(event.clipboardData?.getData("text") || "").replace(/\s+/g, " ");
+    if (text) document.execCommand("insertText", false, text);
+  };
+  const onClick = (event) => event.stopPropagation();
+  const onDrop = (event) => {
+    event.preventDefault();
+    if (done) return;
+    const text = String(event.dataTransfer?.getData("text") || "").replace(/\s+/g, " ");
+    if (text) document.execCommand("insertText", false, text);
+  };
+  const onBlur = () => commit(true);
+  const release = () => {
+    span.removeAttribute("contenteditable");
+    span.removeAttribute("spellcheck");
+    span.classList.remove("todo-name-editing");
+    span.removeEventListener("keydown", onKeydown);
+    span.removeEventListener("paste", onPaste);
+    span.removeEventListener("click", onClick);
+    span.removeEventListener("drop", onDrop);
+    span.removeEventListener("blur", onBlur);
+  };
+  const commit = (save) => {
+    if (done) return;
+    done = true;
+    const next = String(span.textContent || "").trim();
+    release();
+    if (!save || !next || next === name) {
+      span.textContent = name;
+      return;
+    }
+    // Show the typed name at once; the server render lands with the same text.
+    span.textContent = next;
+    action("rename_todo", { id: todoId, name: next });
+  };
+  span.contentEditable = "true";
+  span.spellcheck = false;
+  span.classList.add("todo-name-editing");
+  span.addEventListener("keydown", onKeydown);
+  span.addEventListener("paste", onPaste);
+  span.addEventListener("click", onClick);
+  span.addEventListener("drop", onDrop);
+  span.addEventListener("blur", onBlur);
+  span.focus({ preventScroll: true });
+  todoCaretAtPoint(span, event);
+}
+
 function agentContextString(target = null) {
   const category = selectedCategory();
   const todo = target?.todo || currentTodo();
   const subtask = target?.subtask;
   const subs = (todo?.subtasks || []).map((item) => `${item.name}${item.done ? " (done)" : ""}`).join(", ");
-  return `Category: ${category?.name || "none"}; Todo: ${todo?.name || "none"}; Selected subtask: ${subtask?.name || "none"}; Subtasks: ${subs || "none"}.`;
+  let context = `Category: ${category?.name || "none"}; Todo: ${todo?.name || "none"}; Selected subtask: ${subtask?.name || "none"}; Subtasks: ${subs || "none"}.`;
+  // The plugin's "attach active note" behavior: a new AI turn already knows
+  // what the user is reading. Capped so a very long note cannot flood a run.
+  if (aiConfig?.auto_attach_note !== false) {
+    const note = String(subtask?.note ?? todo?.note ?? "").trim();
+    if (note) context += `\n\nOpen note:\n${note.slice(0, 6000)}`;
+  }
+  return context;
 }
 
 function activeAgent() {
@@ -4923,13 +6040,13 @@ function agentModelProvider(model) {
 }
 
 function currentAgentModel(agent) {
-  return agentSessions[agent.id]?.model || agentDefaultModel;
+  return agentSessions[agent.id]?.model || agentDefaultModels[agent.kind] || agentDefaultModel;
 }
 
 function currentAgentMode(agent) {
   const mode = agentSessions[agent.id]?.mode;
   if (mode === "build" || mode === "chat") return mode;
-  return agent.kind === "subtask" ? "build" : "chat";
+  return agentDefaultModes[agent.kind] || (agent.kind === "subtask" ? "build" : "chat");
 }
 
 function formatAgentTokens(value) {
@@ -5025,11 +6142,31 @@ function agentSplitUiMarkup() {
     </div>`;
 }
 
+// The split geometry lives in root custom properties, which every element on
+// the page inherits: each changed value re-matches the whole sheet. The divider
+// gesture calls updateAgentSplitLayout() once per animation frame, and most of
+// those variables keep the same value between frames, so remember the last
+// written value and skip the no-op writes. One changed variable per frame is
+// what keeps the drag inside the frame budget.
+const splitRootVars = new Map();
+function setSplitRootVar(root, name, value) {
+  if (splitRootVars.get(name) === value) return;
+  splitRootVars.set(name, value);
+  root.style.setProperty(name, value);
+}
+
 function updateAgentSplitLayout() {
-  if (agentSplitSide === "notes-left" || agentSplitSide === "notes-right") rememberHorizontalSplit();
   const active = agentTerminalOpen && !notesHidden && Boolean($("#notes-half"));
   const vertical = active && (agentSplitSide === "notes-top" || agentSplitSide === "notes-bottom");
   agentSplitRatio = clamp(agentSplitRatio, vertical ? 0.4 : 0.28, vertical ? 0.6 : 0.72);
+  const resizing = document.body.classList.contains("agent-split-resizing")
+    || deskHandleResizing();
+  // Remembering the horizontal side is a synchronous localStorage write. During
+  // a divider drag that would hit the disk once per frame; the drag handler
+  // stores it once, on pointerup instead.
+  if (!resizing && (agentSplitSide === "notes-left" || agentSplitSide === "notes-right")) {
+    rememberHorizontalSplit();
+  }
   document.body.classList.toggle("agent-notes-split", active);
   document.body.classList.toggle("agent-notes-left", active && agentSplitSide === "notes-left");
   document.body.classList.toggle("agent-notes-right", active && agentSplitSide === "notes-right");
@@ -5040,12 +6177,12 @@ function updateAgentSplitLayout() {
   const root = document.documentElement;
   const bodyRect = $(".page-body")?.getBoundingClientRect();
   const leftPx = bodyRect ? Math.round(bodyRect.width * agentSplitRatio) : 0;
-  root.style.setProperty("--agent-left-pct", `${left}%`);
-  root.style.setProperty("--agent-left-px", `${leftPx}px`);
-  root.style.setProperty("--agent-ai-left", "0%");
-  root.style.setProperty("--agent-ai-right", "0%");
-  root.style.setProperty("--agent-ai-pad-top", "0px");
-  root.style.setProperty("--agent-ai-pad-bottom", "0px");
+  setSplitRootVar(root, "--agent-left-pct", `${left}%`);
+  setSplitRootVar(root, "--agent-left-px", `${leftPx}px`);
+  setSplitRootVar(root, "--agent-ai-left", "0%");
+  setSplitRootVar(root, "--agent-ai-right", "0%");
+  setSplitRootVar(root, "--agent-ai-pad-top", "0px");
+  setSplitRootVar(root, "--agent-ai-pad-bottom", "0px");
   if (vertical) {
     const body = $(".page-body");
     if (body) {
@@ -5062,21 +6199,21 @@ function updateAgentSplitLayout() {
       const aiTop = deskTop + (topSide ? topHeight + gap : 0);
       const aiHeight = Math.max(60, (topSide ? deskHeight - topHeight : topHeight) - gap);
       const boundary = deskTop + topHeight;
-      root.style.setProperty("--agent-desk-top", `${deskTop}px`);
-      root.style.setProperty("--agent-desk-height", `${deskHeight}px`);
-      root.style.setProperty("--agent-ai-top", `${aiTop}px`);
-      root.style.setProperty("--agent-ai-height", `${aiHeight}px`);
-      root.style.setProperty("--agent-notes-y-top", `${notesTop}px`);
-      root.style.setProperty("--agent-notes-y-height", `${notesHeight}px`);
-      root.style.setProperty("--agent-split-y", `${boundary}px`);
+      setSplitRootVar(root, "--agent-desk-top", `${deskTop}px`);
+      setSplitRootVar(root, "--agent-desk-height", `${deskHeight}px`);
+      setSplitRootVar(root, "--agent-ai-top", `${aiTop}px`);
+      setSplitRootVar(root, "--agent-ai-height", `${aiHeight}px`);
+      setSplitRootVar(root, "--agent-notes-y-top", `${notesTop}px`);
+      setSplitRootVar(root, "--agent-notes-y-height", `${notesHeight}px`);
+      setSplitRootVar(root, "--agent-split-y", `${boundary}px`);
     }
   } else {
-    root.style.setProperty("--agent-ai-top", "0px");
-    root.style.setProperty("--agent-ai-height", "0px");
-    root.style.setProperty("--agent-notes-y-top", "0px");
-    root.style.setProperty("--agent-notes-y-height", "0px");
-    root.style.setProperty("--agent-notes-left", agentSplitSide === "notes-left" ? "0%" : `${left}%`);
-    root.style.setProperty("--agent-notes-width", agentSplitSide === "notes-left" ? `${left}%` : `${100 - Number(left)}%`);
+    setSplitRootVar(root, "--agent-ai-top", "0px");
+    setSplitRootVar(root, "--agent-ai-height", "0px");
+    setSplitRootVar(root, "--agent-notes-y-top", "0px");
+    setSplitRootVar(root, "--agent-notes-y-height", "0px");
+    setSplitRootVar(root, "--agent-notes-left", agentSplitSide === "notes-left" ? "0%" : `${left}%`);
+    setSplitRootVar(root, "--agent-notes-width", agentSplitSide === "notes-left" ? `${left}%` : `${100 - Number(left)}%`);
   }
   const handle = $("#agent-split-handle");
   if (handle) handle.hidden = !active;
@@ -5085,12 +6222,13 @@ function updateAgentSplitLayout() {
   positionDeskHandles();
   positionAgentScrollRail();
   // While dragging the divider, panes and lines must follow every frame with
-  // no CSS transition. Otherwise fast drags open a visible gap.
-  if (document.body.classList.contains("agent-split-resizing")) {
-    positionDeskHandles();
-  } else {
-    followPageLayout(380);
-  }
+  // no CSS transition. Otherwise fast drags open a visible gap. A door-line
+  // drag is direct manipulation too: there is nothing to follow, so the
+  // 380ms measurement loop stays off and the gesture keeps the frame budget.
+  // The lines were just placed above, so the resizing branch has nothing left
+  // to do -- placing them twice measured the page twice in one frame, and that
+  // second synchronous layout was half of the divider's stutter.
+  if (!resizing) followPageLayout(380);
 }
 
 function agentTerminalMarkup() {
@@ -5171,14 +6309,39 @@ async function copyToClipboard(text) {
   }
 }
 
-function flashAgentCopy(x, y) {
+function flashAgentCopy(rect) {
+  // One toast at a time: a fast second copy replaces the first card instead of
+  // stacking two of them over the line.
+  document.querySelectorAll(".agent-copy-flash").forEach((old) => old.remove());
   const node = document.createElement("span");
   node.className = "agent-copy-flash";
-  node.textContent = "Copied";
-  node.style.left = `${Math.round(x)}px`;
-  node.style.top = `${Math.round(y)}px`;
+  node.innerHTML = `<span class="agent-copy-flash-text">Copied to clipboard</span>`;
+  // Match the console's own palette so the toast reads on paper and on the
+  // dark sheet alike. The cyan side blocks are owned by the stylesheet.
+  const terminal = $("#agent-terminal");
+  const styles = terminal ? getComputedStyle(terminal) : null;
+  const bg = styles?.getPropertyValue("--oc-soft").trim() || "#f4f4f5";
+  const ink = styles?.getPropertyValue("--oc-ink").trim() || "#171718";
+  node.style.background = bg;
+  node.style.color = ink;
   document.body.appendChild(node);
-  setTimeout(() => node.remove(), 950);
+  // OpenCode puts its copy toast above the copied line, and so do we. The
+  // toast is clamped to the viewport so a selection near an edge stays
+  // readable.
+  const size = node.getBoundingClientRect();
+  const viewportW = window.innerWidth || document.documentElement.clientWidth || 0;
+  let left = Math.round(rect.left + rect.width / 2 - size.width / 2);
+  let top = Math.round(rect.top - size.height - 8);
+  if (top < 8) top = 8;
+  if (left < 8) {
+    left = 8;
+  } else if (viewportW && left + size.width > viewportW - 8) {
+    left = Math.max(8, viewportW - size.width - 8);
+  }
+  node.style.left = `${left}px`;
+  node.style.top = `${top}px`;
+  // Show, hold, then drop it: no fade in either direction.
+  setTimeout(() => node.remove(), 1000);
 }
 
 let lastAutoCopiedText = "";
@@ -5202,21 +6365,28 @@ function bindAgentMessages() {
     }
   });
 
-  // OpenCode-style select-to-copy: selecting assistant text copies it at once.
+  // Select-to-copy for the whole console: the reply, the thinking process, tool
+  // output, notices and anything else in the sheet copies itself the moment it
+  // is selected. The composer keeps its native field clipboard behaviour.
   const copySelection = () => {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+    if (!selection || selection.isCollapsed || !selection.rangeCount) {
+      lastAutoCopiedText = "";
+      return;
+    }
     const text = selection.toString().trim();
     if (!text) return;
     const range = selection.getRangeAt(0);
     let node = range.commonAncestorContainer;
     if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-    if (!node?.closest?.(".agent-reply")) return;
+    if (!node?.closest?.("#agent-terminal")) return;
+    if (node.closest("input, textarea, [contenteditable='true']")) return;
     if (text === lastAutoCopiedText) return;
-    lastAutoCopiedText = text;
     const rect = range.getBoundingClientRect();
     copyToClipboard(text).then((ok) => {
-      if (ok) flashAgentCopy(rect.right, rect.bottom);
+      if (!ok) return;
+      lastAutoCopiedText = text;
+      flashAgentCopy(rect);
     });
   };
 
@@ -5232,12 +6402,62 @@ function bindAgentMessages() {
     });
   });
 
+  // A fresh selection gesture may pick the very same words again, so forget
+  // the previous hit when the drag starts.
+  messagesEl.addEventListener("pointerdown", () => {
+    lastAutoCopiedText = "";
+  });
   messagesEl.addEventListener("mouseup", () => setTimeout(copySelection, 0));
   messagesEl.addEventListener("keyup", (event) => {
     if (event.key === "Shift" || event.key.startsWith("Arrow") || (event.key === "a" && (event.ctrlKey || event.metaKey))) {
       setTimeout(copySelection, 0);
     }
   });
+
+  // The composer is a real field, so window.getSelection() stays collapsed
+  // there. Read the field's own selection range instead and show the same
+  // toast, so text typed by the user copies just like the replies do.
+  const input = $("#agent-input");
+  if (input && input.dataset.agentCopyBound !== "1") {
+    input.dataset.agentCopyBound = "1";
+    const copyFieldSelection = (point) => {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      if (start == null || end == null || start === end) {
+        lastAutoCopiedText = "";
+        return;
+      }
+      const text = input.value.slice(start, end).trim();
+      if (!text || text === lastAutoCopiedText) return;
+      copyToClipboard(text).then((ok) => {
+        if (!ok) return;
+        lastAutoCopiedText = text;
+        // A mouse selection anchors the toast at the pointer; keyboard
+        // selections fall back to the field itself.
+        flashAgentCopy(point || input.getBoundingClientRect());
+      });
+    };
+    // A drag can leave the field before the button comes up, so the release
+    // is watched on the document instead of on the textarea alone.
+    let fieldDragging = false;
+    input.addEventListener("pointerdown", () => {
+      lastAutoCopiedText = "";
+      fieldDragging = true;
+    });
+    document.addEventListener("pointerup", (event) => {
+      if (!fieldDragging) return;
+      fieldDragging = false;
+      const point = { left: event.clientX, top: event.clientY, width: 0 };
+      setTimeout(() => copyFieldSelection(point), 0);
+    });
+    input.addEventListener("keyup", (event) => {
+      const selectKey = event.key === "Shift"
+        || event.key.startsWith("Arrow")
+        || (event.key === "a" && (event.ctrlKey || event.metaKey))
+        || (event.key === "c" && (event.ctrlKey || event.metaKey));
+      if (selectKey) setTimeout(copyFieldSelection, 0);
+    });
+  }
 }
 
 function bindAgentCompose() {
@@ -5391,6 +6611,85 @@ function agentDeskRect() {
   };
 }
 
+// --------------------------------------------------------------------------
+// Divider drag: one geometry write per frame
+// --------------------------------------------------------------------------
+// A mouse/trackpad reports pointer movement several times per painted frame,
+// and the divider used to run the whole split layout pass on every one of those
+// events -- measure the page, rewrite the inherited root variables (which
+// restyles every element), place both door lines twice. The frames piled up and
+// the divider trailed the pointer.
+//
+// Two rules keep it smooth:
+//   1. the pointer stream is coalesced into a single requestAnimationFrame;
+//   2. while the divider is held, the boundary is written straight onto the two
+//      panes instead of through the inherited root variables. Only those two
+//      subtrees are invalidated, so a fast drag never restyles the task rows,
+//      the wallpaper or the completed list.
+const SPLIT_BOX_PROPS = ["left", "right", "width"];
+
+// The preview writes over whatever inline box the panes already carry (the note
+// mask remembers its floating rect in inline styles), so the exact previous
+// values -- including their priority -- are captured once, on pointerdown, and
+// put back on release.
+const splitInlineSnapshot = [];
+
+function rememberSplitInlineBox() {
+  splitInlineSnapshot.length = 0;
+  [$("#notes-half"), $("#agent-terminal"), $("#agent-split-handle")].forEach((element) => {
+    if (!element) return;
+    SPLIT_BOX_PROPS.forEach((prop) => {
+      splitInlineSnapshot.push({
+        element,
+        prop,
+        value: element.style.getPropertyValue(prop),
+        priority: element.style.getPropertyPriority(prop),
+      });
+    });
+  });
+}
+
+function restoreSplitInlineBox() {
+  splitInlineSnapshot.forEach(({ element, prop, value, priority }) => {
+    if (value) element.style.setProperty(prop, value, priority);
+    else element.style.removeProperty(prop);
+  });
+  splitInlineSnapshot.length = 0;
+}
+
+function previewHorizontalSplit(boundary) {
+  const notesOnLeft = agentSplitSide === "notes-left";
+  const edge = `${Math.round(boundary)}px`;
+  const setBox = (element, box) => {
+    if (!element) return;
+    Object.keys(box).forEach((prop) => {
+      element.style.setProperty(prop, box[prop], "important");
+    });
+  };
+  // Mirrors the split rules in page-layout.css: the pane that owns the divider
+  // gets the boundary as its width, the other one starts at the boundary.
+  setBox($("#notes-half"), notesOnLeft
+    ? { left: "0px", right: "auto", width: edge }
+    : { left: edge, right: "0px", width: "auto" });
+  setBox($("#agent-terminal"), notesOnLeft
+    ? { left: edge, right: "0px", width: "auto" }
+    : { left: "0px", right: "auto", width: edge });
+  setBox($("#agent-split-handle"), { left: edge, right: "auto" });
+  // The door lines follow the desk shape; one measurement for the frame.
+  positionDeskHandles();
+}
+
+// Hand the geometry back to the root variables, then drop the temporary inline
+// boxes so the stylesheets own the split again. The drag flag stays on until
+// the very end: the layout pass then skips its 380ms measurement loop, because
+// this gesture has just measured and placed everything itself.
+function commitHorizontalSplit() {
+  updateAgentSplitLayout();
+  restoreSplitInlineBox();
+  document.body.classList.remove("agent-split-resizing");
+  positionDeskHandles();
+}
+
 function bindAgentSplitHandle() {
   const handle = $("#agent-split-handle");
   if (!handle || handle.dataset.bound === "1") return;
@@ -5401,26 +6700,64 @@ function bindAgentSplitHandle() {
     if (!body) return;
     event.preventDefault();
     event.stopPropagation();
+    // One measurement for the whole gesture: re-reading the page box on every
+    // pointer event forced a synchronous layout before the previous frame was
+    // even painted.
     const rect = body.getBoundingClientRect();
+    const vertical = document.body.classList.contains("agent-notes-axis-y");
+    const desk = vertical ? agentDeskRect() : null;
+    // Capture the panes' current inline box before the preview overwrites it.
+    if (!vertical) rememberSplitInlineBox();
     document.body.classList.add("agent-split-resizing");
     try { handle.setPointerCapture?.(event.pointerId); } catch (error) {}
-    const move = (moveEvent) => {
-      const vertical = document.body.classList.contains("agent-notes-axis-y");
-      const desk = vertical ? agentDeskRect() : null;
+    let pending = null;
+    let frame = 0;
+    let changed = false;
+    const apply = () => {
+      frame = 0;
+      const point = pending;
+      pending = null;
+      if (!point) return;
       const ratio = vertical && desk
-        ? clamp((moveEvent.clientY - desk.top) / Math.max(1, desk.height), 0.4, 0.6)
-        : clamp((moveEvent.clientX - rect.left) / Math.max(1, rect.width), 0.28, 0.72);
+        ? clamp((point.y - desk.top) / Math.max(1, desk.height), 0.4, 0.6)
+        : clamp((point.x - rect.left) / Math.max(1, rect.width), 0.28, 0.72);
+      // A horizontal drag also reports vertical movement; the ratio is the same
+      // and there is nothing to redraw.
+      if (ratio === agentSplitRatio) return;
       agentSplitRatio = ratio;
-      updateAgentSplitLayout();
+      changed = true;
+      if (vertical) updateAgentSplitLayout();
+      else previewHorizontalSplit(rect.width * ratio);
+    };
+    const move = (moveEvent) => {
+      pending = { x: moveEvent.clientX, y: moveEvent.clientY };
+      if (!frame) frame = requestAnimationFrame(apply);
     };
     const up = () => {
-      document.body.classList.remove("agent-split-resizing");
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      pending = null;
       try { localStorage.setItem("neotodo.agentSplitRatio.v2", String(agentSplitRatio)); } catch (error) {}
       window.removeEventListener("pointermove", move);
-      positionDeskHandles();
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if (changed && !vertical) {
+        changed = false;
+        commitHorizontalSplit();
+      } else {
+        // Nothing moved: no inline box was written, so the capture is dropped.
+        splitInlineSnapshot.length = 0;
+        document.body.classList.remove("agent-split-resizing");
+        positionDeskHandles();
+      }
+      // The per-frame layout pass skips this while a divider is held.
+      rememberHorizontalSplit();
     };
     window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", up, { once: true });
+    window.addEventListener("pointerup", up);
+    // Losing the pointer (native menu, alt-tab, touch cancelled) must still hand
+    // the geometry back, or the temporary boxes would stay behind.
+    window.addEventListener("pointercancel", up);
   });
 }
 
@@ -5551,6 +6888,9 @@ function renderAgentTerminal() {
   const tool = document.querySelector(".terminal-tool");
   tool?.classList.toggle("active", agentTerminalOpen);
   if (!panel) return;
+  // The card is created by the stage markup, so its inline theme palette has
+  // to be repainted whenever a fresh element appears.
+  if (typeof settings !== "undefined" && settings) applyAiTheme();
   panel.classList.toggle("open", agentTerminalOpen);
   panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
   if (!agentTerminalOpen) { updateAgentSplitLayout(); return; }
@@ -5665,8 +7005,9 @@ function renderAgentTerminal() {
   if (menu) {
     menu.hidden = !agentModelMenuOpen;
     if (agentModelMenuOpen) {
-      menu.innerHTML = agentModels.length
-        ? agentModels.map((item) => `<button type="button" class="agent-model-option ${item === model ? "active" : ""}" data-agent-model-choice="${esc(item)}"><span>${esc(agentModelProvider(item))}/${esc(agentModelLeaf(item))}</span>${item === model ? `<span class="agent-model-check">✓</span>` : ""}</button>`).join("")
+      const pickerModels = agentModels.includes(model) ? agentModels : [model, ...agentModels];
+      menu.innerHTML = pickerModels.length
+        ? pickerModels.filter(Boolean).map((item) => `<button type="button" class="agent-model-option ${item === model ? "active" : ""}" data-agent-model-choice="${esc(item)}"><span>${esc(agentModelProvider(item))}/${esc(agentModelLeaf(item))}</span>${item === model ? `<span class="agent-model-check">✓</span>` : ""}</button>`).join("")
         : `<div class="agent-model-empty">Loading models…</div>`;
     }
   }
@@ -5739,6 +7080,10 @@ async function loadAgentModels() {
       if (data.ok) {
         agentModels = Array.isArray(data.models) ? data.models : [];
         if (data.default_model) agentDefaultModel = data.default_model;
+        for (const [kind, value] of Object.entries(data.agent_defaults || {})) {
+          if (value?.model) agentDefaultModels[kind] = value.model;
+          if (value?.mode) agentDefaultModes[kind] = value.mode;
+        }
       }
     } catch (error) {
     } finally {
@@ -5793,10 +7138,9 @@ function startAgentPoll(agentId) {
         const last = stored[stored.length - 1];
         const previous = stored[stored.length - 2];
         const expectedText = agentRunMessages[agentId];
-        const completed = data.running === false
-          && expectedText
-          && last && last.role === "assistant" && !last.pending
-          && previous && previous.role === "user" && previous.content === expectedText;
+        const settled = Boolean(last && last.role === "assistant" && !last.pending);
+        const completed = data.running === false && settled
+          && (!expectedText || (previous && previous.role === "user" && previous.content === expectedText));
         if (completed) {
           finishAgentRun(agentId, {
             messages: stored,
@@ -5833,7 +7177,15 @@ async function loadAgentSession(agentId) {
       agentLive[agentId] = data.live || {};
       if (Array.isArray(data.files)) agentAttachments[agentId] = data.files;
       agentLoadedIds.add(agentId);
-      if (data.live?.started) startAgentPoll(agentId);
+      if (data.live?.started) {
+        // A run that survived an app restart is already working; the panel
+        // follows it like any run started from this window.
+        if (!agentBusyIds.has(agentId)) {
+          agentBusyIds.add(agentId);
+          noteAgentRunStarted(agentId);
+        }
+        startAgentPoll(agentId);
+      }
     }
   } catch (error) {
   } finally {
@@ -6395,7 +7747,6 @@ async function handleAgentFiles(files) {
   renderAgentTerminal();
   try {
   const existing = agentAttachmentsFor(agent.id);
-  const names = new Set(existing.map((file) => file.name));
   let bytes = existing.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
   const payload = [];
   for (const file of files) {
@@ -6404,10 +7755,11 @@ async function handleAgentFiles(files) {
       break;
     }
     if (file.size > 10 * 1024 * 1024) {
-      agentAddNotice(agent, `${file.name} is larger than 10 MB and was not attached.`);
+      agentAddNotice(agent, `${file.name || "That file"} is larger than 10 MB and was not attached.`);
       continue;
     }
-    if (bytes + file.size > 50 * 1024 * 1024 && !names.has(file.name)) {
+    // Every paste adds a file; nothing is replaced, so the budget only grows.
+    if (bytes + file.size > 50 * 1024 * 1024) {
       agentAddNotice(agent, "Context files are limited to 50 MB per task.");
       continue;
     }
@@ -6423,7 +7775,6 @@ async function handleAgentFiles(files) {
     if (!data) continue;
     payload.push({ name: file.name, type: file.type || "", data });
     bytes += file.size;
-    names.add(file.name);
   }
   if (!payload.length) return;
   try {
@@ -6478,12 +7829,50 @@ async function clearAgentConversation() {
   toast("Conversation cleared");
 }
 
-function interruptAgent() {
+function interruptAgent(targetId = "") {
   const agent = activeAgent();
-  if (!agent || !agentBusyIds.has(agent.id)) return;
+  const agentId = String(targetId || agent?.id || "");
+  if (!agentId || !agentBusyIds.has(agentId)) return false;
+  agentPausedIds.add(agentId);
   AudioFX.categoryTap();
-  agentPost({ action: "interrupt", agent_id: agent.id }).catch(() => {});
+  agentPost({ action: "interrupt", agent_id: agentId }).catch(() => {});
   setStatus("Interrupted");
+  return true;
+}
+
+/** Stop the run behind one subtask row, from its spinning fan. */
+function pauseSubtaskAgent(subtaskId) {
+  const agentId = `subtask:${subtaskId}`;
+  if (!agentIsRunning(agentId)) return false;
+  const active = agentBusyIds.has(agentId);
+  agentPausedIds.add(agentId);
+  // The fan winds down at once; the backend ends the child process behind it.
+  noteAgentRunFinished(agentId);
+  agentQueuedIds.delete(agentId);
+  delete agentQueuePositions[agentId];
+  updateSubtaskAgentDom(subtaskId, { running: false });
+  reorderCurrentSubtaskRows();
+  if (doingPeekOpen) updateDoingPeek(true);
+  if (active) {
+    // The open conversation keeps polling so the interrupted reply lands in it.
+    interruptAgent(agentId);
+    return true;
+  }
+  AudioFX.categoryTap();
+  toast("Agent paused");
+  agentPost({ action: "interrupt", agent_id: agentId }).catch(() => {});
+  stopAgentPoll(agentId);
+  agentLive[agentId] = {};
+  // The paused marker only answers the next poll of this run.
+  setTimeout(() => agentPausedIds.delete(agentId), 15000);
+  return true;
+}
+
+function playAgentNotification() {
+  if (aiConfig && aiConfig.notifications === false) return;
+  const sound = aiConfig?.notification_sound || "trainWhistle";
+  const play = AudioFX[sound] || AudioFX.trainWhistle;
+  if (typeof play === "function") play.call(AudioFX);
 }
 
 function finishAgentRun(agentId, payload = {}) {
@@ -6508,31 +7897,44 @@ function finishAgentRun(agentId, payload = {}) {
   agentLoadedIds.add(agentId);
   agentLive[agentId] = {};
   const finalModel = payload.model || session.model || "";
+  const finalMessage = (messages || session.messages || []).slice(-1)[0];
+  const paused = agentPausedIds.has(agentId) || Boolean(finalMessage && finalMessage.interrupted);
+  agentPausedIds.delete(agentId);
   const subtaskId = agentId.startsWith("subtask:") ? agentId.slice(8) : "";
   if (subtaskId) {
     updateSubtaskAgentDom(subtaskId, { running: false, model: "" });
     subtaskAgentModels[subtaskId] = finalModel;
     saveSubtaskAgentModels();
-    noteSubtaskAgentFinished(subtaskId);
-    AudioFX.trainWhistle();
+    if (!paused) {
+      noteSubtaskAgentFinished(subtaskId);
+    }
     setTimeout(() => {
       subtaskModelRecent.add(subtaskId);
-      updateSubtaskAgentDom(subtaskId, { running: false, model: finalModel, pop: true });
+      updateSubtaskAgentDom(subtaskId, { running: false, model: finalModel, pop: !paused });
       setTimeout(() => subtaskModelRecent.delete(subtaskId), 1200);
     }, 180);
-  } else if (agentId.startsWith("todo:")) {
+  } else if (agentId.startsWith("todo:") && !paused) {
     noteTodoAgentFinished(agentId.slice(5));
   }
+  if (!paused) playAgentNotification();
   renderAgentTerminal();
   setTimeout(() => $("#agent-input")?.focus(), 40);
 }
 
 async function sendAgentMessage() {
-  const input = $("#agent-input");
-  const message = input?.value.trim();
+  const draft = $("#agent-input");
+  const message = draft?.value.trim();
   if (!message) return;
   const agent = activeAgent();
   if (agentBusyIds.has(agent.id) || agentUploadingIds.has(agent.id)) return;
+  // Continuing a finished subtask with the AI puts it back on the board first,
+  // so the run works on a live row instead of a history entry.
+  if (agent.kind === "subtask" && agent.id.startsWith("subtask:")) {
+    const subtaskId = agent.id.slice(8);
+    const owner = liveSubtaskOwner(subtaskId);
+    if (owner?.subtask?.done) await reopenFinishedSubtask(owner.todo.id, subtaskId);
+  }
+  const input = $("#agent-input") || draft;
   if (!agentLoadedIds.has(agent.id)) await loadAgentSession(agent.id);
   // Sending a new message means the previous result has been looked at; the
   // run that starts now leaves a fresh card hint when it finishes.
@@ -6651,6 +8053,80 @@ function restoreAgentScroll(snapshot) {
   }
 }
 
+// The finished row leaves a card that clips its own children: the drawer and
+// the lane inside it cut the path off at the card edge, so a transform on the
+// real row is invisible for most of the trip and the row merely seems to
+// appear in the tray. Draw the flight on a ghost pinned to the page instead,
+// then reveal the real row when the ghost lands.
+//
+// The ghost keeps the pending row's width for the whole trip and the narrower
+// landing box is reached by clipping its right edge. Animating `width` (the
+// old flight) forced a layout of the row on every frame, which is what made
+// the trip stutter on a busy page; a transform plus an inset clip only paints.
+function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+  const ghost = (sourceRow || row).cloneNode(true);
+  ghost.classList.add("subtask-flight");
+  // The press feedback belongs to the click, not to the trip: the flying card
+  // is the row at rest, so the fan arrives at its normal size. The selection
+  // wash is the lane's emphasis, not the row's paper: carrying it would drag a
+  // coloured block across the page and hand it to the finished card.
+  ghost.classList.remove("subtask-completing", "selected", "agent-running");
+  ghost.removeAttribute("data-subtask-id");
+  ghost.setAttribute("aria-hidden", "true");
+  ghost.tabIndex = -1;
+  ghost.style.left = `${originRect.left}px`;
+  ghost.style.top = `${originRect.top}px`;
+  ghost.style.width = `${originRect.width}px`;
+  ghost.style.height = `${originRect.height}px`;
+  ghost.style.zIndex = "240";
+  row.style.visibility = "hidden";
+  document.body.appendChild(ghost);
+  const dx = landedRect.left - originRect.left;
+  const dy = landedRect.top - originRect.top;
+  const clipRight = Math.max(0, originRect.width - landedRect.width);
+  const clipBottom = Math.max(0, originRect.height - landedRect.height);
+  let settled = false;
+  const settle = () => {
+    if (settled) return;
+    settled = true;
+    ghost.remove();
+    // A repaint may have replaced the row while it was in the air.
+    if (!row.isConnected) return;
+    row.style.visibility = "";
+    // The row travels with the paper it had as a pending row. Landing is where
+    // it becomes finished: the check is written in, and the row presses into
+    // the tray instead of simply appearing there.
+    const check = row.querySelector(".sub-done-check");
+    if (check) {
+      check.classList.add("check-in");
+      setTimeout(() => check.classList.remove("check-in"), 420);
+    }
+    try {
+      row.animate(
+        [{ transform: "scale(1.01)" }, { transform: "none" }],
+        { duration: 150, easing: "cubic-bezier(.2,.8,.2,1)" }
+      );
+    } catch (error) {}
+  };
+  try {
+    const flight = ghost.animate(
+      [
+        { transform: "translate(0, 0)", clipPath: "inset(0 0 0 0)" },
+        {
+          transform: `translate(${dx}px, ${dy}px)`,
+          clipPath: `inset(0 ${clipRight}px ${clipBottom}px 0)`,
+        },
+      ],
+      { duration, easing: "cubic-bezier(.22,.68,.16,1)" }
+    );
+    flight.onfinish = settle;
+    flight.oncancel = settle;
+  } catch (error) {
+    settle();
+  }
+}
+
 function renderStage() {
   const stage = $("#stage");
   const liveAgentTerminal = stage.querySelector("#agent-terminal");
@@ -6661,17 +8137,21 @@ function renderStage() {
     previousLaneScroll.set(lane.dataset.lane, lane.scrollTop);
   });
   // Snapshot the old subtask rows so a freshly finished one can glide across
-  // to the completed lane, and the rows around it can settle into place.
+  // to the completed lane, and the rows around it can settle into place. The
+  // rising row's own paper is kept too: the flight is drawn with the row as it
+  // looked when it was clicked, so it keeps its identity the whole way.
   const risingSubtaskId = justCompletedSubtaskId;
   const previousSubtaskRects = new Map();
+  let risingSubtaskPaper = null;
   if (risingSubtaskId) {
     stage.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
       previousSubtaskRects.set(row.dataset.subtaskId, row.getBoundingClientRect());
+      if (row.dataset.subtaskId === risingSubtaskId) risingSubtaskPaper = row.cloneNode(true);
     });
   }
   const category = selectedCategory();
   if (!category) {
-    stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="choose-project-folder" aria-label="Open project folder"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div><div class="page-head-title current-head-title quiet"><span class="page-title-name">No categories yet.</span></div></div>
+    stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" aria-label="Open working folder in your file manager"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div><div class="page-head-title current-head-title quiet"><span class="page-title-name">No categories yet.</span></div></div>
       <div class="page-body">
         <section class="todos-section">
           <div class="current-half"></div>
@@ -6695,6 +8175,11 @@ function renderStage() {
   const todos = category.todos || [];
   const done = doneTodos(category);
   const current = todos.find((todo) => !todo.done) || null;
+  // A fork window is its own OS window. Its title bar should name the todo,
+  // never the NeoTodo process/app name that the borderless main window hides.
+  if (state.data?.fork) {
+    document.title = current ? current.name : (category.name || "NeoTodo");
+  }
   const pendingSub = orderedSubtasks(current).find((subtask) => !subtask.done) || null;
   // The finished-task drawer is an optional plugin. Without it, finished and
   // unfinished subtasks share one lane and keep their natural recency order.
@@ -6719,6 +8204,9 @@ function renderStage() {
   // This also covers a completion that was still in flight when the new row was
   // saved: the drawer must never open on top of a just-added subtask.
   if (newSubtaskView) completedSubtasksOpen = false;
+  // The finished tray and the Doing drawer are independent sheets. Both may
+  // rest on the column's right border at once; the Doing drawer is the upper
+  // card, so opening or closing the tray never takes the drawer away.
 
   if (lastCategoryId !== category.id) {
     lastCategoryId = category.id;
@@ -6738,12 +8226,19 @@ function renderStage() {
     const hasSubs = (todo.subtasks || []).length > 0;
     const expanded = historyExpanded.has(index);
     const subs = expanded
-      ? `<div class="history-subs" data-history-subs="${index}">${(todo.subtasks || []).map((subtask) => `<div class="history-subtask ${subtask.id === selectedSubtaskId ? "selected" : ""}" data-history-subtask-id="${esc(subtask.id)}" data-history-todo-id="${esc(todo.id)}">
-          <span class="h-sub-fan"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="356" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>
+      ? `<div class="history-subs" data-history-subs="${index}">${(todo.subtasks || []).map((subtask) => {
+          const forkBranch = forkedSubtaskBranch(todo.id, subtask.id);
+          const forkLink = forkBranch
+            ? `<button class="h-sub-fork-link" type="button" data-fork-branch="${esc(forkBranch.id)}" title="打开 Fork 子应用" aria-label="打开 Fork 子应用"><img src="/fork-link-flame.svg" alt=""></button>`
+            : "";
+          return `<div class="history-subtask ${subtask.id === selectedSubtaskId ? "selected" : ""}" data-history-subtask-id="${esc(subtask.id)}" data-history-todo-id="${esc(todo.id)}">
+          <span class="h-sub-fan"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>
           <span class="h-sub-name">${esc(subtask.name)}</span>
           ${subtask.done ? `<svg class="h-sub-check" aria-hidden="true"><use href="#check-red"></use></svg>` : ""}
           ${settings.show_time_cost && subtask.done ? `<span class="h-sub-time">${esc(timeCostText(subtask))}</span>` : ""}
-        </div>`).join("")}</div>`
+          ${forkLink}
+        </div>`;
+        }).join("")}</div>`
       : "";
     const trophy = hasSubs
       ? `<button class="h-trophy h-trophy-action" data-history-expand="${index}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${GOLD_MOON}</button>`
@@ -6776,17 +8271,22 @@ function renderStage() {
       const next = pendingSub && subtask.id === pendingSub.id;
       const selected = subtask.id === selectedSubtaskId;
       const fan = subtask.done
-        ? `<span class="sub-fan done" aria-hidden="true"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="356" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>`
-        : `<button class="sub-fan sub-fan-action" data-action="complete-subtask" data-todo-id="${esc(current.id)}" data-subtask-id="${esc(subtask.id)}" aria-label="Finish ${esc(subtask.name)}"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="356" fill="#C8B9FC"/><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></button>`;
+        ? `<span class="sub-fan done" aria-hidden="true"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>`
+        : `<button class="sub-fan sub-fan-action" data-action="complete-subtask" data-todo-id="${esc(current.id)}" data-subtask-id="${esc(subtask.id)}" aria-label="Finish ${esc(subtask.name)}"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"/><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></button>`;
       const agentId = `subtask:${subtask.id}`;
       const agentRunning = agentIsRunning(agentId);
       const modelBadge = agentRunning
         ? `<span class="sub-agent-model" aria-hidden="true"></span>`
         : subtaskModelIconHtml(subtask.id);
+      const forkBranch = forkedSubtaskBranch(current.id, subtask.id);
+      const forkLink = forkBranch
+        ? `<button class="sub-fork-link" type="button" data-fork-branch="${esc(forkBranch.id)}" title="打开 Fork 子应用" aria-label="打开 Fork 子应用"><img src="/fork-link-flame.svg" alt=""></button>`
+        : "";
       return `<div class="current-subtask ${subtask.done ? "done" : "pending"} ${next ? "next" : ""} ${selected ? "selected" : ""} ${agentRunning ? "agent-running" : ""}" data-subtask-id="${esc(subtask.id)}">
         ${modelBadge}${fan}
         <span class="sub-name">${esc(subtask.name)}</span>
         ${subtask.done ? `<svg class="sub-done-check" aria-hidden="true"><use href="#check-red"></use></svg>` : ""}
+        ${forkLink}
       </div>`;
     };
     const fillerRow = '<div class="current-subtask current-subtask-filler" aria-hidden="true"></div>';
@@ -6815,7 +8315,7 @@ function renderStage() {
           </div>
         </div>
       </div>
-      <div class="completed-subtask-drawer ${completedSubtasksOpen ? "open" : ""}" id="completed-subtask-drawer" role="region" aria-label="Completed subtasks" aria-hidden="${completedSubtasksOpen ? "false" : "true"}">
+      <div class="completed-subtask-drawer ${completedSubtasksOpen ? "open" : ""}" id="completed-subtask-drawer" data-subcard="completed" role="region" aria-label="Completed subtasks" aria-hidden="${completedSubtasksOpen ? "false" : "true"}">
         <div class="completed-subtask-sheet">
           <div class="subtask-lane-column completed-column" aria-label="Completed subtasks">
             <div class="subtask-lane" data-lane="done">
@@ -6851,7 +8351,7 @@ function renderStage() {
   // The old page-art was the postcard scene painted inside the theme. The same
   // art now lives in the independent wallpaper layer, so the page itself only
   // renders the theme's colours and typography.
-  stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="choose-project-folder" aria-label="Open project folder"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div>${headTitle}</div>
+  stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" aria-label="Open working folder in your file manager"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div>${headTitle}</div>
     <div class="page-body">
       <section class="todos-section">
         <div class="history-half">${history}</div>
@@ -6863,54 +8363,88 @@ function renderStage() {
     </div>`;
 
   keepAgentTerminal(stage, liveAgentTerminal);
-  renderAgentTerminal();
+  // With the AI sheet closed its element was carried over untouched, so this
+  // call only re-applies the same palette and, in updateAgentSplitLayout(),
+  // reads the freshly written page to re-position the split handles. That read
+  // is a full synchronous layout. During a completion flight it is exactly the
+  // frame the row needs, so let the row land first; the sheet is invisible.
+  if (risingSubtaskId && !agentTerminalOpen) {
+    setTimeout(() => {
+      if (stage.isConnected) renderAgentTerminal();
+    }, COMPLETED_ROW_FLIGHT_MS + 120);
+  } else {
+    renderAgentTerminal();
+  }
   restoreAgentScroll(liveAgentScroll);
   refreshTaskBoard();
+  // The height-ramp row rule gives each row its own stop. New rows need it now
+  // that the stage HTML has been replaced.
+  applyBaselineRowHeights(stage);
   bindCompletedSubtasksBar();
+  // Put the reader's scroll back before anything is measured. The rebuilt lane
+  // starts at the top; restoring it a frame later moved every row a second
+  // time, after the gap had already begun to close, which read as a stutter.
+  if (risingSubtaskId) {
+    stage.querySelectorAll(".subtask-lane[data-lane]").forEach((lane) => {
+      if (lane.dataset.lane === "done") {
+        lane.scrollTop = 0;
+        return;
+      }
+      const previous = previousLaneScroll.get(lane.dataset.lane);
+      if (previous) lane.scrollTop = previous;
+    });
+  }
+  // How long the finished row spends in the air this pass. Anything heavy that
+  // would rebuild a card or re-measure the page waits for it to land.
+  let completionFlightMs = 0;
   if (risingSubtaskId) {
     justCompletedSubtaskId = null;
     // The finished row now lives in the right-hand lane. Fly it from where it
     // was in the pending lane, then let the other rows close the gap.
     const flipped = stage.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(risingSubtaskId)}"]`);
     const originRect = previousSubtaskRects.get(risingSubtaskId);
+    // The tray always shows a new completion at its top, and the card is held
+    // still while the row travels, so the box measured here is the real landing
+    // box instead of a spot the opening card is still sliding through.
+    const doneLane = flipped?.closest(".completed-subtask-drawer .subtask-lane");
+    if (doneLane) doneLane.scrollTop = 0;
+    const drawer = flipped?.closest(".completed-subtask-drawer");
+    const holdDrawer = Boolean(drawer?.classList.contains("open"));
+    if (holdDrawer) drawer.classList.add("flight-target");
     const landedRect = flipped?.getBoundingClientRect();
-    let flightMs = 0;
-    if (flipped && originRect && landedRect) {
-      const dx = originRect.left - landedRect.left;
-      const dy = originRect.top - landedRect.top;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
-        flightMs = COMPLETED_ROW_FLIGHT_MS;
-        try {
-          flipped.animate(
-            [
-              { transform: `translate(${dx}px, ${dy}px)` },
-              { transform: "translate(0, 0)" },
-            ],
-            { duration: COMPLETED_ROW_FLIGHT_MS, easing: "cubic-bezier(.4,.05,.2,1)" }
-          );
-        } catch (error) {}
-      }
+    if (flipped && originRect && landedRect && landedRect.width > 1
+      && (Math.abs(originRect.left - landedRect.left) > 2 || Math.abs(originRect.top - landedRect.top) > 2)) {
+      completionFlightMs = COMPLETED_ROW_FLIGHT_MS;
+      completionFlightUntil = performance.now() + completionFlightMs + 60;
+      flyCompletedRow(flipped, originRect, landedRect, completionFlightMs, risingSubtaskPaper);
     }
-    // The row has landed in the card: let it sit for 0.6s, then retract the
+    if (holdDrawer) {
+      const release = () => drawer.classList.remove("flight-target");
+      if (completionFlightMs) setTimeout(release, completionFlightMs + 60);
+      else release();
+    }
+    // The row has landed in the card: let it sit for 0.3s, then retract the
     // card instead of waiting for the user to click the handle line.
     if (completedSubtasksOpen) {
-      scheduleCompletedSubtasksAutoClose(flightMs + COMPLETED_DRAWER_DWELL_MS);
+      scheduleCompletedSubtasksAutoClose(completionFlightMs + COMPLETED_DRAWER_DWELL_MS);
     }
+    // Close the gap the finished row left behind in the same beat as the
+    // flight. Starting this a frame later made the two motions drift apart,
+    // which is what read as a stutter.
     if (previousSubtaskRects.size) {
-      requestAnimationFrame(() => {
-        stage.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
-          if (row.dataset.subtaskId === risingSubtaskId) return;
-          const beforeRect = previousSubtaskRects.get(row.dataset.subtaskId);
-          if (!beforeRect) return;
-          const delta = beforeRect.top - row.getBoundingClientRect().top;
-          if (Math.abs(delta) < 2) return;
-          try {
-            row.animate(
-              [{ transform: `translateY(${delta}px)` }, { transform: "none" }],
-              { duration: 360, easing: "cubic-bezier(.2,.8,.2,1)" }
-            );
-          } catch (error) {}
-        });
+      stage.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
+        if (row.dataset.subtaskId === risingSubtaskId) return;
+        if (row.closest(".completed-subtask-drawer")) return;
+        const beforeRect = previousSubtaskRects.get(row.dataset.subtaskId);
+        if (!beforeRect) return;
+        const delta = beforeRect.top - row.getBoundingClientRect().top;
+        if (Math.abs(delta) < 2) return;
+        try {
+          row.animate(
+            [{ transform: `translateY(${delta}px)` }, { transform: "none" }],
+            { duration: 320, easing: "cubic-bezier(.2,.8,.2,1)" }
+          );
+        } catch (error) {}
       });
     }
   }
@@ -6919,7 +8453,13 @@ function renderStage() {
   if (!doingPeekOpen) refreshDoingZone();
   requestAnimationFrame(() => {
     refreshNotesSwipeLine();
-    if (doingPeekOpen) updateDoingPeek();
+    // Keep the Doing sub-card built while it is tucked away: its wallpaper is
+    // baked from the card's open box, so the first peek only slides a card that
+    // is already finished instead of drawing one on the way out. When a
+    // finished row is in the air, let it land first: rebuilding this card
+    // inside the flight's first frames was stealing them.
+    if (completionFlightMs) setTimeout(updateDoingPeek, completionFlightMs + 40);
+    else updateDoingPeek();
   });
   const freshReel = $("#history-reel");
   if (freshReel) freshReel.scrollTop = historyScrollTop ?? 0;
@@ -7015,6 +8555,16 @@ function renderStage() {
       });
     });
   }
+  // The stage owns the finished-subtasks card, so a fresh render mounts a
+  // fresh live wallpaper pane inside it. A finishing row is in the air right
+  // now, though: mount only the landing card's pane (its picture is already
+  // baked) and let the rest of the page's cards catch up after the landing.
+  if (completionFlightMs) {
+    syncCardWallpaper($("#completed-subtask-drawer"), { bakedOnly: true });
+    setTimeout(syncCardWallpapers, completionFlightMs + 40);
+  } else {
+    syncCardWallpapers();
+  }
 }
 
 function clearCompletedSubtasksAutoClose() {
@@ -7036,6 +8586,9 @@ function scheduleCompletedSubtasksAutoClose(delay = COMPLETED_DRAWER_DWELL_MS) {
 /** Apply the completed drawer's open state to the current DOM. */
 function setCompletedSubtasksOpen(open) {
   if (!open) clearCompletedSubtasksAutoClose();
+  // The finished tray and the Doing drawer are separate cards. Opening the
+  // tray leaves the Doing drawer exactly where it is: the drawer sits on top,
+  // so the two can be used side by side without one dismissing the other.
   completedSubtasksOpen = Boolean(open);
   const bar = $(".completed-subtask-toggle");
   const drawer = $("#completed-subtask-drawer");
@@ -7045,7 +8598,10 @@ function setCompletedSubtasksOpen(open) {
   bar.setAttribute("aria-label", completedSubtasksOpen ? "Hide completed subtasks" : "Show completed subtasks");
   drawer.classList.toggle("open", completedSubtasksOpen);
   drawer.setAttribute("aria-hidden", completedSubtasksOpen ? "false" : "true");
+  // Mount / pause the live wallpaper pane with the card itself.
+  syncCardWallpapers();
   if (!completedSubtasksOpen) return;
+  settleCardWallpapers(460);
   const lane = drawer.querySelector(".subtask-lane");
   if (!lane) return;
   lane.scrollTop = 0;
@@ -7363,10 +8919,16 @@ function syncPluginSettings() {
   } catch (error) {}
 }
 
-function openPluginPanel(id) {
+function openPluginPanel(id, options = {}) {
   const plugin = PLUGIN_REGISTRY[id];
   const root = $("#plugin-root");
-  if (!plugin || !root || openPluginId) return;
+  if (!plugin || !root) return;
+  const query = String(options?.query || "").replace(/^\?/, "");
+  // No query: a second click on the same rail icon keeps the panel as it is.
+  // With a query (a fork id) the iframe restarts so the plugin can boot
+  // straight into that sub-app.
+  if (openPluginId && !query) return;
+  if (openPluginId) closePluginPanel();
   if (!pluginEnabled(id)) {
     toast(`${plugin.title} is turned off`, true);
     return;
@@ -7374,7 +8936,10 @@ function openPluginPanel(id) {
   openPluginId = id;
   document.activeElement?.blur?.();
   AudioFX.drawer(true);
-  root.innerHTML = `<iframe class="plugin-frame" title="${esc(plugin.title)}" src="${plugin.entry}" allow="autoplay"></iframe>`;
+  const entry = query
+    ? `${plugin.entry}${plugin.entry.includes("?") ? "&" : "?"}${query}`
+    : plugin.entry;
+  root.innerHTML = `<iframe class="plugin-frame" title="${esc(plugin.title)}" src="${esc(entry)}" allow="autoplay"></iframe>`;
   root.setAttribute("aria-hidden", "false");
   root.classList.add("open");
   document.body.classList.add("plugin-open");
@@ -7403,12 +8968,41 @@ function closePluginPanel() {
   AudioFX.drawer(false);
 }
 
+function pluginSettingDefault(item) {
+  if (!item || typeof item.id !== "string") return undefined;
+  if (item.type === "toggle") return item.default !== false;
+  if (item.type === "choice") {
+    const options = Array.isArray(item.options) ? item.options : [];
+    const values = options.map((option) => option.value).filter((value) => typeof value === "string");
+    return values.includes(item.default) ? item.default : (values[0] ?? "");
+  }
+  return undefined;
+}
+
 function pluginDefaultSettings(plugin) {
   const defaults = {};
   for (const item of plugin?.settings || []) {
-    if (item.type === "toggle") defaults[item.id] = item.default !== false;
+    const value = pluginSettingDefault(item);
+    if (value !== undefined) defaults[item.id] = value;
   }
   return defaults;
+}
+
+function normalizePluginSettings(plugin, values) {
+  const next = values && typeof values === "object" && !Array.isArray(values) ? { ...values } : {};
+  for (const item of plugin?.settings || []) {
+    const fallback = pluginSettingDefault(item);
+    if (fallback === undefined) continue;
+    if (item.type === "toggle") {
+      if (typeof next[item.id] !== "boolean") next[item.id] = fallback;
+    } else if (item.type === "choice") {
+      const options = (item.options || [])
+        .map((option) => option.value)
+        .filter((value) => typeof value === "string");
+      if (!options.includes(next[item.id])) next[item.id] = fallback;
+    }
+  }
+  return next;
 }
 
 function pluginState(pluginId) {
@@ -7417,18 +9011,36 @@ function pluginState(pluginId) {
   if (!settings.plugins || typeof settings.plugins !== "object") settings.plugins = {};
   let state = settings.plugins[pluginId];
   if (!state || typeof state !== "object") state = settings.plugins[pluginId] = {};
-  if (typeof state.installed !== "boolean") state.installed = true;
+  if (typeof state.installed !== "boolean") state.installed = plugin.defaultInstalled !== false;
   if (typeof state.enabled !== "boolean") state.enabled = state.installed;
   if (!state.settings || typeof state.settings !== "object" || Array.isArray(state.settings)) state.settings = {};
-  for (const [key, value] of Object.entries(pluginDefaultSettings(plugin))) {
-    if (typeof state.settings[key] !== "boolean") state.settings[key] = value;
-  }
+  state.settings = normalizePluginSettings(plugin, state.settings);
   return state;
 }
 
 function pluginEnabled(pluginId) {
   const state = pluginState(pluginId);
   return Boolean(state?.installed && state.enabled);
+}
+
+/** A plain copy of every plugin's saved settings, keyed by plugin id. */
+function pluginSettingsSnapshot() {
+  const snapshot = {};
+  for (const plugin of Object.values(PLUGIN_REGISTRY)) {
+    const state = pluginState(plugin.id);
+    if (state) snapshot[plugin.id] = { ...state.settings };
+  }
+  return snapshot;
+}
+
+// Plugins that own page chrome (the Head Bar's bottle colour, for example)
+// cannot read settings while their script boots: the notebook only finishes
+// loading them a beat later. Publish the whole map after every load and edit so
+// a restart restores the reader's last choice instead of the default.
+function notifyPluginSettings() {
+  window.dispatchEvent(new CustomEvent("neotodo-plugin-settings-sync", {
+    detail: { plugins: pluginSettingsSnapshot() },
+  }));
 }
 
 function pluginAssetUrl(pluginId, relative) {
@@ -7445,15 +9057,51 @@ function pluginCategoryLabel(value) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
+/** Keep one manifest setting control in the shape Settings → Plugins renders. */
+function pluginSettingDefinition(item) {
+  if (!item || typeof item !== "object" || typeof item.id !== "string" || !item.id) return null;
+  const type = item.type === "choice" ? "choice" : item.type === "toggle" ? "toggle" : "";
+  if (!type) return null;
+  const definition = {
+    id: item.id,
+    label: String(item.label || item.id),
+    detail: String(item.detail || ""),
+    type,
+  };
+  if (type === "toggle") {
+    definition.default = item.default !== false;
+    return definition;
+  }
+  const options = [];
+  const seen = new Set();
+  for (const option of Array.isArray(item.options) ? item.options : []) {
+    const value = typeof option === "string"
+      ? option
+      : option && typeof option.value === "string" ? option.value : "";
+    if (!value || value.length > 64 || seen.has(value)) continue;
+    seen.add(value);
+    options.push({
+      value,
+      label: String((option && typeof option === "object" ? option.label : "") || value),
+      detail: String((option && typeof option === "object" ? option.detail : "") || ""),
+    });
+    if (options.length >= 12) break;
+  }
+  if (!options.length) return null;
+  definition.default = seen.has(String(item.default || "")) ? String(item.default) : options[0].value;
+  definition.options = options;
+  return definition;
+}
+
 /** Turn a manifest returned by the backend into a PLUGIN_REGISTRY record. */
 function pluginManifestEntry(manifest) {
   const id = String(manifest?.id || "");
   if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(id)) return null;
   const icon = String(manifest.icon || "").trim();
   const entry = String(manifest.entry || "index.html").trim();
-  const settings = Array.isArray(manifest.settings)
-    ? manifest.settings.filter((item) => item && item.type === "toggle" && typeof item.id === "string")
-    : [];
+  const settings = (Array.isArray(manifest.settings) ? manifest.settings : [])
+    .map(pluginSettingDefinition)
+    .filter(Boolean);
   const tags = Array.isArray(manifest.tags) ? manifest.tags.filter((tag) => typeof tag === "string").slice(0, 6) : [];
   return {
     id,
@@ -7483,8 +9131,10 @@ function mergePluginManifests(manifests) {
     const existing = PLUGIN_REGISTRY[entry.id];
     if (entry.source === "user") {
       // A downloaded plugin replaces the built-in record and can be updated in
-      // place without losing its settings.
-      PLUGIN_REGISTRY[entry.id] = { ...(existing || {}), ...entry };
+      // place without losing its settings. If an older backend returns a
+      // manifest without setting rows, keep the definitions we already know.
+      const settings = entry.settings.length ? entry.settings : (existing?.settings || []);
+      PLUGIN_REGISTRY[entry.id] = { ...(existing || {}), ...entry, settings };
       users.push(entry);
       continue;
     }
@@ -7497,6 +9147,20 @@ function mergePluginManifests(manifests) {
       existing.repository = entry.repository || existing.repository || "";
       existing.license = entry.license || existing.license || "";
       existing.tags = entry.tags.length ? entry.tags : existing.tags || [];
+      // A plugin that registers itself from its own script can win the boot
+      // race before this backend manifest lands. In that case its record
+      // already has the setting rows; otherwise adopt the manifest's rows so
+      // choices such as the Head Bar bottle stay editable after a restart.
+      // Existing rows win (the plugin's own script may know a newer shape) and
+      // the manifest only fills in ids it has not registered yet.
+      const mergedSettings = [];
+      const seenSettings = new Set();
+      for (const row of [...(Array.isArray(existing.settings) ? existing.settings : []), ...entry.settings]) {
+        if (!row || typeof row.id !== "string" || seenSettings.has(row.id)) continue;
+        seenSettings.add(row.id);
+        mergedSettings.push(row);
+      }
+      existing.settings = mergedSettings;
     }
   }
   installedUserPlugins = users;
@@ -7522,26 +9186,134 @@ function pluginRailGlyph(plugin) {
   return `<svg class="community-plugin-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v5a3 3 0 0 0 3 3h3v6h-5a3 3 0 0 0-3 3v1H7v-4a3 3 0 0 0-3-3H3V9h5a3 3 0 0 0 3-3V3Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
 
+// A plugin can claim a top-right header slot by tagging itself "achievement"
+// (or "成就"). The headphones are the built-in achievement (index.html marks
+// them with data-achievement="completed") and always stay; each new tagged
+// plugin adds its own slot to their right, pushing the older achievements left.
+const ACHIEVEMENT_TAGS = new Set(["achievement", "achievements", "trophy", "成就"]);
+// Header achievements that ship with the notebook and never use plugin state.
+const BUILTIN_ACHIEVEMENT_IDS = new Set(["completed"]);
+const ACHIEVEMENT_SLOT_SELECTOR = ".head-right [data-achievement], .head-right [data-achievement-plugin]";
+
+function pluginHasAchievementTag(pluginId) {
+  const plugin = PLUGIN_REGISTRY[pluginId];
+  const tags = Array.isArray(plugin?.tags) ? plugin.tags : [];
+  return tags.some((tag) => ACHIEVEMENT_TAGS.has(String(tag).toLowerCase()));
+}
+
+function achievementSlotVisible(pluginId) {
+  if (!pluginId) return false;
+  // The built-in headphone achievement is never removed or switched off.
+  const builtin = Array.from(document.querySelectorAll(".head-right [data-achievement]"))
+    .some((node) => node.dataset.achievement === pluginId);
+  if (builtin) return true;
+  return pluginHasAchievementTag(pluginId) && pluginEnabled(pluginId);
+}
+
+/** Achievement-tagged plugins that currently own a top-right slot. */
+function activeAchievementPlugins() {
+  return Object.values(PLUGIN_REGISTRY).filter((plugin) =>
+    !BUILTIN_ACHIEVEMENT_IDS.has(plugin.id) &&
+    pluginHasAchievementTag(plugin.id) &&
+    pluginEnabled(plugin.id)
+  );
+}
+
+function achievementSlotGlyph(plugin) {
+  if (plugin.icon) {
+    return `<img class="achievement-plugin-glyph" src="${esc(plugin.icon)}" alt="">`;
+  }
+  const initial = String(plugin.title || plugin.id || "?").trim().slice(0, 1).toUpperCase();
+  return `<span class="achievement-plugin-glyph achievement-plugin-letter" aria-hidden="true">${esc(initial)}</span>`;
+}
+
+function achievementSlotMarkup(plugin) {
+  return `<button class="achievement-plugin-slot" type="button" data-action="open-achievement-plugin" data-plugin-id="${esc(plugin.id)}" data-achievement-plugin="${esc(plugin.id)}" aria-label="${esc(plugin.title)} achievement" title="${esc(plugin.title)}">
+      ${achievementSlotGlyph(plugin)}
+    </button>`;
+}
+
+/** Keep one header slot per enabled achievement plugin, in registry order. */
+function renderAchievementShelf() {
+  const shelf = document.querySelector(".head-right");
+  if (!shelf) return;
+  const active = activeAchievementPlugins();
+  const wanted = new Set(active.map((plugin) => plugin.id));
+  shelf.querySelectorAll(".achievement-plugin-slot").forEach((node) => {
+    if (!wanted.has(node.dataset.achievementPlugin)) node.remove();
+  });
+  const present = new Set(
+    Array.from(shelf.querySelectorAll("[data-achievement-plugin]"))
+      .map((node) => node.dataset.achievementPlugin)
+  );
+  for (const plugin of active) {
+    if (present.has(plugin.id)) continue;
+    const template = document.createElement("template");
+    template.innerHTML = achievementSlotMarkup(plugin);
+    shelf.appendChild(template.content.firstElementChild);
+    present.add(plugin.id);
+  }
+}
+
+function achievementShelfRects() {
+  const rects = new Map();
+  document.querySelectorAll(ACHIEVEMENT_SLOT_SELECTOR).forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    // Hidden slots report a zero-size rect; they only need their enter animation.
+    if (rect.width > 0) rects.set(node, rect.left);
+  });
+  return rects;
+}
+
+/** Slide the existing achievements after a slot appears or leaves. */
+function animateAchievementShift(previousRects) {
+  if (!previousRects) return;
+  document.querySelectorAll(ACHIEVEMENT_SLOT_SELECTOR).forEach((node) => {
+    const previousLeft = previousRects.get(node);
+    if (previousLeft === undefined) return;
+    const nextLeft = node.getBoundingClientRect().left;
+    const delta = previousLeft - nextLeft;
+    if (Math.abs(delta) < 1) return;
+    if (typeof node.animate !== "function") return;
+    node.animate(
+      [{ transform: `translateX(${delta}px)` }, { transform: "translateX(0)" }],
+      { duration: 280, easing: "cubic-bezier(0.22, 0.9, 0.28, 1)" }
+    );
+  });
+}
+
 function renderPluginRail() {
   const rail = $("#community-plugin-rail");
   if (!rail) return;
   const plugins = Object.values(PLUGIN_REGISTRY).filter((plugin) => plugin.source === "user");
-  rail.innerHTML = plugins.map((plugin) => `<button class="tool-button community-plugin-tool" type="button" data-action="open-community-plugin" data-plugin="${esc(plugin.id)}" data-plugin-id="${esc(plugin.id)}" aria-label="${esc(plugin.title)}" title="${esc(plugin.title)}">
+  rail.innerHTML = plugins.map((plugin) => `<button class="tool-button community-plugin-tool" type="button" data-action="open-community-plugin" data-plugin="${esc(plugin.id)}" data-plugin-id="${esc(plugin.id)}" aria-label="${esc(plugin.title)}">
       ${pluginRailGlyph(plugin)}
     </button>`).join("");
   applyPluginState();
 }
 
 
-function applyPluginState() {
+function applyPluginState(animate = false) {
+  const previousRects = animate ? achievementShelfRects() : null;
   document.querySelectorAll("[data-plugin]").forEach((node) => {
     node.classList.toggle("plugin-hidden", !pluginEnabled(node.dataset.plugin));
   });
+  // Achievement-tagged plugins get a real header slot. Create the ones that
+  // were installed since the last render, then hide any disabled slot.
+  renderAchievementShelf();
+  document.querySelectorAll("[data-achievement-plugin]").forEach((node) => {
+    node.classList.toggle("plugin-hidden", !achievementSlotVisible(node.dataset.achievementPlugin));
+  });
+  animateAchievementShift(previousRects);
   if (openPluginId && !pluginEnabled(openPluginId)) closePluginPanel();
 }
 
 /** Plugins that reshape the task stage need it redrawn when their switch flips. */
 function refreshPluginSurface(pluginId) {
+  if (pluginId === "pomodoro" && !pluginEnabled("pomodoro")) {
+    closeFocusTimer();
+    if (document.body.dataset.achievementSheet === "focus") closeCompletedLog();
+  }
   if (pluginId !== "completed-drawer" || !state.data) return;
   completedSubtasksOpen = false;
   renderStage();
@@ -7553,13 +9325,17 @@ function setPluginEnabled(pluginId, enabled) {
   if (!plugin || !state || !state.installed) return;
   state.enabled = Boolean(enabled);
   saveSettings();
-  applyPluginState();
+  applyPluginState(true);
   refreshPluginSurface(pluginId);
   AudioFX.categoryTap();
-  if (settingsTab === "plugins") renderSettings();
-  else if (settingsTab === "community") updatePluginCommunityResults();
+  renderSettings();
   toast(`${plugin.title} ${state.enabled ? "turned on" : "turned off"}`);
 }
+
+// Plugin control pages run in an iframe and use these host hooks to read and
+// flip their own switch without reloading the notebook.
+window.pluginEnabled = pluginEnabled;
+window.setPluginEnabled = setPluginEnabled;
 
 function installPlugin(pluginId) {
   const plugin = PLUGIN_REGISTRY[pluginId];
@@ -7569,21 +9345,29 @@ function installPlugin(pluginId) {
   state.enabled = true;
   pluginPendingUninstallId = null;
   saveSettings();
-  applyPluginState();
+  applyPluginState(true);
   refreshPluginSurface(pluginId);
   AudioFX.ding();
-  if (settingsTab === "community") updatePluginCommunityResults();
-  else renderSettings();
+  renderSettings();
   toast(`${plugin.title} installed`);
+}
+
+// Plugin settings can live in Settings → Plugins or in the Community window.
+// Both sheets use their own scroll container.
+function pluginSurfaceScroll() {
+  return $(".settings-scroll") || $(".community-scroll");
 }
 
 function requestPluginUninstall(pluginId) {
   if (!PLUGIN_REGISTRY[pluginId]) return;
+  if (!$(".settings-panel") && !communityModalOpen) {
+    openCommunity(pluginEntryIsGame(PLUGIN_REGISTRY[pluginId]) ? "games" : "plugins");
+  } else if ($(".settings-panel")) {
+    settingsTab = "plugins";
+  }
   pluginPendingUninstallId = pluginId;
-  pluginDetailId = null;
-  settingsTab = "plugins";
   renderSettings();
-  const scroll = $(".settings-scroll");
+  const scroll = pluginSurfaceScroll();
   if (scroll) scroll.scrollTop = 0;
 }
 
@@ -7606,7 +9390,7 @@ async function confirmPluginUninstall(pluginId) {
       pluginPendingUninstallId = null;
       pluginDetailId = null;
       saveSettings();
-      applyPluginState();
+      applyPluginState(true);
       renderPluginRail();
       renderSettings();
       AudioFX.paper();
@@ -7621,31 +9405,30 @@ async function confirmPluginUninstall(pluginId) {
   pluginPendingUninstallId = null;
   if (openPluginId === pluginId) closePluginPanel();
   saveSettings();
-  applyPluginState();
+  applyPluginState(true);
   refreshPluginSurface(pluginId);
   AudioFX.paper();
   renderSettings();
   toast(`${plugin.title} uninstalled`);
 }
 
-function openPluginSettingsPage(pluginId, focus = "") {
+function openPluginSettingsPage(pluginId) {
   if (!PLUGIN_REGISTRY[pluginId]) return;
-  settingsTab = "plugins";
+  if ($(".settings-panel")) {
+    settingsTab = "plugins";
+  } else if (!communityModalOpen) {
+    openCommunity(pluginEntryIsGame(PLUGIN_REGISTRY[pluginId]) ? "games" : "plugins");
+  }
   pluginDetailId = pluginId;
   pluginPendingUninstallId = null;
   renderSettings();
-  const scroll = $(".settings-scroll");
-  if (!scroll) return;
-  scroll.scrollTop = 0;
-  if (focus === "details") {
-    requestAnimationFrame(() => {
-      scroll.querySelector(".plugin-detail-about")?.scrollIntoView({ block: "start", behavior: "smooth" });
-    });
-  }
+  const scroll = pluginSurfaceScroll();
+  if (scroll) scroll.scrollTop = 0;
 }
 
 function openPluginFromSettings(pluginId) {
   if (!pluginEnabled(pluginId)) return;
+  closeCommunity();
   closeSettings();
   openPluginPanel(pluginId);
 }
@@ -7657,6 +9440,27 @@ function togglePluginSetting(pluginId, key) {
   saveSettings();
   AudioFX.categoryTap();
   syncPluginSettings();
+  notifyPluginSettings();
+  renderSettings();
+}
+
+function setPluginChoice(pluginId, key, value) {
+  const plugin = PLUGIN_REGISTRY[pluginId];
+  const state = pluginState(pluginId);
+  if (!plugin || !state) return;
+  const item = (plugin.settings || []).find((setting) => setting.id === key && setting.type === "choice");
+  const options = (item?.options || [])
+    .map((option) => option.value)
+    .filter((option) => typeof option === "string");
+  if (!item || !options.includes(value) || state.settings[key] === value) return;
+  state.settings[key] = value;
+  saveSettings();
+  AudioFX.categoryTap();
+  syncPluginSettings();
+  window.dispatchEvent(new CustomEvent("neotodo-plugin-setting-change", {
+    detail: { plugin: pluginId, key, value },
+  }));
+  notifyPluginSettings();
   renderSettings();
 }
 
@@ -7666,11 +9470,9 @@ function openPluginMenu(button, pluginId) {
   const rect = button.getBoundingClientRect();
   const off = !pluginEnabled(pluginId);
   const gearIcon = `<svg aria-hidden="true"><use href="#gear"></use></svg>`;
-  const infoIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 10.8v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="7.9" r="1" fill="currentColor"/></svg>`;
   const playIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.4v11.2L18 12 9 6.4Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
   openContextMenu(rect.right - 4, rect.bottom + 6, [
     { label: "Plugin settings", icon: gearIcon, run: () => openPluginSettingsPage(pluginId) },
-    { label: "View details", icon: infoIcon, run: () => openPluginSettingsPage(pluginId, "details") },
     { label: "Open plugin", icon: playIcon, disabled: off, run: () => openPluginFromSettings(pluginId) },
     "-",
     { label: "Uninstall", icon: TRASH_ICON, danger: true, run: () => requestPluginUninstall(pluginId) },
@@ -7713,6 +9515,32 @@ function pluginCategoryOptions(entries) {
   return options;
 }
 
+// A community entry counts as a game when its category says so, or when its
+// author tags it as one. "Play" alone is not enough — the music player and the
+// starter template also live there, and they belong on the plugins shelf.
+const GAME_ENTRY_IDS = new Set(["pindou", "tetris", "piano"]);
+const GAME_ENTRY_TAGS = new Set(["game", "games", "play", "arcade", "puzzle"]);
+
+function pluginEntryIsGame(entry) {
+  if (!entry) return false;
+  const id = String(entry.id || "").toLowerCase();
+  const category = pluginCategoryLabel(entry.category).toLowerCase();
+  if (category === "game" || category === "games") return true;
+  if (GAME_ENTRY_IDS.has(id)) return true;
+  const tags = (Array.isArray(entry.tags) ? entry.tags : []).map((tag) => String(tag).toLowerCase());
+  return tags.some((tag) => GAME_ENTRY_TAGS.has(tag));
+}
+
+function pluginShelfScope() {
+  return communitySection === "games" ? "games" : "plugins";
+}
+
+/** Catalog entries for the Community shelf that is on screen. */
+function pluginSectionEntries(scope = pluginShelfScope()) {
+  const wantGames = scope === "games";
+  return pluginCatalogEntries().filter((entry) => pluginEntryIsGame(entry) === wantGames);
+}
+
 function pluginCatalogEntries() {
   const entries = Array.isArray(pluginCatalog?.plugins) ? pluginCatalog.plugins : [];
   if (entries.length) return entries;
@@ -7733,7 +9561,7 @@ function pluginCatalogEntries() {
 
 function pluginCommunityVisibleEntries() {
   const query = pluginCommunityQuery.trim().toLowerCase();
-  return pluginCatalogEntries().filter((entry) => {
+  return pluginSectionEntries().filter((entry) => {
     const category = pluginCategoryLabel(entry.category).toLowerCase();
     if (pluginCommunityFilter === "featured" && !entry.featured) return false;
     if (pluginCommunityFilter !== "all" && pluginCommunityFilter !== "featured" && category !== pluginCommunityFilter) return false;
@@ -7801,7 +9629,8 @@ function pluginCommunityCard(entry) {
 function pluginCommunityResultsMarkup() {
   const entries = pluginCommunityVisibleEntries();
   if (!entries.length) {
-    return `<div class="plugin-empty community-empty">No plugins match this search yet. Try another word, or submit the first one.</div>`;
+    const shelf = pluginShelfScope() === "games" ? "games" : "plugins";
+    return `<div class="plugin-empty community-empty">No ${shelf} match this search yet. Try another word, or add the first one.</div>`;
   }
   return `<div class="community-plugin-grid">${entries.map(pluginCommunityCard).join("")}</div>`;
 }
@@ -7821,7 +9650,7 @@ async function loadPluginCatalog(force = false) {
   if (pluginCatalogLoading) return;
   pluginCatalogLoading = true;
   pluginCatalogError = "";
-  if (settingsTab === "community") renderSettings();
+  refreshCommunity();
   try {
     const response = await fetch(`/api/plugins/community${force ? "?refresh=1" : ""}`, { cache: "no-store" });
     const result = await response.json();
@@ -7833,7 +9662,7 @@ async function loadPluginCatalog(force = false) {
     if (!pluginCatalog) pluginCatalog = { plugins: [] };
   } finally {
     pluginCatalogLoading = false;
-    if (settingsTab === "community") renderSettings();
+    refreshCommunity();
   }
 }
 
@@ -7872,7 +9701,7 @@ async function installCommunityPlugin(pluginId) {
       if (!wasInstalled) state.enabled = true;
     }
     saveSettings();
-    applyPluginState();
+    applyPluginState(true);
     renderPluginRail();
     refreshPluginSurface(pluginId);
     AudioFX.ding();
@@ -7881,8 +9710,7 @@ async function installCommunityPlugin(pluginId) {
     toast(error?.message || "The plugin could not be installed", true);
   } finally {
     pluginInstalling.delete(pluginId);
-    if (settingsTab === "community") updatePluginCommunityResults();
-    if (pluginDetailId) renderSettings();
+    refreshCommunity();
   }
 }
 
@@ -7906,11 +9734,11 @@ async function uploadPluginArchive(data, filename) {
       state.enabled = true;
     }
     saveSettings();
-    applyPluginState();
+    applyPluginState(true);
     renderPluginRail();
     AudioFX.ding();
     toast(`${result.plugin?.name || filename} installed`);
-    if (settingsTab === "community") renderSettings();
+    refreshCommunity();
   } catch (error) {
     toast(error?.message || "The plugin could not be installed", true);
   } finally {
@@ -8087,7 +9915,7 @@ function renderCompletedLogContent() {
   const list = $("#completed-log-list");
   if (!list) return;
   const current = [];
-  for (const category of state.data.categories) {
+  for (const category of visibleCategories()) {
     for (const todo of category.todos) {
       if (!todo.done) continue;
       current.push({
@@ -8181,6 +10009,9 @@ function openContextMenu(x, y, items, theme = "") {
   closeContextMenu();
   const menu = document.createElement("div");
   menu.className = `context-menu${theme ? ` context-${theme}` : ""}`;
+  // A menu with one icon keeps an empty icon column on every row, so labels
+  // line up instead of jumping left for Copy / Cut / Paste.
+  const iconMenu = items.some((item) => item && typeof item === "object" && item.icon);
   for (const item of items) {
     if (item === "-") {
       const sep = document.createElement("div");
@@ -8196,10 +10027,13 @@ function openContextMenu(x, y, items, theme = "") {
       continue;
     }
     const button = document.createElement("button");
-    button.className = "context-item";
-    if (item.icon) {
-      button.innerHTML = `<span class="context-icon">${item.icon}</span><span>${esc(item.label)}</span>`;
+    if (iconMenu) {
+      // The label is its own flex row so the icon and the text share one
+      // horizontal centre line: the flame never sits a pixel under the word.
+      button.className = "context-item context-item-icon";
+      button.innerHTML = `<span class="context-icon${item.icon ? "" : " context-icon-empty"}" aria-hidden="true">${item.icon || ""}</span><span class="context-label">${esc(item.label)}</span>`;
     } else {
+      button.className = "context-item";
       button.textContent = item.label;
     }
     button.disabled = Boolean(item.disabled);
@@ -8258,30 +10092,173 @@ function openNeoTodoWindow(url) {
 
 async function forkSubtask(todo, subtask) {
   if (!todo?.id || !subtask?.id) return;
-  const confirmed = await confirmDialog({
-    kicker: "A new branch",
-    title: `Would you want to fork “${subtask.name}”`,
-    confirmLabel: "Enter",
-  });
-  if (!confirmed) return;
-  const result = await action("fork_subtask", {
-    todo_id: todo.id,
-    subtask_id: subtask.id,
-  });
-  if (!result?.ok || !result.created) return;
-  const url = `${location.origin}/?category=${encodeURIComponent(result.created)}&fork=1`;
+  if (!pluginEnabled("forktree")) {
+    toast("Turn on the Forktree plugin to fork", true);
+    return;
+  }
+  // Fork immediately: no confirmation dialog. The backend starts a detached
+  // app process and its own window; the row gets a flame link below.
+  const category = (state.data?.categories || []).find(
+    (item) => (item.todos || []).some((entry) => entry.id === todo.id)
+  ) || null;
+  let result = null;
+  try {
+    const response = await fetch("/api/fork-app", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ todo_id: todo.id, subtask_id: subtask.id }),
+    });
+    result = await response.json();
+  } catch (error) {
+    toast("Could not open the fork window", true);
+    return;
+  }
+  if (!result?.ok || !result.url) {
+    toast(result?.error || "Could not open the fork window", true);
+    return;
+  }
+  // The fork window is its own NeoTodo instance. The plugin map still keeps a
+  // small branch record so the tree can show and reopen it.
+  const store = window.NeoTodoFork;
+  if (store?.create) {
+    store.create({
+      name: subtask.name,
+      note: subtask.note || "",
+      url: result.url,
+      port: result.port,
+      forkId: result.fork_id,
+      forkTodoId: result.todo_id,
+      source: {
+        categoryId: category?.id || "",
+        categoryName: category?.name || "",
+        todoId: todo.id,
+        todoName: todo.name || "",
+        subtaskId: subtask.id,
+        subtaskName: subtask.name || "",
+      },
+    });
+  }
+  // Re-render the row so the flame link appears immediately.
+  render();
   toast(`Forked “${subtask.name}”`);
-  openNeoTodoWindow(url);
+  // On the desktop the backend starts a detached process that owns its own
+  // window, so the fork survives the notebook. Only the fallback platforms
+  // open the URL from this process.
+  if (!result.window_opened) openNeoTodoWindow(result.url);
 }
 
-function showCurrentTodoMenu(x, y) {
-  const category = selectedCategory();
-  const current = category?.todos.find((todo) => !todo.done);
-  if (!current) return;
-  openContextMenu(x, y, [
-    { label: "Edit note", run: () => editCurrentNote() },
-    { label: "Rename todo", run: () => handleAction("rename-todo", { dataset: { id: current.id } }) },
-  ]);
+// The latest fork branch that came from this exact subtask. The row link uses
+// it to jump straight back into the forked app window.
+function forkedSubtaskBranch(todoId, subtaskId) {
+  const store = window.NeoTodoFork;
+  const branches = store?.list?.() || [];
+  const todoKey = String(todoId || "");
+  const subtaskKey = String(subtaskId || "");
+  if (!todoKey || !subtaskKey) return null;
+  return branches
+    .filter((branch) => (
+      String(branch?.source?.todoId || "") === todoKey
+      && String(branch?.source?.subtaskId || "") === subtaskKey
+    ))
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0] || null;
+}
+
+// A fork recorded by the plugin opens its own port window. Branches imported
+// from the first build have no port yet; the backend materializes one from the
+// stored name/note/subtasks on first open.
+async function openForkBranch(branchId) {
+  if (!branchId) return;
+  if (!pluginEnabled("forktree")) {
+    toast("Turn on the Forktree plugin to fork", true);
+    return;
+  }
+  const store = window.NeoTodoFork;
+  const branch = store?.get?.(String(branchId));
+  if (!branch) {
+    openForkWorkspace(branchId);
+    return;
+  }
+  // A saved fork is a data file on the backend. Ask the backend for a live
+  // port first; this also respawns it after a NeoTodo restart.
+  if (branch.forkId) {
+    try {
+      const response = await fetch("/api/fork-app/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fork_id: branch.forkId }),
+      });
+      const result = await response.json();
+      if (result?.ok && result.url) {
+        store.update(branch.id, { url: result.url, port: result.port });
+        if (openPluginId) closePluginPanel();
+        if (!result.window_opened) openNeoTodoWindow(result.url);
+        return;
+      }
+    } catch (error) {}
+  }
+  if (branch.url) {
+    if (openPluginId) closePluginPanel();
+    openNeoTodoWindow(branch.url);
+    return;
+  }
+  if (!store?.update) {
+    openForkWorkspace(branchId);
+    return;
+  }
+  try {
+    const response = await fetch("/api/fork-app/branch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branch }),
+    });
+    const result = await response.json();
+    if (!result?.ok || !result.url) {
+      toast(result?.error || "Could not open the fork window", true);
+      return;
+    }
+    store.update(branch.id, {
+      url: result.url,
+      port: result.port,
+      forkId: result.fork_id,
+      forkTodoId: result.todo_id,
+    });
+    if (openPluginId) closePluginPanel();
+    if (!result.window_opened) openNeoTodoWindow(result.url);
+  } catch (error) {
+    toast("Could not open the fork window", true);
+  }
+}
+
+// Open the plugin workspace for a legacy in-panel branch. New forks use
+// openForkBranch and a real window on their own port.
+function openForkWorkspace(branchId) {
+  if (!branchId) return;
+  if (!pluginEnabled("forktree")) {
+    toast("Turn on the Forktree plugin to fork", true);
+    return;
+  }
+  if (openPluginId) closePluginPanel();
+  const params = new URLSearchParams({
+    fork: String(branchId),
+    standalone: "1",
+  });
+  const root = document.documentElement;
+  const styles = getComputedStyle(root);
+  if (root.dataset.postcardDark === "true") params.set("dark", "1");
+  for (const [key, css] of [
+    ["paper", "--pc-paper"],
+    ["paper2", "--pc-paper2"],
+    ["ink", "--pc-ink"],
+    ["muted", "--pc-muted"],
+    ["border", "--pc-border"],
+    ["line", "--pc-line"],
+    ["accent", "--pc-accent"],
+  ]) {
+    const value = styles.getPropertyValue(css).trim();
+    if (value) params.set(key, value);
+  }
+  const url = `${location.origin}/plugins/forktree/index.html?${params.toString()}`;
+  openNeoTodoWindow(url);
 }
 
 function focusFirstNoteBlock() {
@@ -8426,7 +10403,11 @@ function showCurrentSubtaskMenu(x, y, subtaskId, editable = null) {
   };
 
   openContextMenu(x, y, [
-    { label: "Fork", icon: FORK_ICON, run: () => forkSubtask(current, subtask) },
+    // The fork window is a Forktree feature; without the installed plugin the
+    // action does not appear at all.
+    ...(pluginEnabled("forktree")
+      ? [{ label: "Fork", icon: FORK_ICON, run: () => forkSubtask(current, subtask) }]
+      : []),
     { label: "Copy", run: copy },
     { label: "Cut", disabled: input ? !selection : subtask.done, run: cut },
     { label: "Paste", run: paste },
@@ -8448,7 +10429,9 @@ function showHistorySubtaskMenu(x, y, todoId, subtaskId) {
   const subtask = (todo?.subtasks || []).find((item) => item.id === subtaskId);
   if (!subtask) return;
   openContextMenu(x, y, [
-    { label: "Fork", icon: FORK_ICON, run: () => forkSubtask(todo, subtask) },
+    ...(pluginEnabled("forktree")
+      ? [{ label: "Fork", icon: FORK_ICON, run: () => forkSubtask(todo, subtask) }]
+      : []),
     { label: "Copy name", run: () => copyPlainText(subtask.name) },
     { label: "Edit note", run: () => selectHistorySubtaskNote(todoId, subtaskId) },
   ]);
@@ -8483,34 +10466,96 @@ function showCategoryMenu(x, y, id) {
   notesPreview = false;
   render();
   closeArchive();
-  openContextMenu(x, y, [
+  // A category that still holds todos can never be deleted, so don't offer the
+  // option at all — a disabled "Delete category" row just looks broken.
+  const items = [
     { label: "Rename category", run: () => handleAction("rename-category", { dataset: { id: category.id } }) },
-    {
+  ];
+  if (!category.todos.length) {
+    items.push({
       label: "Delete category",
-      disabled: category.todos.length > 0,
       danger: true,
       run: () => handleAction("delete-category", { dataset: { id: category.id } }),
-    },
-  ]);
+    });
+  }
+  openContextMenu(x, y, items);
 }
 
-function finishedToast() {
+function toastStack() {
   let stack = $(".toast-stack");
   if (!stack) {
     stack = document.createElement("div");
     stack.className = "toast-stack";
     document.body.appendChild(stack);
   }
+  return stack;
+}
+
+// Completing a whole todo is the big reward: confetti, then the headphone.
+function finishedToast() {
   const node = document.createElement("div");
-  node.className = "toast finished-toast";
-  node.innerHTML = `<span>Finished!</span><img class="toast-confetti" src="/confetti.svg" alt=""><img class="toast-confetti" src="/confetti.svg" alt="">`;
-  stack.appendChild(node);
+  node.className = "toast finished-toast todo-finished-toast";
+  node.innerHTML = `<span class="finished-word">Complete!</span>`
+    + `<img class="toast-confetti" src="/confetti.svg" alt="">`
+    + `<img class="toast-confetti" src="/confetti.svg" alt="">`
+    + `<span class="finished-earned">You earned a</span>`
+    + `<svg class="toast-headphone" viewBox="0 0 1024 1024" aria-hidden="true"><use href="#headphone"></use></svg>`;
+  toastStack().appendChild(node);
   setTimeout(() => {
     node.style.opacity = "0";
     node.style.transform = "translateY(-6px)";
     node.style.transition = ".25s ease";
     setTimeout(() => node.remove(), 280);
-  }, 2400);
+  }, 3000);
+}
+
+/** Find the live todo that owns a subtask, wherever the board is scrolled. */
+function liveSubtaskOwner(subtaskId) {
+  if (!subtaskId) return null;
+  for (const category of visibleCategories()) {
+    for (const todo of category.todos || []) {
+      if (todo.done) continue;
+      const subtask = (todo.subtasks || []).find((item) => item.id === subtaskId);
+      if (subtask) return { todo, subtask };
+    }
+  }
+  return null;
+}
+
+/** Put a finished subtask back on the board.
+ *
+ * The fan in the finished card and an AI run that keeps working on the same
+ * subtask both reopen it: the row leaves the finished lane, returns to the top
+ * of the pending lane, and can be finished again later.
+ */
+async function reopenFinishedSubtask(todoId, subtaskId) {
+  if (!subtaskId || reopeningSubtaskIds.has(subtaskId)) return false;
+  const owner = liveSubtaskOwner(subtaskId);
+  const todo = owner?.todo || selectedCategory()?.todos?.find((item) => item.id === todoId);
+  const subtask = owner?.subtask || todo?.subtasks?.find((item) => item.id === subtaskId);
+  if (!todo || todo.done || !subtask?.done) return false;
+  const actualTodoId = todo.id;
+  // The reopened row leads the pending lane. Tuck the finished card away and
+  // reveal it there instead of leaving it hidden under the card.
+  revealNewSubtask = true;
+  completedSubtasksOpen = false;
+  justCompletedSubtaskId = null;
+  reopeningSubtaskIds.add(subtaskId);
+  let result = null;
+  try {
+    result = await action("reopen_subtask", {
+      todo_id: actualTodoId,
+      subtask_id: subtaskId,
+    });
+  } finally {
+    reopeningSubtaskIds.delete(subtaskId);
+  }
+  if (!result?.ok) {
+    revealNewSubtask = false;
+    return false;
+  }
+  AudioFX.itemGet();
+  return true;
 }
 
 function startTrophyCelebration(previous) {
@@ -8635,7 +10680,7 @@ function todoActivityStamp(todo) {
 
 function doingEntries() {
   const entries = [];
-  for (const category of state.data?.categories || []) {
+  for (const category of visibleCategories()) {
     for (const todo of category.todos || []) {
       if (!todo.done) entries.push({ category, todo, order: entries.length });
     }
@@ -8668,6 +10713,8 @@ function stampValue(value) {
     started an AI run. */
 function subtaskActivityStamp(subtask) {
   let stamp = stampValue(subtask?.created_at);
+  // A reopened row starts a fresh run and leads the board again.
+  stamp = Math.max(stamp, stampValue(subtask?.reopened_at));
   if (subtask?.done) stamp = Math.max(stamp, stampValue(subtask.completed_at));
   stamp = Math.max(stamp, stampValue(subtaskAiFinishedAt[subtask?.id]));
   const running = Number(runningAgentStamps[`subtask:${subtask?.id}`]);
@@ -8734,11 +10781,17 @@ function revealCurrentSubtaskRow(subtaskId) {
   scroller.scrollTop = Math.max(0, Math.min(scroller.scrollTop + rowRect.top - scrollerRect.top - 4, max));
 }
 
+/** The fan as a fixed stand plus a wheel that can spin on its own. */
+function doingFanStackHtml() {
+  return `<span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span>`;
+}
+
 function doingSubtaskHtml(entry, subtask) {
   const marked = doingMarkedSubtaskId === subtask.id ? "marked" : "";
   const unseen = unseenAgentSubtasks.has(subtask.id);
-  return `<button class="doing-sub ${marked} ${unseen ? "has-unseen" : ""}" type="button" data-doing-subtask="${esc(subtask.id)}" data-doing-todo="${esc(entry.todo.id)}" data-category-id="${esc(entry.category.id)}">
-    <span class="doing-fan ${unseen ? "has-unseen" : ""}" aria-hidden="true"><svg viewBox="0 0 1024 1024"><use href="#fan"></use></svg></span>
+  const running = agentIsRunning(`subtask:${subtask.id}`) ? "agent-running" : "";
+  return `<button class="doing-sub ${marked} ${unseen ? "has-unseen" : ""} ${running}" type="button" data-doing-subtask="${esc(subtask.id)}" data-doing-todo="${esc(entry.todo.id)}" data-category-id="${esc(entry.category.id)}">
+    <span class="doing-fan ${unseen ? "has-unseen" : ""}" aria-hidden="true">${doingFanStackHtml()}</span>
     <span class="doing-sub-name">${esc(subtask.name)}</span>
   </button>`;
 }
@@ -8764,12 +10817,11 @@ function doingTodoHtml(entry) {
 }
 
 function doingPeekMarkup(entries) {
-  const wallpaper = activeWallpaper();
-  const art = wallpaper.key
-    ? `<div class="doing-art doing-art-wallpaper" aria-hidden="true">${wallpaperMediaMarkup("", { autoplay: doingPeekOpen })}</div>`
-    : `<div class="doing-art doing-art-empty" aria-hidden="true"></div>`;
-  return `${art}
-  <div class="doing-kicker">
+  // The card's background is mounted by syncCardWallpapers(): a live pane of
+  // the room, not a picture printed inside the card. The kicker is the card's
+  // grab bar (hold it and pull the card to the other border); clicking it does
+  // nothing else, so it keeps only the close pin and the label.
+  return `<div class="doing-kicker">
     <button class="doing-pin" type="button" data-doing-pin aria-label="Close Doing card">
       <svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#close-circle"></use></svg>
     </button>
@@ -8779,53 +10831,239 @@ function doingPeekMarkup(entries) {
 }
 
 function doingPeekStateKey(entries) {
-  return `${currentPostcardId()}|${wallpaperRenderKey()}|${[...doingExpandedTodoIds].join(",")}|${state.selectedCategoryId || ""}|${[...unseenAgentSubtasks].sort().join(",")}|${entries.map(({ todo }) =>
+  return `${currentPostcardId()}|${wallpaperRenderKey()}|${doingDockSide}|${[...doingExpandedTodoIds].join(",")}|${state.selectedCategoryId || ""}|${[...unseenAgentSubtasks].sort().join(",")}|${Object.keys(runningAgentStamps).sort().join(",")}|${entries.map(({ todo }) =>
     `${todo.id}:${todoHasRunningAgent(todo) ? 1 : 0}:${todo.name}:${(todo.subtasks || []).length}:${orderedSubtasks(todo).filter((subtask) => !subtask.done).map((subtask) => subtask.id).join(",")}`
   ).join(";")}`;
 }
 
-function refreshDoingZone() {
+/** The subtask column's own box: the drawer's two homes are its borders. */
+function doingColumnRect() {
+  // A popped-out note/AI window is that panel's own sheet; the Doing drawer
+  // belongs to the main room's subtask column only.
+  if (detachedMode) return null;
   const half = $(".current-half");
-  if (!half) { doingZone = null; return; }
+  if (!half) return null;
   const rect = half.getBoundingClientRect();
-  doingCardWidth = Math.round(Math.min(420, Math.max(320, rect.width * 0.5)));
-  doingCardTop = Math.max(8, rect.top - 40);
+  return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+}
+
+function refreshDoingZone() {
+  const home = doingColumnRect();
+  if (!home) { doingZone = null; doingHome = null; return; }
+  doingHome = home;
+  // The card's box never changes: half the subtask column, the same top and
+  // height it always had.
+  doingCardWidth = Math.round(Math.min(420, Math.max(320, (home.right - home.left) * 0.5)));
+  doingCardTop = Math.max(8, home.top - 40);
   doingCardHeight = Math.min(560, Math.max(280, window.innerHeight - doingCardTop - 12));
-  // Only the subtask column's right border, and only within its own height:
-  // the lower three quarters, never below the column's bottom line.
-  // A wider band along the column border: fast rightward swipes often
-  // overshoot the old 16px tolerance and missed the card entirely.
-  doingZone = {
-    left: rect.right - 56,
-    right: rect.right + 80,
-    top: rect.top + 8,
-    bottom: rect.bottom + 4,
-  };
+  // The hover strip sits on the subtask column's border, over the column's
+  // own height. The left border mirrors the right band exactly.
+  const top = Math.round(home.top + 8);
+  const bottom = Math.round(home.bottom + 4);
+  doingZone = doingDockSide === "left"
+    ? { left: Math.round(home.left - 80), right: Math.round(home.left + 56), top, bottom }
+    : { left: Math.round(home.right - 56), right: Math.round(home.right + 80), top, bottom };
   doingZoneAt = performance.now();
 }
 
 function positionDoingPeek() {
   const panel = $("#doing-peek");
-  const half = $(".current-half");
-  if (!panel || !half) return;
-  if (!doingZone) refreshDoingZone();
-  if (!doingZone) return;
-  const rect = half.getBoundingClientRect();
+  if (!panel) return;
+  // A drag owns the card's box until it is dropped; an async repaint must not
+  // snap it back under the pointer.
+  if (doingDrag) return;
+  if (!doingZone || !doingHome) refreshDoingZone();
+  if (!doingZone || !doingHome) return;
+  const home = doingHome;
+  const width = doingCardWidth;
   const top = doingCardTop;
-  panel.style.width = `${doingCardWidth}px`;
-  const rightOffset = Math.max(0, window.innerWidth - rect.right);
-  panel.style.right = `${rightOffset}px`;
+  const height = doingCardHeight;
+  panel.style.width = `${width}px`;
   panel.style.top = `${top}px`;
-  panel.style.height = `${doingCardHeight}px`;
+  panel.style.height = `${height}px`;
   panel.style.maxHeight = `${Math.max(180, window.innerHeight - top - 12)}px`;
-  const cardRight = window.innerWidth - rightOffset;
+  // Right-docked cards grow leftward from the column's right border; a
+  // left-docked card grows rightward from its left border. The box itself
+  // never changes size, only the anchored border.
+  const left = doingDockSide === "left"
+    ? home.left
+    : home.right - width;
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.right = "auto";
   doingPanelRect = {
-    left: cardRight - doingCardWidth,
-    right: cardRight,
+    left,
+    right: left + width,
     top,
-    bottom: top + doingCardHeight,
+    bottom: top + height,
   };
 }
+
+/** Move the drawer to the other border and keep it where it is (open stays
+    open, closed stays closed). The wallpaper pane is rebaked at the new box. */
+function setDoingDockSide(side) {
+  const next = side === "left" ? "left" : "right";
+  if (next === doingDockSide) return;
+  doingDockSide = next;
+  try { localStorage.setItem(DOING_DOCK_SIDE_KEY, doingDockSide); } catch (error) {}
+  const left = doingDockSide === "left";
+  document.body.classList.toggle("doing-dock-left", left);
+  const panel = $("#doing-peek");
+  if (panel) panel.classList.toggle("doing-dock-left", left);
+  doingPeekSignature = "";
+  refreshDoingZone();
+  positionDoingPeek();
+  // Only this drawer's pane moves with the drawer. The finished card beside it
+  // keeps both its box and its wallpaper alignment.
+  syncCardWallpaper(panel);
+  if (doingPeekOpen) settleCardWallpaper(panel, 460);
+}
+
+/** Press anywhere on the card. A mostly horizontal pull picks it up; a plain
+    click on a row and a vertical gesture keep their own behaviour. */
+function beginDoingPress(event) {
+  if (event.button !== 0 || !doingPeekOpen) return;
+  // A pointer released outside the window can swallow its pointerup; a fresh
+  // press always clears the stale pull instead of locking the card.
+  if (doingDrag) endDoingDrag(false);
+  const panel = event.target.closest?.("#doing-peek");
+  if (!panel) return;
+  // The close pin keeps its own click; the rest of the card is grabbable.
+  if (event.target.closest(".doing-pin, input, textarea, select, a")) return;
+  if (doingPress) endDoingPress();
+  doingPress = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    panel,
+  };
+  window.addEventListener("pointermove", moveDoingPress, { passive: false });
+  window.addEventListener("pointerup", endDoingPress);
+  window.addEventListener("pointercancel", endDoingPress);
+}
+
+function moveDoingPress(event) {
+  if (!doingPress || event.pointerId !== doingPress.pointerId) return;
+  if (!event.buttons) { endDoingPress(); return; }
+  const dx = event.clientX - doingPress.startX;
+  const dy = event.clientY - doingPress.startY;
+  // The card is a drawer, not a text field: only a deliberate sideways pull
+  // lifts it, so row clicks and scrolling stay exactly as they were.
+  if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(dy)) return;
+  const press = doingPress;
+  endDoingPress();
+  beginDoingDrag(press, event);
+}
+
+function endDoingPress() {
+  if (!doingPress) return;
+  doingPress = null;
+  window.removeEventListener("pointermove", moveDoingPress);
+  window.removeEventListener("pointerup", endDoingPress);
+  window.removeEventListener("pointercancel", endDoingPress);
+}
+
+/** Start the pull. The box is frozen at the moment of the grab: width, height
+    and vertical position never change during the move. */
+function beginDoingDrag(press, event) {
+  const panel = press.panel;
+  if (!panel) return;
+  if (!doingHome) refreshDoingZone();
+  if (!doingHome) return;
+  const rect = panel.getBoundingClientRect();
+  doingDrag = {
+    pointerId: event.pointerId,
+    startX: press.startX,
+    startLeft: rect.left,
+    left: rect.left,
+    width: rect.width,
+    top: rect.top,
+    height: rect.height,
+    moved: false,
+  };
+  panel.classList.add("doing-dragging");
+  document.body.classList.add("doing-dragging");
+  try { panel.setPointerCapture?.(event.pointerId); } catch (error) {}
+  window.addEventListener("pointermove", moveDoingDrag, { passive: false });
+  window.addEventListener("pointerup", finishDoingDrag);
+  window.addEventListener("pointercancel", cancelDoingDrag);
+  moveDoingDrag(event);
+  event.preventDefault();
+}
+
+function moveDoingDrag(event) {
+  if (!doingDrag || event.pointerId !== doingDrag.pointerId) return;
+  // A release outside the window can lose its pointerup; no buttons held means
+  // the pull is over, so drop the card at the spot it reached.
+  if (!event.buttons) { endDoingDrag(true); return; }
+  const panel = $("#doing-peek");
+  if (!panel) return;
+  event.preventDefault();
+  const dx = event.clientX - doingDrag.startX;
+  if (Math.abs(dx) > 3) doingDrag.moved = true;
+  const home = doingHome;
+  if (!home) return;
+  const width = doingDrag.width;
+  const minLeft = home.left - width * 0.5;
+  const maxLeft = home.right - width * 0.5;
+  const left = Math.max(minLeft, Math.min(maxLeft, doingDrag.startLeft + dx));
+  doingDrag.left = left;
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.right = "auto";
+  doingPanelRect = {
+    left,
+    right: left + width,
+    top: doingDrag.top,
+    bottom: doingDrag.top + doingDrag.height,
+  };
+}
+
+/** Drop the card: whichever border its centre is closest to becomes home, or
+    the old border if the pull never really left the spot. */
+function endDoingDrag(commit) {
+  if (!doingDrag) return;
+  const drag = doingDrag;
+  doingDrag = null;
+  window.removeEventListener("pointermove", moveDoingDrag);
+  window.removeEventListener("pointerup", finishDoingDrag);
+  window.removeEventListener("pointercancel", cancelDoingDrag);
+  const panel = $("#doing-peek");
+  if (!panel) return;
+  panel.classList.remove("doing-dragging");
+  document.body.classList.remove("doing-dragging");
+  try { panel.releasePointerCapture?.(drag.pointerId); } catch (error) {}
+  if (drag.moved) {
+    // The row under the pointer must not also open: a pull is not a click.
+    doingDragClickUntil = performance.now() + 400;
+  }
+  if (!commit || !drag.moved) {
+    positionDoingPeek();
+    syncCardWallpaper(panel);
+    if (doingPeekOpen) settleCardWallpaper(panel, 360);
+    return;
+  }
+  const home = doingHome;
+  if (!home) {
+    positionDoingPeek();
+    syncCardWallpaper(panel);
+    if (doingPeekOpen) settleCardWallpaper(panel, 360);
+    return;
+  }
+  const center = drag.left + drag.width / 2;
+  // Drop against the subtask column's own left/right borders, not the page's.
+  const mid = (home.left + home.right) / 2;
+  const side = center < mid ? "left" : "right";
+  panel.classList.add("doing-snapping");
+  if (side === doingDockSide) positionDoingPeek();
+  else setDoingDockSide(side);
+  AudioFX.categoryTap();
+  setTimeout(() => {
+    panel.classList.remove("doing-snapping");
+    if (doingPeekOpen) settleCardWallpaper(panel, 460);
+  }, 360);
+}
+
+function finishDoingDrag() { endDoingDrag(true); }
+function cancelDoingDrag() { endDoingDrag(false); }
 
 function bindDoingCard(list) {
   if (!list || list.dataset.cardBound) return;
@@ -8905,22 +11143,39 @@ function animateDoingReorder(previousTops, nextList) {
   });
 }
 
+/** The fan beside a subtask turns while its agent works, using the same
+    startFanSpin() ramp as the subtask column, so both wheels run at one pace.
+    A tucked-away card keeps its wheels still. */
+function syncDoingFanSpins(list, active = doingPeekOpen) {
+  if (!list) return;
+  list.querySelectorAll(".doing-sub .fan-rotor").forEach((rotor) => {
+    const row = rotor.closest(".doing-sub");
+    if (active && row?.classList.contains("agent-running")) startFanSpin(rotor);
+    else stopFanSpin(rotor);
+  });
+}
+
 function updateDoingPeek(force = false) {
   const entries = doingEntries();
   pruneUnseenAgentSubtasks();
   let panel = $("#doing-peek");
   if (!entries.length) {
+    endDoingPress();
+    if (doingDrag) endDoingDrag(false);
     if (panel) panel.remove();
     doingPeekOpen = false;
     document.body.classList.remove("doing-peek-open");
+    document.body.classList.remove("doing-dock-left");
     doingExpandedTodoIds.clear();
     doingPeekSignature = "";
     doingPanelRect = null;
+    ensureCardWallpaperClock();
     return;
   }
   if (!panel) {
     panel = document.createElement("aside");
     panel.id = "doing-peek";
+    panel.dataset.subcard = "doing";
     panel.className = "doing-peek";
     panel.setAttribute("aria-label", "Doing");
     panel.addEventListener("pointerenter", () => {
@@ -8928,6 +11183,10 @@ function updateDoingPeek(force = false) {
     });
     document.body.appendChild(panel);
   }
+  // The drawer's dock side is part of the card, not of its content: apply it
+  // on every pass so a restored session and a flipped card agree.
+  panel.classList.toggle("doing-dock-left", doingDockSide === "left");
+  document.body.classList.toggle("doing-dock-left", doingDockSide === "left");
   // The Doing card keeps its own card border; it never shows a scroll thumb.
   panel.querySelector(":scope > .slim-scrollbar")?.remove();
   const key = doingPeekStateKey(entries);
@@ -8939,7 +11198,11 @@ function updateDoingPeek(force = false) {
       previousTops.set(item.dataset.doingItem, item.getBoundingClientRect().top);
     });
     doingPeekSignature = key;
+    // Keep the wallpaper pane across content updates: rebuilding it made the
+    // card repaint the whole wallpaper every time its rows changed.
+    const keptPane = panel.querySelector(":scope > .card-wallpaper");
     panel.innerHTML = doingPeekMarkup(entries);
+    if (keptPane) panel.insertBefore(keptPane, panel.firstChild);
     const nextList = panel.querySelector(".doing-list");
     if (nextList) nextList.scrollTop = previousScroll;
     animateDoingReorder(previousTops, nextList);
@@ -8947,11 +11210,22 @@ function updateDoingPeek(force = false) {
   panel.classList.toggle("open", doingPeekOpen);
   const list = panel.querySelector(".doing-list");
   bindDoingCard(list);
+  syncDoingFanSpins(list, doingPeekOpen);
+  // The Doing card is rebuilt independently of the stage; give its rows their
+  // height-ramp colours before the card is positioned.
+  applyBaselineRowHeights(panel);
   positionDoingPeek();
+  // Expanding a row only changes this card. Touching the wallpaper of every
+  // sub-card here repainted the finished-subtasks card beside it, which read
+  // as the finished card being nudged aside.
+  syncCardWallpaper(panel);
+  if (doingPeekOpen) settleCardWallpaper(panel);
 }
 
 function openDoingPeek() {
   clearTimeout(doingPeekOpenTimer);
+  // The finished-subtasks card may be open on the same border; the Doing card
+  // still slides out above it. The two cards are independent sheets.
   syncRunningAgentMemory();
   syncAgentFinishMemory();
   if (!doingEntries().length) return;
@@ -8963,11 +11237,17 @@ function openDoingPeek() {
   document.body.classList.add("doing-peek-open");
   positionDoingPeek();
   panel.classList.add("open");
-  panel.querySelectorAll(".doing-art video").forEach((video) => video.play().catch(() => {}));
+  syncDoingFanSpins(panel.querySelector(".doing-list"), true);
+  // The card borrows the wallpaper, and only this pane is aligned through its
+  // slide: the finished card beside it must not repaint or move.
+  syncCardWallpaper(panel);
+  settleCardWallpaper(panel, 460);
 }
 
 function closeDoingPeek() {
   clearTimeout(doingPeekOpenTimer);
+  endDoingPress();
+  if (doingDrag) endDoingDrag(false);
   if (!doingPeekOpen) return;
   doingPeekOpen = false;
   document.body.classList.remove("doing-peek-open");
@@ -8975,14 +11255,16 @@ function closeDoingPeek() {
   const panel = $("#doing-peek");
   if (panel) {
     panel.classList.remove("open");
-    panel.querySelectorAll(".doing-art video").forEach((video) => video.pause());
+    panel.querySelectorAll(".card-wallpaper video").forEach((video) => video.pause());
+    syncDoingFanSpins(panel.querySelector(".doing-list"), false);
   }
+  ensureCardWallpaperClock();
 }
 
 function pointInDoingZone(x, y) {
   if (!doingZone) return false;
   return x >= doingZone.left
-    && x <= doingZone.right + 16
+    && x <= doingZone.right
     && y >= doingZone.top
     && y <= doingZone.bottom;
 }
@@ -9208,36 +11490,6 @@ function confirmDialog({ kicker = "Chronicle", title, message = "", confirmLabel
   });
 }
 
-function compressImage(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const image = new Image();
-      image.onload = () => {
-        const max = 1100;
-        let width = image.naturalWidth || image.width;
-        let height = image.naturalHeight || image.height;
-        if (!width || !height) { resolve(null); return; }
-        const scale = Math.min(1, max / Math.max(width, height));
-        width = Math.max(1, Math.round(width * scale));
-        height = Math.max(1, Math.round(height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        context.fillStyle = "#f7eedb";
-        context.fillRect(0, 0, width, height);
-        context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.84));
-      };
-      image.onerror = () => resolve(null);
-      image.src = reader.result;
-    };
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
-}
-
 function compressBackgroundImage(file) {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -9259,36 +11511,6 @@ function compressBackgroundImage(file) {
         context.fillRect(0, 0, width, height);
         context.drawImage(image, 0, 0, width, height);
         resolve(canvas.toDataURL("image/jpeg", 0.86));
-      };
-      image.onerror = () => resolve(null);
-      image.src = reader.result;
-    };
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
-}
-
-function prepareWallpaperImage(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const image = new Image();
-      image.onload = () => {
-        const max = 2560;
-        let width = image.naturalWidth || image.width;
-        let height = image.naturalHeight || image.height;
-        if (!width || !height) { resolve(null); return; }
-        const scale = Math.min(1, max / Math.max(width, height));
-        width = Math.max(1, Math.round(width * scale));
-        height = Math.max(1, Math.round(height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        context.fillStyle = "#101318";
-        context.fillRect(0, 0, width, height);
-        context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.90));
       };
       image.onerror = () => resolve(null);
       image.src = reader.result;
@@ -9330,143 +11552,154 @@ function compressStickerImage(file) {
   });
 }
 
-function activePictureNote() {
-  const active = activeNoteTarget();
-  const owner = noteOwner(active);
-  if (!active || !owner) return null;
-  return { active, owner };
-}
-
-async function addNotePictures(files) {
-  const target = activePictureNote();
-  if (!target) return;
-  const list = Array.from(files || []).slice(0, 12);
-  if (!list.length) return;
-  const compressed = (await Promise.all(list.map((file) => compressImage(file)))).filter(Boolean);
-  if (!compressed.length) {
-    toast("Could not read those images", true);
-    return;
-  }
-  const { active, owner } = target;
-  const previous = todoImages(owner);
-  owner.images = [...previous, ...compressed];
-  const payload = { id: active.todo.id, images: compressed };
-  if (active.kind === "subtask" && active.subtask) payload.subtask_id = active.subtask.id;
-  const result = await persistAction("add_images", payload);
-  if (!result?.ok) {
-    owner.images = previous;
-    renderNotesPanel();
-    toast(result?.error || "Could not save the images", true);
-    return;
-  }
-  renderNotesPanel();
-  setStatus(`${compressed.length} picture${compressed.length === 1 ? "" : "s"} added`);
-}
-
-function showNotePictures() {
-  const target = activePictureNote();
-  if (!target) return;
-  const images = todoImages(target.owner);
-  if (!images.length) {
-    toast("No pictures added yet");
-    return;
-  }
-  openPictureGallery(images);
-}
-
-function openPictureGallery(images) {
-  if (!images.length) return;
-  document.activeElement?.blur?.();
-  $("#modal-root").innerHTML = `<div class="picture-gallery-stage">
-    <button class="image-close" data-gallery-close>×</button>
-    <div class="picture-gallery">
-      ${images.map((src, index) => `<button class="gallery-thumb" draggable="true" data-gallery-image="${index}"><img src="${esc(src)}" alt="Added picture ${index + 1}" draggable="false"></button>`).join("")}
-    </div>
-    <button class="picture-trash" data-gallery-trash>
-      <svg aria-hidden="true"><use href="#trash"></use></svg>
-      <span>drag a picture here to delete</span>
-    </button>
-  </div>`;
-  const stage = $(".picture-gallery-stage");
-  const trash = $("[data-gallery-trash]");
-  setTimeout(() => $("[data-gallery-close]")?.focus(), 20);
-  stage.addEventListener("mousedown", (event) => {
-    if (event.target === stage || event.target.closest("[data-gallery-close]")) {
-      $("#modal-root").innerHTML = "";
-      return;
-    }
-    const thumb = event.target.closest("[data-gallery-image]");
-    if (thumb) {
-      const index = Number(thumb.dataset.galleryImage);
-      if (images[index]) openImageLightbox(images[index]);
-    }
-  });
-  stage.addEventListener("dragstart", (event) => {
-    const thumb = event.target.closest("[data-gallery-image]");
-    if (!thumb || !event.dataTransfer) return;
-    event.dataTransfer.setData("text/plain", thumb.dataset.galleryImage);
-    event.dataTransfer.effectAllowed = "move";
-    thumb.classList.add("dragging");
-  });
-  stage.addEventListener("dragend", () => {
-    document.querySelectorAll(".gallery-thumb.dragging").forEach((node) => node.classList.remove("dragging"));
-    trash?.classList.remove("over");
-  });
-  trash?.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-    trash.classList.add("over");
-  });
-  trash?.addEventListener("dragleave", () => trash.classList.remove("over"));
-  trash?.addEventListener("drop", (event) => {
-    event.preventDefault();
-    trash.classList.remove("over");
-    const index = Number(event.dataTransfer?.getData("text/plain"));
-    if (Number.isInteger(index)) removeGalleryImage(index);
-  });
-}
-
-async function removeGalleryImage(index) {
-  const target = activePictureNote();
-  if (!target) return;
-  const { active, owner } = target;
-  const images = todoImages(owner);
-  if (!Number.isInteger(index) || index < 0 || index >= images.length) return;
-  const payload = { id: active.todo.id, index };
-  if (active.kind === "subtask" && active.subtask) payload.subtask_id = active.subtask.id;
-  const result = await persistAction("remove_image", payload);
-  if (!result?.ok) {
-    toast(result?.error || "Could not remove the picture", true);
-    return;
-  }
-  const remaining = images.slice();
-  remaining.splice(index, 1);
-  owner.images = remaining;
-  owner.image = remaining[0] || "";
-  renderNotesPanel();
-  if (remaining.length) openPictureGallery(remaining);
-  else $("#modal-root").innerHTML = "";
-  setStatus("Picture removed");
-}
-
-function openImageLightbox(src) {
-  if (!src) return;
-  document.activeElement?.blur?.();
-  $("#modal-root").innerHTML = `<div class="image-stage"><button class="image-close" data-image-close>×</button><img src="${esc(src)}" alt="Saved todo image"></div>`;
-  const stage = $(".image-stage");
-  setTimeout(() => $(".image-close")?.focus(), 20);
-  stage.addEventListener("mousedown", (event) => {
-    if (event.target === stage || event.target.closest("[data-image-close]")) {
-      $("#modal-root").innerHTML = "";
-    }
-  });
-}
-
 function currentCategoryById(id) {
   return state.data.categories.find((category) => category.id === id) || null;
 }
 
 async function handleAction(actionName, element) {
+  if (actionName === "ai-set-default-model") {
+    const model = element?.dataset.model || "";
+    if (model) await aiSaveConfig({ default_model: model }, { message: "Default model updated" });
+    return;
+  }
+  if (actionName === "ai-toggle-model") { await aiToggleModel(element?.dataset.model || ""); return; }
+  if (actionName === "ai-refresh-models") { await aiRefreshModels(); return; }
+  if (actionName === "ai-set-agent-mode") {
+    const kind = element?.dataset.kind || "default";
+    const mode = element?.dataset.mode === "build" ? "build" : "chat";
+    if (kind === "default") await aiSaveConfig({ default_mode: mode });
+    else {
+      const agent_modes = { ...(aiConfig?.agent_modes || {}), [kind]: mode };
+      await aiSaveConfig({ agent_modes });
+    }
+    return;
+  }
+  if (actionName === "ai-toggle-notifications") {
+    await aiSaveConfig({ notifications: aiConfig?.notifications === false });
+    return;
+  }
+  if (actionName === "ai-toggle-auto-note") {
+    await aiSaveConfig({ auto_attach_note: aiConfig?.auto_attach_note === false });
+    return;
+  }
+  if (actionName === "ai-toggle-activity") {
+    await aiSaveConfig({ activity_log: aiConfig?.activity_log === false });
+    return;
+  }
+  if (actionName === "ai-new-provider") {
+    aiProviderDraft = { id: "", name: "", base_url: "", api_key: "", models: "", editing: false };
+    renderSettings();
+    return;
+  }
+  if (actionName === "ai-provider-preset") {
+    const preset = element?.dataset.preset || "custom";
+    const setField = (name, value) => {
+      const field = document.querySelector(`[data-ai-provider-field="${name}"]`);
+      if (field) field.value = value;
+    };
+    if (preset === "ollama") {
+      setField("name", "Ollama");
+      setField("id", "ollama");
+      setField("base_url", "http://127.0.0.1:11434/v1");
+    } else if (preset === "lmstudio") {
+      setField("name", "LM Studio");
+      setField("id", "lmstudio");
+      setField("base_url", "http://127.0.0.1:1234/v1");
+    } else if (preset === "openrouter") {
+      setField("name", "OpenRouter");
+      setField("id", "openrouter-custom");
+      setField("base_url", "https://openrouter.ai/api/v1");
+    }
+    return;
+  }
+  if (actionName === "ai-edit-provider") {
+    const id = element?.dataset.provider || "";
+    const provider = (aiConfig?.providers || []).find((item) => item.id === id);
+    if (!provider) return;
+    aiProviderDraft = {
+      ...provider,
+      models: (provider.models || []).join("\n"),
+      api_key: "",
+      editing: true,
+    };
+    renderSettings();
+    return;
+  }
+  if (actionName === "ai-cancel-provider") { aiProviderDraft = null; renderSettings(); return; }
+  if (actionName === "ai-save-provider") { await aiSaveProvider(); return; }
+  if (actionName === "ai-test-provider") { await aiTestProvider(); return; }
+  if (actionName === "ai-remove-provider") { await aiRemoveProvider(element?.dataset.provider || ""); return; }
+  if (actionName === "ai-new-command") { aiCommandDraft = { name: "", prompt: "" }; renderSettings(); return; }
+  if (actionName === "ai-edit-command") {
+    const id = element?.dataset.command || "";
+    const command = (aiConfig?.commands || []).find((item) => item.id === id);
+    if (command) {
+      aiCommandDraft = { ...command };
+      renderSettings();
+    }
+    return;
+  }
+  if (actionName === "ai-cancel-command") { aiCommandDraft = null; renderSettings(); return; }
+  if (actionName === "ai-save-command") { await aiSaveCommand(); return; }
+  if (actionName === "ai-delete-command") { await aiDeleteCommand(element?.dataset.command || ""); return; }
+  if (actionName === "ai-insert-command") { aiInsertCommand(element?.dataset.command || ""); return; }
+  if (actionName === "ai-env-add") {
+    document.querySelector(".ai-env-list")?.insertAdjacentHTML("beforeend", `<div class="ai-env-row" data-ai-env-row><input type="text" data-ai-env-name value="" placeholder="NAME" autocomplete="off"><input type="text" data-ai-env-value value="" placeholder="value" autocomplete="off"><button class="ai-row-remove" type="button" data-action="ai-env-remove" aria-label="Remove variable">×</button></div>`);
+    return;
+  }
+  if (actionName === "ai-env-remove") { element?.closest("[data-ai-env-row]")?.remove(); return; }
+  if (actionName === "ai-save-env") { await aiSaveEnvironment(); return; }
+  if (actionName === "ai-save-runtime") { await aiSaveRuntime(); return; }
+  if (actionName === "ai-clear-activity") {
+    const ok = await confirmDialog({
+      kicker: "AI activity",
+      title: "Clear the activity log?",
+      message: "Runs themselves are not touched. Only the local diagnostic log is emptied.",
+      confirmLabel: "Clear",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const data = await agentPost({ action: "clear_activity" });
+      if (data.ok) { applyAiConfigPayload(data); renderSettings(); toast("Activity log cleared"); }
+    } catch (error) {}
+    return;
+  }
+  if (actionName === "ai-reset-config") {
+    const ok = await confirmDialog({
+      kicker: "AI settings",
+      title: "Reset every AI setting?",
+      message: "Models, providers, commands, instructions and runtime values return to defaults. Conversations are kept.",
+      confirmLabel: "Reset",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const data = await agentPost({ action: "reset_config" });
+      if (data.ok) {
+        applyAiConfigPayload(data);
+        aiSettingsTab = "basic";
+        aiProviderDraft = null;
+        aiCommandDraft = null;
+        renderSettings();
+        toast("AI settings reset");
+      }
+    } catch (error) {}
+    return;
+  }
+  if (actionName === "ai-open-folder") {
+    try { await agentPost({ action: "open_ai_folder" }); } catch (error) {}
+    return;
+  }
+  if (actionName === "ai-open-skill") {
+    const path = element?.dataset.path || "";
+    if (!path) return;
+    try {
+      const data = await agentPost({ action: "open_skill_folder", path });
+      if (!data.ok) toast(data.error || "Could not open that folder", true);
+    } catch (error) {}
+    return;
+  }
   if (actionName === "show-completed") { spinAchievementCounter(element); AudioFX.bassFade(); openCompletedLog(); return; }
   if (actionName === "toggle-completed-subtasks") {
     if (performance.now() < suppressCompletedSubtaskToggleUntil) return;
@@ -9498,12 +11731,20 @@ async function handleAction(actionName, element) {
     togglePluginSetting(element?.dataset.pluginId || "", element?.dataset.pluginSetting || "");
     return;
   }
+  if (actionName === "set-plugin-choice") {
+    setPluginChoice(
+      element?.dataset.pluginId || "",
+      element?.dataset.pluginSetting || "",
+      element?.dataset.pluginValue || ""
+    );
+    return;
+  }
   if (actionName === "plugin-menu") { openPluginMenu(element, element?.dataset.pluginId || ""); return; }
   if (actionName === "plugin-back") {
     pluginDetailId = null;
     pluginPendingUninstallId = null;
     renderSettings();
-    const settingsScroll = $(".settings-scroll");
+    const settingsScroll = pluginSurfaceScroll();
     if (settingsScroll) settingsScroll.scrollTop = 0;
     return;
   }
@@ -9512,22 +11753,47 @@ async function handleAction(actionName, element) {
   if (actionName === "confirm-plugin-uninstall") { confirmPluginUninstall(element?.dataset.pluginId || ""); return; }
   if (actionName === "cancel-plugin-uninstall") { pluginPendingUninstallId = null; renderSettings(); return; }
   if (actionName === "open-plugin") { openPluginFromSettings(element?.dataset.pluginId || ""); return; }
+  if (actionName === "open-community") {
+    openCommunity(communitySection);
+    return;
+  }
+  if (actionName === "close-community") { AudioFX.categoryTap(); closeCommunity(); return; }
+  // Settings → Plugins is the installed-plugin manager; Community is the shop.
+  if (actionName === "open-plugin-settings") {
+    closeCommunity();
+    openSettings("plugins");
+    return;
+  }
   if (actionName === "open-plugin-community") {
-    settingsTab = "community";
-    pluginDetailId = null;
-    pluginPendingUninstallId = null;
-    AudioFX.paper();
-    renderSettings();
-    const scroll = $(".settings-scroll");
-    if (scroll) scroll.scrollTop = 0;
+    openCommunity("plugins");
     return;
   }
   if (actionName === "open-plugin-list") {
-    settingsTab = "plugins";
+    openCommunity("plugins");
+    return;
+  }
+  if (actionName === "open-community-themes") {
+    openCommunity("themes");
+    return;
+  }
+  if (actionName === "open-theme-settings") {
+    closeCommunity();
+    openSettings("theme");
+    return;
+  }
+  if (actionName === "community-section") {
+    const next = element?.dataset.communitySection || "plugins";
+    if (!COMMUNITY_SECTIONS.some((section) => section.id === next)) return;
+    communitySection = next;
     pluginDetailId = null;
-    renderSettings();
-    const scroll = $(".settings-scroll");
-    if (scroll) scroll.scrollTop = 0;
+    pluginPendingUninstallId = null;
+    pluginCommunityFilter = "all";
+    pluginCommunityQuery = "";
+    AudioFX.categoryTap();
+    ensureCommunitySectionData();
+    renderCommunity();
+    const sectionScroll = $(".community-scroll");
+    if (sectionScroll) sectionScroll.scrollTop = 0;
     return;
   }
   if (actionName === "refresh-plugin-catalog") { loadPluginCatalog(true); return; }
@@ -9535,7 +11801,16 @@ async function handleAction(actionName, element) {
   if (actionName === "open-community-plugin") {
     const pluginId = element?.dataset.pluginId || "";
     if (!pluginEnabled(pluginId)) { toast("Turn the plugin on first", true); return; }
+    closeCommunity();
     closeSettings();
+    openPluginPanel(pluginId);
+    return;
+  }
+  if (actionName === "open-achievement-plugin") {
+    const pluginId = element?.dataset.pluginId || "";
+    if (!achievementSlotVisible(pluginId)) return;
+    spinAchievementCounter(element);
+    AudioFX.timerTap();
     openPluginPanel(pluginId);
     return;
   }
@@ -9561,7 +11836,9 @@ async function handleAction(actionName, element) {
   if (actionName === "close-terminal") { closeAgentTerminal(); return; }
   if (actionName === "clear-agent") { clearAgent(); return; }
   if (actionName === "open-settings") { openSettings(); return; }
-  if (actionName === "choose-project-folder") { chooseProjectFolder(); return; }
+  if (actionName === "reveal-project-folder") { revealProjectFolder(); return; }
+  if (actionName === "manage-project-folder") { openProjectFolderCard(); return; }
+  if (actionName === "choose-project-folder") { revealProjectFolder(); return; }
   if (actionName === "clear-project-folder") { clearProjectFolder(); return; }
   if (actionName === "toggle-sound") { AudioFX.toggle(); updateSoundToggle(); renderSettings(); return; }
   if (actionName === "preview-sound") {
@@ -9578,36 +11855,38 @@ async function handleAction(actionName, element) {
   if (actionName === "apply-theme-pack") { applyThemePackById(element?.dataset.themeId || ""); return; }
   if (actionName === "remove-theme-pack") { removeThemePackById(element?.dataset.themeId || ""); return; }
   if (actionName === "open-theme-packs-folder") { silentAction("open_theme_packs_folder"); return; }
+  if (actionName === "open-note-themes-folder") { silentAction("open_note_themes_folder"); return; }
+  if (actionName === "open-ai-themes-folder") { silentAction("open_ai_themes_folder"); return; }
   if (actionName === "open-theme-exports-folder") { silentAction("open_theme_exports_folder"); return; }
   if (actionName === "refresh-theme-catalog") { loadThemeCatalog(true); return; }
   if (actionName === "export-theme-pack") { exportCurrentThemePack(); return; }
   if (actionName === "reset-theme-sounds") { resetThemeSounds(); return; }
-  if (actionName === "open-pictures-folder") { silentAction("open_pictures_folder"); return; }
-  if (actionName === "refresh-wallpaper-files") { loadWallpaperFiles(); return; }
+  if (actionName === "choose-wallpaper") { chooseWallpaperFile(); return; }
   if (actionName === "clear-wallpaper") {
-    if (settings.wallpaper_mode === "dynamic") settings.wallpaper_dynamic = "";
-    else if (settings.wallpaper_mode === "static") settings.wallpaper_static = "";
-    settings.wallpaper_mode = "none";
+    // "No wallpaper" is a real choice: the postcard paper shows through.
+    settings.wallpaper = "";
     saveSettings();
     applySettings();
     renderSettings();
     toast("Wallpaper cleared");
     return;
   }
-  if (actionName === "choose-wallpaper-image") { $("#wallpaper-image-input")?.click(); return; }
-  if (actionName === "choose-wallpaper-video") { $("#wallpaper-video-input")?.click(); return; }
   if (actionName === "choose-sticker-image") {
     const id = element?.dataset.stickerId || "";
+    if (!availableStickerTargets().some((target) => target.id === id)) return;
     const input = document.querySelector(`[data-sticker-input="${CSS.escape(id)}"]`);
     input?.click();
     return;
   }
   if (actionName === "reset-sticker-image") {
     const id = element?.dataset.stickerId || "";
-    if (settings.sticker_backgrounds?.[id]) delete settings.sticker_backgrounds[id];
-    saveSettings();
-    applyStickerBackgrounds();
-    renderSettings();
+    if (settings.sticker_backgrounds && id in settings.sticker_backgrounds) {
+      delete settings.sticker_backgrounds[id];
+      saveSettings();
+      applyStickerBackgrounds();
+      renderSettings();
+      toast("Default sticker restored");
+    }
     return;
   }
   if (actionName === "open-note-materials-folder") { silentAction("open_note_materials_folder"); return; }
@@ -9624,9 +11903,60 @@ async function handleAction(actionName, element) {
     renderSettings();
     return;
   }
-  if (actionName === "toggle-postcard-family") {
-    themeFamiliesOpen = true;
-    themeFamilyOpen = !themeFamilyOpen;
+  if (actionName === "toggle-theme-manage") {
+    themeManageOpen = !themeManageOpen;
+    if (!themeManageOpen) {
+      customThemeEditorOpen = false;
+      customThemeDraft = null;
+    }
+    renderSettings();
+    return;
+  }
+  if (actionName === "toggle-custom-themes") {
+    customThemesOpen = !customThemesOpen;
+    pendingCustomThemeDeleteId = null;
+    if (!customThemesOpen) {
+      customThemeEditorOpen = false;
+      customThemeDraft = null;
+    }
+    renderSettings();
+    return;
+  }
+  if (actionName === "new-custom-theme") {
+    customThemesOpen = true;
+    themeManageOpen = true;
+    customThemeEditorOpen = true;
+    pendingCustomThemeDeleteId = null;
+    customThemeDraft = defaultCustomThemeDraft();
+    renderSettings();
+    const nameInput = $("[data-custom-theme-name]");
+    if (nameInput) {
+      nameInput.focus();
+      nameInput.select();
+    }
+    return;
+  }
+  if (actionName === "cancel-custom-theme") {
+    customThemeEditorOpen = false;
+    customThemeDraft = null;
+    customThemeBusy = false;
+    renderSettings();
+    return;
+  }
+  if (actionName === "save-custom-theme") { saveCustomTheme(); return; }
+  if (actionName === "delete-custom-theme") {
+    pendingCustomThemeDeleteId = element?.dataset.themeId || "";
+    renderSettings();
+    return;
+  }
+  if (actionName === "confirm-custom-theme-delete") {
+    const id = element?.dataset.themeId || pendingCustomThemeDeleteId || "";
+    pendingCustomThemeDeleteId = null;
+    if (id) removeThemePackById(id, { skipConfirm: true });
+    return;
+  }
+  if (actionName === "cancel-custom-theme-delete") {
+    pendingCustomThemeDeleteId = null;
     renderSettings();
     return;
   }
@@ -9636,6 +11966,22 @@ async function handleAction(actionName, element) {
     applySettings();
     renderSettings();
     renderStage();
+    return;
+  }
+  if (actionName === "reset-highlight-color") {
+    // Empty means "let the active theme's accent paint the wash again".
+    settings.highlight = "";
+    saveSettings();
+    applySettings();
+    renderSettings();
+    return;
+  }
+  if (actionName.startsWith("baseline-rows-")) {
+    const mode = actionName.slice("baseline-rows-".length);
+    if (BASELINE_ROW_MODES.includes(mode)) {
+      saveBaselineRowRule({ mode }, { immediate: true });
+      renderSettings();
+    }
     return;
   }
   if (actionName === "toggle-caret-blink") {
@@ -9666,8 +12012,19 @@ async function handleAction(actionName, element) {
   }
   if (actionName === "open-archive") { openArchive(); return; }
   if (actionName === "collapse-archive-card") { expandedArchiveCardId = null; renderArchive(); return; }
-  if (actionName === "open-timer") { AudioFX.timerTap(); openFocusTimer(); return; }
-  if (actionName === "open-timer-achievement") { spinAchievementCounter(element); AudioFX.guitarPluck(); openFocusAchievements(); return; }
+  if (actionName === "open-timer") {
+    if (!achievementSlotVisible("pomodoro")) { toast("Turn on the Pomodoro plugin to use the tomato clock", true); return; }
+    AudioFX.timerTap();
+    openFocusTimer();
+    return;
+  }
+  if (actionName === "open-timer-achievement") {
+    if (!achievementSlotVisible("pomodoro")) return;
+    spinAchievementCounter(element);
+    AudioFX.guitarPluck();
+    openFocusAchievements();
+    return;
+  }
   if (actionName === "close-timer") { closeFocusTimer(); return; }
   if (actionName === "quit-app") {
     persistAction("quit").then(() => {
@@ -9700,8 +12057,6 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "choose-note-bg-custom") { $("#note-bg-input")?.click(); return; }
-  if (actionName === "add-picture") { $("#note-image-input")?.click(); return; }
-  if (actionName === "show-pictures") { showNotePictures(); return; }
   if (actionName === "add-category") {
     const name = await promptDialog({ title: "Name a new space", message: "A place for a kind of work, a kind of life.", placeholder: "e.g. Literature", confirmLabel: "Add", sound: "train" });
     if (name) await action("add_category", { name, ...(forkRootId ? { fork_root: forkRootId } : {}) });
@@ -9798,31 +12153,47 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "complete-subtask") {
-    AudioFX.categoryTap();
     const todoId = element.dataset.todoId;
     const subtaskId = element.dataset.subtaskId;
     const category = selectedCategory();
     const todo = category?.todos.find((item) => item.id === todoId);
     const subtask = todo?.subtasks?.find((item) => item.id === subtaskId);
-    if (!subtask) return;
-    // Let the fan finish its spin before the confirmation covers it.
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const ok = await confirmDialog({ kicker: "A small completion", title: "Finish subtask", message: `Finish “${subtask.name}”?`, confirmLabel: "Finish" });
-    if (!ok) return;
+    if (!subtask || subtask.done) return;
+    // A spinning fan means a running agent: clicking it pauses the agent
+    // instead of finishing the subtask.
+    if (agentIsRunning(`subtask:${subtaskId}`)) {
+      pauseSubtaskAgent(subtaskId);
+      return;
+    }
+    // One click finishes the subtask directly: no confirmation and no toast.
+    if (justCompletedSubtaskId === subtaskId) return;
+    AudioFX.categoryTap();
     justCompletedSubtaskId = subtaskId;
+    // The row is leaving the pending lane, so its selection leaves with it: the
+    // accent wash marks where the reader is working, and keeping the id would
+    // hand that wash to the finished row in the tray (the flight crosses the
+    // page, then the row lands already highlighted). If the request fails, the
+    // row never left and the selection comes back.
+    const wasSelected = selectedSubtaskId === subtaskId;
+    if (wasSelected) selectedSubtaskId = null;
+    // The request and the stage repaint take a beat; answer the click at once
+    // so the row never looks frozen while it waits to fly.
+    const completingRow = element.closest(".current-subtask");
+    completingRow?.classList.add("subtask-completing");
+    // Safety: if the reply never repaints this row, put it back at rest.
+    setTimeout(() => completingRow?.classList.remove("subtask-completing"), 1200);
     const result = await action("complete_subtask", { todo_id: todoId, subtask_id: subtaskId });
     if (result.ok) {
       delete subtaskAgentModels[subtaskId];
       saveSubtaskAgentModels();
       updateSubtaskAgentDom(subtaskId, { model: "" });
       AudioFX.itemGet();
-      finishedToast();
-      const check = document.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(subtaskId)}"] .sub-done-check`);
-      if (check) {
-        check.classList.add("check-in");
-        setTimeout(() => check.classList.remove("check-in"), 420);
-      }
+      // The land animation and the written-in check belong to the flight (see
+      // flyCompletedRow). Playing them on the row that the repaint is about to
+      // replace only forced an extra style pass before the repaint.
     } else {
+      document.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(subtaskId)}"]`)?.classList.remove("subtask-completing");
+      if (wasSelected) selectedSubtaskId = subtaskId;
       justCompletedSubtaskId = null;
     }
     return;
@@ -9953,25 +12324,61 @@ function loadSettings() {
     // The freshest copy wins, so a quick edit never gets reverted by the file.
     if (!saved || localTime > backendTime) saved = local;
   }
-  const savedHasWallpaper = saved && typeof saved === "object"
+  // The plugin switches live in per-plugin records. Older backends validated
+  // the settings field by field and silently dropped `plugins`, so their copy
+  // could be newer than localStorage yet carry no switch state at all — every
+  // plugin then booted on. Keep the device copy's records for any plugin the
+  // newer copy does not describe, and only let explicit values win.
+  if (saved && typeof saved === "object" && local && typeof local === "object") {
+    const asRecords = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : null;
+    const backendPlugins = asRecords(saved.plugins);
+    const localPlugins = asRecords(local.plugins);
+    if (localPlugins) {
+      const merged = { ...(backendPlugins || {}) };
+      for (const [id, localRecord] of Object.entries(localPlugins)) {
+        if (!localRecord || typeof localRecord !== "object") continue;
+        const backendRecord = asRecords(merged[id]);
+        if (!backendRecord) {
+          merged[id] = { ...localRecord };
+          continue;
+        }
+        // `settings` is a bag of small values, not one atomic field: a backend
+        // copy that simply lacks a key must not wipe the device's own choice.
+        merged[id] = {
+          ...localRecord,
+          ...backendRecord,
+          settings: {
+            ...(asRecords(localRecord.settings) || {}),
+            ...(asRecords(backendRecord.settings) || {}),
+          },
+        };
+      }
+      saved = { ...saved, plugins: merged };
+    }
+  }
+  // The saved choice is authoritative — an empty `wallpaper` is a real
+  // choice (theme paper). Only data written before the single choice existed
+  // is folded in from the retired static/dynamic shelf.
+  const savedHasWallpaper = saved && typeof saved === "object" && "wallpaper" in saved;
+  const savedLegacyWallpaper = saved && typeof saved === "object" && !savedHasWallpaper
     && ("wallpaper_mode" in saved || "wallpaper_static" in saved);
   settings = { ...DEFAULT_SETTINGS, ...(saved && typeof saved === "object" ? saved : {}) };
   settings.theme = "postcard";
-  if (settings.postcard !== "random" && !THEMES[settings.postcard]) settings.postcard = "violet";
+  if (settings.postcard !== "random" && !THEMES[settings.postcard]) settings.postcard = "light";
   if (!THEMES[settings.resolved_postcard]) {
-    settings.resolved_postcard = THEMES[settings.postcard] ? settings.postcard : "violet";
+    settings.resolved_postcard = THEMES[settings.postcard] ? settings.postcard : "light";
   }
   if (settings.postcard !== "random" && THEMES[settings.postcard]) {
     settings.resolved_postcard = settings.postcard;
   }
-  if (settings.postcard === "random") settings.postcard = settings.resolved_postcard || "violet";
+  if (settings.postcard === "random") settings.postcard = settings.resolved_postcard || "light";
   const savedLight = saved && typeof saved === "object" ? saved.light_postcard : undefined;
   const savedDark = saved && typeof saved === "object" ? saved.dark_postcard : undefined;
   if (!THEMES[savedLight] || postcardIsDark(savedLight)) {
-    settings.light_postcard = postcardIsDark(settings.resolved_postcard) ? "ocean" : settings.resolved_postcard;
+    settings.light_postcard = "light";
   }
   if (!THEMES[savedDark] || !postcardIsDark(savedDark)) {
-    settings.dark_postcard = postcardIsDark(settings.resolved_postcard) ? settings.resolved_postcard : "tokyo";
+    settings.dark_postcard = "dark";
   }
   settings.scale = Math.min(1.25, Math.max(0.85, Number(settings.scale) || 1));
   settings.show_time_cost = settings.show_time_cost === true;
@@ -9996,10 +12403,18 @@ function loadSettings() {
   if (settings.ai_caret_shape !== "block") settings.ai_caret_shape = "line";
   if (!/^#[0-9a-f]{6}$/i.test(String(settings.ai_caret_dark || ""))) settings.ai_caret_dark = "#f4f6f8";
   if (!/^#[0-9a-f]{6}$/i.test(String(settings.ai_caret_light || ""))) settings.ai_caret_light = "#1b1b1b";
+  // An empty highlight is a choice: the active theme keeps its own wash.
+  if (settings.highlight && !normalizeHighlightColorInput(settings.highlight)) settings.highlight = "";
   if (!/^[a-z0-9_-]+$/i.test(String(settings.note_material || ""))) settings.note_material = "paper";
   if (!/^[a-z0-9_-]+\.css$/i.test(String(settings.note_material_file || ""))) {
     settings.note_material_file = materialFileForId(settings.note_material);
   }
+  // Pane themes: fall back to the built-in choice if a downloaded pack was
+  // removed since the last launch.
+  const noteIds = new Set(noteThemeChoices().map((choice) => choice.id));
+  if (!noteIds.has(settings.note_theme)) settings.note_theme = "white";
+  const aiIds = new Set(aiThemeChoices().map((choice) => choice.id));
+  if (!aiIds.has(settings.ai_theme)) settings.ai_theme = "auto";
   const background = typeof settings.note_background === "string" ? settings.note_background : "";
   if (background.startsWith("data:")) {
     settings.note_background_image = background;
@@ -10035,18 +12450,67 @@ function loadSettings() {
   }
   settings.sticker_backgrounds = stickerBackgrounds;
   const pictureName = (value, pattern) => typeof value === "string" && pattern.test(value) && !value.includes("/") && !value.includes("\\") && !value.includes("..") ? value : "";
-  const rawStatic = typeof settings.wallpaper_static === "string" ? settings.wallpaper_static : "";
-  const artId = rawStatic.startsWith("art:") ? rawStatic.slice(4) : "";
-  const themeWallpaperId = rawStatic.startsWith("theme:") ? rawStatic.slice(6) : "";
-  const themeWallpaperPack = themeWallpaperId
-    ? themePacks.find((pack) => pack.id === themeWallpaperId && pack.wallpaper)
-    : null;
-  settings.wallpaper_static = artId && THEMES[artId]
-    ? `art:${artId}`
-    : themeWallpaperPack
-      ? `theme:${themeWallpaperPack.id}`
-      : pictureName(rawStatic, /\.(jpe?g|png|webp|gif|avif)$/i);
-  settings.wallpaper_dynamic = pictureName(settings.wallpaper_dynamic, /\.(mp4|webm|mov|m4v|ogv)$/i);
+  // One wallpaper choice: a picture the reader picked (an absolute path), a
+  // legacy bare file name from the old pictures folder, a built-in postcard
+  // art (`art:<id>`) or a theme-pack picture (`theme:<id>`).
+  const normalizeWallpaperValue = (value) => {
+    if (typeof value !== "string") return "";
+    const text = value.trim();
+    if (text.startsWith("art:")) {
+      const id = text.slice(4);
+      return THEMES[id] && typeof THEMES[id].art === "function" ? `art:${id}` : "";
+    }
+    if (text.startsWith("theme:")) {
+      const id = text.slice(6);
+      return /^[a-z0-9][a-z0-9-]{0,63}$/.test(id) ? `theme:${id}` : "";
+    }
+    if (wallpaperIsFilePath(text)) return text;
+    if (WALLPAPER_IMAGE_RE.test(text) || WALLPAPER_VIDEO_RE.test(text)) {
+      return wallpaperIsPictureName(text) ? text : "";
+    }
+    return "";
+  };
+  settings.wallpaper = normalizeWallpaperValue(settings.wallpaper);
+  // Older builds kept a static and a dynamic shelf. Fold whichever one was in
+  // use into the single choice so an upgrade keeps the same room.
+  const legacyStatic = (() => {
+    const raw = typeof settings.wallpaper_static === "string" ? settings.wallpaper_static : "";
+    if (raw.startsWith("art:")) {
+      const id = raw.slice(4);
+      return THEMES[id] ? `art:${id}` : "";
+    }
+    if (raw.startsWith("theme:")) {
+      const id = raw.slice(6);
+      return themePacks.some((pack) => pack.id === id && pack.wallpaper) ? `theme:${id}` : "";
+    }
+    return pictureName(raw, WALLPAPER_IMAGE_RE);
+  })();
+  const legacyDynamic = pictureName(settings.wallpaper_dynamic, WALLPAPER_VIDEO_RE);
+  if (!settings.wallpaper) {
+    if (savedLegacyWallpaper) {
+      if (settings.wallpaper_mode === "dynamic" && legacyDynamic) settings.wallpaper = legacyDynamic;
+      else if (settings.wallpaper_mode !== "none") settings.wallpaper = legacyStatic;
+    } else if (!savedHasWallpaper) {
+      // A first launch keeps the postcard look: the room's paper is the theme,
+      // and no file has been picked yet.
+      settings.wallpaper = `art:${currentPostcardId()}`;
+    }
+  }
+  // The recent shelf is only a convenience: keep the paths that are still
+  // pictures or films, newest first, without duplicates.
+  settings.wallpaper_recent = (() => {
+    const raw = Array.isArray(settings.wallpaper_recent) ? settings.wallpaper_recent : [];
+    const seen = new Set();
+    const recent = [];
+    for (const item of raw) {
+      const name = normalizeWallpaperValue(item);
+      if (!name || !wallpaperIsLocalFile(name) || seen.has(name)) continue;
+      seen.add(name);
+      recent.push(name);
+      if (recent.length >= WALLPAPER_RECENT_LIMIT) break;
+    }
+    return recent;
+  })();
   const soundOverrides = {};
   if (settings.sound_overrides && typeof settings.sound_overrides === "object" && !Array.isArray(settings.sound_overrides)) {
     for (const [key, url] of Object.entries(settings.sound_overrides)) {
@@ -10056,20 +12520,15 @@ function loadSettings() {
     }
   }
   settings.sound_overrides = soundOverrides;
-  // The old build painted the postcard art inside the theme. That exact art is
-  // now the default static wallpaper, so upgrading keeps the same look while
-  // letting the pattern and the colour palette change independently.
-  if (!savedHasWallpaper) {
-    settings.wallpaper_mode = "static";
-    settings.wallpaper_static = `art:${currentPostcardId()}`;
-  } else if (settings.wallpaper_mode === "theme" || !["none", "static", "dynamic"].includes(settings.wallpaper_mode)) {
-    settings.wallpaper_mode = "static";
-  }
-  if (settings.wallpaper_mode === "static" && !settings.wallpaper_static) {
-    settings.wallpaper_static = `art:${currentPostcardId()}`;
-  }
-  // Plugins are installed through Settings → Plugins. A missing record means a
-  // bundled plugin, so existing notebooks keep the bead studio after upgrading.
+  // We no longer keep the static/dynamic switch: a single `wallpaper` choice
+  // covers both. Remove the retired keys from the saved settings so nothing
+  // stale is written back to disk.
+  delete settings.wallpaper_mode;
+  delete settings.wallpaper_static;
+  delete settings.wallpaper_dynamic;
+  // Plugins are installed through Community → 插件. Existing notebooks keep
+  // their bundled plugins after upgrading; opt-in plugins such as the tomato
+  // clock start uninstalled until the reader adds them from Community.
   const savedPlugins = settings.plugins && typeof settings.plugins === "object" && !Array.isArray(settings.plugins)
     ? settings.plugins
     : {};
@@ -10077,17 +12536,14 @@ function loadSettings() {
   for (const plugin of Object.values(PLUGIN_REGISTRY)) {
     const savedPlugin = settings.plugins[plugin.id];
     const pluginRecord = savedPlugin && typeof savedPlugin === "object" ? savedPlugin : {};
-    pluginRecord.installed = pluginRecord.installed !== false;
+    if (typeof pluginRecord.installed !== "boolean") pluginRecord.installed = plugin.defaultInstalled !== false;
     pluginRecord.enabled = pluginRecord.installed && pluginRecord.enabled !== false;
-    const values = pluginRecord.settings && typeof pluginRecord.settings === "object" && !Array.isArray(pluginRecord.settings)
-      ? { ...pluginRecord.settings }
-      : {};
-    for (const [key, value] of Object.entries(pluginDefaultSettings(plugin))) {
-      if (typeof values[key] !== "boolean") values[key] = value;
-    }
-    pluginRecord.settings = values;
+    pluginRecord.settings = normalizePluginSettings(plugin, pluginRecord.settings);
     settings.plugins[plugin.id] = pluginRecord;
   }
+  // Every plugin record is final at this point, so page-chrome plugins can
+  // repaint with the values the reader saved last time.
+  notifyPluginSettings();
 }
 
 function resolveRandomPostcard() {
@@ -10173,6 +12629,303 @@ function flushSettingsSave() {
 }
 
 // ---------------------------------------------------------------------------
+// Pane themes — the notebook and the AI console each own a palette.
+// ---------------------------------------------------------------------------
+const AI_BUILTIN_PALETTES = {
+  light: {
+    bg: "#ffffff", soft: "#f4f4f5", ink: "#171718", inkSoft: "#4a4a52",
+    muted: "#7c7c83", faint: "#b4b4bb", line: "#ececee", lineStrong: "#c6c6cd",
+    accent: "#4f7cff", notice: "#cf6a43", inputBg: "#ececee",
+    inputBorder: "#d7d7dd", inputBorderFocus: "#c2c2ca", inputText: "#3d4757",
+    inputPlaceholder: "#98a2b2", plus: "#47505f", sendBg: "#3b82f6",
+    sendInk: "#ffffff", userAccent: "#b8872f", file: "#a9741a",
+    fileDim: "#c19a55", handle: "rgba(62, 62, 68, 0.70)",
+    handleHover: "rgba(38, 38, 44, 0.92)",
+    handleHalo: "rgba(255, 255, 255, 0.20)", handleHaloHover: "rgba(255, 255, 255, 0.30)",
+  },
+  dark: {
+    bg: "#202126", soft: "#2a2b31", ink: "#e8e8ec", inkSoft: "#c7c8d0",
+    muted: "#a1a2aa", faint: "#70717a", line: "#35363d", lineStrong: "#4a4b54",
+    accent: "#8ab4f8", notice: "#e08a63", inputBg: "#2b2c32",
+    inputBorder: "#42434b", inputBorderFocus: "#55565f", inputText: "#e4e5ea",
+    inputPlaceholder: "#8d8e97", plus: "#c6c7cf", sendBg: "#4f8cff",
+    sendInk: "#ffffff", userAccent: "#c9a35f", file: "#efc160",
+    fileDim: "#b89a5e", handle: "rgba(214, 216, 224, 0.55)",
+    handleHover: "rgba(240, 242, 248, 0.85)",
+    handleHalo: "rgba(22, 22, 26, 0.45)", handleHaloHover: "rgba(22, 22, 26, 0.65)",
+  },
+};
+
+// The notebook has exactly one palette of its own: a plain white page. It is
+// not tied to the app theme or the wallpaper, and it is not a shelf of presets
+// any more — the old parchment / ivory / rose / mint palettes are gone. A flat
+// white sheet is also the cheapest surface to paint, so pulling the height
+// line has nothing sheet-sized to re-raster (the note-theme.css file owns the
+// same values as CSS defaults).
+const NOTE_THEME_BUILTINS = [
+  {
+    id: "white", name: "White", english: "Plain white page",
+    palette: {
+      paper: "#ffffff", ink: "#2b2b2e", muted: "rgba(43, 43, 46, 0.58)",
+      rule: "rgba(43, 43, 46, 0.14)", accent: "#6b6b73", accent2: "#8a8a92",
+      handle: "rgba(62, 62, 68, 0.70)", handleHover: "rgba(38, 38, 44, 0.92)",
+      handleHalo: "rgba(255, 255, 255, 0.20)", handleHaloHover: "rgba(255, 255, 255, 0.30)",
+    },
+  },
+];
+
+function paneHex(value) {
+  const raw = String(value || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
+  if (/^#[0-9a-f]{3}$/i.test(raw)) return ("#" + raw.slice(1).split("").map((ch) => ch + ch).join("")).toLowerCase();
+  return "";
+}
+
+function paneRgba(value, alpha, fallback = "") {
+  const hex = paneHex(value);
+  return hex ? `rgba(${hexToRgb(hex)}, ${alpha})` : fallback;
+}
+
+/** Turn a pack's optional notebook palette into the CSS slot values. */
+function notePaletteFromPack(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const paper = paneHex(raw.paper);
+  const ink = paneHex(raw.ink);
+  if (!paper || !ink) return null;
+  return {
+    paper,
+    ink,
+    muted: paneRgba(raw.muted, 0.62, paneRgba(mixHex(ink, paper, 0.45), 1)),
+    rule: paneRgba(raw.rule, 0.34, paneRgba(mixHex(ink, paper, 0.68), 0.22)),
+    accent: paneHex(raw.accent) || mixHex(ink, paper, 0.22),
+    accent2: paneHex(raw.accent2) || mixHex(ink, paper, 0.4),
+    handle: paneRgba(raw.handle, 0.70, "rgba(62, 62, 68, 0.70)"),
+    handleHover: paneRgba(raw.handle, 0.92, "rgba(38, 38, 44, 0.92)"),
+    handleHalo: "rgba(255, 255, 255, 0.20)",
+    handleHaloHover: "rgba(255, 255, 255, 0.30)",
+  };
+}
+
+/** Turn a pack's optional AI console palette into the CSS slot values. */
+function aiPaletteFromPack(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const bg = paneHex(raw.bg);
+  const ink = paneHex(raw.ink);
+  if (!bg || !ink) return null;
+  const dark = hexLuminance(bg) < 0.45;
+  const base = dark ? AI_BUILTIN_PALETTES.dark : AI_BUILTIN_PALETTES.light;
+  const pick = (key, fallback) => paneHex(raw[key]) || fallback;
+  const handle = pick("handle", dark ? "#d6d8e0" : "#3e3e44");
+  return {
+    bg, ink,
+    soft: pick("soft", mixHex(bg, ink, dark ? 0.08 : 0.05)),
+    inkSoft: pick("inkSoft", mixHex(ink, bg, dark ? 0.22 : 0.18)),
+    muted: pick("muted", mixHex(ink, bg, dark ? 0.42 : 0.46)),
+    faint: pick("faint", mixHex(ink, bg, dark ? 0.62 : 0.66)),
+    line: pick("line", mixHex(bg, ink, dark ? 0.13 : 0.07)),
+    lineStrong: pick("lineStrong", mixHex(bg, ink, dark ? 0.27 : 0.18)),
+    accent: pick("accent", base.accent),
+    notice: pick("notice", base.notice),
+    inputBg: pick("soft", mixHex(bg, ink, dark ? 0.09 : 0.05)),
+    inputBorder: pick("lineStrong", mixHex(bg, ink, dark ? 0.27 : 0.16)),
+    inputBorderFocus: pick("accent", base.accent),
+    inputText: pick("inkSoft", ink),
+    inputPlaceholder: pick("muted", base.muted),
+    plus: pick("inkSoft", ink),
+    sendBg: pick("accent", base.sendBg),
+    sendInk: "#ffffff",
+    userAccent: pick("accent", base.userAccent),
+    file: pick("accent", base.file),
+    fileDim: pick("muted", base.fileDim),
+    handle: paneRgba(handle, 0.70, base.handle),
+    handleHover: paneRgba(handle, 0.92, base.handleHover),
+    handleHalo: base.handleHalo,
+    handleHaloHover: base.handleHaloHover,
+  };
+}
+
+function installedPaneChoices(kind) {
+  const choices = [];
+  for (const theme of paneThemes[kind] || []) {
+    const palette = kind === "note" ? notePaletteFromPack(theme.palette) : aiPaletteFromPack(theme.palette);
+    if (!palette) continue;
+    choices.push({
+      id: `pack:${theme.id}`,
+      name: theme.name || theme.id,
+      english: theme.englishName || "Your palette",
+      palette,
+      source: theme.source === "pack" ? "community" : "user",
+      packId: theme.id,
+    });
+  }
+  return choices;
+}
+
+function noteThemeChoices() {
+  // One built-in white page. A palette the reader drops into the note-theme/
+  // folder (their own file) is still honoured — the notebook owns its colours
+  // and no app theme or wallpaper can tint them.
+  return [...NOTE_THEME_BUILTINS.map((theme) => ({ ...theme, source: "builtin" })), ...installedPaneChoices("note")];
+}
+
+// The two notebook surfaces the notebook used before palettes existed. They
+// are the note's own setting: Paper paints the chosen paper colour, Glass
+// frosts the chosen ink over a mask. Neither follows the app or OS theme.
+const NOTE_SURFACE_BUILTINS = [
+  { id: "paper", name: "Paper", english: "Solid notebook page", file: "paper.css" },
+  { id: "blur", name: "Glass", english: "Frosted mask", file: "glass.css" },
+  { id: "focus", name: "Focus", english: "FocusWriter-style glass pane", file: "focus.css" },
+];
+
+function noteSurfaceChoices() {
+  const builtinFiles = new Set(NOTE_SURFACE_BUILTINS.map((surface) => surface.file));
+  const extra = noteMaterialFiles
+    .filter((file) => !builtinFiles.has(String(file).toLowerCase()))
+    .map((file) => ({
+      id: materialIdForFile(file),
+      name: materialDisplayName(file),
+      english: "Your material",
+      file: String(file).toLowerCase(),
+    }));
+  return [...NOTE_SURFACE_BUILTINS, ...extra];
+}
+
+function activeNoteSurfaceFile() {
+  return String(settings.note_material_file || materialFileForId(settings.note_material)).toLowerCase();
+}
+
+function noteSurfaceCardMarkup(surface) {
+  const active = activeNoteSurfaceFile() === surface.file;
+  const palette = selectedNoteTheme().palette;
+  const glass = surface.id === "blur";
+  const focus = surface.id === "focus";
+  const dark = hexLuminance(palette.paper) < 0.45;
+  const swatch = focus
+    // A sharp photo with a frosted inset pane and a drop shadow: the
+    // FocusWriter mask in miniature.
+    ? `background:linear-gradient(135deg,rgba(24,28,24,.20),rgba(24,28,24,.08)),url("/notes-forest.jpg") center/cover;color:${esc(palette.ink)};text-shadow:0 1px 2px rgba(255,255,255,.7);box-shadow:inset 0 0 0 6px rgba(255,255,255,.20),inset 0 0 0 7px rgba(255,255,255,.44),inset 0 -14px 24px rgba(0,0,0,.16)`
+    : glass
+    ? (dark
+      ? `background:linear-gradient(135deg,rgba(38,44,52,.90),rgba(20,24,30,.62)),radial-gradient(circle at 24% 18%,rgba(255,255,255,.18),transparent 58%);color:${esc(palette.ink)};box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),inset 0 -14px 28px rgba(0,0,0,.30)`
+      : `background:linear-gradient(135deg,rgba(255,255,255,.84),rgba(212,224,233,.42)),radial-gradient(circle at 24% 18%,rgba(255,255,255,.96),transparent 58%);color:${esc(palette.ink)};box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),inset 0 -14px 28px rgba(126,146,160,.16)`)
+    : `background:${esc(palette.paper)};color:${esc(palette.ink)}`;
+  return `<button class="pane-theme-card note-surface-card ${active ? "active" : ""}" type="button" data-note-surface-file="${esc(surface.file)}" aria-pressed="${active ? "true" : "false"}">
+    <span class="pane-theme-swatch ${glass ? "note-surface-glass" : ""}" style="${swatch}">
+      <span class="pane-theme-aa">Aa</span>
+      <span class="pane-theme-rule one" style="background:${esc(palette.rule)}"></span>
+      <span class="pane-theme-rule two" style="background:${esc(palette.rule)};opacity:.6"></span>
+      <span class="pane-theme-rule three" style="background:${esc(palette.rule)};opacity:.35"></span>
+      <span class="pane-theme-dots"><i style="background:${esc(palette.accent)}"></i><i style="background:${esc(palette.accent2)}"></i></span>
+    </span>
+    <span class="pane-theme-copy"><strong>${esc(surface.name)}</strong><small>${esc(surface.english || "")}</small></span>
+    <span class="choice-check">✓</span>
+  </button>`;
+}
+
+function aiThemeChoices() {
+  return [
+    { id: "auto", name: "Auto", english: "Follow the app theme", palette: null, source: "builtin" },
+    { id: "light", name: "AI Light", english: "White editor", palette: AI_BUILTIN_PALETTES.light, source: "builtin" },
+    { id: "dark", name: "AI Dark", english: "Charcoal console", palette: AI_BUILTIN_PALETTES.dark, source: "builtin" },
+    ...installedPaneChoices("ai"),
+  ];
+}
+
+function selectedNoteTheme() {
+  const choices = noteThemeChoices();
+  return choices.find((choice) => choice.id === settings.note_theme) || choices[0];
+}
+
+function resolvedAiTheme() {
+  const choices = aiThemeChoices();
+  const picked = choices.find((choice) => choice.id === settings.ai_theme) || choices[0];
+  if (picked.id !== "auto") return picked;
+  return choices.find((choice) => choice.id === (postcardIsDark(currentPostcardId()) ? "dark" : "light")) || picked;
+}
+
+function applyNoteTheme() {
+  const root = document.documentElement;
+  const choice = selectedNoteTheme();
+  const palette = choice.palette;
+  root.dataset.noteTheme = choice.id.startsWith("pack:") ? "custom" : choice.id;
+  root.dataset.noteDark = hexLuminance(palette.paper) < 0.45 ? "true" : "false";
+  root.style.setProperty("--note-theme-paper", palette.paper);
+  root.style.setProperty("--note-theme-ink", palette.ink);
+  root.style.setProperty("--note-theme-muted", palette.muted);
+  root.style.setProperty("--note-theme-rule", palette.rule);
+  root.style.setProperty("--note-theme-accent", palette.accent);
+  root.style.setProperty("--note-theme-accent2", palette.accent2);
+  root.style.setProperty("--note-handle-line", palette.handle);
+  root.style.setProperty("--note-handle-hover", palette.handleHover);
+  root.style.setProperty("--note-handle-halo", palette.handleHalo);
+  root.style.setProperty("--note-handle-halo-hover", palette.handleHaloHover);
+}
+
+function applyAiTheme() {
+  const root = document.documentElement;
+  const choice = resolvedAiTheme();
+  const palette = choice.palette;
+  root.dataset.aiTheme = choice.id.startsWith("pack:") ? "custom" : choice.id;
+  const terminal = document.getElementById("agent-terminal");
+  const slots = {
+    "--oc-bg": palette.bg,
+    "--oc-soft": palette.soft,
+    "--oc-ink": palette.ink,
+    "--oc-ink-soft": palette.inkSoft,
+    "--oc-muted": palette.muted,
+    "--oc-faint": palette.faint,
+    "--oc-line": palette.line,
+    "--oc-line-strong": palette.lineStrong,
+    "--oc-accent": palette.accent,
+    "--oc-notice": palette.notice,
+    "--oc-input-bg": palette.inputBg,
+    "--oc-input-border": palette.inputBorder,
+    "--oc-input-border-focus": palette.inputBorderFocus,
+    "--oc-input-text": palette.inputText,
+    "--oc-input-placeholder": palette.inputPlaceholder,
+    "--oc-plus": palette.plus,
+    "--oc-send-bg": palette.sendBg,
+    "--oc-send-ink": palette.sendInk,
+    "--oc-user-accent": palette.userAccent,
+    "--oc-file": palette.file,
+    "--oc-file-dim": palette.fileDim,
+    "--agent-copy-accent": palette.accent,
+    // Old console rules draw hairlines with rgba(var(--pc-accent-rgb)); keep
+    // them on the console palette instead of the app paper.
+    "--pc-accent-rgb": hexToRgb(palette.accent),
+  };
+  for (const [name, value] of Object.entries(slots)) terminal?.style.setProperty(name, value);
+  // The AI context menu is appended to <body>, outside the terminal, so it
+  // reads its own copy of the palette from the page root.
+  root.style.setProperty("--oc-menu-bg", palette.bg);
+  root.style.setProperty("--oc-menu-ink", palette.ink);
+  root.style.setProperty("--oc-menu-muted", palette.muted);
+  root.style.setProperty("--oc-menu-line", palette.line);
+  root.style.setProperty("--oc-menu-accent", palette.accent);
+  root.style.setProperty("--oc-menu-notice", palette.notice);
+  root.style.setProperty("--oc-menu-hover", colorTint(palette.accent, 0.12));
+  root.style.setProperty("--ai-handle-line", palette.handle);
+  root.style.setProperty("--ai-handle-hover", palette.handleHover);
+  root.style.setProperty("--ai-handle-halo", palette.handleHalo);
+  root.style.setProperty("--ai-handle-halo-hover", palette.handleHaloHover);
+  // A console theme may flip light/dark, so the caret ink follows it too.
+  if (typeof scheduleCustomCaret === "function") scheduleCustomCaret();
+}
+
+function normalizePaneThemeSettings() {
+  const noteIds = new Set(noteThemeChoices().map((choice) => choice.id));
+  if (!noteIds.has(settings.note_theme)) settings.note_theme = "white";
+  const aiIds = new Set(aiThemeChoices().map((choice) => choice.id));
+  if (!aiIds.has(settings.ai_theme)) settings.ai_theme = "auto";
+}
+
+function applyPaneThemes() {
+  normalizePaneThemeSettings();
+  applyNoteTheme();
+  applyAiTheme();
+}
+
+// ---------------------------------------------------------------------------
 // Theme community
 // ---------------------------------------------------------------------------
 function themeAssetUrl(packId, relative) {
@@ -10233,6 +12986,10 @@ function packTheme(pack) {
     accent2: themeColor(palette.accent2, accent),
     border: themeColor(palette.border, paper),
     stamp: themeColor(palette.stamp, accent),
+    line: themeColor(palette.line, ""),
+    rule: themeColor(palette.rule, ""),
+    lineAlpha: palette.lineAlpha,
+    ruleAlpha: palette.ruleAlpha,
     glow: typeof palette.glow === "string" && palette.glow.startsWith("rgba")
       ? palette.glow
       : `rgba(${hexToRgb(accent)}, .18)`,
@@ -10265,6 +13022,14 @@ async function loadThemePacks() {
     const data = await response.json();
     if (!data?.ok || !Array.isArray(data.packs)) return false;
     themePacks = data.packs;
+    paneThemes = {
+      note: Array.isArray(data.note_themes) ? data.note_themes : [],
+      ai: Array.isArray(data.ai_themes) ? data.ai_themes : [],
+    };
+    paneThemeFolders = {
+      note: String(data.note_folder || ""),
+      ai: String(data.ai_folder || ""),
+    };
     registerThemePacks(themePacks);
     return true;
   } catch (error) {
@@ -10275,7 +13040,7 @@ async function loadThemePacks() {
 async function loadThemeCatalog(refresh = false) {
   if (themeCatalogBusy) return;
   themeCatalogBusy = true;
-  if (settingsTab === "themes") renderSettings();
+  if (communityViewOpen("themes")) renderCommunity();
   try {
     const response = await fetch(`/api/themes/community${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
     const data = await response.json();
@@ -10287,7 +13052,7 @@ async function loadThemeCatalog(refresh = false) {
     // The bundled catalog still works offline; keep whatever we already had.
   } finally {
     themeCatalogBusy = false;
-    if (settingsTab === "themes") renderSettings();
+    if (communityViewOpen("themes")) renderCommunity();
   }
 }
 
@@ -10340,6 +13105,9 @@ function themePreviewMarkup(pack, catalogEntry = null) {
 function themePackBadges(pack) {
   const badges = [];
   if (pack.wallpaper) badges.push("Wallpaper");
+  if (pack.chrome) badges.push("Lines + wash");
+  if (pack.note) badges.push("Note theme");
+  if (pack.ai) badges.push("AI theme");
   const soundCount = themePackSounds(pack).length;
   if (soundCount) badges.push(`${soundCount} sound${soundCount === 1 ? "" : "s"}`);
   const iconCount = themePackIcons(pack).length;
@@ -10374,13 +13142,13 @@ function themePackCardMarkup(pack, catalogEntry = null) {
       </div>
       <div class="theme-pack-meta">${esc(author)} · ${esc(source)}</div>
       ${description ? `<p>${esc(description)}</p>` : ""}
-      <div class="theme-pack-badges">${themePackBadges(pack || { palette: entry.palette, sounds: {}, icons: {} })}</div>
+      <div class="theme-pack-badges">${themePackBadges(pack || { palette: entry.palette, chrome: entry.chrome, note: entry.note, ai: entry.ai, sounds: {}, icons: {} })}</div>
       <div class="theme-pack-actions">${actions}</div>
     </div>
   </article>`;
 }
 
-function themeCommunitySettings() {
+function themeCommunitySection() {
   const installed = themePacks || [];
   const installedIds = new Set(installed.map((pack) => pack.id));
   const catalogEntries = (themeCatalog?.themes || []).filter((entry) => !installedIds.has(entry.id));
@@ -10388,11 +13156,23 @@ function themeCommunitySettings() {
     ? `${themeCatalog.catalog_source === "remote" ? "Online" : themeCatalog.catalog_source === "cache" ? "Cached" : "Offline"} · ${themeCatalog.themes?.length || 0} themes`
     : (themeCatalogBusy ? "Loading…" : "Not loaded");
   const overrideCount = Object.keys(settings.sound_overrides || {}).length;
-  return `<div class="settings-head"><h2>主题社区</h2><p>图标、主题与音效，都可以装进一只能分享的纸包。</p></div>
-    <div class="settings-section theme-community-hero">
+  const notePanePacks = installedPaneChoices("note");
+  const aiPanePacks = installedPaneChoices("ai");
+  const paneShelf = notePanePacks.length || aiPanePacks.length
+    ? `<div class="settings-section">
+      <div class="settings-label">Note &amp; AI themes <span>note-theme / ai-theme</span></div>
+      <p class="pane-theme-hint">These palettes live in their own folders, apart from the NeoTodo theme packs. Pick one here, or open Theme to see the built-in notebook and console themes.</p>
+      ${notePanePacks.length ? `<div class="pane-theme-group-label">Note themes</div>
+        <div class="pane-theme-grid">${notePanePacks.map((choice) => paneThemeCardMarkup(choice, "note")).join("")}</div>` : ""}
+      ${aiPanePacks.length ? `<div class="pane-theme-group-label">AI themes</div>
+        <div class="pane-theme-grid">${aiPanePacks.map((choice) => paneThemeCardMarkup(choice, "ai")).join("")}</div>` : ""}
+      <button class="btn small pane-theme-community-link" type="button" data-action="open-theme-settings">Open Theme</button>
+    </div>`
+    : "";
+  return `<div class="settings-section theme-community-hero">
       <div class="theme-community-hero-copy">
         <strong>Make NeoTodo yours — together.</strong>
-        <p>导入别人做的 <code>.zip</code> 主题包，或者把当前的纸色、壁纸、音效和成就图标导出成一只包，上传到社区与朋友分享。</p>
+        <p>导入别人做的 <code>.zip</code> 主题包，或者把当前的纸色、壁纸、音效和成就图标导出成一只包，上传到社区与朋友分享。带 <strong>Note theme</strong> 或 <strong>AI theme</strong> 标记的包，装好后会出现在 <strong>Theme</strong> 页的笔记 / AI 主题里。</p>
       </div>
       <div class="theme-community-actions">
         <button class="btn small primary" type="button" data-action="import-theme-pack" ${themePackBusy === "import" ? "disabled" : ""}>${themePackBusy === "import" ? "Importing…" : "Import .zip"}</button>
@@ -10401,6 +13181,7 @@ function themeCommunitySettings() {
       </div>
       <input type="file" accept=".zip,application/zip" data-theme-pack-input hidden>
     </div>
+    ${paneShelf}
     <div class="settings-section">
       <div class="settings-label">Installed <span>${installed.length}</span></div>
       ${installed.length
@@ -10419,7 +13200,7 @@ function themeCommunitySettings() {
       <div class="theme-community-share">
         <div>
           <strong>${esc(postcardName(currentPostcardId()))}</strong>
-          <span>Current palette${settings.wallpaper_mode === "static" && settings.wallpaper_static && !settings.wallpaper_static.startsWith("art:") && !settings.wallpaper_static.startsWith("theme:") ? " · wallpaper" : ""}${overrideCount ? ` · ${overrideCount} custom sounds` : ""}${Object.keys(settings.sticker_backgrounds || {}).length ? " · stickers" : ""}</span>
+          <span>Current palette${["image", "video"].includes(activeWallpaper().kind) ? " · wallpaper" : ""}${overrideCount ? ` · ${overrideCount} custom sounds` : ""}${Object.keys(settings.sticker_backgrounds || {}).length ? " · stickers" : ""}</span>
         </div>
         <button class="btn small" type="button" data-action="open-theme-exports-folder">Open exports</button>
         <button class="btn small primary" type="button" data-action="export-theme-pack">Export .zip</button>
@@ -10436,7 +13217,7 @@ async function importThemePackFile(file) {
     return;
   }
   themePackBusy = "import";
-  if (settingsTab === "themes") renderSettings();
+  if (communityViewOpen("themes")) renderCommunity();
   try {
     const data = await fileToBase64(file);
     const result = await themeCommunityPost("/api/themes/install", { data });
@@ -10449,7 +13230,9 @@ async function importThemePackFile(file) {
   } finally {
     themePackBusy = "";
     await loadThemePacks();
-    if (settingsTab === "themes") renderSettings();
+    applyPaneThemes();
+    if (communityViewOpen("themes")) renderCommunity();
+    if (settingsTab === "theme") renderSettings();
   }
 }
 
@@ -10457,7 +13240,7 @@ async function installThemeFromCatalog(id, bundled) {
   const entry = (themeCatalog?.themes || []).find((item) => item.id === id);
   if (!entry) return;
   themePackBusy = id;
-  if (settingsTab === "themes") renderSettings();
+  if (communityViewOpen("themes")) renderCommunity();
   try {
     const payload = bundled
       ? { id, bundled: true }
@@ -10472,7 +13255,9 @@ async function installThemeFromCatalog(id, bundled) {
   } finally {
     themePackBusy = "";
     await loadThemePacks();
-    if (settingsTab === "themes") renderSettings();
+    applyPaneThemes();
+    if (communityViewOpen("themes")) renderCommunity();
+    if (settingsTab === "theme") renderSettings();
   }
 }
 
@@ -10492,21 +13277,25 @@ async function applyThemePackById(id) {
   const pack = themePacks.find((item) => item.id === id);
   if (!pack) return;
   themePackBusy = id;
-  if (settingsTab === "themes") renderSettings();
+  if (communityViewOpen("themes")) renderCommunity();
   try {
     const wallpaperTheme = THEMES[id] || packTheme(pack);
+    // A NeoTodo theme only owns the app paper, wallpaper, sounds and stickers.
+    // The notebook and the AI console keep their own choices from note-theme/
+    // and ai-theme/; capture them so a pack can never overwrite either one.
+    const noteSelection = settings.note_theme;
+    const aiSelection = settings.ai_theme;
     settings.theme = "postcard";
     settings.postcard = id;
     settings.resolved_postcard = id;
     if (postcardIsDark(id)) settings.dark_postcard = id;
     else settings.light_postcard = id;
     if (pack.wallpaper) {
-      settings.wallpaper_mode = "static";
-      settings.wallpaper_static = `theme:${id}`;
-    } else if (String(settings.wallpaper_static || "").startsWith("theme:")) {
-      settings.wallpaper_mode = "static";
-      settings.wallpaper_static = `art:${id}`;
+      settings.wallpaper = `theme:${id}`;
+    } else {
+      settings.wallpaper = `art:${id}`;
     }
+    applyThemeChrome(id);
     const overrides = {};
     for (const [key, relative] of Object.entries(pack.sounds || {})) {
       const url = themeAssetUrl(id, relative);
@@ -10528,6 +13317,8 @@ async function applyThemePackById(id) {
         } catch (error) {}
       }
     }
+    settings.note_theme = noteSelection;
+    settings.ai_theme = aiSelection;
     saveSettings();
     applySettings();
     renderCategories();
@@ -10538,34 +13329,105 @@ async function applyThemePackById(id) {
     toast(error.message || "Could not apply that theme", true);
   } finally {
     themePackBusy = "";
-    if (settingsTab === "themes") renderSettings();
+    if (communityViewOpen("themes")) renderCommunity();
   }
 }
 
-async function removeThemePackById(id) {
+async function saveCustomTheme() {
+  if (!customThemeDraft || customThemeBusy) return;
+  const draft = customThemeDraft;
+  const name = String(draft.name || "").trim() || "Custom theme";
+  const palette = {
+    paper: themeColor(draft.paper, "#f4ecfa"),
+    paper2: mixHex(themeColor(draft.paper, "#f4ecfa"), themeColor(draft.ink, "#3d2f4a"), 0.07),
+    ink: themeColor(draft.ink, "#3d2f4a"),
+    muted: mixHex(themeColor(draft.ink, "#3d2f4a"), themeColor(draft.paper, "#f4ecfa"), 0.38),
+    accent: themeColor(draft.accent, "#8d63b8"),
+    accent2: themeColor(draft.line, "#d4c0e6"),
+    border: themeColor(draft.line, "#d4c0e6"),
+    stamp: themeColor(draft.accent, "#8d63b8"),
+    line: themeColor(draft.line, "#d4c0e6"),
+    rule: themeColor(draft.line, "#d4c0e6"),
+    lineAlpha: Number.isFinite(Number(draft.lineAlpha)) ? Number(draft.lineAlpha) : 0.42,
+    ruleAlpha: Number.isFinite(Number(draft.ruleAlpha)) ? Number(draft.ruleAlpha) : 0.28,
+    motif: "✦",
+    quote: "A palette of my own.",
+  };
+  customThemeBusy = true;
+  renderSettings();
+  try {
+    const result = await themeCommunityPost("/api/themes/save", {
+      name,
+      author: "You",
+      description: "A custom palette made in NeoTodo.",
+      theme: palette,
+    });
+    if (!result?.ok) throw new Error(result?.error || "Could not save that theme");
+    themePacks = result.packs || themePacks;
+    registerThemePacks(themePacks);
+    const id = result.theme?.id || "";
+    customThemeEditorOpen = false;
+    customThemeDraft = null;
+    customThemesOpen = true;
+    if (id && applyThemeChoice(id)) {
+      toast(`${name} saved and applied`);
+    } else {
+      toast(`${name} saved`);
+    }
+  } catch (error) {
+    toast(error.message || "Could not save that theme", true);
+  } finally {
+    customThemeBusy = false;
+    renderSettings();
+  }
+}
+
+function updateCustomThemeDraftPreview() {
+  if (!customThemeDraft) return;
+  const draft = customThemeDraft;
+  const preview = $("[data-custom-theme-preview]");
+  if (preview) {
+    preview.style.background = draft.paper;
+    preview.style.color = draft.ink;
+    const line = preview.querySelector("[data-custom-theme-preview-text]");
+    if (line) line.style.borderBottomColor = draft.line;
+    const dot = preview.querySelector("[data-custom-theme-preview-dot]");
+    if (dot) dot.style.background = draft.accent;
+  }
+  for (const key of CUSTOM_THEME_COLOR_KEYS) {
+    const hex = document.querySelector(`[data-custom-theme-hex="${key}"]`);
+    if (hex) hex.textContent = draft[key];
+  }
+}
+
+async function removeThemePackById(id, { skipConfirm = false } = {}) {
   const pack = themePacks.find((item) => item.id === id);
   if (!pack) return;
-  const ok = await confirmDialog({
-    kicker: "Theme community",
-    title: `Remove ${pack.name}?`,
-    message: "The palette, wallpaper and sound overrides it contributed will stop being available. Your tasks, notes and saved artwork stay untouched.",
-    confirmLabel: "Remove",
-    danger: true,
-  });
-  if (!ok) return;
+  const isCustomFile = Array.isArray(pack.tags) && pack.tags.includes("custom");
+  if (!skipConfirm) {
+    const ok = await confirmDialog({
+      kicker: isCustomFile ? "Custom theme" : "Theme community",
+      title: isCustomFile ? `Delete ${pack.name}?` : `Remove ${pack.name}?`,
+      message: isCustomFile
+        ? "This deletes the theme's palette file from your computer. Your tasks, notes and saved artwork stay untouched."
+        : "The palette, wallpaper and sound overrides it contributed will stop being available. Your tasks, notes and saved artwork stay untouched.",
+      confirmLabel: isCustomFile ? "Delete" : "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+  }
   themePackBusy = id;
-  if (settingsTab === "themes") renderSettings();
+  if (communityViewOpen("themes") || settingsTab === "theme") renderSettings();
   try {
     const result = await themeCommunityPost("/api/themes/uninstall", { id });
     if (!result?.ok) throw new Error(result?.error || "Could not remove that theme");
     if (settings.resolved_postcard === id) {
-      settings.postcard = "violet";
-      settings.resolved_postcard = "violet";
-      if (settings.light_postcard === id) settings.light_postcard = "violet";
-      if (settings.dark_postcard === id) settings.dark_postcard = "tokyo";
-      if (String(settings.wallpaper_static || "").startsWith(`theme:${id}`)) {
-        settings.wallpaper_mode = "static";
-        settings.wallpaper_static = "art:violet";
+      settings.postcard = "light";
+      settings.resolved_postcard = "light";
+      if (settings.light_postcard === id) settings.light_postcard = "light";
+      if (settings.dark_postcard === id) settings.dark_postcard = "dark";
+      if (String(settings.wallpaper || "").startsWith(`theme:${id}`)) {
+        settings.wallpaper = "art:light";
       }
     }
     settings.sound_overrides = {};
@@ -10580,6 +13442,10 @@ async function removeThemePackById(id) {
   } finally {
     themePackBusy = "";
     await loadThemePacks();
+    applyPaneThemes();
+    // A removed pack may have been the selected note/AI theme; persist the
+    // fallback so the next visit starts on a theme that still exists.
+    saveSettings();
     renderSettings();
   }
 }
@@ -10593,7 +13459,7 @@ async function exportCurrentThemePack() {
     confirmLabel: "Export",
   });
   if (!name) return;
-  const theme = THEMES[currentPostcardId()] || THEMES.violet;
+  const theme = THEMES[currentPostcardId()] || THEMES.light;
   const sounds = {};
   for (const [key, url] of Object.entries(settings.sound_overrides || {})) {
     if (typeof url === "string" && (url.startsWith("/user-sounds/") || url.startsWith("/theme-assets/"))) {
@@ -10605,14 +13471,33 @@ async function exportCurrentThemePack() {
     const image = settings.sticker_backgrounds?.[target.id]?.image;
     if (image) icons[target.id] = image;
   }
-  const staticWallpaper = settings.wallpaper_mode === "static" ? String(settings.wallpaper_static || "") : "";
+  const activeChoice = activeWallpaper();
   let wallpaper = "";
-  if (staticWallpaper.startsWith("theme:")) {
-    const pack = themePacks.find((item) => item.id === staticWallpaper.slice(6));
-    if (pack?.wallpaper) wallpaper = themeAssetUrl(pack.id, pack.wallpaper);
-  } else if (staticWallpaper && !staticWallpaper.startsWith("art:")) {
-    wallpaper = wallpaperUrl(staticWallpaper);
+  if (activeChoice.kind === "theme") {
+    wallpaper = themeAssetUrl(activeChoice.packId, activeChoice.file);
+  } else if (activeChoice.kind === "image") {
+    wallpaper = wallpaperUrl(activeChoice.file);
   }
+  const noteChoice = selectedNoteTheme();
+  const aiChoice = resolvedAiTheme();
+  const rowChrome = baselineRowRule();
+  const submitChrome = normalizeBaselineColorInput(
+    getComputedStyle(document.documentElement).getPropertyValue("--submit-color")
+  ) || theme.accent;
+  const hexOnly = (palette, keys) => {
+    const out = {};
+    for (const key of keys) {
+      const hex = paneHex(palette?.[key]);
+      if (hex) out[key] = hex;
+    }
+    return out;
+  };
+  const noteExport = noteChoice?.palette
+    ? hexOnly(noteChoice.palette, ["paper", "ink", "muted", "rule", "accent", "accent2", "handle"])
+    : {};
+  const aiExport = aiChoice?.palette
+    ? hexOnly(aiChoice.palette, ["bg", "soft", "ink", "inkSoft", "muted", "faint", "line", "lineStrong", "accent", "notice", "handle"])
+    : {};
   const result = await themeCommunityPost("/api/themes/export", {
     name,
     author: "You",
@@ -10626,13 +13511,26 @@ async function exportCurrentThemePack() {
       accent2: theme.accent2,
       border: theme.border,
       stamp: theme.stamp,
+      line: theme.line,
+      rule: theme.rule,
+      lineAlpha: theme.lineAlpha,
+      ruleAlpha: theme.ruleAlpha,
       glow: theme.glow,
       motif: theme.motif,
       quote: theme.quote,
     },
+    chrome: {
+      baseline: baselineColor(),
+      row: rowChrome.color,
+      row2: rowChrome.color2,
+      submit: submitChrome,
+      highlight: highlightColor(),
+    },
     wallpaper,
     sounds,
     icons,
+    note: noteExport,
+    ai: aiExport,
   });
   if (!result?.ok) {
     toast(result?.error || "Could not export that theme", true);
@@ -10683,7 +13581,7 @@ function applyStickerBackgrounds() {
 }
 
 function spinAchievementCounter(element) {
-  const counter = element?.closest?.(".trophy-button, .tomato-counter");
+  const counter = element?.closest?.(".trophy-button, .tomato-counter, .achievement-plugin-slot");
   if (!counter) return;
   counter.classList.remove("ach-click-spin");
   void counter.offsetWidth;
@@ -10716,34 +13614,108 @@ function materialDisplayName(file) {
   return stem || "Paper";
 }
 
+/** A wallpaper the reader picked from their own disk is remembered as a path. */
+function wallpaperIsFilePath(value) {
+  const name = String(value || "").trim();
+  if (!name || name.length > 4096 || name.includes("\n")) return false;
+  const absolute = name.startsWith("/") || name.startsWith("\\\\") || /^[A-Za-z]:[\\/]/.test(name);
+  if (!absolute) return false;
+  return WALLPAPER_IMAGE_RE.test(name) || WALLPAPER_VIDEO_RE.test(name);
+}
+
 function wallpaperUrl(name) {
+  // Picked files are read from their own path; a bare name is a picture that
+  // an older build copied into the pictures folder.
+  if (wallpaperIsFilePath(name)) {
+    return `/user-wallpaper?path=${encodeURIComponent(String(name))}`;
+  }
   const encoded = encodeURIComponent(String(name || "")).replace(/[!'()*]/g, (ch) => (
     `%${ch.charCodeAt(0).toString(16).toUpperCase()}`
   ));
   return `/user-pictures/${encoded}`;
 }
 
+const WALLPAPER_IMAGE_RE = /\.(jpe?g|png|webp|gif|avif)$/i;
+const WALLPAPER_VIDEO_RE = /\.(mp4|webm|mov|m4v|ogv)$/i;
+
+/** A bare file name that points at a picture or a film in the pictures folder. */
+function wallpaperIsPictureName(value) {
+  const name = String(value || "").trim();
+  if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) return false;
+  return WALLPAPER_IMAGE_RE.test(name) || WALLPAPER_VIDEO_RE.test(name);
+}
+
+/** A picture or a film, whether it was picked or copied in by an older build. */
+function wallpaperIsLocalFile(value) {
+  return wallpaperIsFilePath(value) || wallpaperIsPictureName(value);
+}
+
+/** The single wallpaper choice, resolved into something the UI can render. */
 function activeWallpaper() {
-  if (settings.wallpaper_mode === "static") {
-    const value = String(settings.wallpaper_static || "");
-    if (value.startsWith("art:")) {
-      const artId = value.slice(4);
-      if (THEMES[artId]) return { mode: "static", kind: "art", artId, key: `static:art:${artId}` };
-    } else if (value.startsWith("theme:")) {
-      const packId = value.slice(6);
-      const pack = themePacks.find((item) => item.id === packId);
-      if (pack?.wallpaper) {
-        return { mode: "static", kind: "theme", packId, file: pack.wallpaper, key: `static:theme:${packId}` };
-      }
-    } else if (value) {
-      return { mode: "static", kind: "image", file: value, key: `static:file:${value}` };
+  const value = String(settings.wallpaper || "").trim();
+  if (value.startsWith("art:")) {
+    const artId = value.slice(4);
+    if (THEMES[artId] && typeof THEMES[artId].art === "function") {
+      return { kind: "art", moving: false, artId, key: `art:${artId}` };
     }
-    return { mode: "none", kind: "none", key: "" };
+  } else if (value.startsWith("theme:")) {
+    const packId = value.slice(6);
+    const pack = themePacks.find((item) => item.id === packId);
+    if (pack?.wallpaper) {
+      return { kind: "theme", moving: false, packId, file: pack.wallpaper, key: `theme:${packId}` };
+    }
+  } else if (wallpaperIsLocalFile(value) && WALLPAPER_VIDEO_RE.test(value)) {
+    return { kind: "video", moving: true, file: value, key: `video:${value}` };
+  } else if (wallpaperIsLocalFile(value)) {
+    return { kind: "image", moving: false, file: value, key: `image:${value}` };
   }
-  if (settings.wallpaper_mode === "dynamic" && settings.wallpaper_dynamic) {
-    return { mode: "dynamic", kind: "video", file: settings.wallpaper_dynamic, key: `dynamic:${settings.wallpaper_dynamic}` };
-  }
-  return { mode: "none", kind: "none", key: "" };
+  return { kind: "none", moving: false, key: "" };
+}
+
+function wallpaperSourceUrl(wallpaper = activeWallpaper()) {
+  if (wallpaper.kind === "theme") return themeAssetUrl(wallpaper.packId, wallpaper.file);
+  if (wallpaper.kind === "image" || wallpaper.kind === "video") return wallpaperUrl(wallpaper.file);
+  return "";
+}
+
+/** Wait until the room's wallpaper already has pixels.
+    The wallpaper is part of the page, not an extra that may arrive one frame
+    after the app. Resolving before `app-ready` keeps the window's first visible
+    frame from being just the theme paper. A missing or very slow file resolves
+    on a short timer instead of holding startup open. */
+function waitForWallpaperFrame(timeout = 600) {
+  const wallpaper = activeWallpaper();
+  if (!wallpaper.key || wallpaper.kind === "art") return Promise.resolve();
+  const layer = $("#wallpaper-layer");
+  const media = layer?.firstElementChild;
+  const settled = new Promise((resolve) => {
+    if (!media) { resolve(); return; }
+    if (media.tagName === "IMG") {
+      const decode = () => {
+        try {
+          const pending = media.decode?.();
+          if (pending && typeof pending.then === "function") pending.then(() => resolve(), () => resolve());
+          else resolve();
+        } catch (error) {
+          resolve();
+        }
+      };
+      if (media.complete && media.naturalWidth) decode();
+      else {
+        media.addEventListener("load", decode, { once: true });
+        media.addEventListener("error", () => resolve(), { once: true });
+      }
+      return;
+    }
+    if (media.readyState >= 2) { resolve(); return; }
+    media.addEventListener("loadeddata", () => resolve(), { once: true });
+    media.addEventListener("canplay", () => resolve(), { once: true });
+    media.addEventListener("error", () => resolve(), { once: true });
+  });
+  return Promise.race([
+    settled,
+    new Promise((resolve) => setTimeout(resolve, Math.max(0, timeout))),
+  ]);
 }
 
 function wallpaperRenderKey() {
@@ -10754,7 +13726,7 @@ function wallpaperMediaMarkup(extraClass = "", { autoplay = true } = {}) {
   const wallpaper = activeWallpaper();
   if (!wallpaper.key) return "";
   if (wallpaper.kind === "art") {
-    const theme = THEMES[wallpaper.artId] || THEMES.violet;
+    const theme = THEMES[wallpaper.artId] || THEMES.light;
     return `<div class="wallpaper-media wallpaper-art ${extraClass}">${theme.art(theme)}</div>`;
   }
   const src = esc(wallpaper.kind === "theme"
@@ -10766,13 +13738,680 @@ function wallpaperMediaMarkup(extraClass = "", { autoplay = true } = {}) {
   return `<video class="wallpaper-media ${extraClass}" src="${src}" muted loop playsinline preload="auto"${autoplay ? " autoplay" : ""}></video>`;
 }
 
+/** The file name of a picked wallpaper, without its folder path. */
+function wallpaperFileName(path) {
+  const parts = String(path || "").split(/[\\/]/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "";
+}
+
 function wallpaperDisplayName(wallpaper = activeWallpaper()) {
-  if (wallpaper.kind === "art") return `Static · ${postcardName(wallpaper.artId)}`;
+  if (wallpaper.kind === "art") return `Postcard · ${postcardName(wallpaper.artId)}`;
   if (wallpaper.kind === "theme") return `Theme · ${themePacks.find((item) => item.id === wallpaper.packId)?.name || wallpaper.packId}`;
-  if (wallpaper.kind === "image") return `Static · ${wallpaper.file}`;
-  if (wallpaper.kind === "video") return `Dynamic · ${wallpaper.file}`;
-  if (settings.wallpaper_mode === "dynamic") return "Choose a film";
+  if (wallpaper.kind === "image") return wallpaperFileName(wallpaper.file) || wallpaper.file;
+  if (wallpaper.kind === "video") return `${wallpaperFileName(wallpaper.file) || wallpaper.file} · film`;
   return "No wallpaper";
+}
+
+/* ---------------------------------------------------------------------------
+   PRE-RENDERED STATIC WALLPAPERS
+   ---------------------------------------------------------------------------
+   A card pane is a window into the room, so it needs the wallpaper at window
+   size. Rasterising the postcard art SVG (or decoding a large photo) inside the
+   card makes the card visibly paint itself every time it slides out. Static
+   wallpapers are therefore rendered once into a cached picture: the cards only
+   ever mount an already-decoded image. Films cannot be pre-rendered, so they
+   keep the live pane — the card shows the same frame as the room behind it.
+   ------------------------------------------------------------------------- */
+
+const WALLPAPER_BITMAP_WIDTH = 1800;
+const WALLPAPER_BITMAP_HEIGHT = 540;
+// A photo is only copied when it is bigger than this: a picture that already
+// fits needs no second decode, and an animated GIF must stay animated.
+const WALLPAPER_BITMAP_MAX_EDGE = 1920;
+
+/** Paint a loaded picture through a canvas and settle with a reusable URL. */
+function bitmapUrlFromImage(image, width, height, fallback = "") {
+  return new Promise((resolve) => {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width));
+      canvas.height = Math.max(1, Math.round(height));
+      const context = canvas.getContext("2d");
+      if (!context) { resolve(fallback); return; }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : fallback), "image/jpeg", 0.92);
+    } catch (error) {
+      resolve(fallback);
+    }
+  });
+}
+
+/* An SVG that is loaded through <img> is parsed as a standalone document, so
+   it needs its own namespace. The inline art in the page does not carry one
+   (HTML supplies it), which is why every canvas copy silently failed. */
+function svgDataUrl(svg) {
+  const markup = /<svg[^>]*\sxmlns\s*=/.test(svg)
+    ? svg
+    : String(svg).replace(/<svg\b/, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+}
+
+function rasterizeSvgToBitmapUrl(svg, width, height) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => bitmapUrlFromImage(image, width, height).then(resolve);
+    image.onerror = () => resolve("");
+    image.src = svgDataUrl(svg);
+  });
+}
+
+/** Downscale a large picture once so a card never paints the original file. */
+function rasterizePictureToBitmapUrl(src) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      const width = image.naturalWidth || 0;
+      const height = image.naturalHeight || 0;
+      const edge = Math.max(width, height);
+      // Small pictures are already cheap, and keeping their own URL means no
+      // extra copy is kept alive next to the room's picture.
+      if (!edge || edge <= WALLPAPER_BITMAP_MAX_EDGE) { resolve(src); return; }
+      const scale = WALLPAPER_BITMAP_MAX_EDGE / edge;
+      bitmapUrlFromImage(image, width * scale, height * scale, src).then(resolve);
+    };
+    // A missing or unreadable file is not cached: the room's own media then
+    // owns the fallback and can drop the choice.
+    image.onerror = () => resolve("");
+    image.src = src;
+  });
+}
+
+/** Keep the last few rendered wallpapers, so a quick switch stays instant. */
+const WALLPAPER_BITMAP_KEEP = 3;
+
+function pruneWallpaperBitmaps(currentKey) {
+  if (wallpaperBitmapCache.size <= WALLPAPER_BITMAP_KEEP) return;
+  const stale = [...wallpaperBitmapCache.keys()].filter((key) => key !== currentKey);
+  while (wallpaperBitmapCache.size > WALLPAPER_BITMAP_KEEP && stale.length) {
+    const key = stale.shift();
+    const record = wallpaperBitmapCache.get(key);
+    wallpaperBitmapCache.delete(key);
+    if (record?.url && record.url.startsWith("blob:")) {
+      try { URL.revokeObjectURL(record.url); } catch (error) {}
+    }
+  }
+}
+
+/** Render (once) or decode (once) the current static wallpaper. */
+function primeWallpaperBitmap(wallpaper = activeWallpaper()) {
+  if (!wallpaper.key) return null;
+  const cached = wallpaperBitmapCache.get(wallpaper.key);
+  if (cached) return cached;
+  const record = { url: "", ready: false };
+  wallpaperBitmapCache.set(wallpaper.key, record);
+  const settle = (url) => {
+    if (!url) {
+      wallpaperBitmapCache.delete(wallpaper.key);
+      return;
+    }
+    record.url = url;
+    record.ready = true;
+    refreshCardWallpaperPanes();
+    // The bitmap is what the sub-cards are cut from; bake them now, while no
+    // card is waiting on them.
+    schedulePrimeSubcardPapers(0);
+  };
+  if (wallpaper.kind === "art") {
+    const theme = THEMES[wallpaper.artId] || THEMES.light;
+    rasterizeSvgToBitmapUrl(theme.art(theme), WALLPAPER_BITMAP_WIDTH, WALLPAPER_BITMAP_HEIGHT)
+      .then(settle)
+      .catch(() => settle(""));
+    return record;
+  }
+  const src = wallpaperSourceUrl(wallpaper);
+  if (!src) return record;
+  // A film is baked from its middle frame, so its sub-cards are stills made out
+  // of the same picture — they simply do not move inside the card.
+  if (wallpaper.moving) {
+    rasterizeVideoFrameToBitmapUrl(src)
+      .then(settle)
+      .catch(() => settle(""));
+    return record;
+  }
+  // An animated GIF is the one picture that must keep its own file: copying it
+  // into a canvas would freeze the motion the reader chose.
+  if (/\.gif$/i.test(wallpaper.file || "")) {
+    settle(src);
+    return record;
+  }
+  rasterizePictureToBitmapUrl(src)
+    .then(settle)
+    .catch(() => settle(src));
+  return record;
+}
+
+/** Capture the middle frame of a film once, for every sub-card to be cut from. */
+function rasterizeVideoFrameToBitmapUrl(src) {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    let settled = false;
+    const finish = (url) => {
+      if (settled) return;
+      settled = true;
+      try {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      } catch (error) {}
+      resolve(url);
+    };
+    const capture = () => {
+      try {
+        const width = video.videoWidth || 0;
+        const height = video.videoHeight || 0;
+        if (!width || !height) { finish(""); return; }
+        const edge = Math.max(width, height);
+        const scale = edge > WALLPAPER_BITMAP_MAX_EDGE ? WALLPAPER_BITMAP_MAX_EDGE / edge : 1;
+        bitmapUrlFromImage(video, width * scale, height * scale, "")
+          .then((url) => finish(url))
+          .catch(() => finish(""));
+      } catch (error) {
+        finish("");
+      }
+    };
+    video.addEventListener("loadedmetadata", () => {
+      const duration = Number(video.duration);
+      const middle = Number.isFinite(duration) && duration > 0.2 ? duration / 2 : 0;
+      try {
+        video.currentTime = Math.min(middle, Math.max(0, (Number.isFinite(duration) ? duration : 0) - 0.05));
+      } catch (error) {}
+    }, { once: true });
+    video.addEventListener("seeked", capture, { once: true });
+    video.addEventListener("loadeddata", () => {
+      // A browser that refuses the seek still gets a frame instead of nothing.
+      setTimeout(() => { if (!settled) capture(); }, 900);
+    }, { once: true });
+    video.addEventListener("error", () => finish(""), { once: true });
+    video.src = src;
+  });
+}
+
+/* ---------------------------------------------------------------------------
+   SUB-CARDS
+   ---------------------------------------------------------------------------
+   Any surface marked `data-subcard="<name>"` is a sub-card: it is made out of
+   the wallpaper, never out of paper. The marker is the whole contract — a new
+   panel only has to carry the attribute to inherit this treatment.
+
+   A still wallpaper is baked ONCE into a card-sized picture taken from the
+   pixels of the wallpaper *where the card will sit when it is open* — not from
+   a global copy of the whole wallpaper. The card and its box are both known
+   while the card is still closed, so the picture is rendered ahead of time and
+   becomes part of the card; opening it only reveals an image that already
+   exists.
+
+   A film is baked from its paused middle frame, so its sub-cards are stills of
+   the very same scene. Until that frame exists, an open card may fall back to
+   the live window copy; the always-visible sub-cards never hold a second
+   <video>.
+   ------------------------------------------------------------------------- */
+
+/* Two kinds of surface borrow the wallpaper pane:
+     - `data-subcard`      a card made of the wallpaper (pane + card stroke),
+     - `data-wallpaper-surface`  a surface that only wants the wallpaper as its
+       background (the top hidden box): same baked picture, no card identity. */
+const SUBCARD_SELECTOR = "[data-subcard], [data-wallpaper-surface]";
+const SUBCARD_PANE_CLASS = "card-wallpaper";
+const SUBCARD_PAPER_KEEP = 24;
+const subcardPaperCache = new Map();
+const subcardPaperPending = new Set();
+let subcardPaperTimer = 0;
+let cardWallpaperFrame = 0;
+let cardWallpaperDeadline = 0;
+let cardWallpaperClock = 0;
+let cardWallpaperResizeBound = false;
+
+function subcardHosts() {
+  return [...document.querySelectorAll(SUBCARD_SELECTOR)];
+}
+
+function subcardName(host) {
+  return host?.dataset?.subcard || host?.dataset?.wallpaperSurface || host?.id || "card";
+}
+
+/** A host that carries either marker may own a wallpaper pane. */
+function wallpaperSurfaceHost(host) {
+  return Boolean(host?.dataset?.subcard || host?.dataset?.wallpaperSurface);
+}
+
+/* The two sheets that float over the room. With a film they keep a still card
+   (its middle frame); the categories spine and the top box are the room itself,
+   so a film stays live behind them instead of freezing those areas. */
+const SUBCARD_FLOATING = new Set(["doing", "completed"]);
+
+function subcardIsFloating(host) {
+  return SUBCARD_FLOATING.has(subcardName(host));
+}
+
+function cardIsLive(host) {
+  return Boolean(host?.classList.contains("open"));
+}
+
+/** The box a sub-card occupies once it is open.
+    A closed sheet only changes transform/opacity, so inverting its transform
+    gives the expanded box straight away — no waiting for the slide, and no
+    style write that a `!important` rule could ignore. */
+function subcardBox(host) {
+  if (!host) return null;
+  const rect = host.getBoundingClientRect();
+  const computed = getComputedStyle(host);
+  const transform = computed.transform;
+  if (!transform || transform === "none") return rect;
+  const match = /^matrix\(([^)]+)\)$/.exec(transform);
+  if (!match) return rect;
+  const [a, b, c, d, e, f] = match[1].split(",").map((value) => Number(value));
+  // Rotation or skew needs the full box; the sheets here only translate/scale.
+  if (!a || !d || b || c) return rect;
+  const width = rect.width / Math.abs(a);
+  const height = rect.height / Math.abs(d);
+  const origin = String(computed.transformOrigin || "50% 50%").split(" ").map(parseFloat);
+  const originX = Number.isFinite(origin[0]) ? origin[0] : width / 2;
+  const originY = Number.isFinite(origin[1]) ? origin[1] : height / 2;
+  const left = rect.left - originX * (1 - a) - e;
+  const top = rect.top - originY * (1 - d) - f;
+  return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top };
+}
+
+function subcardViewport() {
+  return {
+    width: Math.max(1, window.innerWidth),
+    height: Math.max(1, window.innerHeight),
+    dpr: Math.min(2, window.devicePixelRatio || 1),
+  };
+}
+
+function subcardPaperKey(host, wallpaper, box) {
+  const view = subcardViewport();
+  const round = (value) => Math.round(value);
+  return [
+    wallpaper.key,
+    subcardName(host),
+    view.width, view.height, view.dpr,
+    round(box.left), round(box.top), round(box.width), round(box.height),
+  ].join("|");
+}
+
+/** The wallpaper pixels under a viewport box (the room uses object-fit: cover). */
+function subcardCropSource(image, box) {
+  const view = subcardViewport();
+  const imageWidth = image.naturalWidth || view.width;
+  const imageHeight = image.naturalHeight || view.height;
+  const scale = Math.max(view.width / imageWidth, view.height / imageHeight);
+  const offsetX = (view.width - imageWidth * scale) / 2;
+  const offsetY = (view.height - imageHeight * scale) / 2;
+  return {
+    x: (box.left - offsetX) / scale,
+    y: (box.top - offsetY) / scale,
+    width: Math.max(1, box.width / scale),
+    height: Math.max(1, box.height / scale),
+  };
+}
+
+function pruneSubcardPapers() {
+  while (subcardPaperCache.size > SUBCARD_PAPER_KEEP) {
+    const oldest = subcardPaperCache.keys().next();
+    if (oldest.done) return;
+    const record = subcardPaperCache.get(oldest.value);
+    subcardPaperCache.delete(oldest.value);
+    if (record?.url && record.url.startsWith("blob:")) {
+      try { URL.revokeObjectURL(record.url); } catch (error) {}
+    }
+  }
+}
+
+/** Bake one card-sized picture from the wallpaper at the card's open box. */
+function bakeSubcardPaper(host, wallpaper, box) {
+  const key = subcardPaperKey(host, wallpaper, box);
+  if (subcardPaperCache.has(key) || subcardPaperPending.has(key)) return;
+  const bitmap = wallpaperBitmapCache.get(wallpaper.key);
+  if (!bitmap?.ready || !bitmap.url) return;
+  subcardPaperPending.add(key);
+  const finish = (url) => {
+    subcardPaperPending.delete(key);
+    if (!url) return;
+    subcardPaperCache.set(key, {
+      url,
+      wallpaper: wallpaper.key,
+      name: subcardName(host),
+      box: { left: box.left, top: box.top, width: box.width, height: box.height },
+    });
+    pruneSubcardPapers();
+    refreshCardWallpaperPanes();
+  };
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => {
+    try {
+      const source = subcardCropSource(image, box);
+      const view = subcardViewport();
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(box.width * view.dpr));
+      canvas.height = Math.max(1, Math.round(box.height * view.dpr));
+      const context = canvas.getContext("2d");
+      if (!context) { finish(""); return; }
+      context.drawImage(
+        image,
+        source.x, source.y, source.width, source.height,
+        0, 0, canvas.width, canvas.height,
+      );
+      canvas.toBlob((blob) => finish(blob ? URL.createObjectURL(blob) : ""), "image/jpeg", 0.94);
+    } catch (error) {
+      finish("");
+    }
+  };
+  image.onerror = () => finish("");
+  image.src = bitmap.url;
+}
+
+/** Bake every marked sub-card for the current still wallpaper. */
+function primeSubcardPapers() {
+  // A finished row is flying into the tray: baking card pictures is canvas
+  // work, and it must not take the animation's frames. It runs right after
+  // the landing instead.
+  const flightLeft = completionFlightUntil - performance.now();
+  if (flightLeft > 0) {
+    schedulePrimeSubcardPapers(flightLeft + 40);
+    return;
+  }
+  const wallpaper = activeWallpaper();
+  if (!wallpaper.key) return;
+  // A film is baked from its middle frame, so it goes through the same path.
+  if (!wallpaperBitmapCache.get(wallpaper.key)?.ready) return;
+  subcardHosts().forEach((host) => {
+    const box = subcardBox(host);
+    if (!box || box.width < 8 || box.height < 8) return;
+    bakeSubcardPaper(host, wallpaper, box);
+  });
+}
+
+function schedulePrimeSubcardPapers(delay = 32) {
+  if (subcardPaperTimer) return;
+  subcardPaperTimer = setTimeout(() => {
+    subcardPaperTimer = 0;
+    primeSubcardPapers();
+  }, delay);
+}
+
+function subcardPaperFor(host, wallpaper, box) {
+  if (!box) return null;
+  return subcardPaperCache.get(subcardPaperKey(host, wallpaper, box)) || null;
+}
+
+/** What a pane should render: the baked card picture, or the live window. */
+function subcardPaneFor(host, wallpaper) {
+  const patch = subcardPaperFor(host, wallpaper, subcardBox(host));
+  if (patch) return { fit: "patch", url: patch.url };
+  return { fit: "window", url: "" };
+}
+
+function subcardPaneMarkup(pane) {
+  if (pane.fit === "patch") {
+    return `<img class="wallpaper-media" src="${esc(pane.url)}" alt="" draggable="false">`;
+  }
+  return wallpaperMediaMarkup("", { autoplay: false });
+}
+
+function subcardPaneStamp(host, wallpaper, pane) {
+  return `${subcardName(host)}|${wallpaper.key}|${pane.fit}|${pane.url}`;
+}
+
+function mountCardWallpaper(host) {
+  const wallpaper = activeWallpaper();
+  if (!wallpaper.key) {
+    host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`)?.remove();
+    return;
+  }
+  const pane = subcardPaneFor(host, wallpaper);
+  const stamp = subcardPaneStamp(host, wallpaper, pane);
+  let layer = host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`);
+  if (layer && layer.dataset.paneStamp === stamp) return;
+  if (layer) layer.remove();
+  layer = document.createElement("div");
+  layer.className = SUBCARD_PANE_CLASS;
+  layer.dataset.subcardPane = "1";
+  layer.dataset.wallpaperKey = wallpaper.key;
+  layer.dataset.wallpaperBitmap = pane.url;
+  layer.dataset.paneStamp = stamp;
+  layer.dataset.moving = wallpaper.moving ? "1" : "0";
+  layer.dataset.fit = pane.fit;
+  layer.setAttribute("aria-hidden", "true");
+  layer.innerHTML = subcardPaneMarkup(pane);
+  const media = layer.firstElementChild;
+  if (media?.tagName === "VIDEO") {
+    media.muted = true;
+    media.loop = true;
+    media.preload = "auto";
+    media.setAttribute("playsinline", "");
+    media.addEventListener("loadeddata", () => placeCardWallpaper(layer), { once: true });
+  }
+  host.insertBefore(layer, host.firstChild);
+  placeCardWallpaper(layer);
+}
+
+function ensureCardWallpapers() {
+  const wallpaper = activeWallpaper();
+  if (!wallpaper.key) {
+    document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach((layer) => layer.remove());
+    return;
+  }
+  // A host can lose its marker (a surface that goes back to its own paper);
+  // its wallpaper pane must go with it.
+  document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach((layer) => {
+    if (!wallpaperSurfaceHost(layer.parentElement)) layer.remove();
+  });
+  subcardHosts().forEach((host) => {
+    // A baked picture is the card's own surface before it ever slides out.
+    // With a film, only the floating cards take a still: the categories spine
+    // and the top box must keep the room's motion behind them, and must never
+    // hold an extra <video> either.
+    if (wallpaper.moving && !subcardIsFloating(host)) return;
+    const box = subcardBox(host);
+    const baked = Boolean(subcardPaperFor(host, wallpaper, box));
+    if (!baked && wallpaper.moving && !cardIsLive(host)) return;
+    mountCardWallpaper(host);
+  });
+}
+
+/* A still card is made of the wallpaper itself: the pre-rendered picture covers
+   the card's box, so there is no room offset to track. A film card is a window
+   onto the room, so its viewport-sized copy is shifted by the card's own
+   top-left corner to line the two pictures up exactly. */
+/* A baked sub-card needs no room offset: its picture is already the card. A
+   live window copy (film) is viewport-sized and shifted by the card's box. */
+function placeCardWallpaper(layer) {
+  if (layer.dataset.fit !== "window") {
+    layer.dataset.placed = "1";
+    return true;
+  }
+  const moving = layer.dataset.moving === "1";
+  const box = moving ? layer.getBoundingClientRect() : subcardBox(layer.parentElement);
+  if (!box || box.width < 2 || box.height < 2) {
+    layer.removeAttribute("data-placed");
+    return false;
+  }
+  layer.style.setProperty("--card-wallpaper-x", `${-box.left.toFixed(2)}px`);
+  layer.style.setProperty("--card-wallpaper-y", `${-box.top.toFixed(2)}px`);
+  // The pane stays invisible until it sits on the right crop, so a freshly
+  // mounted card never flashes the film at the wrong offset.
+  layer.dataset.placed = "1";
+  return true;
+}
+
+function placeCardWallpapers() {
+  document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach(placeCardWallpaper);
+}
+
+/* Swap a pane that is still showing the live window for the baked card picture
+   the moment it exists. The card never has to render anything itself. */
+function refreshCardWallpaperPanes() {
+  const wallpaper = activeWallpaper();
+  if (!wallpaper.key) return;
+  document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach((layer) => {
+    const host = layer.parentElement;
+    if (!wallpaperSurfaceHost(host)) return;
+    if (layer.dataset.wallpaperKey !== wallpaper.key) return;
+    const pane = subcardPaneFor(host, wallpaper);
+    const stamp = subcardPaneStamp(host, wallpaper, pane);
+    if (layer.dataset.paneStamp === stamp) return;
+    layer.dataset.paneStamp = stamp;
+    layer.dataset.wallpaperBitmap = pane.url;
+    layer.dataset.fit = pane.fit;
+    layer.innerHTML = subcardPaneMarkup(pane);
+    placeCardWallpaper(layer);
+  });
+  // A film only mounts its always-visible sub-cards once the middle frame has
+  // been baked, so newly available pictures are mounted here too.
+  ensureCardWallpapers();
+}
+
+/* A film keeps playing inside an open card, and the card's copy is nudged back
+   onto the room's clock whenever the two drift apart, so the pane never shows
+   a different moment than the picture around it. */
+function syncCardWallpaperPlayback() {
+  const room = $("#wallpaper-layer video");
+  document.querySelectorAll(`.${SUBCARD_PANE_CLASS} video`).forEach((video) => {
+    const host = video.closest(SUBCARD_SELECTOR);
+    if (!host || !cardIsLive(host) || !room) {
+      if (!video.paused) video.pause();
+      return;
+    }
+    if (room.playbackRate && video.playbackRate !== room.playbackRate) {
+      video.playbackRate = room.playbackRate;
+    }
+    if (room.readyState >= 1 && Math.abs(video.currentTime - room.currentTime) > 0.35) {
+      try { video.currentTime = room.currentTime; } catch (error) {}
+    }
+    if (!room.paused && video.paused) video.play().catch(() => {});
+    if (room.paused && !video.paused) video.pause();
+  });
+}
+
+/* Only a film needs per-frame alignment while its card slides; a still card is
+   baked ahead of time, so the loop is skipped entirely for it. */
+function cardWallpaperLoop() {
+  cardWallpaperFrame = 0;
+  placeCardWallpapers();
+  if (performance.now() < cardWallpaperDeadline) {
+    cardWallpaperFrame = requestAnimationFrame(cardWallpaperLoop);
+  }
+}
+
+function settleCardWallpapers(duration = 440) {
+  placeCardWallpapers();
+  // Only a live window copy (a film whose middle frame is not ready yet) needs
+  // per-frame alignment; baked card pictures are already the card itself.
+  if (!document.querySelector(`.${SUBCARD_PANE_CLASS}[data-fit="window"]`)) return;
+  cardWallpaperDeadline = performance.now() + duration;
+  if (!cardWallpaperFrame) cardWallpaperFrame = requestAnimationFrame(cardWallpaperLoop);
+}
+
+/* A card's own pane, kept in step without walking every card on the page. The
+   Doing card opens and expands on the same border as the finished-subtasks
+   card; rebuilding or re-aligning the other card's pane on every Doing update
+   was what made the finished card look shoved aside. */
+function syncCardWallpaper(host, { bakedOnly = false } = {}) {
+  if (!host) return;
+  const wallpaper = activeWallpaper();
+  if (!wallpaper.key) {
+    host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`)?.remove();
+    return;
+  }
+  const box = subcardBox(host);
+  const baked = Boolean(subcardPaperFor(host, wallpaper, box));
+  // During a completion flight a film card must not mount a second <video>:
+  // the baked still is enough until the row lands.
+  if (bakedOnly && !baked) {
+    host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`)?.remove();
+    return;
+  }
+  if (!baked && wallpaper.moving && !cardIsLive(host)) return;
+  mountCardWallpaper(host);
+  host.querySelectorAll(`:scope > .${SUBCARD_PANE_CLASS}`).forEach(placeCardWallpaper);
+  // A scoped pane can be the only live card: keep its film on the room's clock
+  // exactly as the page-wide pass used to.
+  syncCardWallpaperPlayback();
+  ensureCardWallpaperClock();
+}
+
+let cardWallpaperHostFrame = 0;
+let cardWallpaperHostDeadline = 0;
+const cardWallpaperHosts = new Set();
+
+/* The same slide alignment as cardWallpaperLoop, scoped to the cards that are
+   actually moving (the Doing drawer). The finished card keeps its own pane and
+   its own alignment while the drawer slides out beside it. */
+function cardWallpaperHostLoop() {
+  cardWallpaperHostFrame = 0;
+  cardWallpaperHosts.forEach((host) => {
+    if (!host.isConnected) {
+      cardWallpaperHosts.delete(host);
+      return;
+    }
+    host.querySelectorAll(`:scope > .${SUBCARD_PANE_CLASS}`).forEach(placeCardWallpaper);
+  });
+  if (performance.now() < cardWallpaperHostDeadline && cardWallpaperHosts.size) {
+    cardWallpaperHostFrame = requestAnimationFrame(cardWallpaperHostLoop);
+  } else {
+    cardWallpaperHosts.clear();
+    cardWallpaperHostDeadline = 0;
+  }
+}
+
+function settleCardWallpaper(host, duration = 440) {
+  if (!host) return;
+  const panes = [...host.querySelectorAll(`:scope > .${SUBCARD_PANE_CLASS}`)];
+  panes.forEach(placeCardWallpaper);
+  if (!panes.some((layer) => layer.dataset.fit === "window")) return;
+  cardWallpaperHosts.add(host);
+  cardWallpaperHostDeadline = Math.max(cardWallpaperHostDeadline, performance.now() + duration);
+  if (!cardWallpaperHostFrame) cardWallpaperHostFrame = requestAnimationFrame(cardWallpaperHostLoop);
+}
+
+/* A film is re-checked about twice a second, and only while a card is open. */
+function ensureCardWallpaperClock() {
+  const live = subcardHosts().some((host) => cardIsLive(host) && host.querySelector(`.${SUBCARD_PANE_CLASS} video`));
+  if (live && !cardWallpaperClock) {
+    cardWallpaperClock = setInterval(syncCardWallpaperPlayback, 500);
+  } else if (!live && cardWallpaperClock) {
+    clearInterval(cardWallpaperClock);
+    cardWallpaperClock = 0;
+  }
+}
+
+function bindCardWallpaperResize() {
+  if (cardWallpaperResizeBound) return;
+  cardWallpaperResizeBound = true;
+  window.addEventListener("resize", () => {
+    placeCardWallpapers();
+    // The baked picture is taken from a viewport-mapped crop, so a resize
+    // invalidates it; rebake while the cards are still closed.
+    schedulePrimeSubcardPapers(0);
+  }, { passive: true });
+}
+
+/** Mount, place, bake and (for a film) start the pane on every sub-card. */
+function syncCardWallpapers() {
+  bindCardWallpaperResize();
+  schedulePrimeSubcardPapers();
+  ensureCardWallpapers();
+  placeCardWallpapers();
+  syncCardWallpaperPlayback();
+  ensureCardWallpaperClock();
 }
 
 function sampleWallpaperTint(media, key) {
@@ -10796,7 +14435,7 @@ function sampleWallpaperTint(media, key) {
     const toHex = (value) => Math.round(value / weight).toString(16).padStart(2, "0");
     wallpaperTintCache.set(key, `#${toHex(red)}${toHex(green)}${toHex(blue)}`);
     if (wallpaperRenderKey() === key) {
-      applyDoingPalette(THEMES[currentPostcardId()] || THEMES.violet);
+      applyDoingPalette(THEMES[currentPostcardId()] || THEMES.light);
     }
   } catch (error) {}
 }
@@ -10806,16 +14445,12 @@ function bindWallpaperMedia(media, key) {
   const sample = () => sampleWallpaperTint(media, key);
   media.addEventListener("error", () => {
     if (wallpaperRenderKey() !== key) return;
-    if (key.startsWith("dynamic:")) {
-      settings.wallpaper_dynamic = "";
-      settings.wallpaper_mode = settings.wallpaper_static ? "static" : "none";
-    } else {
-      settings.wallpaper_static = `art:${currentPostcardId()}`;
-      settings.wallpaper_mode = "static";
-    }
+    // The file was moved or deleted. Drop the choice and let the postcard
+    // paper show through instead of silently using a different picture.
+    settings.wallpaper = "";
     saveSettings();
     applySettings();
-    if (settingsTab === "pictures") renderSettings();
+    if (settingsTab === "theme") renderSettings();
     toast("That wallpaper could not be opened", true);
   }, { once: true });
   if (media.tagName === "IMG") {
@@ -10834,7 +14469,16 @@ function applyWallpaper() {
   const root = document.documentElement;
   const wallpaper = activeWallpaper();
   const layer = $("#wallpaper-layer");
-  root.dataset.wallpaper = wallpaper.key ? wallpaper.mode : "none";
+  // One wallpaper switch now covers pictures and films alike, so CSS asks
+  // "is a wallpaper on?" instead of naming a static or dynamic mode. The one
+  // thing a surface may still need to know is whether the room moves: a still
+  // wallpaper can be tinted like the right-hand card, while a film needs a
+  // reading mask instead. That is published next to the switch, so the Head
+  // Bar can pick the same recipe the cards use without asking the backend.
+  if (wallpaper.key) root.setAttribute("data-wallpaper", "on");
+  else root.removeAttribute("data-wallpaper");
+  if (wallpaper.key) root.setAttribute("data-wallpaper-motion", wallpaper.moving ? "film" : "still");
+  else root.removeAttribute("data-wallpaper-motion");
   if (!layer) return;
   if (!wallpaperVisibilityBound) {
     wallpaperVisibilityBound = true;
@@ -10854,11 +14498,22 @@ function applyWallpaper() {
     if (media) bindWallpaperMedia(media, key);
     if (doingPeekOpen) updateDoingPeek(true);
   }
+  // The card panes only ever use the pre-rendered picture, so it is prepared
+  // here — before a card opens — rather than while the card slides out.
+  primeWallpaperBitmap(wallpaper);
+  // A new room means a new picture in every sub-card. The drawer keeps its
+  // markup until the next render, so the panes are mounted here instead.
+  document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach((pane) => {
+    if (pane.dataset.wallpaperKey !== key) pane.remove();
+  });
+  pruneWallpaperBitmaps(key);
+  schedulePrimeSubcardPapers(0);
+  syncCardWallpapers();
 }
 
 function applyDoingPalette(postcard) {
   const root = document.documentElement;
-  const theme = postcard || THEMES[currentPostcardId()] || THEMES.violet;
+  const theme = postcard || THEMES[currentPostcardId()] || THEMES.light;
   const wallpaper = activeWallpaper();
   const artTheme = wallpaper.kind === "art" ? THEMES[wallpaper.artId] : null;
   const tint = artTheme
@@ -10896,6 +14551,13 @@ function applySettings() {
   else noteBg = NOTE_BG_PRESETS[settings.note_background] || "";
   root.style.setProperty("--note-bg-image", noteBg ? `url("${noteBg}")` : "none");
   root.style.setProperty("--note-blur", `${settings.note_blur}px`);
+  // page_line owns every horizontal divider on the page: the header, the task
+  // rows and the empty desk share one grid and one colour. It reads
+  // page-line.json, never a postcard, note or AI palette.
+  applyPageLine();
+  // The row-rule file now only covers the finished-subtasks drawer; it still
+  // repaints immediately so a theme switch cannot leave a stale card hairline.
+  applyBaselineRowRule();
   applyStickerBackgrounds();
   root.dataset.font = settings.font;
   root.dataset.noteFont = settings.note_font;
@@ -10910,7 +14572,7 @@ function applySettings() {
   updateTopClock();
   const backdrop = $("#postcard-backdrop");
   {
-    const postcard = THEMES[currentPostcardId()] || THEMES.violet;
+    const postcard = THEMES[currentPostcardId()] || THEMES.light;
     root.dataset.postcard = currentPostcardId();
     root.dataset.postcardDark = postcardIsDark(currentPostcardId()) ? "true" : "false";
     const accent = readableAccent(postcard, postcard.accent);
@@ -10919,6 +14581,12 @@ function applySettings() {
     root.style.setProperty("--pc-accent-2", accent2);
     root.style.setProperty("--pc-accent-rgb", hexToRgb(accent));
     root.style.setProperty("--pc-accent2-rgb", hexToRgb(accent2));
+    // The add / complete actions read the theme's own submit colour. Packs that
+    // do not declare one fall back to the accent, which is the old behaviour.
+    root.style.setProperty(
+      "--submit-color",
+      normalizeBaselineColorInput(themeChromeFor(currentPostcardId()).submit || "") || accent
+    );
     root.style.setProperty("--pc-glow", postcard.glow || "rgba(184,140,255,.24)");
     root.style.setProperty("--pc-paper", postcard.paper);
     root.style.setProperty("--pc-paper-rgb", hexToRgb(postcard.paper));
@@ -10929,8 +14597,21 @@ function applySettings() {
     root.style.setProperty("--pc-muted", postcard.muted);
     root.style.setProperty("--pc-border", postcard.border || postcard.accent2);
     root.style.setProperty("--pc-stamp", postcard.stamp || postcard.accent);
-    root.style.setProperty("--pc-line", `rgba(${hexToRgb(postcard.ink)}, .16)`);
-    root.style.setProperty("--pc-rule", `rgba(${hexToRgb(postcard.ink)}, .13)`);
+    const lineAlpha = Number.isFinite(Number(postcard.lineAlpha))
+      ? Math.min(1, Math.max(0.05, Number(postcard.lineAlpha)))
+      : 0.42;
+    const ruleAlpha = Number.isFinite(Number(postcard.ruleAlpha))
+      ? Math.min(1, Math.max(0.03, Number(postcard.ruleAlpha)))
+      : 0.28;
+    root.style.setProperty("--pc-line", postcard.line
+      ? `rgba(${hexToRgb(postcard.line)}, ${lineAlpha})`
+      : `rgba(${hexToRgb(postcard.ink)}, .16)`);
+    root.style.setProperty("--pc-rule", postcard.rule
+      ? `rgba(${hexToRgb(postcard.rule)}, ${ruleAlpha})`
+      : `rgba(${hexToRgb(postcard.ink)}, .13)`);
+    // The notebook and the AI console carry their own theme, independent of
+    // the app paper. Their line colours ride along with those palettes.
+    applyPaneThemes();
     // The postcard scene is a wallpaper now; it no longer paints a second
     // copy behind the page as part of the theme.
     if (backdrop) {
@@ -10938,6 +14619,10 @@ function applySettings() {
       backdrop.innerHTML = "";
     }
   }
+  // The reader's own highlight wash: the theme accent by default, or their
+  // saved colour behind the active row, the focused menu entry and the chosen
+  // settings card.
+  applyHighlight();
   applyWallpaper();
   const achievement = $("#achievement-icon-use");
   if (achievement) achievement.setAttribute("href", "#headphone");
@@ -10946,13 +14631,32 @@ function applySettings() {
   updateArchiveIcon();
 }
 
-function openSettings(tab = "appearance") {
-  settingsTab = tab;
+function openSettings(tab = "theme") {
+  // Community is a separate window now: the nav item closes Settings and opens it.
+  if (tab === "community" || tab === "themes") {
+    openCommunity(tab === "community" ? communitySection : "themes");
+    return;
+  }
+  // Older links and shortcuts still say "appearance"; Theme is the tab now.
+  // Typography became Font and Pictures became Stickers.
+  settingsTab = tab === "appearance" ? "theme"
+    : tab === "typography" ? "font"
+    : tab === "pictures" ? "stickers"
+    : tab;
+  // One sheet at a time: opening Settings folds the Community window away.
+  closeCommunity();
   pluginDetailId = null;
   pluginPendingUninstallId = null;
-  themeModeTab = null;
-  themeFamiliesOpen = false;
-  themeFamilyOpen = false;
+  const activeId = currentPostcardId();
+  customThemesOpen = themeModeFor(activeId) === "custom";
+  themeManageOpen = false;
+  // The Theme row starts on the app palette every time the sheet opens; the
+  // menu itself switches it to the note or AI palette without leaving the row.
+  themeFieldMode = "app";
+  customThemeEditorOpen = false;
+  customThemeDraft = null;
+  customThemeBusy = false;
+  pendingCustomThemeDeleteId = null;
   fontPanelsOpen.body = false;
   fontPanelsOpen.note = false;
   AudioFX.paper();
@@ -10962,184 +14666,316 @@ function openSettings(tab = "appearance") {
     if (event.target === stage) closeSettings();
   });
   renderSettings();
-  loadWallpaperFiles();
+  if (settingsTab === "theme") {
+    // note-theme/ and ai-theme/ are plain folders: pick up any file the user
+    // dropped in while the settings sheet was closed.
+    loadThemePacks().then(() => { if (settingsTab === "theme") renderSettings(); });
+  }
+  if (settingsTab === "ai" && !aiConfig) loadAiConfig().then(() => { if (settingsTab === "ai") renderSettings(); });
 }
 
 function closeSettings() {
   flushSettingsSave();
+  // A quick instruction edit followed by Escape should still reach disk.
+  const instructions = document.querySelector("[data-ai-instructions]");
+  if (instructions && aiConfig && instructions.value !== aiConfig.custom_instructions) {
+    clearTimeout(aiInstructionsTimer);
+    aiSaveConfig({ custom_instructions: instructions.value }, { rerender: false });
+  }
   pluginDetailId = null;
   pluginPendingUninstallId = null;
   $("#modal-root").innerHTML = "";
 }
 
-function appearanceSettings() {
-  const lightIds = POSTCARD_IDS.filter((id) => !postcardIsDark(id));
-  const darkIds = POSTCARD_IDS.filter(postcardIsDark);
-  const currentId = currentPostcardId();
-  const currentTheme = THEMES[currentId] || THEMES.violet;
-  const currentMode = postcardIsDark(currentId) ? "Dark" : "Light";
-  const activeMode = themeModeTab === "dark" || themeModeTab === "light"
-    ? themeModeTab
-    : (postcardIsDark(currentId) ? "dark" : "light");
-  const modeIds = activeMode === "dark" ? darkIds : lightIds;
-  const modeName = (mode) => mode === "dark" ? "Dark" : "Light";
-  const cachedName = (mode) => postcardName(mode === "dark" ? settings.dark_postcard : settings.light_postcard);
-  const postcardCard = (id) => {
-    const theme = THEMES[id];
-    return `<button class="postcard-choice ${settings.postcard === id ? "active" : ""}" data-postcard-choice="${id}" type="button">
-      <span class="postcard-thumb">${theme.art(theme)}</span>
-      <span class="postcard-choice-name">${postcardName(id)}</span>
-      <span class="choice-check">✓</span>
-    </button>`;
-  };
-  const modeCard = (mode) => `<button class="theme-mode-card ${activeMode === mode ? "active" : ""}" type="button" data-theme-mode-tab="${mode}">
-    <svg class="theme-mode-ico theme-mode-ico-${mode === "dark" ? "moon" : "sun"}" aria-hidden="true"><use href="#theme-${mode === "dark" ? "moon" : "sun"}"></use></svg>
-    <span class="theme-mode-label">${modeName(mode)}</span>
-    <span class="theme-mode-cache">${esc(cachedName(mode))}</span>
+function paneThemeCardMarkup(choice, kind) {
+  const palette = choice.palette;
+  const isAi = kind === "ai";
+  const auto = isAi && choice.id === "auto";
+  const active = settings[isAi ? "ai_theme" : "note_theme"] === choice.id;
+  const paper = auto ? "#ffffff" : palette.paper || palette.bg;
+  const ink = auto ? "#7c7c83" : palette.ink;
+  const rule = auto
+    ? "linear-gradient(90deg, #d8d8dc 50%, #4a4b54 50%)"
+    : palette.rule || palette.line;
+  const dot = auto ? "#b4b4bb" : palette.accent;
+  const dot2 = auto ? "#4a4b54" : (isAi ? palette.notice : palette.accent2);
+  const swatchStyle = auto
+    ? `background:linear-gradient(90deg,#ffffff 50%,#202126 50%);color:#7c7c83`
+    : `background:${esc(paper)};color:${esc(ink)}`;
+  return `<button class="pane-theme-card ${active ? "active" : ""}" type="button" data-${isAi ? "ai" : "note"}-theme-choice="${esc(choice.id)}" aria-pressed="${active ? "true" : "false"}">
+    <span class="pane-theme-swatch" style="${swatchStyle}">
+      <span class="pane-theme-aa">Aa</span>
+      <span class="pane-theme-rule one" style="background:${rule}"></span>
+      <span class="pane-theme-rule two" style="background:${rule};opacity:.6"></span>
+      <span class="pane-theme-rule three" style="background:${rule};opacity:.35"></span>
+      <span class="pane-theme-dots"><i style="background:${dot}"></i><i style="background:${dot2}"></i></span>
+    </span>
+    <span class="pane-theme-copy"><strong>${esc(choice.name)}</strong><small>${esc(choice.english || "")}</small></span>
+    <span class="choice-check">✓</span>
   </button>`;
-  const styleGrid = `<div class="settings-section">
-      <div class="settings-label">Postcard style</div>
-      <div class="current-theme-row">
-        <span class="current-theme-thumb">${currentTheme.art(currentTheme)}</span>
-        <span class="current-theme-copy"><small>Current theme</small><strong>${postcardName(currentId)}</strong></span>
-        <span class="current-theme-mode">${currentMode}</span>
-      </div>
-      <div class="theme-mode-row">
-        ${modeCard("light")}
-        ${modeCard("dark")}
-      </div>
-      ${themeFamiliesOpen ? `<div class="theme-family-list">
-        <button class="theme-family-row" type="button" data-action="toggle-postcard-family" aria-expanded="${themeFamilyOpen ? "true" : "false"}">
-          <span class="theme-family-copy"><strong>Postcard</strong></span>
-          <svg class="theme-family-chevron ${themeFamilyOpen ? "open" : ""}" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        ${themeFamilyOpen ? `<div class="postcard-grid theme-family-grid">${modeIds.map(postcardCard).join("")}</div>` : ""}
-      </div>` : ""}
+}
+
+// Settings re-renders the whole theme view on every fold/tab change. Put
+// keyboard focus back on the control the reader just used instead of letting
+// it fall to <body>; preventScroll keeps the sheet where it was.
+function restoreThemeFocus(selector) {
+  requestAnimationFrame(() => {
+    const node = document.querySelector(selector);
+    if (node && !node.disabled) node.focus({ preventScroll: true });
+  });
+}
+
+function themeSettings() {
+  const currentId = currentPostcardId();
+  const currentTheme = THEMES[currentId] || THEMES.light;
+  const rowRule = baselineRowRule();
+  const userThemeIds = themePacks.map((pack) => pack.id).filter((id) => THEMES[id]);
+  // One flat shelf: the two bases, the built-in palettes and every installed
+  // pack. The reader only needs the theme name to switch — no thumbnails.
+  const installedIds = [...new Set([
+    BASE_LIGHT_THEME,
+    BASE_DARK_THEME,
+    ...POSTCARD_IDS.filter((id) => THEMES[id]),
+    ...userThemeIds,
+  ])];
+  const installedMenuItem = (id) => {
+    const theme = THEMES[id];
+    if (!theme) return "";
+    const active = currentId === id;
+    const pack = themePacks.find((item) => item.id === id);
+    const customFile = Boolean(pack) && Array.isArray(pack.tags) && pack.tags.includes("custom");
+    const name = pack?.name || postcardName(id);
+    return `<div class="theme-menu-row ${active ? "active" : ""}">
+      <button class="theme-menu-item" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-postcard-choice="${esc(id)}">
+        <span class="theme-menu-name">${esc(name)}</span>
+        <span class="choice-check" aria-hidden="true">✓</span>
+      </button>
+      ${customFile ? `<button class="theme-menu-remove" type="button" data-action="remove-theme-pack" data-theme-id="${esc(id)}" aria-label="Delete ${esc(name)}">×</button>` : ""}
     </div>`;
-  return `<div class="settings-head"><h2>Appearance</h2><p>Choose the paper NeoTodo lives on.</p></div>
-    ${styleGrid}
-    <p class="wallpaper-hint appearance-wallpaper-hint">This theme sets the colours, cards and ink. The background pattern is a separate wallpaper — choose postcard art, a picture or an MP4 in <strong>Pictures</strong>.</p>
-    <div class="settings-section">
-      <div class="settings-label">Note material <span>surface</span></div>
-      <div class="note-material-picker">
-        <button class="note-material-current" type="button" data-action="toggle-note-material-menu" aria-expanded="${noteMaterialMenuOpen ? "true" : "false"}">
-          <span>${esc(materialDisplayName(settings.note_material_file || materialFileForId(settings.note_material)))}</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        ${noteMaterialMenuOpen ? `<div class="note-material-menu" role="listbox" aria-label="Note material">
-          ${(noteMaterialFiles.length ? noteMaterialFiles : ["paper.css", "glass.css"]).map((file) => {
-            const active = (settings.note_material_file || materialFileForId(settings.note_material)) === file;
-            return `<button class="note-material-option ${active ? "active" : ""}" type="button" data-note-material-file="${esc(file)}" role="option" aria-selected="${active ? "true" : "false"}"><span class="note-material-check">${active ? "✓" : ""}</span><span>${esc(materialDisplayName(file))}</span></button>`;
-          }).join("")}
-        </div>` : ""}
-      </div>
-      <button class="btn small note-materials-open" type="button" data-action="open-note-materials-folder">Open note materials folder</button>
-      ${settings.note_material === "blur" ? `<div class="note-bg-section">
-        <div class="note-bg-head">
-          <span class="note-bg-title">Choose</span>
-          <button class="btn small" type="button" data-action="choose-note-bg-custom">Custom</button>
-        </div>
-        <div class="note-bg-grid">
-          <button class="note-bg-choice ${settings.note_background === "" ? "active" : ""}" type="button" data-note-bg-preset="">
-            <span class="note-bg-swatch note-bg-default"></span>
-            <span class="note-bg-name">Default</span>
-          </button>
-          ${Object.entries(NOTE_BG_PRESETS).map(([id, url]) => `<button class="note-bg-choice ${settings.note_background === id ? "active" : ""}" type="button" data-note-bg-preset="${id}">
-            <span class="note-bg-swatch" style="background-image:url('${url}')"></span>
-            <span class="note-bg-name">${id[0].toUpperCase() + id.slice(1)}</span>
-          </button>`).join("")}
-          ${settings.note_background_image ? `<button class="note-bg-choice ${settings.note_background === "__custom" ? "active" : ""}" type="button" data-note-bg-preset="__custom">
-            <span class="note-bg-swatch" style="background-image:url('${settings.note_background_image}')"></span>
-            <span class="note-bg-name">Custom</span>
-          </button>` : ""}
-        </div>
-        <div class="note-blur-row">
-          <label for="note-blur-range">Blur <span id="note-blur-value">${settings.note_blur} px</span></label>
-          <input id="note-blur-range" type="range" min="0" max="40" step="2" value="${settings.note_blur}">
-        </div>
+  };
+  const paneMenuItem = (choice, kind) => {
+    const active = settings[kind === "ai" ? "ai_theme" : "note_theme"] === choice.id;
+    return `<div class="theme-menu-row ${active ? "active" : ""}">
+      <button class="theme-menu-item" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-${kind}-theme-choice="${esc(choice.id)}">
+        <span class="theme-menu-name">${esc(choice.name)}</span>
+        <span class="choice-check" aria-hidden="true">✓</span>
+      </button>
+    </div>`;
+  };
+  const menuChevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const menuShell = (name, ariaLabel, items, dot = "") => `<details class="theme-menu" data-theme-menu>
+    <summary class="theme-menu-trigger" aria-label="${esc(ariaLabel)}: ${esc(name)}">
+      ${dot ? `<i class="theme-menu-dot" style="background:${esc(dot)}"></i>` : ""}
+      <span class="theme-menu-name">${esc(name)}</span>
+      ${menuChevron}
+    </summary>
+    <div class="theme-menu-list">
+      <div class="theme-menu-items" role="listbox" aria-label="${esc(ariaLabel)}">${items}</div>
+    </div>
+  </details>`;
+  const noteChoices = noteThemeChoices();
+  const noteCurrent = selectedNoteTheme();
+  const aiChoices = aiThemeChoices();
+  const aiCurrent = aiChoices.find((choice) => choice.id === settings.ai_theme) || aiChoices[0];
+  const modeAccent = (mode) => mode === "note"
+    ? (noteCurrent.palette.accent || noteCurrent.palette.ink)
+    : mode === "ai"
+      ? ((settings.ai_theme === "auto"
+          ? (postcardIsDark(currentId) ? AI_BUILTIN_PALETTES.dark : AI_BUILTIN_PALETTES.light)
+          : aiCurrent.palette)?.accent || "#8f8f96")
+      : (currentTheme.accent || "#8d63b8");
+  const unitThemeName = (mode) => mode === "note"
+    ? noteCurrent.name
+    : mode === "ai"
+      ? (settings.ai_theme === "auto" ? "Auto" : aiCurrent.name)
+      : postcardName(currentId);
+  const fieldMode = themeFieldMode === "note" || themeFieldMode === "ai" ? themeFieldMode : "app";
+  const fieldTitle = (THEME_UNITS.find((unit) => unit.id === fieldMode) || THEME_UNITS[0]).label;
+  const fieldAccent = modeAccent(fieldMode);
+  const fieldName = unitThemeName(fieldMode);
+  const currentSurface = activeNoteSurfaceFile();
+  const noteSurfaceRow = noteSurfaceChoices().map((surface) => `<button class="theme-chip ${currentSurface === surface.file ? "active" : ""}" type="button" data-note-surface-file="${esc(surface.file)}" aria-pressed="${currentSurface === surface.file ? "true" : "false"}">${esc(surface.name)}</button>`).join("");
+  const focusSurface = settings.note_material === "focus";
+  const glassBackgroundRow = (focusSurface || settings.note_material === "blur") ? `<div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">${focusSurface ? "Frost blur" : "Glass background"}</div>
+      <div class="theme-settings-controls">
+        ${focusSurface ? "" : `<button class="theme-chip ${settings.note_background === "" ? "active" : ""}" type="button" data-note-bg-preset="">Default</button>
+        ${Object.keys(NOTE_BG_PRESETS).map((id) => `<button class="theme-chip ${settings.note_background === id ? "active" : ""}" type="button" data-note-bg-preset="${id}">${id[0].toUpperCase() + id.slice(1)}</button>`).join("")}
+        ${settings.note_background_image ? `<button class="theme-chip ${settings.note_background === "__custom" ? "active" : ""}" type="button" data-note-bg-preset="__custom">Custom</button>` : ""}
+        <button class="theme-chip-button" type="button" data-action="choose-note-bg-custom">Pick image</button>`}
+        <input id="note-blur-range" type="range" min="0" max="40" step="2" value="${settings.note_blur}" aria-label="${focusSurface ? "Frost blur" : "Glass blur"}">
+        <span id="note-blur-value" class="theme-value">${settings.note_blur * (focusSurface ? 2 : 1)} px</span>
         <input type="file" id="note-bg-input" accept="image/*" hidden>
-      </div>` : ""}
-    </div>
-    <div class="settings-section">
-      <div class="settings-label">Note caret <span>cursor</span></div>
-      <button class="settings-toggle ${settings.caret_blink ? "active" : ""}" data-action="toggle-caret-blink" aria-pressed="${settings.caret_blink ? "true" : "false"}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>Blinking caret</strong><small>Turn off for a steady caret that never flashes.</small></span>
-      </button>
-      <div class="font-grid caret-shape-grid">
-        <button class="font-choice ${settings.caret_shape !== "block" ? "active" : ""}" data-caret-shape="line">
-          <span class="caret-sample caret-sample-line" style="--sample:${settings.caret_color}"></span>
-          <span class="font-copy"><strong>Line</strong><small>A thin text line.</small></span>
-          <span class="choice-check">✓</span>
-        </button>
-        <button class="font-choice ${settings.caret_shape === "block" ? "active" : ""}" data-caret-shape="block">
-          <span class="caret-sample caret-sample-block" style="--sample:${settings.caret_color}"></span>
-          <span class="font-copy"><strong>Block</strong><small>A solid character block.</small></span>
-          <span class="choice-check">✓</span>
-        </button>
       </div>
-      <div class="caret-color-row">
-        <label for="caret-color">Caret colour</label>
-        <input id="caret-color" type="color" value="${settings.caret_color}">
-        <input id="caret-color-hex" type="text" maxlength="7" spellcheck="false" value="${settings.caret_color}" aria-label="Caret colour hex">
-        <span class="caret-live-sample" style="--sample:${settings.caret_color};--shape:${settings.caret_shape === "block" ? "block" : "line"}"></span>
-      </div>
-    </div>
-    <div class="settings-section">
-      <div class="settings-label">AI caret <span>cursor</span></div>
-      <button class="settings-toggle ${settings.ai_caret_blink ? "active" : ""}" data-action="toggle-ai-caret-blink" aria-pressed="${settings.ai_caret_blink ? "true" : "false"}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>Blinking caret</strong><small>Keep the AI cursor flashing while you type.</small></span>
-      </button>
-      <div class="font-grid caret-shape-grid">
-        <button class="font-choice ${settings.ai_caret_shape !== "block" ? "active" : ""}" data-ai-caret-shape="line">
-          <span class="caret-sample caret-sample-line" style="--sample:${aiCaretColor()}"></span>
-          <span class="font-copy"><strong>Line</strong><small>A thin text line.</small></span>
-          <span class="choice-check">✓</span>
-        </button>
-        <button class="font-choice ${settings.ai_caret_shape === "block" ? "active" : ""}" data-ai-caret-shape="block">
-          <span class="caret-sample caret-sample-block" style="--sample:${aiCaretColor()}"></span>
-          <span class="font-copy"><strong>Block</strong><small>A solid character block.</small></span>
-          <span class="choice-check">✓</span>
-        </button>
-      </div>
-      <div class="caret-color-row ai-caret-color-row">
-        <label>AI caret colour</label>
-        <span class="ai-caret-mode">Dark</span>
-        <input id="ai-caret-dark" type="color" value="${settings.ai_caret_dark}" aria-label="Dark theme AI caret colour">
-        <span class="ai-caret-divider">/</span>
-        <span class="ai-caret-mode">Light</span>
-        <input id="ai-caret-light" type="color" value="${settings.ai_caret_light}" aria-label="Light theme AI caret colour">
+    </div>` : "";
+  const editorDraft = customThemeDraft || defaultCustomThemeDraft();
+  const fieldMenuItems = fieldMode === "note"
+    ? `<div class="theme-menu-label">Note themes</div>${noteChoices.map((choice) => paneMenuItem(choice, "note")).join("")}`
+    : fieldMode === "ai"
+      ? `<div class="theme-menu-label">AI themes</div>${aiChoices.map((choice) => paneMenuItem(choice, "ai")).join("")}`
+      : `<div class="theme-menu-label">App themes</div>${installedIds.map(installedMenuItem).join("")}`;
+  const themeFieldMenu = menuShell(fieldName, fieldTitle, fieldMenuItems, fieldAccent);
+  // The left label is the unit switch: the three units stack vertically and
+  // show their current theme. The active one keeps the highlight and check.
+  const themeUnitMenu = `<details class="theme-menu theme-unit-menu" data-theme-menu>
+    <summary class="theme-menu-trigger theme-unit-trigger" aria-label="Theme unit: ${esc(fieldTitle)}">
+      <span class="theme-menu-name">${esc(fieldTitle)}</span>
+      ${menuChevron}
+    </summary>
+    <div class="theme-menu-list theme-unit-list">
+      <div class="theme-menu-label">Theme units</div>
+      <div class="theme-unit-items" role="listbox" aria-label="Theme units">
+        ${THEME_UNITS.map((unit) => {
+          const active = fieldMode === unit.id;
+          return `<button class="theme-unit-row ${active ? "active" : ""}" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-theme-field-mode="${esc(unit.id)}">
+            <i class="theme-menu-dot" style="background:${esc(modeAccent(unit.id))}"></i>
+            <span class="theme-unit-copy"><strong>${esc(unit.label)}</strong><small>${esc(unitThemeName(unit.id))}</small></span>
+            <span class="choice-check" aria-hidden="true">✓</span>
+          </button>`;
+        }).join("")}
       </div>
     </div>
-    <div class="settings-section">
-      <div class="settings-label">Task details</div>
-      <button class="settings-toggle ${settings.show_time_cost ? "active" : ""}" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>Time cost</strong><small>Show how long each completed task took.</small></span>
-      </button>
-      <button class="settings-toggle ${settings.show_clock ? "active" : ""}" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>Current time</strong><small>Show the clock at the top centre.</small></span>
-      </button>
+  </details>`;
+  const highlightCustom = highlightColor();
+  const highlightValue = highlightCustom || currentTheme.accent || "#8d63b8";
+  const colorField = (key, label) => `<label class="custom-theme-color">
+    <span>${label}</span>
+    <input type="color" data-custom-theme-color="${key}" value="${esc(editorDraft[key])}" aria-label="${label}">
+    <code data-custom-theme-hex="${key}">${esc(editorDraft[key])}</code>
+  </label>`;
+  const editor = customThemeEditorOpen ? `<div class="custom-theme-editor" data-custom-theme-editor>
+    <div class="custom-theme-editor-head">
+      <div><strong>New custom theme</strong></div>
+      <button class="custom-theme-editor-close" type="button" data-action="cancel-custom-theme" aria-label="Close">×</button>
     </div>
-    <div class="settings-section">
-      <div class="settings-label">Task title <span>header</span></div>
-      <div class="title-adjust-row">
-        <label class="title-adjust-label">Position <span id="title-offset-value">${settings.title_offset} px</span></label>
-        <input id="title-offset-range" type="range" min="-320" max="320" step="8" value="${settings.title_offset}">
-        <label class="title-adjust-label">Icon size <span id="title-icon-value">${settings.title_icon_size} px</span></label>
-        <input id="title-icon-range" type="range" min="24" max="96" step="2" value="${settings.title_icon_size}">
+    <label class="custom-theme-name"><span>Name</span><input type="text" data-custom-theme-name maxlength="60" value="${esc(editorDraft.name)}" placeholder="My theme" spellcheck="false"></label>
+    <div class="custom-theme-colors">${colorField("paper", "Paper")}${colorField("ink", "Font")}${colorField("line", "Underline")}${colorField("accent", "Accent")}</div>
+    <div class="custom-theme-preview" data-custom-theme-preview style="background:${esc(editorDraft.paper)};color:${esc(editorDraft.ink)}">
+      <span data-custom-theme-preview-text style="border-bottom:2px solid ${esc(editorDraft.line)}">Every line can carry its own colour.</span>
+      <i data-custom-theme-preview-dot style="background:${esc(editorDraft.accent)}"></i>
+    </div>
+    <div class="custom-theme-editor-actions">
+      <button class="theme-chip-button" type="button" data-action="cancel-custom-theme">Cancel</button>
+      <button class="theme-chip-button" type="button" data-action="save-custom-theme" ${customThemeBusy ? "disabled" : ""}>${customThemeBusy ? "Saving…" : "Save theme"}</button>
+    </div>
+  </div>` : "";
+  const managePanel = themeManageOpen ? `<div class="theme-manage-panel">
+    <div class="theme-manage-actions">
+      <button class="theme-chip-button" type="button" data-action="open-community-themes">Browse community</button>
+      <button class="theme-chip-button" type="button" data-action="import-theme-pack" ${themePackBusy === "import" ? "disabled" : ""}>${themePackBusy === "import" ? "Importing…" : "Import .zip"}</button>
+      <button class="theme-chip-button" type="button" data-action="open-theme-packs-folder">Open folder</button>
+      <button class="theme-chip-button" type="button" data-action="new-custom-theme">+ New theme</button>
+    </div>
+    ${editor}
+    <input type="file" accept=".zip,application/zip" data-theme-pack-input hidden>
+  </div>` : "";
+  // The Theme row itself is the selector. Its menu can switch between the app
+  // palette, the notebook palette and the console palette; the row title and
+  // value follow that choice, and every list uses the same menu layout.
+  const themeRow = `<div class="settings-section theme-settings-row theme-main-row" data-theme-field-row>
+    ${themeUnitMenu}
+    <div class="theme-settings-controls">
+      ${themeFieldMenu}
+      ${fieldMode === "app"
+        ? `<button class="theme-chip-button ${themeManageOpen ? "active" : ""}" type="button" data-action="toggle-theme-manage" aria-expanded="${themeManageOpen ? "true" : "false"}">Manage</button>`
+        : `<button class="theme-chip-button" type="button" data-action="${fieldMode === "ai" ? "open-ai-themes-folder" : "open-note-themes-folder"}" title="${esc(fieldMode === "ai" ? (paneThemeFolders.ai || "ai-theme") : (paneThemeFolders.note || "note-theme"))}">Folder</button>`}
+    </div>
+  </div>`;
+  return `${themeRow}
+    ${fieldMode === "app" ? managePanel : ""}
+    ${glassBackgroundRow}
+    ${wallpaperSettingsSection()}
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Selection highlight</div>
+      <div class="theme-settings-controls">
+        <input id="highlight-color" class="theme-color-input" type="color" value="${esc(highlightValue)}" aria-label="Selection highlight colour">
+        <input id="highlight-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${esc(highlightValue)}" aria-label="Selection highlight colour hex">
+        <button class="theme-chip ${highlightCustom ? "" : "active"}" type="button" data-action="reset-highlight-color" ${highlightCustom ? "" : "disabled"}>Auto</button>
       </div>
     </div>
-    <div class="settings-section">
-      <div class="settings-label">Preview</div>
-      <div class="settings-preview">A quiet place for the next thing.</div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Page line</div>
+      <div class="theme-settings-controls">
+        <span class="page-line-swatch" data-page-line-swatch aria-hidden="true"></span>
+        <input id="page-line-color" class="theme-color-input" type="color" value="${pageLine().color}" aria-label="Page line colour">
+        <input id="page-line-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${pageLine().color}" aria-label="Page line colour hex">
+        <span class="theme-value">Line</span>
+        <input id="page-line-thickness" class="theme-range" type="range" min="1" max="4" step="1" value="${pageLine().thickness}" aria-label="Page line thickness">
+        <span id="page-line-thickness-value" class="theme-value">${pageLine().thickness} px</span>
+      </div>
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Page line layout</div>
+      <div class="theme-settings-controls">
+        <span class="theme-value">Opacity</span>
+        <input id="page-line-opacity" class="theme-range" type="range" min="0" max="1" step="0.05" value="${pageLine().opacity}" aria-label="Page line opacity">
+        <span id="page-line-opacity-value" class="theme-value">${Math.round(pageLine().opacity * 100)}%</span>
+        <span class="theme-value">Row</span>
+        <input id="page-line-row" class="theme-range" type="range" min="32" max="64" step="2" value="${pageLine().row}" aria-label="Page line row pitch">
+        <span id="page-line-row-value" class="theme-value">${pageLine().row} px</span>
+      </div>
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Finished rows</div>
+      <div class="theme-settings-controls">
+        <button class="theme-chip baseline-row-choice ${rowRule.mode === "solid" ? "active" : ""}" type="button" data-action="baseline-rows-solid" aria-pressed="${rowRule.mode === "solid" ? "true" : "false"}">Solid</button>
+        <button class="theme-chip baseline-row-choice ${rowRule.mode === "gradient" ? "active" : ""}" type="button" data-action="baseline-rows-gradient" aria-pressed="${rowRule.mode === "gradient" ? "true" : "false"}">Gradient</button>
+        <button class="theme-chip baseline-row-choice ${rowRule.mode === "height" ? "active" : ""}" type="button" data-action="baseline-rows-height" aria-pressed="${rowRule.mode === "height" ? "true" : "false"}">Height</button>
+        <input id="baseline-row-color" class="theme-color-input" type="color" value="${rowRule.color}" aria-label="Row colour">
+        <input id="baseline-row-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${rowRule.color}" aria-label="Row colour hex">
+        ${rowRule.mode === "solid" ? "" : `<input id="baseline-row-color2" class="theme-color-input" type="color" value="${rowRule.color2}" aria-label="Second row colour">
+        <input id="baseline-row-color2-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${rowRule.color2}" aria-label="Second row colour hex">`}
+        ${rowRule.mode === "gradient" ? `<input id="baseline-row-angle" class="theme-range" type="range" min="0" max="180" step="5" value="${rowRule.angle}" aria-label="Line angle">
+        <span id="baseline-row-angle-value" class="theme-value">${rowRule.angle}°</span>` : ""}
+      </div>
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Note surface</div>
+      <div class="theme-settings-controls">${noteSurfaceRow}</div>
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Note caret</div>
+      <div class="theme-settings-controls">
+        <button class="theme-chip ${settings.caret_blink ? "active" : ""}" type="button" data-action="toggle-caret-blink" aria-pressed="${settings.caret_blink ? "true" : "false"}">Blink</button>
+        <button class="theme-chip ${settings.caret_shape !== "block" ? "active" : ""}" type="button" data-caret-shape="line" aria-pressed="${settings.caret_shape !== "block" ? "true" : "false"}">Line</button>
+        <button class="theme-chip ${settings.caret_shape === "block" ? "active" : ""}" type="button" data-caret-shape="block" aria-pressed="${settings.caret_shape === "block" ? "true" : "false"}">Block</button>
+        <input id="caret-color" class="theme-color-input" type="color" value="${settings.caret_color}" aria-label="Caret colour">
+        <input id="caret-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${settings.caret_color}" aria-label="Caret colour hex">
+      </div>
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">AI caret</div>
+      <div class="theme-settings-controls">
+        <button class="theme-chip ${settings.ai_caret_blink ? "active" : ""}" type="button" data-action="toggle-ai-caret-blink" aria-pressed="${settings.ai_caret_blink ? "true" : "false"}">Blink</button>
+        <button class="theme-chip ${settings.ai_caret_shape !== "block" ? "active" : ""}" type="button" data-ai-caret-shape="line" aria-pressed="${settings.ai_caret_shape !== "block" ? "true" : "false"}">Line</button>
+        <button class="theme-chip ${settings.ai_caret_shape === "block" ? "active" : ""}" type="button" data-ai-caret-shape="block" aria-pressed="${settings.ai_caret_shape === "block" ? "true" : "false"}">Block</button>
+        <input id="ai-caret-dark" class="theme-color-input" type="color" value="${settings.ai_caret_dark}" aria-label="Dark AI theme caret colour" title="Dark AI theme caret colour">
+        <input id="ai-caret-light" class="theme-color-input" type="color" value="${settings.ai_caret_light}" aria-label="Light AI theme caret colour" title="Light AI theme caret colour">
+      </div>
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Task details</div>
+      <div class="theme-settings-controls">
+        <button class="theme-chip ${settings.show_time_cost ? "active" : ""}" type="button" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}">Time cost</button>
+        <button class="theme-chip ${settings.show_clock ? "active" : ""}" type="button" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}">Clock</button>
+      </div>
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Task title</div>
+      <div class="theme-settings-controls">
+        <span class="theme-value">Position</span>
+        <input id="title-offset-range" class="theme-range" type="range" min="-320" max="320" step="8" value="${settings.title_offset}" aria-label="Title position">
+        <span id="title-offset-value" class="theme-value">${settings.title_offset} px</span>
+        <span class="theme-value">Icon</span>
+        <input id="title-icon-range" class="theme-range" type="range" min="24" max="96" step="2" value="${settings.title_icon_size}" aria-label="Header icon size">
+        <span id="title-icon-value" class="theme-value">${settings.title_icon_size} px</span>
+      </div>
     </div>`;
 }
 
-function typographySettings() {
-  return `<div class="settings-head"><h2>Typography</h2><p>Make the page feel like yours.</p></div>
+
+function fontSettings() {
+  return `<div class="settings-head"><h2>Font</h2><p>Make the page read like yours.</p></div>
     <div class="settings-section">
       <button class="font-collapse-row ${fontPanelsOpen.body ? "open" : ""}" type="button" data-font-panel="body" aria-expanded="${fontPanelsOpen.body ? "true" : "false"}">
         <span class="font-sample" style="font-family:${FONT_STACKS[settings.font]}">Aa</span>
@@ -11173,7 +15009,6 @@ function typographySettings() {
         <input id="font-size-range" type="range" min="85" max="125" step="5" value="${Math.round(settings.scale * 100)}">
         <button class="font-step" data-font-step="5">A+</button>
       </div>
-      <div class="settings-preview">The next thing is already waiting.</div>
     </div>
 `;
 }
@@ -11199,165 +15034,175 @@ async function loadNoteMaterialFiles() {
     link.dataset.noteMaterialFile = key;
     document.head.appendChild(link);
   }
-  if (settingsTab === "appearance") renderSettings();
+  if (settingsTab === "theme") renderSettings();
 }
 
-function loadWallpaperFiles() {
-  if (wallpaperFilesRequest) return wallpaperFilesRequest;
-  wallpaperFilesRequest = silentAction("wallpaper_files").then((result) => {
-    wallpaperFilesRequest = null;
-    if (!result?.ok) return;
-    wallpaperFiles = {
-      images: Array.isArray(result.images) ? result.images : [],
-      videos: Array.isArray(result.videos) ? result.videos : [],
-    };
-    if (settingsTab === "pictures") renderSettings();
+/* ---------------------------------------------------------------------------
+   WALLPAPER
+   ---------------------------------------------------------------------------
+   A wallpaper is a picture the reader already owns. They pick the file once,
+   NeoTodo remembers where it lives and reads it from there — nothing is copied
+   and no extra folder appears on their disk. The last few picks stay in the
+   picker so switching back to one is a single click. Everything else in the
+   Theme tab (paper, ink, rules) is untouched by the choice.
+   ------------------------------------------------------------------------- */
+
+/** The recent picks, newest first, without duplicates or retired values. */
+function wallpaperRecentList() {
+  const raw = Array.isArray(settings.wallpaper_recent) ? settings.wallpaper_recent : [];
+  const seen = new Set();
+  return raw.filter((item) => {
+    const name = String(item || "").trim();
+    if (!name || seen.has(name) || !wallpaperIsLocalFile(name)) return false;
+    seen.add(name);
+    return true;
   });
-  return wallpaperFilesRequest;
 }
 
-function wallpaperChoiceCard(name, kind) {
-  const isVideo = kind === "video";
-  const mode = isVideo ? "dynamic" : "static";
-  const value = isVideo ? settings.wallpaper_dynamic : settings.wallpaper_static;
-  const selected = settings.wallpaper_mode === mode && value === name;
-  const label = esc(name);
-  const thumb = isVideo
-    ? `<span class="wallpaper-thumb wallpaper-thumb-video"><video src="${esc(wallpaperUrl(name))}" preload="metadata" muted playsinline></video><span class="wallpaper-play" aria-hidden="true">▶</span></span>`
-    : `<span class="wallpaper-thumb" style="background-image:url('${esc(wallpaperUrl(name))}')"></span>`;
-  return `<div class="wallpaper-choice ${selected ? "active" : ""}">
-    <button class="wallpaper-choice-main" type="button" data-wallpaper-file="${esc(name)}" data-wallpaper-kind="${kind}" title="${label}" aria-pressed="${selected ? "true" : "false"}">
-      ${thumb}
-      <span class="wallpaper-name">${label}</span>
-    </button>
-  </div>`;
+function rememberWallpaperChoice(path) {
+  const name = String(path || "").trim();
+  const recent = wallpaperRecentList().filter((item) => item !== name);
+  if (name) recent.unshift(name);
+  settings.wallpaper_recent = recent.slice(0, WALLPAPER_RECENT_LIMIT);
 }
 
-function wallpaperArtChoice(artId) {
-  const theme = THEMES[artId];
-  if (!theme) return "";
-  const selected = settings.wallpaper_mode === "static" && settings.wallpaper_static === `art:${artId}`;
-  return `<div class="wallpaper-choice ${selected ? "active" : ""}">
-    <button class="wallpaper-choice-main" type="button" data-wallpaper-art="${esc(artId)}" title="${esc(theme.name)}" aria-pressed="${selected ? "true" : "false"}">
-      <span class="wallpaper-thumb wallpaper-thumb-art">${theme.art(theme)}</span>
-      <span class="wallpaper-name">${esc(theme.name)}</span>
-    </button>
-  </div>`;
+/** Keep the chosen wallpaper and its place in the recent shelf in one save. */
+function applyWallpaperChoice(path) {
+  const name = String(path || "").trim();
+  if (!wallpaperIsLocalFile(name)) return;
+  rememberWallpaperChoice(name);
+  settings.wallpaper = name;
+  saveSettings();
+  applySettings();
+  if (settingsTab === "theme") renderSettings();
+  toast("Wallpaper set");
 }
 
-function wallpaperPreviewMarkup(wallpaper) {
-  if (!wallpaper.key) {
-    const waitingForFilm = settings.wallpaper_mode === "dynamic";
-    return `<div class="wallpaper-preview-empty"><span>${waitingForFilm ? "No film selected" : "No wallpaper"}</span><small>${waitingForFilm ? "Choose an MP4 below" : "Theme paper only"}</small></div>`;
+function chooseWallpaperFile() {
+  silentAction("choose_wallpaper_file").then((result) => {
+    if (result?.cancelled) return;
+    if (result?.fallback === "upload") {
+      // Platforms without a native picker: the reader still chooses the file
+      // themselves, the browser just hands the bytes over.
+      document.querySelector("[data-wallpaper-input]")?.click();
+      return;
+    }
+    if (!result?.ok || !result.path) {
+      if (result?.error) toast(result.error, true);
+      return;
+    }
+    applyWallpaperChoice(result.path);
+  });
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : "");
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadWallpaperFile(input) {
+  const file = input?.files?.[0];
+  if (input) input.value = "";
+  if (!file) return;
+  const name = String(file.name || "");
+  const video = WALLPAPER_VIDEO_RE.test(name);
+  if (!video && !WALLPAPER_IMAGE_RE.test(name)) {
+    toast("Choose a JPG, PNG, WEBP, GIF or a film", true);
+    return;
   }
-  return `<div class="wallpaper-preview-media">${wallpaperMediaMarkup("", { autoplay: true })}</div>`;
+  if (file.size > (video ? 120_000_000 : 30_000_000)) {
+    toast("That file is too large for a wallpaper", true);
+    return;
+  }
+  const data = await fileToBase64(file);
+  if (!data) { toast("Could not read that file", true); return; }
+  const result = await silentAction("upload_wallpaper", { kind: video ? "video" : "image", name, data });
+  if (!result?.ok || !result.file) {
+    toast(result?.error || "Could not use that file", true);
+    return;
+  }
+  applyWallpaperChoice(result.file);
 }
 
 function wallpaperSettingsSection() {
-  const mode = settings.wallpaper_mode;
   const wallpaper = activeWallpaper();
-  const modeCard = (id, title, detail) => `<button class="wallpaper-mode-card ${mode === id ? "active" : ""}" type="button" data-wallpaper-mode="${id}" aria-pressed="${mode === id ? "true" : "false"}">
-    <strong>${title}</strong>
-    <small>${detail}</small>
-  </button>`;
-  const images = wallpaperFiles.images || [];
-  const videos = wallpaperFiles.videos || [];
-  const current = `<div class="wallpaper-current ${wallpaper.key ? "has-wallpaper" : "is-empty"}">
-      ${wallpaperPreviewMarkup(wallpaper)}
-      ${wallpaper.key ? `<button class="wallpaper-clear" type="button" data-action="clear-wallpaper" aria-label="Clear wallpaper" title="Clear wallpaper">
-        <svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#close-circle"></use></svg>
-      </button>` : ""}
-      <div class="wallpaper-current-copy">
-        <small>${wallpaper.key ? "In use" : "Wallpaper"}</small>
-        <strong>${esc(wallpaperDisplayName(wallpaper))}</strong>
-      </div>
+  const recent = wallpaperRecentList();
+  const name = wallpaper.key ? wallpaperDisplayName(wallpaper) : "Theme paper";
+  const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4-4 4 4M8 14l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const recentRows = recent.map((path) => {
+    const active = String(settings.wallpaper || "") === path;
+    const isVideo = WALLPAPER_VIDEO_RE.test(path);
+    const label = wallpaperFileName(path) || path;
+    return `<div class="theme-menu-row ${active ? "active" : ""}">
+      <button class="theme-menu-item" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-wallpaper-file="${esc(path)}" data-wallpaper-kind="${isVideo ? "video" : "image"}">
+        <span class="theme-menu-name">${esc(label)}</span>
+        <span class="choice-check" aria-hidden="true">✓</span>
+      </button>
     </div>`;
-  const staticPicker = `<div class="wallpaper-picker">
-      <div class="wallpaper-group">
-        <div class="wallpaper-group-head"><span>Postcard art</span></div>
-        <div class="wallpaper-grid">${WALLPAPER_ART_IDS.map(wallpaperArtChoice).join("")}</div>
+  }).join("");
+  // Like the Theme row: the current wallpaper's name sits in the control, and
+  // the recent picks live in the same small menu. No separate shelf heading,
+  // no empty-state paragraph, and Choose / Back share one button style.
+  const nameControl = recent.length
+    ? `<details class="theme-menu wallpaper-menu" data-theme-menu>
+        <summary class="theme-menu-trigger" aria-label="Wallpaper">
+          <span class="theme-menu-name">${esc(name)}</span>
+          ${chevron}
+        </summary>
+        <div class="theme-menu-list" role="listbox" aria-label="Wallpaper">${recentRows}</div>
+      </details>`
+    : `<span class="theme-value wallpaper-current-name" title="${esc(name)}">${esc(name)}</span>`;
+  return `<div class="settings-section theme-settings-row wallpaper-settings-row">
+      <div class="theme-settings-title">Wallpaper</div>
+      <div class="theme-settings-controls">
+        ${nameControl}
+        <button class="theme-chip-button" type="button" data-action="choose-wallpaper">Choose</button>
+        ${wallpaper.key ? `<button class="theme-chip-button" type="button" data-action="clear-wallpaper">Back</button>` : ""}
       </div>
-      <div class="wallpaper-group">
-        <div class="wallpaper-group-head">
-          <span>Pictures</span>
-          <button class="btn small" type="button" data-action="choose-wallpaper-image">Choose image</button>
-        </div>
-        ${images.length
-          ? `<div class="wallpaper-grid">${images.map((name) => wallpaperChoiceCard(name, "image")).join("")}</div>`
-          : `<div class="wallpaper-empty">No pictures yet. Add JPG, PNG or WEBP files to the pictures folder.</div>`}
-      </div>
-      <div class="wallpaper-actions">
-        <button class="btn small" type="button" data-action="open-pictures-folder">Open pictures folder</button>
-        <button class="btn small" type="button" data-action="refresh-wallpaper-files">Refresh list</button>
-      </div>
-      <input id="wallpaper-image-input" type="file" accept="image/*" hidden>
-    </div>`;
-  const dynamicPicker = `<div class="wallpaper-picker">
-      <div class="wallpaper-group">
-        <div class="wallpaper-group-head">
-          <span>Films</span>
-          <button class="btn small" type="button" data-action="choose-wallpaper-video">Choose MP4</button>
-        </div>
-        ${videos.length
-          ? `<div class="wallpaper-grid">${videos.map((name) => wallpaperChoiceCard(name, "video")).join("")}</div>`
-          : `<div class="wallpaper-empty">No films yet. Add an MP4, WEBM or MOV file to the pictures folder, then choose it here.</div>`}
-      </div>
-      <div class="wallpaper-actions">
-        <button class="btn small" type="button" data-action="open-pictures-folder">Open pictures folder</button>
-        <button class="btn small" type="button" data-action="refresh-wallpaper-files">Refresh list</button>
-      </div>
-      <input id="wallpaper-video-input" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/ogg" hidden>
-    </div>`;
-  return `<div class="settings-section wallpaper-section">
-      <div class="settings-label">Wallpaper <span>pattern</span></div>
-      <p class="wallpaper-hint">Pattern and colour are independent. Pick a static picture or a looping MP4 for the room; the postcard theme keeps the cards, ink and paper.</p>
-      ${current}
-      <div class="wallpaper-mode-row">
-        ${modeCard("static", "Static wallpaper", "Postcard art or a picture")}
-        ${modeCard("dynamic", "Dynamic wallpaper", "A looping MP4 film")}
-      </div>
-      ${mode === "static" ? staticPicker : mode === "dynamic" ? dynamicPicker : ""}
+      <input type="file" accept="image/*,video/*" data-wallpaper-input hidden>
     </div>`;
 }
 
-function picturesSettings() {
-  const cards = STICKER_TARGETS.map((target) => {
+/* ---------------------------------------------------------------------------
+   STICKERS
+   ---------------------------------------------------------------------------
+   Stickers are the little pictures on the achievements in the head bar: the
+   trophy that counts finished tasks and the tomato that counts focus rounds.
+   Unlike a wallpaper these are stored inside the notebook, so a sticker is
+   part of NeoTodo rather than a link to a file.
+   ------------------------------------------------------------------------- */
+
+function stickersSettings() {
+  const targets = STICKER_TARGETS;
+  const cards = targets.map((target) => {
+    const available = stickerTargetAvailable(target);
     const config = stickerSettingsFor(target.id);
-    const hasImage = Boolean(config?.image);
-    const zoom = hasImage ? Math.round(config.zoom * 100) : 100;
-    const x = hasImage ? Math.round(config.x) : 50;
-    const y = hasImage ? Math.round(config.y) : 50;
     const preview = config?.image || target.fallback;
-    return `<div class="sticker-setting-card" data-sticker-card="${target.id}">
+    return `<div class="sticker-setting-card ${available ? "" : "is-missing"}" data-sticker-card="${target.id}">
       <span class="sticker-setting-preview"><img src="${esc(preview)}" alt="" style="${stickerImageStyle(config)}"></span>
       <div class="sticker-setting-body">
-        <div class="sticker-setting-head"><strong>${esc(target.name)}</strong><small>${esc(target.detail)}</small></div>
-        <div class="sticker-setting-hint">${hasImage ? "Drag the crop until the sticker shows the part you want." : "Using the original art. Choose a picture to use your own."}</div>
-        <div class="sticker-crop-row">
-          <label>Zoom <span data-sticker-value="zoom">${zoom}%</span></label>
-          <input type="range" min="100" max="260" step="2" value="${zoom}" data-sticker-field="zoom" data-sticker-id="${target.id}" ${hasImage ? "" : "disabled"}>
-        </div>
-        <div class="sticker-crop-row">
-          <label>Across <span data-sticker-value="x">${x}%</span></label>
-          <input type="range" min="0" max="100" step="1" value="${x}" data-sticker-field="x" data-sticker-id="${target.id}" ${hasImage ? "" : "disabled"}>
-        </div>
-        <div class="sticker-crop-row">
-          <label>Down <span data-sticker-value="y">${y}%</span></label>
-          <input type="range" min="0" max="100" step="1" value="${y}" data-sticker-field="y" data-sticker-id="${target.id}" ${hasImage ? "" : "disabled"}>
-        </div>
+        <strong class="sticker-setting-name">${esc(target.name)}</strong>
+        <small class="sticker-setting-hint">${esc(target.hint || "")}</small>
         <div class="sticker-setting-actions">
-          <button class="btn small" type="button" data-action="choose-sticker-image" data-sticker-id="${target.id}">${hasImage ? "Replace picture" : "Choose picture"}</button>
-          <button class="btn small" type="button" data-action="reset-sticker-image" data-sticker-id="${target.id}" ${hasImage ? "" : "disabled"}>Reset</button>
+          <button class="btn small" type="button" data-action="choose-sticker-image" data-sticker-id="${target.id}" ${available ? "" : "disabled"}>${available ? (config?.image ? "Replace" : "Choose picture") : "Plugin off"}</button>
+          ${config?.image ? `<button class="btn small" type="button" data-action="reset-sticker-image" data-sticker-id="${target.id}">Default</button>` : ""}
         </div>
-        <input type="file" accept="image/*" data-sticker-input="${target.id}" hidden>
       </div>
+      <input type="file" accept="image/*" data-sticker-input="${target.id}" hidden>
     </div>`;
   }).join("");
-  return `<div class="settings-head"><h2>Pictures</h2><p>Choose the wallpaper behind NeoTodo and the pictures on each achievement.</p></div>
-    ${wallpaperSettingsSection()}
+  return `<div class="settings-head"><h2>Stickers</h2><p>The picture on each achievement. Pick any image and it sits on that badge.</p></div>
     <div class="settings-section">
-      <div class="settings-label">Sticker backgrounds <span>pictures</span></div>
+      <div class="settings-label">Achievement stickers <span>stored in the notebook</span></div>
       <div class="sticker-settings-grid">${cards}</div>
+      <p class="sticker-footnote">A sticker is saved inside NeoTodo, so it stays with the notebook even if the original picture moves. The tomato needs the Pomodoro plugin switched on.</p>
     </div>`;
 }
 
@@ -11397,27 +15242,19 @@ function soundSettings() {
 }
 
 function aboutSettings() {
+  const wallpaper = activeWallpaper();
   return `<div class="settings-head"><h2>About</h2><p>A small, quiet place for the next thing.</p></div>
     <div class="settings-section about-section">
       <div><span>NeoTodo</span><small>Desktop edition</small></div>
       <div><span>Theme</span><small>明信片 / ${postcardName(currentPostcardId())}</small></div>
+      <div><span>Note theme</span><small>${esc(selectedNoteTheme().name)}</small></div>
+      <div><span>AI theme</span><small>${settings.ai_theme === "auto" ? `Auto · ${esc(resolvedAiTheme().name)}` : esc(resolvedAiTheme().name)}</small></div>
+      <div><span>Wallpaper</span><small>${esc(wallpaperDisplayName(wallpaper))}</small></div>
       <div><span>Body font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.font)?.name || "Art Serif"}</small></div>
       <div><span>Note font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.note_font)?.name || "Art Serif"}</small></div>
       <div><span>Shortcuts</span><small>Tab — Toggle categories · J/K — Move categories</small></div>
       <div><span>Project</span><small><a class="about-link" href="https://github.com/CellMeet/Neotodo" data-external-link="https://github.com/CellMeet/Neotodo">github.com/CellMeet/Neotodo</a></small></div>
-      <div><span>Email</span><small><a class="about-link" href="mailto:cellmeet@163.com" data-external-link="mailto:cellmeet@163.com">cellmeet@163.com</a></small></div>
-      <div><span>Version</span><small>0.0.1</small></div>
-    </div>
-    <div class="about-bottom">
-      <div class="about-thanks"><em>Thanks</em></div>
     </div>`;
-}
-
-function pluginIconMarkup(plugin, extraClass = "") {
-  const icon = plugin.icon
-    ? `<img src="${esc(plugin.icon)}" alt="">`
-    : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v5a3 3 0 0 0 3 3h3v6h-5a3 3 0 0 0-3 3v1H7v-4a3 3 0 0 0-3-3H3V9h5a3 3 0 0 0 3-3V3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
-  return `<span class="plugin-icon ${extraClass}">${icon}</span>`;
 }
 
 function pluginUninstallConfirmMarkup(plugin) {
@@ -11437,67 +15274,68 @@ function pluginUninstallConfirmMarkup(plugin) {
   </div>`;
 }
 
-function pluginsSettings() {
-  const plugins = Object.values(PLUGIN_REGISTRY);
-  const installed = plugins.filter((plugin) => pluginState(plugin.id)?.installed);
-  const available = plugins.filter((plugin) => !pluginState(plugin.id)?.installed);
-  const pending = pluginPendingUninstallId ? PLUGIN_REGISTRY[pluginPendingUninstallId] : null;
-  const rows = installed.map((plugin) => {
-    const state = pluginState(plugin.id);
-    const on = Boolean(state.enabled);
-    return `<div class="plugin-row ${on ? "" : "plugin-off"}" data-plugin-row="${esc(plugin.id)}">
-      ${pluginIconMarkup(plugin)}
-      <div class="plugin-copy">
-        <strong>${esc(plugin.title)}</strong>
-        <small>${esc(plugin.englishTitle || plugin.id)} · v${esc(plugin.version || "1.0.0")}</small>
-        <p>${esc(plugin.description || "")}</p>
-      </div>
-      <button class="plugin-power ${on ? "active" : ""}" type="button" data-action="toggle-plugin" data-plugin-id="${esc(plugin.id)}" aria-pressed="${on ? "true" : "false"}" aria-label="${on ? "Turn off" : "Turn on"} ${esc(plugin.title)}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      </button>
-      <button class="plugin-menu-button" type="button" data-action="plugin-menu" data-plugin-id="${esc(plugin.id)}" aria-label="Options for ${esc(plugin.title)}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.65" fill="currentColor"/><circle cx="12" cy="12" r="1.65" fill="currentColor"/><circle cx="12" cy="19" r="1.65" fill="currentColor"/></svg>
-      </button>
-    </div>`;
-  }).join("");
-  const availableRows = available.map((plugin) => `<div class="plugin-row plugin-available">
-      ${pluginIconMarkup(plugin)}
-      <div class="plugin-copy">
-        <strong>${esc(plugin.title)}</strong>
-        <small>${esc(plugin.englishTitle || plugin.id)} · v${esc(plugin.version || "1.0.0")}</small>
-      </div>
-      <button class="btn small" type="button" data-action="install-plugin" data-plugin-id="${esc(plugin.id)}">Install</button>
-    </div>`).join("");
-  return `<div class="settings-head"><h2>Plugins</h2><p>Small tools that live inside NeoTodo. Turn one off when you want a quieter notebook.</p></div>
-    ${pluginUninstallConfirmMarkup(pending)}
-    <div class="settings-section">
-      <div class="settings-label">Installed <span>${installed.length}</span></div>
-      ${installed.length ? `<div class="plugin-list">${rows}</div>` : `<div class="plugin-empty">No plugins installed. The core notebook stays simple.</div>`}
-    </div>
-    ${available.length ? `<div class="settings-section">
-      <div class="settings-label">Available <span>built in</span></div>
-      <div class="plugin-list">${availableRows}</div>
-    </div>` : ""}
-    <div class="plugin-market-note plugin-community-promo">
-      <div>
-        <strong>Plugin Community</strong>
-        <span>Browse tools made by other NeoTodo users, install a <code>.zip</code>, or share your own plugin with one pull request.</span>
-      </div>
-      <button class="btn small" type="button" data-action="open-plugin-community">Browse community</button>
-    </div>`;
+// Settings → Plugins keeps the same quiet shape as the Theme page: one line per
+// plugin with its name, a square on/off box and the ⋮ menu. Nothing else — the
+// plugin's artwork belongs in the plugin folder, not in this list.
+function pluginBoxToggleMarkup(pluginId, on, label) {
+  const attrs = pluginId ? ` data-plugin-id="${esc(pluginId)}"` : "";
+  return `<button class="plugin-box-toggle ${on ? "active" : ""}" type="button" data-action="toggle-plugin"${attrs} aria-pressed="${on ? "true" : "false"}" aria-label="${esc(label)}">
+      <span class="plugin-box" aria-hidden="true"></span>
+    </button>`;
 }
 
-function communitySettings() {
+function pluginRowMarkup(plugin) {
+  const state = pluginState(plugin.id);
+  const on = Boolean(state?.enabled);
+  return `<div class="plugin-row ${on ? "plugin-on" : "plugin-off"}" data-plugin-row="${esc(plugin.id)}">
+    <span class="plugin-row-name">${esc(plugin.title)}</span>
+    ${pluginBoxToggleMarkup(plugin.id, on, `${on ? "Turn off" : "Turn on"} ${plugin.title}`)}
+    <button class="plugin-menu-button" type="button" data-action="plugin-menu" data-plugin-id="${esc(plugin.id)}" aria-label="Options for ${esc(plugin.title)}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.65" fill="currentColor"/><circle cx="12" cy="12" r="1.65" fill="currentColor"/><circle cx="12" cy="19" r="1.65" fill="currentColor"/></svg>
+    </button>
+  </div>`;
+}
+
+const COMMUNITY_SECTIONS = [
+  { id: "themes", label: "主题", english: "Themes" },
+  { id: "games", label: "游戏", english: "Games" },
+  { id: "plugins", label: "插件", english: "Plugins" },
+];
+
+function communityViewOpen(section = "") {
+  return communityModalOpen && (!section || communitySection === section);
+}
+
+/** Re-render the Community sheet, but only while it is on screen. */
+function refreshCommunity() {
+  if (communityModalOpen) renderCommunity();
+  else if ($(".settings-panel")) renderSettings();
+}
+
+/** Fetch whatever the shelf on screen needs, without blocking the first paint. */
+function ensureCommunitySectionData() {
   ensurePluginCatalog();
-  const entries = pluginCatalogEntries();
+  if (communitySection !== "themes") return;
+  loadThemePacks().then(() => { if (communityViewOpen("themes")) renderCommunity(); });
+  if (!themeCatalog && !themeCatalogBusy) loadThemeCatalog(false);
+}
+
+/**
+ * One shelf inside Community. Games and plugins share the same install flow;
+ * only the catalog slice and the wording change.
+ */
+function pluginShelfSection(scope = "plugins") {
+  const games = scope === "games";
+  const entries = pluginSectionEntries(scope);
   const loading = pluginCatalogLoading && !pluginCatalog;
   const source = pluginCatalog?.catalog_source || "";
   const updated = pluginCatalog?.updated || "";
-  let status = "Bundled index · refresh to look for new plugins";
-  if (loading) status = "Loading the community index…";
+  let status = "Bundled index · refresh to reach the community server";
+  if (loading) status = "Reaching the community server…";
   else if (pluginCatalogError) status = `Offline copy · ${pluginCatalogError}`;
-  else if (source === "remote") status = `Live index${updated ? ` · updated ${updated}` : ""}`;
-  else if (source === "cache") status = `Cached index${updated ? ` · updated ${updated}` : ""}`;
+  else if (source === "remote") status = `Live from the community server${updated ? ` · updated ${updated}` : ""}`;
+  else if (source === "cache") status = `Cached copy from the community server${updated ? ` · ${updated}` : ""}`;
+  const installedCount = entries.filter((entry) => pluginState(entry.id)?.installed).length;
   const categories = pluginCategoryOptions(entries);
   const filters = [
     { id: "all", label: "All" },
@@ -11505,27 +15343,29 @@ function communitySettings() {
     ...categories.map((label) => ({ id: label.toLowerCase(), label })),
   ].filter((filter) => filter.id !== "featured" || entries.some((entry) => entry.featured));
   const chips = filters.map((filter) => `<button class="community-filter ${pluginCommunityFilter === filter.id ? "active" : ""}" type="button" data-action="plugin-community-filter" data-plugin-filter="${esc(filter.id)}">${esc(filter.label)}</button>`).join("");
-  return `<div class="settings-head community-head">
-      <h2>Plugin Community</h2>
-      <p>Small tools built by people who use NeoTodo. Install one, switch it off, or share your own.</p>
+  return `<div class="settings-section community-shelf">
+      <div class="settings-label">${games ? "游戏库" : "插件库"} <span>${entries.length}</span></div>
+      <p class="community-shelf-copy">${games
+        ? "拼豆、钢琴和接下来会出现的各种小游戏。目录来自社区服务器，装一个就放进左边的工具栏。"
+        : "让 NeoTodo 更顺手的小工具：搜索、抽屉、特效。目录来自社区服务器，装好后随时可以关掉。"}</p>
+      <div class="community-toolbar">
+        <label class="community-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m15.4 15.4 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <input type="search" data-plugin-search value="${esc(pluginCommunityQuery)}" placeholder="${games ? "Search games, authors, tags…" : "Search plugins, authors, tags…"}" autocomplete="off">
+        </label>
+        <button class="btn small community-refresh" type="button" data-action="refresh-plugin-catalog" ${loading ? "disabled" : ""}>${loading ? "Refreshing…" : "Refresh"}</button>
+      </div>
+      <div class="community-status ${pluginCatalogError ? "offline" : ""}">
+        <span>${esc(status)}</span>
+        <span class="community-count"><b id="plugin-community-count">${pluginCommunityVisibleEntries().length}</b> ${games ? "games" : "plugins"} · <b>${installedCount}</b> installed</span>
+      </div>
+      <div class="community-filters">${chips}</div>
+      <div id="plugin-community-results">${loading ? `<div class="plugin-empty community-empty">Fetching the latest catalog…</div>` : pluginCommunityResultsMarkup()}</div>
     </div>
-    <div class="community-toolbar">
-      <label class="community-search">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m15.4 15.4 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <input type="search" data-plugin-search value="${esc(pluginCommunityQuery)}" placeholder="Search plugins, authors, tags…" autocomplete="off">
-      </label>
-      <button class="btn small community-refresh" type="button" data-action="refresh-plugin-catalog" ${loading ? "disabled" : ""}>${loading ? "Refreshing…" : "Refresh"}</button>
-    </div>
-    <div class="community-status ${pluginCatalogError ? "offline" : ""}">
-      <span>${esc(status)}</span>
-      <span class="community-count"><b id="plugin-community-count">${pluginCommunityVisibleEntries().length}</b> plugins</span>
-    </div>
-    <div class="community-filters">${chips}</div>
-    <div id="plugin-community-results">${loading ? `<div class="plugin-empty community-empty">Fetching the latest catalog…</div>` : pluginCommunityResultsMarkup()}</div>
     <div class="plugin-community-callout">
       <div class="community-callout-copy">
         <strong>Build the next small thing</strong>
-        <p>Every plugin is a folder with a manifest and an HTML page. Package it as a <code>.zip</code>, open a pull request against the community catalog, and it appears here for everyone.</p>
+        <p>Every plugin is a folder with a manifest and an HTML page. Package it as a <code>.zip</code>, publish it to the community server, and it appears here for everyone — no NeoTodo update needed.</p>
         <div class="community-callout-actions">
           <button class="btn small" type="button" data-action="install-plugin-archive">Install from .zip</button>
           <button class="btn small" type="button" data-action="open-plugins-folder">Open plugin folder</button>
@@ -11533,61 +15373,152 @@ function communitySettings() {
           <a class="btn small ghost" href="https://github.com/CellMeet/Neotodo/issues/new?template=plugin-submission.yml" data-external-link="https://github.com/CellMeet/Neotodo/issues/new?template=plugin-submission.yml">Submit a plugin</a>
         </div>
       </div>
-    </div>
-    <div class="plugin-market-note community-back-note">
-      <strong>Looking for your installed shelf?</strong>
-      <span>Turn plugins on or off, change their settings, or remove them from <button class="inline-link" type="button" data-action="open-plugin-list">Settings → Plugins</button>.</span>
     </div>`;
+}
+
+/** Where the shelves on screen come from: live server, cache or the bundled copy. */
+function communityServerState() {
+  const themes = communitySection === "themes";
+  const busy = themes ? themeCatalogBusy : pluginCatalogLoading;
+  const error = themes ? themeCatalog?.catalog_error : pluginCatalogError;
+  const source = themes ? (themeCatalog?.catalog_source || "") : (pluginCatalog?.catalog_source || "");
+  if (busy) return { state: "loading", label: "Connecting…" };
+  if (error) return { state: "offline", label: "Offline copy" };
+  if (source === "remote") return { state: "live", label: "Community server" };
+  if (source === "cache") return { state: "cache", label: "Cached copy" };
+  return { state: "local", label: "Bundled index" };
+}
+
+function communityTabsMarkup() {
+  return COMMUNITY_SECTIONS.map((section) => `<button class="community-tab ${communitySection === section.id ? "active" : ""}" type="button" role="tab" aria-selected="${communitySection === section.id ? "true" : "false"}" data-action="community-section" data-community-section="${section.id}">
+      <span>${section.label}</span>
+      <small>${section.english}</small>
+    </button>`).join("");
+}
+
+/**
+ * Community lives in its own window, beside Settings rather than inside it.
+ * Shelves are remote-first: the catalog is fetched from the community server,
+ * and only installed files stay on this computer.
+ */
+function communityWindowMarkup() {
+  ensurePluginCatalog();
+  const server = communityServerState();
+  const confirm = communitySection === "themes" ? "" : pluginUninstallConfirmMarkup(pluginPendingUninstallId ? PLUGIN_REGISTRY[pluginPendingUninstallId] : null);
+  const body = communitySection === "themes"
+    ? themeCommunitySection()
+    : pluginDetailId
+      ? pluginDetailSettings(pluginDetailId)
+      : pluginShelfSection(communitySection === "games" ? "games" : "plugins");
+  return `<header class="community-topbar">
+      <div class="community-brand">
+        <span class="community-brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.5"/><ellipse cx="12" cy="12" rx="3.7" ry="8.4" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.6 12h16.8" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+        </span>
+        <span class="community-brand-copy">
+          <strong>Community</strong>
+          <small>主题、插件和游戏来自社区服务器。逛一逛，装好的东西留在这台电脑上。</small>
+        </span>
+      </div>
+      <div class="community-topbar-tools">
+        <span class="community-server ${server.state}" title="The shelves are fetched from the community server"><span class="community-server-dot" aria-hidden="true"></span>${esc(server.label)}</span>
+        <button class="settings-close community-close" type="button" data-action="close-community" aria-label="Close community"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button>
+      </div>
+    </header>
+    <div class="community-body">
+      <div class="community-tabs" role="tablist" aria-label="Community sections">${communityTabsMarkup()}</div>
+      <div class="community-scroll"><div class="community-view">${confirm}${body}</div></div>
+    </div>
+    <footer class="community-foot">
+      <span>目录从社区服务器读取，不用更新 NeoTodo；安装后的插件放在本机。</span>
+      <span class="community-foot-actions">
+        <button class="btn small" type="button" data-action="open-plugin-settings">Manage installed plugins</button>
+      </span>
+    </footer>`;
+}
+
+function renderCommunity() {
+  const panel = $(".community-panel");
+  if (!panel) return;
+  const previousScroll = panel.querySelector(".community-scroll")?.scrollTop || 0;
+  panel.innerHTML = communityWindowMarkup();
+  const scroll = panel.querySelector(".community-scroll");
+  if (scroll && previousScroll) scroll.scrollTop = previousScroll;
+}
+
+function openCommunity(section = communitySection) {
+  if (section && COMMUNITY_SECTIONS.some((entry) => entry.id === section)) communitySection = section;
+  // Community replaces Settings: one sheet on screen at a time.
+  closeSettings();
+  communityModalOpen = true;
+  pluginDetailId = null;
+  pluginPendingUninstallId = null;
+  AudioFX.paper();
+  $("#modal-root").innerHTML = '<div class="community-stage"><div class="community-panel" role="dialog" aria-modal="true" aria-label="Community"></div></div>';
+  const stage = $(".community-stage");
+  stage?.addEventListener("mousedown", (event) => {
+    if (event.target === stage) closeCommunity();
+  });
+  renderCommunity();
+  ensureCommunitySectionData();
+}
+
+function closeCommunity() {
+  communityModalOpen = false;
+  pluginDetailId = null;
+  pluginPendingUninstallId = null;
+  const root = $("#modal-root");
+  if (root?.querySelector(".community-stage")) root.innerHTML = "";
 }
 
 function pluginDetailSettings(pluginId) {
   const plugin = PLUGIN_REGISTRY[pluginId];
   const state = pluginState(pluginId);
-  if (!plugin || !state) return pluginsSettings();
+  if (!plugin || !state) return pluginShelfSection("plugins");
   const on = Boolean(state.enabled);
   const settingRows = (plugin.settings || []).map((item) => {
+    if (item.type === "choice") {
+      const value = state.settings?.[item.id];
+      const options = (item.options || []).map((option) => {
+        const selected = option.value === value;
+        return `<button class="plugin-choice ${selected ? "active" : ""}" type="button" data-action="set-plugin-choice" data-plugin-id="${esc(plugin.id)}" data-plugin-setting="${esc(item.id)}" data-plugin-value="${esc(option.value)}" aria-pressed="${selected ? "true" : "false"}">
+          <span class="plugin-choice-swatch" data-swatch="${esc(option.value)}" aria-hidden="true"></span>
+          <span class="plugin-choice-copy"><strong>${esc(option.label || option.value)}</strong><small>${esc(option.detail || "")}</small></span>
+        </button>`;
+      }).join("");
+      return `<div class="plugin-setting-choice" role="group" aria-label="${esc(item.label || item.id)}">
+        <div class="plugin-setting-choice-head"><strong>${esc(item.label || item.id)}</strong><small>${esc(item.detail || "")}</small></div>
+        <div class="plugin-choice-row">${options}</div>
+      </div>`;
+    }
     if (item.type !== "toggle") return "";
     const value = Boolean(state.settings?.[item.id]);
-    return `<button class="settings-toggle plugin-setting-toggle ${value ? "active" : ""}" type="button" data-action="toggle-plugin-setting" data-plugin-id="${esc(plugin.id)}" data-plugin-setting="${esc(item.id)}" aria-pressed="${value ? "true" : "false"}">
-      <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      <span class="toggle-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || "")}</small></span>
-    </button>`;
+    return `<div class="plugin-row plugin-setting-row">
+      <span class="plugin-row-name">${esc(item.label)}</span>
+      <button class="plugin-box-toggle ${value ? "active" : ""}" type="button" data-action="toggle-plugin-setting" data-plugin-id="${esc(plugin.id)}" data-plugin-setting="${esc(item.id)}" aria-pressed="${value ? "true" : "false"}" aria-label="${esc(item.label || item.id)}">
+        <span class="plugin-box" aria-hidden="true"></span>
+      </button>
+    </div>`;
   }).join("");
   const pending = pluginPendingUninstallId === pluginId ? plugin : null;
-  return `<button class="plugin-back" type="button" data-action="plugin-back">${BACK_ICON}<span>Plugins</span></button>
-    <div class="settings-head plugin-detail-head">
-      ${pluginIconMarkup(plugin, "plugin-icon-large")}
-      <div class="plugin-detail-title">
-        <h2>${esc(plugin.title)}</h2>
-        <p>${esc(plugin.englishTitle || plugin.id)} · v${esc(plugin.version || "1.0.0")}${plugin.author ? ` · by ${esc(plugin.author)}` : ""}</p>
-      </div>
+  return `<button class="plugin-back" type="button" data-action="plugin-back">${BACK_ICON}<span>${communitySection === "games" ? "Games" : communitySection === "themes" ? "Themes" : "Plugins"}</span></button>
+    <div class="settings-head">
+      <h2>${esc(plugin.title)}</h2>
     </div>
-    <p class="plugin-detail-description">${esc(plugin.description || "")}</p>
     <div class="settings-section">
-      <div class="settings-label">Plugin <span>${on ? "on" : "off"}</span></div>
-      <button class="settings-toggle ${on ? "active" : ""}" type="button" data-action="toggle-plugin" data-plugin-id="${esc(plugin.id)}" aria-pressed="${on ? "true" : "false"}">
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>${on ? "On" : "Off"}</strong><small>${on ? "The plugin sits in the left tool rail." : "The plugin is installed but hidden from the notebook."}</small></span>
-      </button>
+      <div class="plugin-list">
+        <div class="plugin-row ${on ? "plugin-on" : "plugin-off"}">
+          <span class="plugin-row-name">Enabled</span>
+          ${pluginBoxToggleMarkup(plugin.id, on, `${on ? "Turn off" : "Turn on"} ${plugin.title}`)}
+        </div>
+      </div>
       <div class="plugin-detail-actions">
         <button class="btn small" type="button" data-action="open-plugin" data-plugin-id="${esc(plugin.id)}" ${on ? "" : "disabled"}>Open plugin</button>
       </div>
     </div>
     <div class="settings-section">
-      <div class="settings-label">Plugin settings</div>
+      <div class="settings-label">Settings</div>
       ${settingRows || `<div class="plugin-empty">This plugin does not expose any settings yet.</div>`}
-    </div>
-    <div class="settings-section plugin-detail-about">
-      <div class="settings-label">Details</div>
-      <div class="about-section">
-        <div><span>Version</span><small>${esc(plugin.version || "1.0.0")}</small></div>
-        <div><span>Category</span><small>${esc(plugin.category || "Plugin")}</small></div>
-        <div><span>Author</span><small>${esc(plugin.author || "NeoTodo")}</small></div>
-        <div><span>Source</span><small>${plugin.source === "user" ? "Downloaded from the community" : "Built into NeoTodo"}</small></div>
-        <div><span>Entry</span><small>${esc(plugin.entry || "")}</small></div>
-        ${plugin.license ? `<div><span>License</span><small>${esc(plugin.license)}</small></div>` : ""}
-        ${plugin.homepage ? `<div><span>Homepage</span><small><a class="about-link" href="${esc(plugin.homepage)}" data-external-link="${esc(plugin.homepage)}">${esc(plugin.homepage)}</a></small></div>` : ""}
-      </div>
     </div>
     ${pluginUninstallConfirmMarkup(pending)}
     <div class="plugin-danger-zone">
@@ -11595,26 +15526,783 @@ function pluginDetailSettings(pluginId) {
     </div>`;
 }
 
+// ---------------------------------------------------------------------------
+// Settings → Plugins
+// ---------------------------------------------------------------------------
+// Community is where new plugins are found; this page only manages what is
+// already installed on this computer.
+function pluginsSettings() {
+  const pending = pluginPendingUninstallId ? PLUGIN_REGISTRY[pluginPendingUninstallId] : null;
+  if (pluginDetailId) {
+    return pluginUninstallConfirmMarkup(pending) + pluginDetailSettings(pluginDetailId);
+  }
+  ensurePluginCatalog();
+  const installed = Object.values(PLUGIN_REGISTRY)
+    .filter((plugin) => pluginState(plugin.id)?.installed)
+    .sort((a, b) => String(a.title || a.id).localeCompare(String(b.title || b.id)));
+  const updates = installed.map((plugin) => {
+    const entry = pluginCatalogEntries().find((item) => item.id === plugin.id);
+    return entry && entry.version && pluginVersionNewer(entry.version, plugin.version) ? { plugin, entry } : null;
+  }).filter(Boolean);
+  const updateSection = updates.length ? `<div class="settings-section">
+      <div class="settings-label">Updates</div>
+      <div class="plugin-list">
+        ${updates.map(({ plugin, entry }) => `<div class="plugin-row plugin-update-row">
+          <span class="plugin-row-name">${esc(plugin.title)}</span>
+          <button class="btn small community-install" type="button" data-action="install-community-plugin" data-plugin-id="${esc(plugin.id)}" ${pluginInstalling.has(plugin.id) ? "disabled" : ""} title="v${esc(plugin.version || "1.0.0")} → v${esc(entry.version)}">${pluginInstalling.has(plugin.id) ? "Updating…" : "Update"}</button>
+        </div>`).join("")}
+      </div>
+    </div>` : "";
+  return `${pluginUninstallConfirmMarkup(pending)}
+    <div class="settings-section">
+      <div class="settings-label">Plugins</div>
+      ${installed.length
+        ? `<div class="plugin-list">${installed.map(pluginRowMarkup).join("")}</div>`
+        : `<div class="plugin-empty">No plugins installed yet. Open the Community to add your first one.</div>`}
+    </div>
+    ${updateSection}`;
+}
+
+// ---------------------------------------------------------------------------
+// Settings → AI
+// ---------------------------------------------------------------------------
+function aiProviderDisplayName(providerId) {
+  const id = String(providerId || "").toLowerCase();
+  const known = (aiCatalog.providers || []).find((provider) => provider.id === id);
+  if (known?.name) return known.name;
+  const names = {
+    deepseek: "DeepSeek", openai: "OpenAI", anthropic: "Anthropic", claude: "Anthropic",
+    google: "Google", gemini: "Gemini", openrouter: "OpenRouter", ollama: "Ollama",
+    mistral: "Mistral", meta: "Meta", xai: "xAI", qwen: "Qwen", zhipu: "Zhipu",
+    moonshot: "Moonshot", groq: "Groq", together: "Together", opencode: "OpenCode",
+    "openai-compatible": "OpenAI compatible",
+  };
+  return names[id] || (id ? id.charAt(0).toUpperCase() + id.slice(1) : "AI");
+}
+
+function aiProviderIconHtml(providerId, extra = "") {
+  const id = String(providerId || "").toLowerCase();
+  const icon = MODEL_ICON_IDS[id] || modelIconHint(id) || "lobehub";
+  return `<img class="ai-provider-icon ${extra}" src="/model-icons/${icon}.svg" alt="" aria-hidden="true">`;
+}
+
+function aiModelLabel(model) {
+  return `${agentModelProvider(model)}/${agentModelLeaf(model)}`;
+}
+
+function aiAllModels() {
+  return Array.isArray(aiCatalog.models) ? aiCatalog.models : [];
+}
+
+function aiEnabledModels() {
+  const config = aiConfig || {};
+  const all = aiAllModels();
+  const enabled = Array.isArray(config.enabled_models) ? config.enabled_models : [];
+  if (!enabled.length) return all;
+  const wanted = new Set(enabled);
+  if (config.default_model) wanted.add(config.default_model);
+  for (const value of Object.values(config.agent_models || {})) if (value) wanted.add(value);
+  return all.filter((model) => wanted.has(model));
+}
+
+function aiModelOptions(selected = "", options = {}) {
+  const models = options.models || aiAllModels();
+  const groups = new Map();
+  for (const model of models) {
+    const provider = String(model).split("/")[0];
+    if (!groups.has(provider)) groups.set(provider, []);
+    groups.get(provider).push(model);
+  }
+  const rows = [];
+  if (options.inherit) {
+    rows.push(`<option value="" ${selected ? "" : "selected"}>${esc(options.inherit)}</option>`);
+  }
+  for (const [provider, list] of groups) {
+    rows.push(`<optgroup label="${esc(aiProviderDisplayName(provider))}">`);
+    for (const model of list) {
+      const value = esc(model);
+      rows.push(`<option value="${value}" ${model === selected ? "selected" : ""}>${esc(agentModelLeaf(model))}</option>`);
+    }
+    rows.push("</optgroup>");
+  }
+  return rows.join("");
+}
+
+function aiModeButtons(kind, current) {
+  return ["chat", "build"].map((mode) => `<button class="ai-mode-choice ${mode === current ? "active" : ""}" type="button" data-action="ai-set-agent-mode" data-kind="${esc(kind)}" data-mode="${mode}" aria-pressed="${mode === current ? "true" : "false"}">${mode === "chat" ? "Chat" : "Build"}</button>`).join("");
+}
+
+function applyAiConfigPayload(data) {
+  if (!data || !data.ok) return;
+  aiConfig = data.config || null;
+  aiCatalog = {
+    models: Array.isArray(data.models) ? data.models : [],
+    enabled_models: Array.isArray(data.enabled_models) ? data.enabled_models : [],
+    providers: Array.isArray(data.providers) ? data.providers : [],
+    skills: Array.isArray(data.skills) ? data.skills : [],
+    backends: data.backends || {},
+    activity: Array.isArray(data.activity) ? data.activity : [],
+    paths: data.paths || {},
+    default_model: data.default_model || "",
+    agent_defaults: data.agent_defaults || {},
+  };
+  agentDefaultModels = {};
+  agentDefaultModes = {};
+  for (const [kind, value] of Object.entries(data.agent_defaults || {})) {
+    if (value?.model) agentDefaultModels[kind] = value.model;
+    if (value?.mode) agentDefaultModes[kind] = value.mode;
+  }
+  agentModels = aiEnabledModels();
+  agentDefaultModel = data.default_model || agentModels[0] || agentDefaultModel;
+  if (agentTerminalOpen) renderAgentTerminal();
+}
+
+function loadAiConfig(force = false) {
+  if (aiConfig && !force) return Promise.resolve(aiConfig);
+  if (aiConfigLoading) return aiConfigLoading;
+  aiConfigLoading = (async () => {
+    try {
+      const data = await agentPost({ action: "config" });
+      if (data.ok) applyAiConfigPayload(data);
+    } catch (error) {
+    } finally {
+      aiConfigLoading = null;
+      aiConfigLoaded = true;
+    }
+    return aiConfig;
+  })();
+  return aiConfigLoading;
+}
+
+async function aiSaveConfig(patch, options = {}) {
+  try {
+    const data = await agentPost({ action: "set_config", config: patch });
+    if (!data.ok) {
+      toast(data.error || "Could not save AI settings", true);
+      return false;
+    }
+    applyAiConfigPayload(data);
+    if (options.rerender !== false) renderSettings();
+    if (options.message) toast(options.message);
+    return true;
+  } catch (error) {
+    toast("Could not reach the local AI service", true);
+    return false;
+  }
+}
+
+async function aiRefreshModels() {
+  try {
+    const data = await agentPost({ action: "refresh_models" });
+    if (data.ok) {
+      applyAiConfigPayload(data);
+      renderSettings();
+      toast(`Found ${aiAllModels().length} model${aiAllModels().length === 1 ? "" : "s"}`);
+    }
+  } catch (error) {
+    toast("Could not refresh models", true);
+  }
+}
+
+async function aiToggleModel(model) {
+  if (!aiConfig || !model) return;
+  const all = aiAllModels();
+  const enabled = new Set(aiEnabledModels());
+  if (enabled.has(model)) enabled.delete(model);
+  else enabled.add(model);
+  const next = enabled.size === all.length ? [] : [...enabled].filter((item) => all.includes(item));
+  await aiSaveConfig({ enabled_models: next });
+}
+
+function aiProviderFormValues() {
+  const read = (name) => document.querySelector(`[data-ai-provider-field="${name}"]`)?.value || "";
+  return {
+    id: read("id").trim().toLowerCase(),
+    name: read("name").trim(),
+    base_url: read("base_url").trim(),
+    api_key: read("api_key"),
+    models: read("models").split(/[\n,]/).map((item) => item.trim()).filter(Boolean),
+    enabled: true,
+  };
+}
+
+async function aiSaveProvider() {
+  const provider = aiProviderFormValues();
+  if (!/^[a-z0-9][a-z0-9-]{0,47}$/.test(provider.id)) {
+    toast("Provider id: lowercase letters, numbers and dashes", true);
+    return;
+  }
+  if (!/^https?:\/\//.test(provider.base_url)) {
+    toast("Add an http(s) Base URL", true);
+    return;
+  }
+  if (!provider.models.length) {
+    toast("Add at least one model id", true);
+    return;
+  }
+  try {
+    const data = await agentPost({ action: "save_provider", provider });
+    if (!data.ok) {
+      toast(data.error || "Could not save the provider", true);
+      return;
+    }
+    applyAiConfigPayload(data);
+    aiProviderDraft = null;
+    renderSettings();
+    toast(`Provider ${provider.name || provider.id} saved`);
+  } catch (error) {
+    toast("Could not reach the local AI service", true);
+  }
+}
+
+async function aiTestProvider() {
+  const provider = aiProviderFormValues();
+  if (!/^https?:\/\//.test(provider.base_url)) {
+    toast("Add an http(s) Base URL first", true);
+    return;
+  }
+  const button = document.querySelector("[data-action='ai-test-provider']");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Testing…";
+  }
+  try {
+    const data = await agentPost({ action: "test_provider", provider });
+    if (data.ok) {
+      const preview = (data.models || []).slice(0, 3).join(", ");
+      toast(`Connected · ${data.count || 0} models${preview ? ` · ${preview}` : ""}`);
+    } else {
+      toast(`Connection failed · ${data.error || "no response"}`, true);
+    }
+  } catch (error) {
+    toast("Could not test the provider", true);
+  } finally {
+    const current = document.querySelector("[data-action='ai-test-provider']");
+    if (current) {
+      current.disabled = false;
+      current.textContent = "Test connection";
+    }
+  }
+}
+
+async function aiRemoveProvider(id) {
+  if (!id) return;
+  const ok = await confirmDialog({
+    kicker: "AI provider",
+    title: `Remove ${aiProviderDisplayName(id)}?`,
+    message: "Its key and models leave every picker. The provider in your global OpenCode config is not touched.",
+    confirmLabel: "Remove",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const data = await agentPost({ action: "remove_provider", provider_id: id });
+    if (data.ok) {
+      applyAiConfigPayload(data);
+      aiProviderDraft = null;
+      renderSettings();
+      toast("Provider removed");
+    }
+  } catch (error) {
+    toast("Could not remove the provider", true);
+  }
+}
+
+async function aiSaveCommand() {
+  const name = document.querySelector("[data-ai-command-name]")?.value.trim() || "";
+  const prompt = document.querySelector("[data-ai-command-prompt]")?.value.trim() || "";
+  if (!name || !prompt) {
+    toast("A command needs a name and a prompt", true);
+    return;
+  }
+  const id = name.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || `command-${Date.now()}`;
+  const commands = [...(aiConfig?.commands || [])];
+  const existing = commands.findIndex((item) => item.id === id);
+  const row = { id, name, prompt, show_in_menu: true };
+  if (existing >= 0) commands[existing] = row;
+  else commands.push(row);
+  const saved = await aiSaveConfig({ commands }, { rerender: false });
+  if (saved) {
+    aiCommandDraft = null;
+    renderSettings();
+    toast("Command saved");
+  }
+}
+
+async function aiDeleteCommand(id) {
+  const commands = (aiConfig?.commands || []).filter((item) => item.id !== id);
+  const saved = await aiSaveConfig({ commands }, { rerender: false });
+  if (saved) {
+    if (aiCommandDraft?.id === id) aiCommandDraft = null;
+    renderSettings();
+    toast("Command deleted");
+  }
+}
+
+function aiInsertCommand(id) {
+  const command = (aiConfig?.commands || []).find((item) => item.id === id);
+  if (!command) return;
+  closeSettings();
+  if (!agentTerminalOpen) openAgentTerminal(true);
+  setTimeout(() => {
+    const input = $("#agent-input");
+    if (!input) return;
+    input.value = command.prompt;
+    resizeAgentInput(input);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, 220);
+}
+
+function aiReadEnvironmentRows() {
+  return [...document.querySelectorAll("[data-ai-env-row]")].map((row) => ({
+    name: row.querySelector("[data-ai-env-name]")?.value.trim() || "",
+    value: row.querySelector("[data-ai-env-value]")?.value || "",
+  })).filter((row) => row.name);
+}
+
+async function aiSaveEnvironment() {
+  const environment = aiReadEnvironmentRows();
+  await aiSaveConfig({ environment }, { message: "Environment saved" });
+}
+
+async function aiSaveRuntime() {
+  const timeout = Number(document.querySelector("[data-ai-timeout]")?.value) || 15;
+  const parallel = Number(document.querySelector("[data-ai-parallel]")?.value) || 12;
+  await aiSaveConfig({ timeout_minutes: timeout, max_parallel: parallel }, { message: "Runtime saved" });
+}
+
+function aiActivityLabel(entry) {
+  if (entry.event === "start") return "Started";
+  if (entry.event === "finish") return "Finished";
+  if (entry.event === "interrupted") return "Interrupted";
+  if (entry.event === "error") return "Error";
+  return String(entry.event || "Event");
+}
+
+function aiActivityWhen(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function aiStatusCopy(backend) {
+  if (!backend?.available) return "OpenCode was not found. Install it and make sure it is on PATH.";
+  const version = backend.version ? ` · ${backend.version}` : "";
+  const providerCount = (aiCatalog.providers || []).length;
+  return `${aiAllModels().length} models · ${providerCount} provider${providerCount === 1 ? "" : "s"}${version}`;
+}
+
+function aiBasicSettings() {
+  const config = aiConfig || {};
+  const backends = aiCatalog.backends || {};
+  const backend = backends.opencode || { available: false };
+  const all = aiAllModels();
+  const selectedModel = config.default_model || aiCatalog.default_model || all[0] || "";
+  const mode = config.default_mode || "chat";
+  const notificationOn = config.notifications !== false;
+  const sound = config.notification_sound || "trainWhistle";
+  const sounds = [
+    ["trainWhistle", "Train whistle"],
+    ["chime", "Chime"],
+    ["ding", "Bell"],
+    ["guitarPluck", "Guitar"],
+    ["completeTap", "Wood tap"],
+  ];
+  return `<div class="ai-status-card ${backend.available ? "ok" : "warn"}">
+      <span class="ai-status-mark">${aiProviderIconHtml("opencode", "ai-status-icon")}<span class="ai-status-dot"></span></span>
+      <div class="ai-status-copy">
+        <strong>OpenCode</strong>
+        <p>${esc(aiStatusCopy(backend))}</p>
+      </div>
+      <button class="btn small" type="button" data-action="ai-refresh-models">Refresh</button>
+    </div>
+    ${backend.available ? "" : `<div class="ai-inline-warning">OpenCode is missing. NeoTodo uses it to run the agent; install it before sending a message.</div>`}
+    <div class="settings-section">
+      <div class="settings-label">Agent <span>default backend</span></div>
+      <div class="ai-card">
+        <label class="ai-field">
+          <span class="ai-field-copy"><strong>Default agent</strong><small>Used when a new AI conversation starts.</small></span>
+          <select class="ai-select" data-ai-field="default_agent">
+            ${Object.values(backends).map((item) => `<option value="${esc(item.id)}" ${item.id === (config.default_agent || "opencode") ? "selected" : ""} ${item.supported !== false ? "" : "disabled"}>${esc(item.name)}${item.supported !== false ? "" : item.available ? " · adapter not wired" : " · not installed"}</option>`).join("")}
+          </select>
+        </label>
+        <label class="ai-field">
+          <span class="ai-field-copy"><strong>Default model</strong><small>The model new chats, planning and subtasks start on.</small></span>
+          <select class="ai-select" data-ai-field="default_model">${aiModelOptions(selectedModel)}</select>
+        </label>
+        <div class="ai-field">
+          <span class="ai-field-copy"><strong>Default mode</strong><small>Chat only reads. Build may edit the linked project.</small></span>
+          <div class="ai-mode-group">${aiModeButtons("default", mode)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Behavior</div>
+      <button class="settings-toggle ${notificationOn ? "active" : ""}" type="button" data-action="ai-toggle-notifications" aria-pressed="${notificationOn ? "true" : "false"}">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-copy"><strong>Notification</strong><small>Play a quiet sound when an agent finishes or stops with an error.</small></span>
+      </button>
+      ${notificationOn ? `<label class="ai-field ai-field-subtle">
+        <span class="ai-field-copy"><strong>Sound</strong><small>One short cue, never a loop.</small></span>
+        <select class="ai-select" data-ai-field="notification_sound">
+          ${sounds.map(([id, label]) => `<option value="${id}" ${id === sound ? "selected" : ""}>${label}</option>`).join("")}
+        </select>
+      </label>` : ""}
+      <button class="settings-toggle ${config.auto_attach_note !== false ? "active" : ""}" type="button" data-action="ai-toggle-auto-note" aria-pressed="${config.auto_attach_note !== false ? "true" : "false"}">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-copy"><strong>Auto-attach the open note</strong><small>Hands the visible note text to the agent as context.</small></span>
+      </button>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Custom instructions <span>applies to every agent</span></div>
+      <textarea class="ai-instructions" data-ai-instructions rows="7" placeholder="Example: Answer in Chinese. Keep the notebook's quiet tone. Prefer editing web/ and app.py on Linux only.">${esc(config.custom_instructions || "")}</textarea>
+      <p class="ai-hint" data-ai-instructions-count>${String(config.custom_instructions || "").length} characters</p>
+      <p class="ai-hint">Saved automatically and appended to every chat, plan and executor run. The project's own AGENTS.md still comes first.</p>
+    </div>`;
+}
+
+function aiModelsSettings() {
+  const config = aiConfig || {};
+  const enabled = new Set(aiEnabledModels());
+  const defaultModel = config.default_model || aiCatalog.default_model || "";
+  const query = aiModelQuery.trim().toLowerCase();
+  const groups = new Map();
+  for (const model of aiAllModels()) {
+    const provider = String(model).split("/")[0];
+    if (!groups.has(provider)) groups.set(provider, []);
+    groups.get(provider).push(model);
+  }
+  const cards = [...groups.entries()].map(([provider, models]) => {
+    const providerInfo = (aiCatalog.providers || []).find((item) => item.id === provider) || {};
+    const visible = models.filter((model) => !query || model.toLowerCase().includes(query) || agentModelLeaf(model).toLowerCase().includes(query));
+    if (!visible.length) return "";
+    const rows = visible.map((model) => {
+      const on = enabled.has(model);
+      const isDefault = model === defaultModel;
+      return `<div class="ai-model-row ${on ? "" : "off"}" data-ai-model-row data-search="${esc(model.toLowerCase())}">
+        ${aiProviderIconHtml(provider, "ai-model-icon")}
+        <div class="ai-model-copy">
+          <strong>${esc(agentModelLeaf(model))}</strong>
+          <small>${esc(model)}</small>
+        </div>
+        ${isDefault ? `<span class="ai-default-badge">Default</span>` : `<button class="ai-model-default" type="button" data-action="ai-set-default-model" data-model="${esc(model)}">Make default</button>`}
+        <button class="ai-model-switch ${on ? "active" : ""}" type="button" data-action="ai-toggle-model" data-model="${esc(model)}" aria-pressed="${on ? "true" : "false"}" aria-label="${on ? "Hide" : "Show"} ${esc(model)}">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </button>
+      </div>`;
+    }).join("");
+    return `<div class="ai-provider-block">
+      <div class="ai-provider-block-head">
+        ${aiProviderIconHtml(provider)}
+        <div><strong>${esc(providerInfo.name || aiProviderDisplayName(provider))}</strong><small>${models.length} model${models.length === 1 ? "" : "s"}${providerInfo.custom ? " · custom provider" : ""}</small></div>
+        <span class="ai-provider-status">${providerInfo.status === "key-required" ? "Key required" : providerInfo.status === "local" ? "Local" : providerInfo.status === "disabled" ? "Disabled" : "Ready"}</span>
+      </div>
+      <div class="ai-model-list">${rows}</div>
+    </div>`;
+  }).join("");
+  return `<div class="ai-toolbar">
+      <label class="ai-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m15.4 15.4 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input type="search" data-ai-model-search value="${esc(aiModelQuery)}" placeholder="Search models…" autocomplete="off">
+      </label>
+      <button class="btn small" type="button" data-action="ai-refresh-models">Refresh</button>
+    </div>
+    <div class="ai-summary-line"><span>${enabled.size} of ${aiAllModels().length} models visible in the AI picker</span><span>Default · ${esc(aiModelLabel(defaultModel))}</span></div>
+    ${cards || `<div class="ai-empty">No model matches “${esc(aiModelQuery)}”.</div>`}
+    <p class="ai-hint">Everything OpenCode reports and every model you add under Providers appears here. Turning a model off only hides it from NeoTodo's picker.</p>`;
+}
+
+function aiProviderEditor() {
+  const draft = aiProviderDraft || {};
+  return `<div class="ai-provider-form">
+    ${draft.editing ? "" : `<div class="ai-preset-row"><span>Quick start</span>
+      <button class="ai-preset" type="button" data-action="ai-provider-preset" data-preset="ollama">Ollama</button>
+      <button class="ai-preset" type="button" data-action="ai-provider-preset" data-preset="lmstudio">LM Studio</button>
+      <button class="ai-preset" type="button" data-action="ai-provider-preset" data-preset="openrouter">OpenRouter</button>
+      <button class="ai-preset" type="button" data-action="ai-provider-preset" data-preset="custom">Custom</button>
+    </div>`}
+    <div class="ai-form-grid">
+      <label class="ai-input"><span>Display name</span><input type="text" data-ai-provider-field="name" value="${esc(draft.name || "")}" placeholder="Acme Gateway" autocomplete="off"></label>
+      <label class="ai-input"><span>Provider id</span><input type="text" data-ai-provider-field="id" value="${esc(draft.id || "")}" placeholder="acme" autocomplete="off" ${draft.editing ? "readonly" : ""}></label>
+      <label class="ai-input ai-input-wide"><span>Base URL</span><input type="url" data-ai-provider-field="base_url" value="${esc(draft.base_url || "")}" placeholder="https://llm.acme.example/v1" autocomplete="off"></label>
+      <label class="ai-input ai-input-wide"><span>API key ${draft.editing ? "(leave blank to keep)" : ""}</span><input type="password" data-ai-provider-field="api_key" value="" placeholder="${draft.api_key_set ? "A key is already saved" : "sk-…"}" autocomplete="off"></label>
+      <label class="ai-input ai-input-wide"><span>Models · one per line</span><textarea data-ai-provider-field="models" rows="4" placeholder="qwen3-coder&#10;glm-5">${esc(Array.isArray(draft.models) ? draft.models.join("\n") : (draft.models || ""))}</textarea></label>
+    </div>
+    <p class="ai-hint">Connection uses an OpenAI-compatible <code>/models</code> endpoint. The key is stored in NeoTodo's AI settings (file mode 600) and is never shown again.</p>
+    <div class="ai-form-actions">
+      <button class="btn small" type="button" data-action="ai-test-provider">Test connection</button>
+      <button class="btn small primary" type="button" data-action="ai-save-provider">Save provider</button>
+      <button class="btn small" type="button" data-action="ai-cancel-provider">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function aiProvidersSettings() {
+  const providers = aiCatalog.providers || [];
+  const custom = providers.filter((item) => item.custom);
+  const builtin = providers.filter((item) => !item.custom);
+  const customRows = custom.map((provider) => `<div class="ai-provider-row">
+      ${aiProviderIconHtml(provider.id)}
+      <div class="ai-provider-copy">
+        <strong>${esc(provider.name)}</strong>
+        <small>${esc(provider.base_url || "Base URL missing")} · ${provider.count} model${provider.count === 1 ? "" : "s"}</small>
+      </div>
+      <span class="ai-provider-key ${provider.api_key_set || provider.status === "local" ? "set" : ""}">${provider.status === "local" ? "Local" : provider.api_key_set ? "API key set" : "No key"}</span>
+      <button class="btn small" type="button" data-action="ai-edit-provider" data-provider="${esc(provider.id)}">Edit</button>
+      <button class="btn small danger" type="button" data-action="ai-remove-provider" data-provider="${esc(provider.id)}">Remove</button>
+    </div>`).join("");
+  const builtinRows = builtin.map((provider) => `<div class="ai-builtin-row">
+      ${aiProviderIconHtml(provider.id)}
+      <div class="ai-provider-copy"><strong>${esc(provider.name)}</strong><small>${provider.count} model${provider.count === 1 ? "" : "s"} · managed by OpenCode</small></div>
+      <span class="ai-provider-key ready">${provider.status === "key-required" ? "Key required" : "Ready"}</span>
+    </div>`).join("");
+  return `<div class="ai-toolbar">
+      <div class="ai-toolbar-copy"><strong>Bring your own key</strong><span>OpenAI-compatible endpoints, gateways, Ollama or LM Studio.</span></div>
+      <button class="btn small primary" type="button" data-action="ai-new-provider">Add provider</button>
+    </div>
+    ${aiProviderDraft ? aiProviderEditor() : ""}
+    <div class="settings-section">
+      <div class="settings-label">Your providers <span>${custom.length}</span></div>
+      ${custom.length ? customRows : `<div class="ai-empty">No custom provider yet. OpenCode's own providers below keep working.</div>`}
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">From OpenCode <span>${builtin.length}</span></div>
+      ${builtinRows || `<div class="ai-empty">No provider reported. Check <code>opencode models</code>.</div>`}
+    </div>
+    <div class="ai-note-card">
+      <strong>How routing works</strong>
+      <p>Custom providers are written to <code>ai-opencode.json</code> in NeoTodo's data folder and handed to OpenCode through <code>OPENCODE_CONFIG</code>. Your global <code>~/.config/opencode/opencode.jsonc</code> is never rewritten.</p>
+      <button class="btn small" type="button" data-action="ai-open-folder">Open AI data folder</button>
+    </div>`;
+}
+
+function aiAgentsSettings() {
+  const config = aiConfig || {};
+  const backends = aiCatalog.backends || {};
+  const kinds = [
+    { id: "captain", title: "Captain", detail: "The notebook-wide architect. Plans, explains and answers from anywhere." },
+    { id: "todo", title: "Todo agent", detail: "Works on one todo card, reads its notes and plans the subtasks." },
+    { id: "subtask", title: "Subtask executor", detail: "Runs one subtask in Build mode and edits the linked project." },
+  ];
+  const cards = kinds.map((item) => {
+    const defaults = aiCatalog.agent_defaults?.[item.id] || {};
+    const model = config.agent_models?.[item.id] || "";
+    const mode = config.agent_modes?.[item.id] || defaults.mode || "chat";
+    return `<div class="ai-agent-card">
+      <div class="ai-agent-card-head">
+        <span class="ai-agent-rank">${item.id === "captain" ? "C" : item.id === "todo" ? "T" : "S"}</span>
+        <div><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></div>
+      </div>
+      <label class="ai-field">
+        <span class="ai-field-copy"><strong>Model</strong><small>Effective now · ${esc(aiModelLabel(defaults.model || config.default_model || ""))}</small></span>
+        <select class="ai-select" data-ai-agent-model="${esc(item.id)}">${aiModelOptions(model, { inherit: "Use the default model" })}</select>
+      </label>
+      <div class="ai-field">
+        <span class="ai-field-copy"><strong>Mode</strong><small>Chat is read-only. Build can edit the project.</small></span>
+        <div class="ai-mode-group">${aiModeButtons(item.id, mode)}</div>
+      </div>
+    </div>`;
+  }).join("");
+  return `<div class="ai-backend-card">
+      <div class="ai-backend-title">${aiProviderIconHtml("opencode")}<div><strong>OpenCode</strong><small>${esc(aiStatusCopy(backends.opencode))}</small></div><span class="ai-provider-key ${backends.opencode?.available ? "ready" : ""}">${backends.opencode?.available ? "Installed" : "Missing"}</span></div>
+      <p>NeoTodo drives one local OpenCode CLI. Claude and Codex are listed for future adapters but are not used by this build.</p>
+    </div>
+    <div class="settings-label">Agent profiles</div>
+    <div class="ai-agent-grid">${cards}</div>
+    <p class="ai-hint">Changes apply to new conversations. A conversation that already has a model keeps it until you pick another one from the AI footer.</p>`;
+}
+
+function aiSkillsSettings() {
+  const skills = aiCatalog.skills || [];
+  const paths = aiCatalog.paths || {};
+  const rows = skills.map((skill) => `<div class="ai-skill-row">
+      <span class="ai-skill-badge" aria-hidden="true">SK</span>
+      <div class="ai-skill-copy">
+        <strong>${esc(skill.name || skill.id)}</strong>
+        <small>${esc(skill.description || "No description")}</small>
+        <code>${esc(skill.id)} · ${esc(skill.source || "")}</code>
+      </div>
+      <span class="ai-provider-key ${skill.scope === "project" ? "ready" : ""}">${skill.scope === "project" ? "Project" : "Global"}</span>
+      <button class="btn small" type="button" data-action="ai-open-skill" data-path="${esc(skill.path)}">Reveal</button>
+    </div>`).join("");
+  return `<div class="ai-toolbar">
+      <div class="ai-toolbar-copy"><strong>Skills</strong><span>Instruction packets OpenCode discovers and loads when relevant.</span></div>
+      <button class="btn small" type="button" data-action="ai-refresh-models">Rescan</button>
+    </div>
+    <div class="ai-summary-line"><span>${skills.length} skill${skills.length === 1 ? "" : "s"} found</span><span>SKILL.md · automatic</span></div>
+    <div class="ai-skill-list">${rows || `<div class="ai-empty">No skills yet. Add a <code>SKILL.md</code> under a skills folder near the project.</div>`}</div>
+    <div class="ai-provider-form ai-skill-folder-card">
+      <strong>Where they live</strong>
+      <p class="ai-hint">OpenCode scans these folders automatically. Project skills override a global skill with the same id. NeoTodo never edits their contents.</p>
+      <div class="ai-skill-paths">
+        <div><span>Project</span><code>${esc(paths.project_skills || ".opencode/skills")}</code></div>
+        <div><span>Global</span><code>${esc(paths.global_skills || "~/.config/opencode/skills")}</code></div>
+      </div>
+      <div class="ai-form-actions">
+        <button class="btn small" type="button" data-action="ai-open-skill" data-path="${esc(paths.project_skills || "")}">Open project folder</button>
+        <button class="btn small" type="button" data-action="ai-open-skill" data-path="${esc(paths.global_skills || "")}">Open global folder</button>
+      </div>
+    </div>
+    <p class="ai-hint">A skill file starts with <code>name</code> and <code>description</code> frontmatter, then the instructions. The agent reads it only when the task matches.</p>`;
+}
+
+function aiCommandsSettings() {  const commands = aiConfig?.commands || [];
+  const rows = commands.map((command) => `<div class="ai-command-row">
+      <div class="ai-command-copy"><strong>/${esc(command.name)}</strong><small>${esc(String(command.prompt || "").slice(0, 180))}${String(command.prompt || "").length > 180 ? "…" : ""}</small></div>
+      <button class="btn small" type="button" data-action="ai-insert-command" data-command="${esc(command.id)}">Insert</button>
+      <button class="btn small" type="button" data-action="ai-edit-command" data-command="${esc(command.id)}">Edit</button>
+      <button class="btn small danger" type="button" data-action="ai-delete-command" data-command="${esc(command.id)}">Delete</button>
+    </div>`).join("");
+  const draft = aiCommandDraft;
+  return `<div class="ai-toolbar">
+      <div class="ai-toolbar-copy"><strong>Quick commands</strong><span>Reusable prompts that land in the AI composer.</span></div>
+      <button class="btn small primary" type="button" data-action="ai-new-command">New command</button>
+    </div>
+    ${draft ? `<div class="ai-provider-form">
+      <div class="ai-form-grid">
+        <label class="ai-input ai-input-wide"><span>Name</span><input type="text" data-ai-command-name value="${esc(draft.name || "")}" placeholder="Summarize note" autocomplete="off"></label>
+        <label class="ai-input ai-input-wide"><span>Prompt</span><textarea data-ai-command-prompt rows="5" placeholder="Summarize the open note in three bullet points…">${esc(draft.prompt || "")}</textarea></label>
+      </div>
+      <div class="ai-form-actions">
+        <button class="btn small primary" type="button" data-action="ai-save-command">Save command</button>
+        <button class="btn small" type="button" data-action="ai-cancel-command">Cancel</button>
+      </div>
+    </div>` : ""}
+    <div class="settings-section">
+      <div class="settings-label">Saved commands <span>${commands.length}</span></div>
+      ${rows || `<div class="ai-empty">No commands yet. Add the prompts you retype most.</div>`}
+    </div>
+    <p class="ai-hint">Insert closes Settings, opens the AI sheet and puts the prompt in the composer without sending it.</p>`;
+}
+
+function aiAdvancedSettings() {
+  const config = aiConfig || {};
+  const activity = (aiCatalog.activity || []).slice(-10).reverse();
+  const activityRows = activity.map((entry) => `<div class="ai-activity-row ${esc(entry.event || "")}">
+      <span class="ai-activity-event">${esc(aiActivityLabel(entry))}</span>
+      <span class="ai-activity-title">${esc(entry.title || entry.agent || "")}</span>
+      <span class="ai-activity-meta">${esc(entry.model || "")}${entry.seconds ? ` · ${entry.seconds}s` : ""}</span>
+      <span class="ai-activity-time">${esc(aiActivityWhen(entry.at))}</span>
+    </div>`).join("");
+  const envRows = (config.environment || []).map((item) => `<div class="ai-env-row" data-ai-env-row>
+      <input type="text" data-ai-env-name value="${esc(item.name)}" placeholder="OPENCODE_CONFIG_DIR" autocomplete="off">
+      <input type="text" data-ai-env-value value="${esc(item.value)}" placeholder="value" autocomplete="off">
+      <button class="ai-row-remove" type="button" data-action="ai-env-remove" aria-label="Remove variable">×</button>
+    </div>`).join("");
+  const paths = aiCatalog.paths || {};
+  return `<div class="settings-section">
+      <div class="settings-label">Diagnostics</div>
+      <button class="settings-toggle ${config.activity_log !== false ? "active" : ""}" type="button" data-action="ai-toggle-activity" aria-pressed="${config.activity_log !== false ? "true" : "false"}">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-copy"><strong>Agent activity log</strong><small>Keeps the last runs on this device: title, model, duration and errors.</small></span>
+      </button>
+      <div class="ai-activity-list">
+        ${activityRows || `<div class="ai-empty">No agent runs logged yet.</div>`}
+      </div>
+      <div class="ai-form-actions">
+        <button class="btn small" type="button" data-action="ai-refresh-models">Refresh</button>
+        <button class="btn small danger" type="button" data-action="ai-clear-activity">Clear log</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Runtime</div>
+      <div class="ai-runtime-grid">
+        <label class="ai-input"><span>Timeout · minutes</span><input type="number" min="1" max="120" data-ai-timeout value="${Number(config.timeout_minutes) || 15}"></label>
+        <label class="ai-input"><span>Parallel build agents</span><input type="number" min="1" max="32" data-ai-parallel value="${Number(config.max_parallel) || 12}"></label>
+      </div>
+      <div class="ai-form-actions"><button class="btn small primary" type="button" data-action="ai-save-runtime">Save runtime</button></div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Environment variables <span>agent processes only</span></div>
+      <div class="ai-env-list">${envRows}</div>
+      <div class="ai-form-actions">
+        <button class="btn small" type="button" data-action="ai-env-add">Add variable</button>
+        <button class="btn small primary" type="button" data-action="ai-save-env">Save environment</button>
+      </div>
+      <p class="ai-hint">Values are passed literally to OpenCode. Do not use this editor as a secret manager for keys; use Providers instead.</p>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Files</div>
+      <div class="about-section ai-paths">
+        <div><span>AI settings</span><small>${esc(paths.ai_config || "")}</small></div>
+        <div><span>Generated OpenCode config</span><small>${esc(paths.opencode_config || "")}</small></div>
+        <div><span>Activity log</span><small>${esc(paths.activity_log || "")}</small></div>
+      </div>
+      <div class="ai-form-actions"><button class="btn small" type="button" data-action="ai-open-folder">Open data folder</button></div>
+    </div>
+    <div class="plugin-danger-zone ai-danger-zone">
+      <button class="btn small danger" type="button" data-action="ai-reset-config">Reset AI settings</button>
+    </div>`;
+}
+
+function aiSettings() {
+  if (!aiConfig && !aiConfigLoaded) {
+    loadAiConfig().then(() => { if (settingsTab === "ai") renderSettings(); });
+  }
+  const tabs = [
+    ["basic", "Basic"],
+    ["models", "Models"],
+    ["providers", "Providers"],
+    ["agents", "Agents"],
+    ["skills", "Skills"],
+    ["commands", "Commands"],
+    ["advanced", "Advanced"],
+  ];
+  const body = !aiConfig ? (aiConfigLoaded
+      ? `<div class="ai-empty">Could not read AI settings. <button class="btn small" type="button" data-action="ai-refresh-models">Retry</button></div>`
+      : `<div class="ai-loading">Reading AI settings…</div>`)
+    : aiSettingsTab === "models" ? aiModelsSettings()
+    : aiSettingsTab === "providers" ? aiProvidersSettings()
+    : aiSettingsTab === "agents" ? aiAgentsSettings()
+    : aiSettingsTab === "skills" ? aiSkillsSettings()
+    : aiSettingsTab === "commands" ? aiCommandsSettings()
+    : aiSettingsTab === "advanced" ? aiAdvancedSettings()
+    : aiBasicSettings();
+  return `<div class="settings-head ai-settings-head">
+      <div><h2>AI</h2><p>Choose the model, agent and instructions NeoTodo works with.</p></div>
+      <button class="btn small" type="button" data-action="ai-refresh-models">Refresh</button>
+    </div>
+    <div class="ai-tabs" role="tablist">
+      ${tabs.map(([id, label]) => `<button class="ai-tab ${aiSettingsTab === id ? "active" : ""}" type="button" role="tab" aria-selected="${aiSettingsTab === id ? "true" : "false"}" data-ai-tab="${id}">${label}</button>`).join("")}
+    </div>
+    <div class="ai-tab-body">${body}</div>`;
+}
+
 function renderSettings() {
+  // Every plugin action funnels through here; while the Community sheet is up,
+  // refresh that sheet instead of the settings page behind it.
+  if (communityModalOpen) { renderCommunity(); return; }
   const panel = $(".settings-panel");
   if (!panel) return;
+  // Old links and shortcuts may still ask for the former tabs.
+  if (settingsTab === "appearance") {
+    settingsTab = "theme";
+  } else if (settingsTab === "community" || settingsTab === "themes") {
+    settingsTab = "theme";
+  } else if (settingsTab === "typography") {
+    settingsTab = "font";
+  } else if (settingsTab === "pictures") {
+    // Pictures used to hold the wallpaper and the stickers. The wallpaper
+    // moved into Theme; the tab itself is Stickers now.
+    settingsTab = "stickers";
+  }
   const previousScroll = $(".settings-scroll")?.scrollTop || 0;
-  const view = settingsTab === "typography" ? typographySettings()
-    : settingsTab === "pictures" ? picturesSettings()
-    : settingsTab === "plugins" ? (pluginDetailId ? pluginDetailSettings(pluginDetailId) : pluginsSettings())
-    : settingsTab === "themes" ? themeCommunitySettings()
-    : settingsTab === "community" ? communitySettings()
+  const view = settingsTab === "font" ? fontSettings()
+    : settingsTab === "stickers" ? stickersSettings()
+    : settingsTab === "plugins" ? pluginsSettings()
     : settingsTab === "sound" ? soundSettings()
+    : settingsTab === "ai" ? aiSettings()
     : settingsTab === "about" ? aboutSettings()
-    : appearanceSettings();
+    : themeSettings();
   panel.innerHTML = `<aside class="settings-nav">
       <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
-      <button class="settings-nav-item ${settingsTab === "appearance" ? "active" : ""}" data-settings-tab="appearance">Appearance</button>
-      <button class="settings-nav-item ${settingsTab === "typography" ? "active" : ""}" data-settings-tab="typography">Typography</button>
-      <button class="settings-nav-item ${settingsTab === "pictures" ? "active" : ""}" data-settings-tab="pictures">Pictures</button>
+      <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Theme</button>
+      <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
+      <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
+      <button class="settings-nav-item ${settingsTab === "ai" ? "active" : ""}" data-settings-tab="ai">AI</button>
       <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
-      <button class="settings-nav-item ${settingsTab === "themes" ? "active" : ""}" data-settings-tab="themes">主题社区</button>
-      <button class="settings-nav-item ${settingsTab === "community" ? "active" : ""}" data-settings-tab="community">Community</button>
+      <button class="settings-nav-item settings-nav-community" data-action="open-community" aria-label="Open the Community window">Community <svg class="settings-nav-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 15.5 12 9 18.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Sound</button>
       <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
     </aside>
@@ -11622,6 +16310,7 @@ function renderSettings() {
       <div class="settings-topbar"><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
       <div class="settings-scroll"><div class="settings-view">${view}</div></div>
     </section>`;
+  if (settingsTab === "theme") syncPageLineControls();
   const nextScroll = $(".settings-scroll");
   if (nextScroll && previousScroll) nextScroll.scrollTop = previousScroll;
 }
@@ -11864,6 +16553,9 @@ function bindEvents() {
             notesDock.setTop(pendingTop, cache, metrics);
             notesDock.board?.endStretch();
             notesDock.finishStretch(pendingTop, prepared);
+            // The note's height is its own saved value: a top-edge stretch is
+            // exactly as durable as a pull on the bottom line.
+            window.noteSheetRememberCurrentHeight?.();
             notesStretchSuppressClick = true;
             notesSwipeCooldownUntil = performance.now() + 1200;
             setTimeout(() => { notesStretchSuppressClick = false; }, 350);
@@ -11905,6 +16597,15 @@ function bindEvents() {
   }, { passive: false });
 
   document.addEventListener("click", (event) => {
+    // Native <details> menus stay open until clicked again; close every other
+    // theme menu as soon as the reader opens one or clicks somewhere else.
+    const openThemeMenus = document.querySelectorAll("details.theme-menu[open]");
+    if (openThemeMenus.length) {
+      const ownMenu = event.target.closest?.("details.theme-menu");
+      openThemeMenus.forEach((menu) => {
+        if (menu !== ownMenu && !menu.contains(event.target)) menu.open = false;
+      });
+    }
     if (contextMenuOpen) {
       if (event.target.closest(".context-menu")) return;
       closeContextMenu();
@@ -11913,6 +16614,14 @@ function bindEvents() {
     if (externalLink) {
       event.preventDefault();
       silentAction("open_url", { url: externalLink.dataset.externalLink });
+      return;
+    }
+    const doingDock = event.target.closest("[data-doing-dock]");
+    if (doingDock) {
+      event.preventDefault();
+      event.stopPropagation();
+      AudioFX.categoryTap();
+      setDoingDockSide(doingDockSide === "right" ? "left" : "right");
       return;
     }
     const doingPin = event.target.closest("[data-doing-pin]");
@@ -11964,6 +16673,11 @@ function bindEvents() {
         setTimeout(() => rotor.classList.remove("spinning"), 700);
       }
       AudioFX.categoryTap();
+      // The fan in the finished card is not decoration: clicking it puts the
+      // subtask back on the board. Finished todos stay locked, so only the
+      // live todo's finished rows reopen.
+      const liveRow = doneFan.closest(".current-subtask.done[data-subtask-id]");
+      if (liveRow) reopenFinishedSubtask(currentTodo()?.id, liveRow.dataset.subtaskId);
       return;
     }
     const logExpand = event.target.closest("[data-log-expand]");
@@ -11976,107 +16690,89 @@ function bindEvents() {
       renderCompletedLogContent();
       return;
     }
-    const wallpaperModeNode = event.target.closest("[data-wallpaper-mode]");
-    if (wallpaperModeNode) {
-      event.preventDefault();
-      const mode = wallpaperModeNode.dataset.wallpaperMode === "dynamic" ? "dynamic" : "static";
-      // Static always has the postcard art fallback; dynamic starts with an
-      // empty film slot and the picker visible until a film is chosen.
-      if (mode === "static" && !settings.wallpaper_static) {
-        settings.wallpaper_static = `art:${currentPostcardId()}`;
-      }
-      settings.wallpaper_mode = mode;
-      saveSettings();
-      applySettings();
-      renderSettings();
-      return;
-    }
-    const wallpaperArtNode = event.target.closest("[data-wallpaper-art]");
-    if (wallpaperArtNode) {
-      event.preventDefault();
-      const artId = wallpaperArtNode.dataset.wallpaperArt || "";
-      if (!THEMES[artId]) return;
-      settings.wallpaper_static = `art:${artId}`;
-      settings.wallpaper_mode = "static";
-      saveSettings();
-      applySettings();
-      renderSettings();
-      return;
-    }
     const wallpaperFileNode = event.target.closest("[data-wallpaper-file]");
     if (wallpaperFileNode) {
       event.preventDefault();
       const name = wallpaperFileNode.dataset.wallpaperFile || "";
-      if (!name) return;
-      if (wallpaperFileNode.dataset.wallpaperKind === "video") {
-        settings.wallpaper_dynamic = name;
-        settings.wallpaper_mode = "dynamic";
-      } else {
-        settings.wallpaper_static = name;
-        settings.wallpaper_mode = "static";
-      }
-      saveSettings();
-      applySettings();
-      renderSettings();
+      if (!wallpaperIsLocalFile(name)) return;
+      applyWallpaperChoice(name);
       return;
     }
-    const themeMode = event.target.closest("[data-theme-mode-tab]");
-    if (themeMode) {
+    const themeBase = event.target.closest("[data-theme-base]");
+    if (themeBase) {
       event.preventDefault();
-      const mode = themeMode.dataset.themeModeTab === "dark" ? "dark" : "light";
-      themeModeTab = mode;
-      themeFamiliesOpen = true;
-      themeFamilyOpen = false;
-      const cached = mode === "dark" ? settings.dark_postcard : settings.light_postcard;
-      if (THEMES[cached]) {
-        settings.theme = "postcard";
-        settings.postcard = cached;
-        settings.resolved_postcard = cached;
-        if (String(settings.wallpaper_static || "").startsWith("theme:")) {
-          settings.wallpaper_static = `art:${cached}`;
-          settings.wallpaper_mode = "static";
-        }
-        saveSettings();
-        applySettings();
-        renderCategories();
-        renderStage();
-        if (archiveOpen) renderArchive();
+      const baseId = themeBase.dataset.themeBase === "dark" ? BASE_DARK_THEME : BASE_LIGHT_THEME;
+      if (applyThemeChoice(baseId)) {
+        customThemesOpen = false;
+        customThemeEditorOpen = false;
+        customThemeDraft = null;
+        pendingCustomThemeDeleteId = null;
+        renderSettings();
       }
-      renderSettings();
       return;
     }
     const postcardChoice = event.target.closest("[data-postcard-choice]");
     if (postcardChoice) {
       event.preventDefault();
       const choice = postcardChoice.dataset.postcardChoice;
-      settings.theme = "postcard";
       if (choice === "random") {
+        settings.theme = "postcard";
         settings.postcard = "random";
         settings.resolved_postcard = randomPostcardId(settings.resolved_postcard);
         randomPicked = true;
-      } else if (THEMES[choice]) {
-        settings.postcard = choice;
-        settings.resolved_postcard = choice;
-        randomPicked = true;
+        saveSettings();
+        applySettings();
+        renderCategories();
+        renderStage();
+        if (archiveOpen) renderArchive();
+      } else if (applyThemeChoice(choice)) {
+        customThemesOpen = true;
       }
-      const chosen = THEMES[choice];
-      if (chosen) {
-        const chosenMode = postcardIsDark(choice) ? "dark" : "light";
-        themeModeTab = chosenMode;
-        if (chosenMode === "dark") settings.dark_postcard = choice;
-        else settings.light_postcard = choice;
-        if (String(settings.wallpaper_static || "").startsWith("theme:")) {
-          settings.wallpaper_static = `art:${choice}`;
-          settings.wallpaper_mode = "static";
-        }
-      }
-      themeFamiliesOpen = true;
-      themeFamilyOpen = false;
+      pendingCustomThemeDeleteId = null;
+      renderSettings();
+      return;
+    }
+    const themeFieldModeNode = event.target.closest("[data-theme-field-mode]");
+    if (themeFieldModeNode) {
+      event.preventDefault();
+      const next = themeFieldModeNode.dataset.themeFieldMode;
+      themeFieldMode = next === "note" || next === "ai" ? next : "app";
+      // Choosing a unit replaces the whole row; put focus back on the new
+      // highlighted unit label so the next click opens that unit's themes.
+      renderSettings();
+      restoreThemeFocus(".theme-unit-trigger");
+      return;
+    }
+    const noteSurface = event.target.closest("[data-note-surface-file]");
+    if (noteSurface) {
+      event.preventDefault();
+      const file = noteSurface.dataset.noteSurfaceFile;
+      settings.note_material_file = file;
+      settings.note_material = materialIdForFile(file);
+      noteMaterialMenuOpen = false;
       saveSettings();
+      // Paper/Glass belongs to the notebook only: repaint it in place without
+      // touching the app theme, and without closing Settings.
       applySettings();
-      renderCategories();
-      renderStage();
-      if (archiveOpen) renderArchive();
+      renderSettings();
+      scheduleCustomCaret();
+      return;
+    }
+    const noteThemeChoice = event.target.closest("[data-note-theme-choice]");
+    if (noteThemeChoice) {
+      event.preventDefault();
+      settings.note_theme = noteThemeChoice.dataset.noteThemeChoice;
+      saveSettings();
+      applyNoteTheme();
+      renderSettings();
+      return;
+    }
+    const aiThemeChoice = event.target.closest("[data-ai-theme-choice]");
+    if (aiThemeChoice) {
+      event.preventDefault();
+      settings.ai_theme = aiThemeChoice.dataset.aiThemeChoice;
+      saveSettings();
+      applyAiTheme();
       renderSettings();
       return;
     }
@@ -12155,19 +16851,26 @@ function bindEvents() {
       scheduleCustomCaret();
       return;
     }
+    const aiTabNode = event.target.closest("[data-ai-tab]");
+    if (aiTabNode) {
+      event.preventDefault();
+      aiSettingsTab = aiTabNode.dataset.aiTab || "basic";
+      aiProviderDraft = null;
+      aiCommandDraft = null;
+      AudioFX.categoryTap();
+      renderSettings();
+      const aiScroll = $(".settings-scroll");
+      if (aiScroll) aiScroll.scrollTop = 0;
+      return;
+    }
     const settingsTabNode = event.target.closest("[data-settings-tab]");
     if (settingsTabNode) {
       event.preventDefault();
-      settingsTab = settingsTabNode.dataset.settingsTab;
+      settingsTab = settingsTabNode.dataset.settingsTab === "appearance" ? "theme" : settingsTabNode.dataset.settingsTab;
       pluginDetailId = null;
       pluginPendingUninstallId = null;
       renderSettings();
-      if (settingsTab === "pictures") loadWallpaperFiles();
-      if (settingsTab === "community") ensurePluginCatalog();
-      if (settingsTab === "themes") {
-        loadThemePacks().then(() => renderSettings());
-        if (!themeCatalog && !themeCatalogBusy) loadThemeCatalog(false);
-      }
+      if (settingsTab === "ai") loadAiConfig().then(() => { if (settingsTab === "ai") renderSettings(); });
       const settingsScroll = $(".settings-scroll");
       if (settingsScroll) settingsScroll.scrollTop = 0;
       return;
@@ -12198,14 +16901,14 @@ function bindEvents() {
     const actionNode = event.target.closest("[data-action]");
     if (actionNode) {
       const actionName = actionNode.dataset.action;
-      if (actionName === "complete-subtask") {
-        const fan = actionNode.querySelector(".fan-rotor") || actionNode.querySelector("svg");
-        if (fan) {
-          fan.classList.remove("spinning");
-          void fan.getBoundingClientRect();
-          fan.classList.add("spinning");
-          setTimeout(() => fan.classList.remove("spinning"), 700);
-        }
+      if (actionName === "complete-subtask" && !agentIsRunning(`subtask:${actionNode.dataset.subtaskId}`)) {
+        // Finishing a subtask pops its fan once, like a tap on the napkin:
+        // a quick swell and settle, not a full clockwise turn.
+        const fanButton = actionNode.closest(".sub-fan-action") || actionNode;
+        fanButton.classList.remove("fan-pop");
+        void fanButton.getBoundingClientRect();
+        fanButton.classList.add("fan-pop");
+        setTimeout(() => fanButton.classList.remove("fan-pop"), 280);
       }
       if (actionName === "close-postcard") { AudioFX.categoryTap(); closePostcard(); return; }
       if (actionName === "prev-postcard") { postcardNav(-1); return; }
@@ -12271,6 +16974,33 @@ function bindEvents() {
       renderStage();
       return;
     }
+    const todoName = event.target.closest("[data-current-line] .page-title-name");
+    if (todoName) {
+      // A second click inside the field belongs to the caret and to word
+      // selection, not to a new edit session.
+      if (todoName.isContentEditable) return;
+      if (performance.now() < suppressSubtaskRenameUntil) {
+        event.preventDefault();
+        return;
+      }
+      // A drag is a text selection, not a request to edit the name.
+      const textSelection = window.getSelection?.();
+      if (textSelection && !textSelection.isCollapsed && textSelection.rangeCount) return;
+      event.preventDefault();
+      // The title doubles as the todo's note target: the click both brings the
+      // note back to this todo and puts the caret in its name.
+      saveActiveNoteCaret();
+      flushNoteSave();
+      selectedHistoryId = null;
+      selectedSubtaskId = null;
+      notesPreview = false;
+      updateHistorySelection();
+      updateSubtaskSelection();
+      renderNotesPanel();
+      AudioFX.categoryTap();
+      startTodoRename(todoName, event);
+      return;
+    }
     const currentLine = event.target.closest("[data-current-line]");
     if (currentLine) {
       saveActiveNoteCaret();
@@ -12281,6 +17011,13 @@ function bindEvents() {
       updateHistorySelection();
       updateSubtaskSelection();
       renderNotesPanel();
+      return;
+    }
+    const forkLink = event.target.closest("[data-fork-branch]");
+    if (forkLink) {
+      event.preventDefault();
+      event.stopPropagation();
+      openForkBranch(forkLink.dataset.forkBranch);
       return;
     }
     const modelBadge = event.target.closest(".current-subtask .sub-agent-model.has-model");
@@ -12410,7 +17147,118 @@ function bindEvents() {
       saveSettings();
       applySettings();
       const label = $("#note-blur-value");
-      if (label) label.textContent = `${settings.note_blur} px`;
+      // Focus doubles the shared radius to reach FocusWriter's 32px default,
+      // so the readout shows the blur that is actually painted.
+      const scale = settings.note_material === "focus" ? 2 : 1;
+      if (label) label.textContent = `${settings.note_blur * scale} px`;
+      return;
+    }
+    if (event.target.matches("[data-custom-theme-color]")) {
+      if (!customThemeDraft) customThemeDraft = defaultCustomThemeDraft();
+      const key = event.target.dataset.customThemeColor;
+      const value = String(event.target.value || "").toLowerCase();
+      if (CUSTOM_THEME_COLOR_KEYS.includes(key) && /^#[0-9a-f]{6}$/.test(value)) {
+        customThemeDraft[key] = value;
+        updateCustomThemeDraftPreview();
+      }
+      return;
+    }
+    if (event.target.matches("[data-custom-theme-name]")) {
+      if (!customThemeDraft) customThemeDraft = defaultCustomThemeDraft();
+      customThemeDraft.name = String(event.target.value || "").slice(0, 60);
+      return;
+    }
+    if (event.target.id === "page-line-color" || event.target.id === "page-line-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) return;
+      savePageLine({ color });
+      // Only the paired field is refreshed; the field being typed in keeps its
+      // caret even while the user enters shorthand (#abc).
+      if (event.target.id === "page-line-color") {
+        const hex = $("#page-line-hex");
+        if (hex) hex.value = color;
+      } else {
+        const picker = $("#page-line-color");
+        if (picker) picker.value = color;
+      }
+      syncPageLineSwatch(pageLine());
+      return;
+    }
+    if (event.target.id === "page-line-opacity") {
+      const opacity = Math.max(0, Math.min(1, Number(event.target.value) || 0));
+      savePageLine({ opacity });
+      const label = $("#page-line-opacity-value");
+      if (label) label.textContent = `${Math.round(opacity * 100)}%`;
+      syncPageLineSwatch(pageLine());
+      return;
+    }
+    if (event.target.id === "page-line-row" || event.target.id === "page-line-thickness") {
+      const isRow = event.target.id === "page-line-row";
+      const value = Math.round(Number(event.target.value) || (isRow ? 40 : 1));
+      savePageLine(isRow ? { row: value } : { thickness: value });
+      const label = $(`#page-line-${isRow ? "row" : "thickness"}-value`);
+      if (label) label.textContent = `${value} px`;
+      syncPageLineSwatch(pageLine());
+      return;
+    }
+    if (event.target.id === "baseline-color" || event.target.id === "baseline-color-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) return;
+      saveBaselineColor(color);
+      // Update only the paired field. Rewriting the field being typed in would
+      // expand "#abc" to "#aabbcc" mid-keystroke and steal the caret.
+      if (event.target.id === "baseline-color") {
+        const hex = $("#baseline-color-hex");
+        if (hex) hex.value = color;
+      } else {
+        const picker = $("#baseline-color");
+        if (picker) picker.value = color;
+      }
+      const sample = $(".baseline-live-sample");
+      if (sample) sample.style.setProperty("--sample", color);
+      return;
+    }
+    if (event.target.id === "baseline-row-color" || event.target.id === "baseline-row-color-hex"
+      || event.target.id === "baseline-row-color2" || event.target.id === "baseline-row-color2-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) return;
+      const second = event.target.id.includes("color2");
+      saveBaselineRowRule({ [second ? "color2" : "color"]: color });
+      // Only the paired field is refreshed; the field being typed in keeps its
+      // caret even when the user is entering shorthand (#abc).
+      const pickerId = second ? "baseline-row-color2" : "baseline-row-color";
+      const hexId = second ? "baseline-row-color2-hex" : "baseline-row-color-hex";
+      if (event.target.id === pickerId) {
+        const hex = $(`#${hexId}`);
+        if (hex) hex.value = color;
+      } else {
+        const picker = $(`#${pickerId}`);
+        if (picker) picker.value = color;
+      }
+      const live = event.target.closest(".caret-color-row")?.querySelector(".baseline-row-live-sample");
+      if (live) live.style.setProperty("--sample", color);
+      const preview = $(".baseline-row-preview");
+      if (preview) preview.style.setProperty(second ? "--b" : "--a", color);
+      return;
+    }
+    if (event.target.id === "baseline-row-angle") {
+      const angle = Math.max(0, Math.min(180, Number(event.target.value) || 0));
+      const label = $("#baseline-row-angle-value");
+      if (label) label.textContent = `${angle}°`;
+      const preview = $(".baseline-row-preview");
+      if (preview) preview.style.setProperty("--angle", `${angle}deg`);
+      saveBaselineRowRule({ angle });
+      return;
+    }
+    if (event.target.id === "highlight-color" || event.target.id === "highlight-color-hex") {
+      const color = normalizeHighlightColorInput(event.target.value);
+      if (!color) return;
+      settings.highlight = color;
+      saveSettings();
+      applyHighlight();
+      // Update only the paired field; rewriting the field being typed in would
+      // expand "#abc" to "#aabbcc" and steal the caret.
+      syncHighlightFields(color, event.target.id === "highlight-color" ? "picker" : "hex");
       return;
     }
     if (event.target.id === "caret-color") {
@@ -12480,65 +17328,128 @@ function bindEvents() {
     }, 80);
   });
 
-  document.addEventListener("change", (event) => {
-    if (event.target.id === "wallpaper-image-input") {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file) return;
-      toast("Adding static wallpaper…");
-      prepareWallpaperImage(file).then((data) => {
-        if (!data) { toast("Could not read that picture", true); return; }
-        silentAction("upload_wallpaper", {
-          name: `${String(file.name || "wallpaper").replace(/\.[^.]+$/, "")}.jpg`,
-          kind: "image",
-          data: String(data).split(",")[1] || "",
-        }).then((result) => {
-          if (!result?.ok || !result.file) {
-            toast(result?.error || "Could not add that picture", true);
-            return;
-          }
-          settings.wallpaper_static = result.file;
-          settings.wallpaper_mode = "static";
-          saveSettings();
-          applySettings();
-          loadWallpaperFiles().then(() => renderSettings());
-          toast("Static wallpaper ready");
-        });
+  document.addEventListener("input", (event) => {
+    if (event.target.matches("[data-ai-model-search]")) {
+      aiModelQuery = event.target.value;
+      const query = aiModelQuery.trim().toLowerCase();
+      document.querySelectorAll("[data-ai-model-row]").forEach((row) => {
+        row.hidden = Boolean(query) && !String(row.dataset.search || "").includes(query);
+      });
+      document.querySelectorAll(".ai-provider-block").forEach((block) => {
+        const rows = [...block.querySelectorAll("[data-ai-model-row]")];
+        block.hidden = rows.every((row) => row.hidden);
       });
       return;
     }
-    if (event.target.id === "wallpaper-video-input") {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file) return;
-      if (file.size > 120_000_000) {
-        toast("That video is too large (120 MB max)", true);
+    if (event.target.matches("[data-ai-instructions]")) {
+      const value = event.target.value;
+      const counter = document.querySelector("[data-ai-instructions-count]");
+      if (counter) counter.textContent = `${value.length} characters`;
+      clearTimeout(aiInstructionsTimer);
+      aiInstructionsTimer = setTimeout(() => {
+        aiSaveConfig({ custom_instructions: value }, { rerender: false });
+      }, 700);
+      return;
+    }
+  });
+
+  document.addEventListener("change", (event) => {
+    if (event.target.id === "page-line-color" || event.target.id === "page-line-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) {
+        event.target.value = pageLine().color;
         return;
       }
-      toast("Adding dynamic wallpaper…");
-      const reader = new FileReader();
-      reader.onload = () => {
-        const data = String(reader.result || "").split(",")[1] || "";
-        if (!data) { toast("Could not read that video", true); return; }
-        silentAction("upload_wallpaper", {
-          name: file.name,
-          kind: "video",
-          data,
-        }).then((result) => {
-          if (!result?.ok || !result.file) {
-            toast(result?.error || "Could not add that video", true);
-            return;
-          }
-          settings.wallpaper_dynamic = result.file;
-          settings.wallpaper_mode = "dynamic";
-          saveSettings();
-          applySettings();
-          loadWallpaperFiles().then(() => renderSettings());
-          toast("Dynamic wallpaper ready");
-        });
-      };
-      reader.onerror = () => toast("Could not read that video", true);
-      reader.readAsDataURL(file);
+      savePageLine({ color }, { immediate: true });
+      syncPageLineControls();
+      return;
+    }
+    if (event.target.id === "page-line-opacity"
+      || event.target.id === "page-line-row"
+      || event.target.id === "page-line-thickness") {
+      const line = pageLine();
+      savePageLine(line, { immediate: true });
+      syncPageLineControls();
+      return;
+    }
+    if (event.target.id === "baseline-color" || event.target.id === "baseline-color-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) {
+        // Leave invalid text behind instead of pretending it was saved.
+        const current = baselineColor();
+        event.target.value = current;
+        return;
+      }
+      saveBaselineColor(color, { immediate: true });
+      const picker = $("#baseline-color");
+      if (picker) picker.value = color;
+      const hex = $("#baseline-color-hex");
+      if (hex) hex.value = color;
+      const sample = $(".baseline-live-sample");
+      if (sample) sample.style.setProperty("--sample", color);
+      return;
+    }
+    if (event.target.id === "baseline-row-color" || event.target.id === "baseline-row-color-hex"
+      || event.target.id === "baseline-row-color2" || event.target.id === "baseline-row-color2-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) {
+        event.target.value = event.target.id.includes("color2")
+          ? baselineRowRule().color2
+          : baselineRowRule().color;
+        return;
+      }
+      const second = event.target.id.includes("color2");
+      saveBaselineRowRule({ [second ? "color2" : "color"]: color }, { immediate: true });
+      syncBaselineRowControls();
+      return;
+    }
+    if (event.target.id === "baseline-row-angle") {
+      const angle = Math.max(0, Math.min(180, Number(event.target.value) || 0));
+      saveBaselineRowRule({ angle }, { immediate: true });
+      syncBaselineRowControls();
+      return;
+    }
+    if (event.target.id === "highlight-color" || event.target.id === "highlight-color-hex") {
+      const color = normalizeHighlightColorInput(event.target.value);
+      if (!color) {
+        // Leave invalid text behind instead of pretending it was saved.
+        event.target.value = highlightColor() || (THEMES[currentPostcardId()] || THEMES.light).accent || "#8d63b8";
+        return;
+      }
+      settings.highlight = color;
+      saveSettings();
+      applyHighlight();
+      syncHighlightFields(color);
+      return;
+    }
+    if (event.target.matches("[data-ai-field]")) {
+      const field = event.target.dataset.aiField;
+      const value = event.target.value;
+      if (["default_model", "default_agent", "notification_sound"].includes(field)) {
+        aiSaveConfig({ [field]: value }, { rerender: false });
+      }
+      return;
+    }
+    if (event.target.matches("[data-ai-agent-model]")) {
+      const kind = event.target.dataset.aiAgentModel;
+      const value = event.target.value;
+      const agent_models = { ...(aiConfig?.agent_models || {}), [kind]: value };
+      aiSaveConfig({ agent_models }, { rerender: false, message: value ? "Agent model updated" : "Agent follows the default model" });
+      return;
+    }
+    if (event.target.matches("[data-custom-theme-color]")) {
+      if (!customThemeDraft) customThemeDraft = defaultCustomThemeDraft();
+      const key = event.target.dataset.customThemeColor;
+      const value = String(event.target.value || "").toLowerCase();
+      if (CUSTOM_THEME_COLOR_KEYS.includes(key) && /^#[0-9a-f]{6}$/.test(value)) {
+        customThemeDraft[key] = value;
+        updateCustomThemeDraftPreview();
+      }
+      return;
+    }
+    if (event.target.matches("[data-custom-theme-name]")) {
+      if (!customThemeDraft) customThemeDraft = defaultCustomThemeDraft();
+      customThemeDraft.name = String(event.target.value || "").slice(0, 60);
       return;
     }
     if (event.target.matches("[data-theme-pack-input]")) {
@@ -12548,20 +17459,21 @@ function bindEvents() {
       importThemePackFile(file);
       return;
     }
+    if (event.target.matches("[data-wallpaper-input]")) {
+      uploadWallpaperFile(event.target);
+      return;
+    }
     if (event.target.matches("[data-sticker-input]")) {
       const id = event.target.dataset.stickerInput;
       const file = event.target.files?.[0];
       event.target.value = "";
       if (!file) return;
-      const previous = stickerSettingsFor(id);
+      if (!availableStickerTargets().some((target) => target.id === id)) return;
       compressStickerImage(file).then((data) => {
         if (!data) { toast("Could not read that picture", true); return; }
-        settings.sticker_backgrounds[id] = {
-          image: data,
-          zoom: previous?.zoom ?? 1,
-          x: previous?.x ?? 50,
-          y: previous?.y ?? 50,
-        };
+        // The picture is the whole setting now; a fresh upload is centred
+        // rather than inheriting an old crop from a previous build.
+        settings.sticker_backgrounds[id] = { image: data, zoom: 1, x: 50, y: 50 };
         saveSettings();
         applyStickerBackgrounds();
         renderSettings();
@@ -12584,14 +17496,27 @@ function bindEvents() {
       });
       return;
     }
-    if (event.target.id !== "note-image-input") return;
-    const files = Array.from(event.target.files || []);
-    event.target.value = "";
-    if (files.length) addNotePictures(files);
   });
 
   document.addEventListener("contextmenu", (event) => {
-    if (detachedMode) {
+    // A text field owns its own clipboard menu, docked or detached. The AI
+    // composer is a real textarea, so right-clicking it has to offer Cut /
+    // Copy / Paste instead of the panel's window menu; the generic editor
+    // menu below picks it up once the panel branches stand aside.
+    const agentField = event.target.closest?.(
+      "#agent-terminal input, #agent-terminal textarea, #agent-terminal [contenteditable='true']",
+    );
+    // A plain click on the napkin opens the folder in the desktop's own file
+    // manager. The card that binds, copies or unlinks that folder stays one
+    // right-click away so the feature never has to move into Settings.
+    const folderTrigger = event.target.closest?.(".project-folder-trigger, .notes-icon-button");
+    if (folderTrigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      openProjectFolderCard();
+      return;
+    }
+    if (detachedMode && !agentField) {
       event.preventDefault();
       event.stopPropagation();
       openContextMenu(event.clientX, event.clientY, [
@@ -12617,7 +17542,7 @@ function bindEvents() {
       return;
     }
     const panel = event.target.closest("#notes-half, #agent-terminal");
-    if (panel && !detachedMode) {
+    if (panel && !detachedMode && !agentField) {
       event.preventDefault();
       event.stopPropagation();
       const kind = panel.id === "agent-terminal" ? "ai" : "note";
@@ -12674,9 +17599,9 @@ function bindEvents() {
         } catch (error) { return String(window.getSelection?.() || ""); }
       };
       const copyText = async (text) => {
-        if (!text) return;
+        if (!text) return false;
         if (navigator.clipboard?.writeText) {
-          try { await navigator.clipboard.writeText(text); return; } catch (error) {}
+          try { await navigator.clipboard.writeText(text); return true; } catch (error) {}
         }
         try {
           const helper = document.createElement("textarea");
@@ -12684,9 +17609,12 @@ function bindEvents() {
           helper.style.cssText = "position:fixed;left:-9999px;top:0";
           document.body.appendChild(helper);
           helper.select();
-          document.execCommand("copy");
+          const ok = document.execCommand("copy");
           helper.remove();
-        } catch (error) {}
+          return Boolean(ok);
+        } catch (error) {
+          return false;
+        }
       };
       const insertText = async (text) => {
         if (!text) return;
@@ -12712,7 +17640,16 @@ function bindEvents() {
       };
       openContextMenu(event.clientX, event.clientY, [
         { label: "Cut", disabled: !selectionText(), run: () => { editable.focus(); document.execCommand("cut"); } },
-        { label: "Copy", disabled: !selectionText(), run: () => copyText(selectionText()) },
+        {
+          label: "Copy",
+          disabled: !selectionText(),
+          run: async () => {
+            if (!(await copyText(selectionText()))) return;
+            // The console answers every copy with the same toast, so a copy
+            // taken from the composer's menu reads like one taken from a reply.
+            if (editable.closest("#agent-terminal")) flashAgentCopy(editable.getBoundingClientRect());
+          },
+        },
         { label: "Paste", run: paste },
         { label: "Select all", run: () => { editable.focus(); editable.select?.(); } },
       ]);
@@ -12726,10 +17663,12 @@ function bindEvents() {
       showHistorySubtaskMenu(event.clientX, event.clientY, historySub.dataset.historyTodoId, historySub.dataset.historySubtaskId);
       return;
     }
-    const currentArea = event.target.closest("[data-current-todo]");
-    if (currentArea) {
+    // The todo owns no right-click menu any more: its name is edited by
+    // clicking it directly, so the old Rename/Edit-note box would only get in
+    // the way. Swallow the event so the engine's menu cannot replace it.
+    if (event.target.closest("[data-current-todo]")) {
       event.preventDefault();
-      showCurrentTodoMenu(event.clientX, event.clientY);
+      event.stopPropagation();
       return;
     }
     const historyRow = event.target.closest("[data-history-index]");
@@ -12749,6 +17688,9 @@ function bindEvents() {
   let noteSwipeCooldown = 0;
   document.addEventListener("pointermove", (event) => {
     if (notesStretchPress || notesStretchActive) { noteSwipeLastY = event.clientY; return; }
+    // A door-line drag already owns the pointer: letting the swipe rule fire
+    // here would close the sheet in the middle of the pull.
+    if (deskHandleResizing()) { noteSwipeLastY = event.clientY; return; }
     const now = performance.now();
     if (now < notesSwipeCooldownUntil) { noteSwipeLastY = event.clientY; return; }
     // Never measure the handle on every pointermove: that forced layout is
@@ -12762,11 +17704,10 @@ function bindEvents() {
     const prevY = noteSwipeLastY;
     noteSwipeLastY = event.clientY;
     if (!inX || prevY === null || now < noteSwipeCooldown) return;
-    if (!notesHidden && prevY < lineY - 2 && event.clientY > lineY + 2) {
-      noteSwipeCooldown = now + 450;
-      noteSwipeLastY = null;
-      hideNotesPanel();
-    } else if (notesHidden && prevY > lineY + 2 && event.clientY < lineY - 2) {
+    // Opening only. A downward pass across the line used to close the sheet,
+    // which meant a pointer travelling down into the note dismissed it; the
+    // note now closes only on a click on its line.
+    if (notesHidden && prevY > lineY + 2 && event.clientY < lineY - 2) {
       noteSwipeCooldown = now + 450;
       noteSwipeLastY = null;
       showNotesPanel();
@@ -12797,6 +17738,17 @@ function bindEvents() {
 
   document.addEventListener("pointermove", (event) => {
     doingPeekPoint = { x: event.clientX, y: event.clientY };
+    // A door-line drag owns the pointer and the frame budget: re-measuring the
+    // Doing zone here (a full rect read every 350ms) would force a layout in
+    // the middle of the pull, and a peek cannot open while resizing anyway.
+    if (deskHandleResizing()) return;
+    // In a detached AI window the scroll rail lives against the same window
+    // border the sub-app drawer docks to; hovering the rail must not open the
+    // card. The in-page trigger range (the subtask column) is left untouched.
+    if (detachedMode && event.target.closest?.("#agent-scroll-rail, .agent-resize")) return;
+    // The finished-subtasks card can lie under the same border strip. It is a
+    // separate sheet, so crossing it still reaches the Doing drawer's trigger:
+    // the drawer simply slides out above the finished card.
     if (!doingZone || performance.now() - doingZoneAt > 350) refreshDoingZone();
     if (!doingZone || doingPeekOpen || doingPeekSuppressed()) return;
     if (!pointInDoingZone(event.clientX, event.clientY)) {
@@ -12819,6 +17771,25 @@ function bindEvents() {
     updateAgentSplitLayout();
     positionAgentScrollRail();
     if (agentModelMenuOpen || agentModeMenuOpen) positionAgentMenus();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    // The whole card is its grab bar: a sideways pull lifts the drawer and
+    // drops it on the subtask column's other border. A plain click, a row
+    // press or a vertical gesture is left untouched.
+    if (event.target.closest?.("#doing-peek")) beginDoingPress(event);
+  });
+  // A pull is not a click: never open the row that happened to be under it.
+  document.addEventListener("click", (event) => {
+    if (performance.now() < doingDragClickUntil && event.target.closest?.("#doing-peek")) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+  // Leaving the window mid-pull restores the card instead of leaving it afloat.
+  window.addEventListener("blur", () => {
+    endDoingPress();
+    if (doingDrag) endDoingDrag(false);
   });
 
   document.addEventListener("pointerdown", (event) => {
@@ -12848,34 +17819,15 @@ function bindEvents() {
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      // A deliberate height is part of the workspace shape; remember it now so
+      // quitting right after the resize still restores this page.
+      saveViewState();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once: true });
   }, { passive: false });
 
   document.addEventListener("input", (event) => {
-    if (event.target.matches("[data-sticker-field]")) {
-      const id = event.target.dataset.stickerId;
-      const field = event.target.dataset.stickerField;
-      const config = settings.sticker_backgrounds?.[id];
-      if (!config) return;
-      const value = Number(event.target.value) || 0;
-      if (field === "zoom") config.zoom = Math.min(2.6, Math.max(1, value / 100));
-      else if (field === "x" || field === "y") config[field] = Math.min(100, Math.max(0, value));
-      saveSettings();
-      applyStickerBackgrounds();
-      const card = event.target.closest(".sticker-setting-card");
-      const preview = card?.querySelector(".sticker-setting-preview img");
-      if (preview) {
-        preview.style.objectPosition = `${config.x}% ${config.y}%`;
-        preview.style.transform = `scale(${config.zoom})`;
-      }
-      const valueNode = event.target.closest(".sticker-crop-row")?.querySelector("[data-sticker-value]");
-      if (valueNode) {
-        valueNode.textContent = `${Math.round(field === "zoom" ? config.zoom * 100 : config[field])}%`;
-      }
-      return;
-    }
     if (event.target.matches("[data-settings-volume]")) {
       const value = Number(event.target.value) || 0;
       AudioFX.setVolume(value / 100);
@@ -12893,7 +17845,7 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     if (noteMaterialMenuOpen && !event.target.closest?.(".note-material-picker")) {
       noteMaterialMenuOpen = false;
-      if (settingsTab === "appearance") renderSettings();
+      if (settingsTab === "theme") renderSettings();
     }
     if (agentModelMenuOpen || agentModeMenuOpen) {
       agentModelMenuOpen = false;
@@ -12909,10 +17861,26 @@ function bindEvents() {
     const stripHovered = event.clientY >= window.innerHeight - 36 || latched;
     if (stripHovered !== deskStripHovered) {
       deskStripHovered = stripHovered;
-      document.body.classList.toggle("desk-strip-hover", stripHovered);
-      positionDeskHandles();
+      // A plain flag: no stylesheet reads it, and a class on <body> re-matches
+      // every `body.x ...` rule. Pulling a closed door starts in this strip and
+      // leaves it a few pixels later, so the toggle used to land in the middle
+      // of the drag.
+      setDeskStripHover(stripHovered);
+      // The gesture owns the lines while a sheet is being resized; the tuck
+      // state of the other line comes back on release.
+      if (!deskHandleResizing()) positionDeskHandles();
     }
   }, { passive: true });
+
+  // The pointer leaving the window is not a pointermove, so the strip latch
+  // would stay on and a closed line would hover above the border with nobody
+  // near it. Clearing it hands the line back under the border.
+  document.documentElement.addEventListener("mouseleave", () => {
+    if (!deskStripHovered) return;
+    deskStripHovered = false;
+    setDeskStripHover(false);
+    if (!deskHandleResizing()) positionDeskHandles();
+  });
 
   let panelLongPress = null;
   let panelLongPressSuppress = 0;
@@ -12923,7 +17891,7 @@ function bindEvents() {
     const kind = panel.id === "agent-terminal" ? "ai" : "note";
     const open = kind === "ai" ? agentTerminalOpen : !notesHidden;
     if (!open) return;
-    if (event.target.closest?.("button, a, input, textarea, select, .agent-compose, .note-block, .note-block-editor, .note-pictures, .notes-resize-handle, .desk-handle, .notes-handle, .detached-grabber")) return;
+    if (event.target.closest?.("button, a, input, textarea, select, .agent-compose, .note-block, .note-block-editor, .notes-resize-handle, .desk-handle, .notes-handle, .detached-grabber")) return;
     const startX = event.screenX;
     const startY = event.screenY;
     const viewX = event.clientX;
@@ -12996,7 +17964,16 @@ function bindEvents() {
     AudioFX.wake();
     refreshAgentFinishViews();
   });
-  window.addEventListener("storage", () => refreshAgentFinishViews());
+  window.addEventListener("storage", (event) => {
+    refreshAgentFinishViews();
+    // One drawer, many windows: dragging it to the other border in the room
+    // also settles the same card on that border in a detached note/AI window.
+    if (event.key === DOING_DOCK_SIDE_KEY && event.newValue
+      && (event.newValue === "left" || event.newValue === "right")
+      && event.newValue !== doingDockSide) {
+      setDoingDockSide(event.newValue);
+    }
+  });
 
   document.addEventListener("submit", (event) => {
     if (event.target.id === "agent-compose") {
@@ -13107,6 +18084,11 @@ function bindEvents() {
         renderStage();
         return;
       }
+    }
+    if (event.key === "Escape" && $(".community-stage")) {
+      event.preventDefault();
+      closeCommunity();
+      return;
     }
     if (event.key === "Escape" && $(".settings-stage")) {
       event.preventDefault();
@@ -13240,8 +18222,7 @@ function bindEvents() {
     }
     if (typing) return;
     if (event.key === "Escape") {
-      if ($(".picture-gallery-stage")) { $("#modal-root").innerHTML = ""; return; }
-      if ($(".image-stage")) { $("#modal-root").innerHTML = ""; return; }
+      if ($(".project-folder-stage")) { closeProjectFolderCard(); return; }
       if (contextMenuOpen) { closeContextMenu(); return; }
       if (postcard) { closePostcard(); return; }
       if (completedOpen) { closeCompletedLog(); return; }
@@ -13381,17 +18362,39 @@ function bindEvents() {
       openForkTreeTarget(event.data.target || {});
       return;
     }
+    if (event.data?.type === "neotodo-fork-open-window" && event.data.branchId) {
+      openForkBranch(String(event.data.branchId));
+      return;
+    }
+    if (event.data?.type === "neotodo-fork-open-url" && event.data.url) {
+      if (openPluginId) closePluginPanel();
+      openNeoTodoWindow(String(event.data.url));
+      return;
+    }
+    if (event.data?.type === "neotodo-pomodoro-start") {
+      closePluginPanel();
+      openFocusTimer();
+      return;
+    }
     if (event.data?.type === "neotodo-plugin-settings-changed" && event.data.plugin) {
       const state = pluginState(String(event.data.plugin));
       const values = event.data.settings;
       if (!state || !values || typeof values !== "object") return;
       let changed = false;
       for (const [key, value] of Object.entries(values)) {
-        if (typeof value !== "boolean" || state.settings[key] === value) continue;
+        // Choices are strings and sliders are numbers; the old handler only
+        // kept booleans, so a choice posted by a plugin page was dropped.
+        const keep = typeof value === "boolean"
+          || (typeof value === "string" && value.length <= 200)
+          || (typeof value === "number" && Number.isFinite(value));
+        if (!keep || state.settings[key] === value) continue;
         state.settings[key] = value;
         changed = true;
       }
-      if (changed) saveSettings();
+      if (changed) {
+        saveSettings();
+        notifyPluginSettings();
+      }
     }
   });
 
@@ -13500,14 +18503,13 @@ function bindEvents() {
     }
     if (!list) return;
     let ids = [...list.querySelectorAll(".category-item[data-category-id]")].map((row) => row.dataset.categoryId);
-    if (forkRootId) {
-      // The fork index shows a slice of the full category order; splice the
-      // visible rows back into the hidden positions before saving.
+    const allIds = state.data.categories.map((category) => category.id);
+    if (ids.length !== allIds.length) {
+      // The index can show a slice (a fork window, or hidden legacy boards);
+      // splice the visible rows back into the hidden positions before saving.
       const visible = new Set(ids);
       let cursor = 0;
-      ids = state.data.categories.map((category) => (
-        visible.has(category.id) ? ids[cursor++] : category.id
-      ));
+      ids = allIds.map((id) => (visible.has(id) ? ids[cursor++] : id));
     }
     suppressCategoryClickUntil = performance.now() + 320;
     action("reorder_categories", { ids });
@@ -13688,7 +18690,20 @@ async function init() {
   applySettings();
   bindEvents();
   updateSoundToggle();
+  loadAiConfig();
   state.data = window.__SNAPSHOT_STATE__ || await requestState();
+  // Fork boards from the first build are imported into the plugin store now,
+  // so the notebook index can drop those duplicate category rows.
+  try {
+    const forkStore = window.NeoTodoFork;
+    if (!state.data.fork && pluginEnabled("forktree") && forkStore?.importLegacy) {
+      const migratedForks = Number(forkStore.importLegacy(state.data.categories)) || 0;
+      legacyForkCategoryIds = new Set((forkStore.migratedLegacyIds?.() || []).map(String));
+      if (migratedForks > 0 && !/detached=/.test(location.search)) {
+        setTimeout(() => toast(`已把 ${migratedForks} 个旧 fork 移入 Forktree 子应用`), 1200);
+      }
+    }
+  } catch (error) {}
   loadSettings();
   resolveRandomPostcard();
   applySettings();
@@ -13758,9 +18773,16 @@ async function init() {
     const savedCategory = state.data.categories.find((category) => category.id === restoreView.categoryId);
     if (savedCategory) state.selectedCategoryId = savedCategory.id;
   }
-  // Mark the AI sheet as open before the first render so hiding the note during
-  // startup does not flatten a remembered vertical note/AI split.
-  if (restoreView?.aiOpen) agentTerminalOpen = true;
+  // A hidden legacy fork may still be the remembered or URL category; land on
+  // the first real category instead of a board that no longer belongs here.
+  const visible = visibleCategories();
+  if (!visible.some((category) => category.id === state.selectedCategoryId)) {
+    state.selectedCategoryId = visible[0]?.id || null;
+  }
+  // Put the last-exit page in place before the only render: the saved category,
+  // history selection, open note/AI sheets and a custom AI height are all
+  // first-paint state now, not something opened after the default page.
+  if (!detachedMode && !forkWindow) stageWorkspaceView(restoreView);
   if (detachedMode) {
     document.body.classList.add("detached-arriving");
     setTimeout(() => document.body.classList.remove("detached-arriving"), 760);
@@ -13803,11 +18825,17 @@ async function init() {
     document.body.appendChild(grabber);
   }
   render();
-  if (detachedMode !== "note" && !notesHidden) hideNotesPanel(true);
+  // A run that the last app close cut off is resumed by the backend. Ask for
+  // it now (and once more after the first paint) so its fan spins again.
+  syncBackendRunningAgents(true).catch(() => {});
+  setTimeout(() => syncBackendRunningAgents(true).catch(() => {}), 2600);
+  // A board that was not restored (first launch, fork window) still opens with
+  // its sheets tucked away.
+  if (!restoreView && detachedMode !== "note" && !notesHidden) hideNotesPanel(true);
   positionNotesHandle();
   updateNotesHandle();
   if (!detachedMode && !forkWindow) {
-    if (restoreView) restoreWorkspaceView(restoreView);
+    settleWorkspaceView();
     viewStateReady = true;
     saveViewState();
   }
@@ -13819,9 +18847,30 @@ async function init() {
   if (!clockTimer) clockTimer = setInterval(() => { updateHeaderStamp(); updateTopClock(); }, 1000);
   updateTopClock();
   loadNoteMaterialFiles();
+  // The room is painted together with the rest of the page. Waiting for the
+  // wallpaper's decoded first frame here means the first visible frame can
+  // never show the bare theme paper before the picture arrives.
+  await waitForWallpaperFrame();
+  document.documentElement.classList.remove("booting");
   document.body.classList.add("app-ready");
   window.__APP_READY_MS__ = performance.now();
-  document.documentElement.classList.remove("booting");
+  // The desktop window stays hidden until this page has actually been painted.
+  // Signalling after two frames keeps the very first visible frame the real
+  // page; no splash or theme-colour frame can leak through in between. The
+  // timer covers a window that is not currently animating (minimised or
+  // occluded), so startup can never wait on an animation frame that will not
+  // arrive.
+  await new Promise((resolve) => {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    requestAnimationFrame(() => requestAnimationFrame(settle));
+    setTimeout(settle, 180);
+  });
+  document.body.classList.add("app-painted");
   try {
     if (window.NeoTodoAndroid && window.NeoTodoAndroid.ready) window.NeoTodoAndroid.ready();
   } catch (error) {}
@@ -13840,8 +18889,10 @@ async function init() {
   }
   if (!detachedMode) {
     const view = params.get("view");
+    const settingsView = params.get("settings");
     const requestedCard = params.get("card");
-    if (view === "archive") openArchive();
+    if (settingsView) openSettings(settingsView === "1" ? "theme" : settingsView);
+    else if (view === "archive") openArchive();
     else if (view === "completed") openCompletedLog();
     else if (view === "card" || requestedCard) {
       const cards = [...(state.data.archive || [])].sort((a, b) => String(a.week_start).localeCompare(String(b.week_start)));

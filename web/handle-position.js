@@ -2,19 +2,66 @@
    HANDLE POSITION — shared layout only.
    --------------------------------------------------------------------------
    This file owns where the two door lines sit, how they vanish/reappear and
-   how a closed neighbour tucks under the bottom border. It contains NO
-   gesture state; the AI and the note each have their own gesture file:
+   how a closed line tucks under the bottom border. This file also holds
+   the two shared drag flags — "a sheet is being resized" and "this line
+   belongs to its gesture" — so the layout pass never fights the pointer, but
+   it contains NO gesture math; the AI and the note each have their own
+   gesture file:
        ai-handle.js    -> only .desk-handle-ai
        note-handle.js  -> only .notes-handle-bottom
    ========================================================================== */
 
 let deskHandleSwipeSuppress = 0;
 
-// While this timestamp is in the future, a hover-crossing must not close a
-// panel. Opening or moving a panel calls protectDeskHandles(420).
+// Timestamp of the last time a panel was opened or moved. A hover pass right
+// after that must not toggle a door: the line itself has just jumped to a new
+// slot, and the same pointer position would read as a crossing. Opening or
+// moving a panel calls protectDeskHandles(420).
 let deskHandleProtectUntil = 0;
 function protectDeskHandles(ms = 420) {
   deskHandleProtectUntil = performance.now() + ms;
+}
+
+// A plain flag, not a body class. It carries no styles, and a class toggle on
+// <body> makes the engine re-match every `body.x ...` rule in the sheet — a
+// page-wide invalidation once when the drag starts and again when it ends.
+// A data attribute no selector mentions costs nothing.
+function setDeskHandleResizing(on) {
+  if (on) document.body.dataset.deskHandleResizing = "1";
+  else delete document.body.dataset.deskHandleResizing;
+}
+function deskHandleResizing() {
+  return document.body.dataset.deskHandleResizing === "1";
+}
+
+// Pointer is in the bottom strip (or the closed line is latched there). This
+// used to be a body class no stylesheet used; the class toggle alone re-matched
+// every `body.x ...` rule on the page, which is a hitch right where a closed
+// door is grabbed.
+let deskStripHover = false;
+function setDeskStripHover(on) {
+  deskStripHover = Boolean(on);
+}
+
+// Which door line is being dragged right now ("ai" | "note" | null).
+// The gesture writes that line's `top` itself, once per animation frame. If the
+// shared layout pass below also places it (it runs from split updates, strip
+// hover and the followPageLayout loop), the two writers land in the same frame
+// and the line visibly trails the pointer. One owner per line.
+function deskHandleDragging(kind) {
+  const active = document.body.dataset.deskHandleDrag;
+  return Boolean(active) && (!kind || active === kind);
+}
+
+// A gesture that loses the window (alt-tab, a native menu) can end without its
+// pointerup, which would leave a line parked forever under its own writer.
+// When the flag is set but no sheet carries the drag class, the gesture is
+// already over: hand both the line and the page back to the layout pass.
+function healStaleDeskDrag() {
+  if (!deskHandleDragging()) return;
+  if (document.querySelector(".panel-handle-resizing")) return;
+  delete document.body.dataset.deskHandleDrag;
+  setDeskHandleResizing(false);
 }
 
 const DeskHandle = {
@@ -38,6 +85,13 @@ const DeskHandle = {
     const home = this.homes[kind];
     const handle = this.ensure()[kind];
     if (!home || !handle) return false;
+    // A tucked line is parked under the bottom border on purpose and must stay
+    // there: snapping it back to the home it had while it was visible would put
+    // the closed strip's line back on screen, which is exactly what the closed
+    // strip no longer does. The pointer visiting the bottom strip places it.
+    // A home remembered while the line was itself hidden is equally useless.
+    if (handle.classList.contains("handle-tucked")
+      || home.top > window.innerHeight - 2) return false;
     handle.style.setProperty("transition", "none", "important");
     this.place(kind, home.center, home.top);
     void handle.offsetWidth;
@@ -89,6 +143,7 @@ document.addEventListener("click", (event) => {
 }, true);
 
 function positionDeskHandles() {
+  healStaleDeskDrag();
   const body = $(".page-body");
   const aiHandle = $(".desk-handle-ai");
   const notesHandle = $(".notes-handle-bottom");
@@ -128,16 +183,21 @@ function positionDeskHandles() {
 
   const closedTop = window.innerHeight - 34;
   const tuckedTop = window.innerHeight + 8;
-  const stripHover = document.body.classList.contains("desk-strip-hover");
+  const stripHover = deskStripHover;
 
-  const aiTucked = !aiOpen && notesOpen;
-  const notesTucked = !notesOpen && aiOpen;
-  const aiTop = aiRect ? aiRect.top : (aiTucked ? (stripHover ? closedTop : tuckedTop) : closedTop);
-  const notesTop = notesRect ? notesRect.top : (notesTucked ? (stripHover ? closedTop : tuckedTop) : closedTop);
+  // A closed door line is hidden by default. It used to rest 34px above the
+  // bottom border all the time; now the closed strip is empty and the line pops
+  // into that same slot only while the pointer visits the last line at the
+  // bottom of the page. An open line always sits on its sheet's top edge.
+  const aiTucked = !aiOpen && !stripHover;
+  const notesTucked = !notesOpen && !stripHover;
+  const aiTop = aiRect ? aiRect.top : (aiTucked ? tuckedTop : closedTop);
+  const notesTop = notesRect ? notesRect.top : (notesTucked ? tuckedTop : closedTop);
 
   DeskHandle.tuck("ai", aiTucked);
   DeskHandle.tuck("note", notesTucked);
-  DeskHandle.place("ai", aiCenter, aiTop);
-  DeskHandle.place("note", notesCenter, notesTop);
+  // Leave the line that is being dragged where the gesture put it.
+  if (!deskHandleDragging("ai")) DeskHandle.place("ai", aiCenter, aiTop);
+  if (!deskHandleDragging("note")) DeskHandle.place("note", notesCenter, notesTop);
   if (performance.now() - notesSwipeLineAt > 60) refreshNotesSwipeLine();
 }

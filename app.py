@@ -12,6 +12,7 @@ import mimetypes
 import os
 import re
 import shutil
+import signal
 import socket
 import ssl
 import subprocess
@@ -50,14 +51,55 @@ DATA_DIR = app_data_dir()
 DATA_FILE = DATA_DIR / "NeoTodo.json"
 LEGACY_FILE = DATA_DIR / "data.json"
 AGENT_FILE = DATA_DIR / "agents.json"
+AGENT_RUNS_FILE = DATA_DIR / "agent-runs.json"
 AGENT_FILES_DIR = DATA_DIR / "agent-files"
-PAGE_CACHE_FILE = DATA_DIR / "last-page.html"
+# AI settings live beside the conversations. `ai-opencode.json` is generated
+# from the custom provider rows and handed to OpenCode through OPENCODE_CONFIG,
+# so NeoTodo never rewrites the user's global OpenCode configuration.
+AI_CONFIG_FILE = DATA_DIR / "ai-config.json"
+AI_OPENCODE_CONFIG = DATA_DIR / "ai-opencode.json"
+AI_ACTIVITY_FILE = DATA_DIR / "agent-activity.log"
+AI_MODEL_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.:#/-]+$")
+AI_PROVIDER_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
+AI_NOTIFICATION_SOUNDS = (
+    "trainWhistle", "chime", "ding", "guitarPluck", "itemGet", "completeTap", "achievementTap",
+)
+AI_AGENT_KINDS = ("captain", "todo", "subtask")
+AI_DEFAULT_CONFIG = {
+    "version": 1,
+    "default_agent": "opencode",
+    "default_model": "",
+    "default_mode": "chat",
+    "agent_models": {"captain": "", "todo": "", "subtask": ""},
+    "agent_modes": {"captain": "chat", "todo": "chat", "subtask": "build"},
+    "enabled_models": [],
+    "notifications": True,
+    "notification_sound": "trainWhistle",
+    "auto_attach_note": True,
+    "save_chats": False,
+    "custom_instructions": "",
+    "providers": [],
+    "commands": [],
+    "environment": [],
+    "activity_log": True,
+    "timeout_minutes": 15,
+    "max_parallel": 12,
+}
+# Retired last-page cache from older builds (a saved HTML copy and a launch
+# screenshot). Startup now restores the live page itself, so these files are
+# deleted on launch instead of being painted before the app is ready.
+LEGACY_STARTUP_FILES = (DATA_DIR / "last-page.html", DATA_DIR / "last-page.png")
 SOUNDS_DIR = DATA_DIR / "sounds"
 NOTE_MATERIALS_DIR = DATA_DIR / "note-materials"
 PICTURES_DIR = DATA_DIR / "pictures"
 MUSIC_DIR = DATA_DIR / "music"
-SNAPSHOT_FILE = DATA_DIR / "last-page.png"
 DETACH_PREVIEW_FILE = DATA_DIR / "detach-preview.png"
+# Fork windows are independent NeoTodo instances. Each one owns a data file and
+# an ephemeral port, so finishing its fake todo never touches this notebook's
+# achievements or history.
+FORK_DIR = DATA_DIR / "forks"
+FORK_SERVERS: dict[str, dict] = {}
+FORK_SERVERS_LOCK = threading.Lock()
 PLUGINS_DIR = DATA_DIR / "plugins"
 PLUGIN_CATALOG_CACHE = DATA_DIR / "plugin-catalog.json"
 # The community index lives in the repository so a pull request is the only
@@ -79,6 +121,45 @@ PLUGIN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 # the source used when a catalog entry is marked "bundled".
 THEME_PACKS_DIR = DATA_DIR / "theme-packs"
 THEME_EXPORTS_DIR = DATA_DIR / "theme-exports"
+# The notebook and the AI console own their themes. Each one keeps its palette
+# in its own folder, so a NeoTodo pack in theme-packs can never repaint either
+# pane, and a note or AI palette can never change the app paper.
+NOTE_THEMES_DIR = DATA_DIR / "note-theme"
+AI_THEMES_DIR = DATA_DIR / "ai-theme"
+# Legacy: before page_line existed the sheet boundary kept its own colour in
+# this file. It is still read once as the migration seed for page_line and the
+# old action is kept for compatibility, but page dividers are now owned by
+# page-line.json and the line never reads a NeoTodo theme.
+BASELINE_COLOR_FILE = DATA_DIR / "baseline-color.json"
+BASELINE_COLOR_DEFAULT = "#333333"
+# `page_line` is the single owner of the page's horizontal dividers: the ruled
+# grid of the header, the task rows and the empty desk, plus the boundary where
+# the desk begins. It keeps its own file so no theme, wallpaper, note palette
+# or AI palette can give one row a different line colour from another. A
+# wallpaper is the room (priority 1); these lines print on top of it (priority
+# 2), which is why the colour is stored here and not read from a theme.
+PAGE_LINE_FILE = DATA_DIR / "page-line.json"
+PAGE_LINE_ROW_MIN = 32
+PAGE_LINE_ROW_MAX = 64
+PAGE_LINE_THICKNESS_MIN = 1
+PAGE_LINE_THICKNESS_MAX = 4
+PAGE_LINE_DEFAULT = {
+    "color": BASELINE_COLOR_DEFAULT,
+    "opacity": 1.0,
+    "row": 40,
+    "thickness": 1,
+}
+# The row baseline is a separate idea from the page divider: it is the hairline
+# inside the floating cards (Doing and finished subtasks). It keeps its own file
+# so a colour edit on the page rule can never erase the card pattern.
+BASELINE_RULE_FILE = DATA_DIR / "baseline-rule.json"
+BASELINE_ROW_MODES = ("solid", "gradient", "height")
+BASELINE_ROW_DEFAULT = {
+    "mode": "solid",
+    "color": BASELINE_COLOR_DEFAULT,
+    "color2": "#a8691f",
+    "angle": 0,
+}
 THEME_CATALOG_CACHE = DATA_DIR / "theme-catalog.json"
 THEME_CATALOG_URL = os.environ.get(
     "NEOTODO_THEME_CATALOG",
@@ -96,10 +177,15 @@ THEME_SOUND_KEYS = (
     "trickle", "windScroll", "train", "paperTear", "steamHiss",
 )
 THEME_STICKER_KEYS = ("completed", "focus")
+# A theme may own the small colours around the page as well as the paper: the
+# rule under the text, the add/complete accent and the wash behind a selected
+# cell. They are saved in the normal baseline/highlight files when applied.
+THEME_CHROME_KEYS = ("baseline", "row", "submit", "highlight")
 THEME_PALETTE_FALLBACKS = {
     "paper": "#f7efe3", "paper2": "#ecdfcd", "ink": "#332b2d",
     "muted": "#88786a", "accent": "#c56f4a", "accent2": "#5f7f8b",
     "border": "#d8c3a9", "stamp": "#b0563f",
+    "line": "#b6a48e", "rule": "#c9bba7",
 }
 
 WALLPAPER_MODES = ("none", "static", "dynamic")
@@ -117,22 +203,18 @@ PALETTE = [
 ]
 
 THEMES = [
+    "light", "dark",
     "violet", "tokyo", "space", "aurora", "ocean",
     "forest", "vintage", "alpine", "desert", "emerald",
     "rain", "field", "deco", "bauhaus",
 ]
 
-# Paper colours used before the first CSS paint, so the window never flashes
-# black, white or yellow while WebKit starts.
-POSTCARD_PAPERS = {
-    "violet": "#f4ecfa", "alpine": "#f7efe3", "ocean": "#eef5f6",
-    "tokyo": "#17131f", "desert": "#f6e7cf", "forest": "#eef1e6",
-    "aurora": "#0f1d23", "vintage": "#f4e7d7", "space": "#0d1322",
-    "rain": "#e8eef4", "field": "#f6edcc", "deco": "#17141b",
-    "bauhaus": "#f2efe7", "emerald": "#eef1e6",
-}
 QUIT_CALLBACK = None
 FOLDER_PICK_CALLBACK = None
+# The wallpaper is a file the reader owns. On the desktop shell this callback
+# opens a native picture picker and only the path is remembered; on platforms
+# without one the web UI falls back to an upload.
+FILE_PICK_CALLBACK = None
 
 PROJECT_FILE_LIMIT = 160
 
@@ -155,7 +237,14 @@ def ensure_sounds_dir() -> Path:
 
 
 def ensure_note_materials_dir() -> Path:
-    """Create a user-editable note material folder seeded with bundled CSS."""
+    """Create a user-editable note material folder seeded with bundled CSS.
+
+    A built-in material is refreshed when the shipped file is newer than the
+    copy in the data folder, so a build can update Paper/Glass/Focus without
+    asking the user to delete the folder. ``copy2`` keeps the shipped mtime,
+    and a copy the user edited afterwards has a newer mtime, so their edits
+    stay untouched.
+    """
     try:
         NOTE_MATERIALS_DIR.mkdir(parents=True, exist_ok=True)
         bundled = WEB_DIR / "note-materials"
@@ -164,22 +253,27 @@ def ensure_note_materials_dir() -> Path:
                 if not src.is_file() or src.suffix.lower() != ".css":
                     continue
                 dest = NOTE_MATERIALS_DIR / src.name
-                if not dest.exists():
-                    shutil.copy2(src, dest)
+                try:
+                    if dest.exists() and dest.stat().st_mtime >= src.stat().st_mtime:
+                        continue
+                except OSError:
+                    continue
+                shutil.copy2(src, dest)
     except Exception:
         pass
     return NOTE_MATERIALS_DIR
 
 
 def ensure_pictures_dir() -> Path:
-    """Create the user's wallpaper folder and seed the bundled stills."""
+    """Create the pictures folder only when something is actually written.
+
+    Wallpapers are chosen files now, so the app no longer copies anything in
+    here itself. The folder remains for older wallpapers that were stored as a
+    bare name and for the browser-upload fallback used where a native file
+    picker is not available.
+    """
     try:
         PICTURES_DIR.mkdir(parents=True, exist_ok=True)
-        for name in ("notes-forest.jpg", "notes-mist.jpg", "notes-dusk.jpg"):
-            src = WEB_DIR / name
-            dest = PICTURES_DIR / name
-            if src.is_file() and not dest.exists():
-                shutil.copy2(src, dest)
     except Exception:
         pass
     return PICTURES_DIR
@@ -366,6 +460,44 @@ def normalized_plugin_id(value) -> str:
     return raw if PLUGIN_ID_RE.fullmatch(raw) else ""
 
 
+def sanitize_plugin_states(raw) -> dict:
+    """Keep the per-plugin switch records so a restart remembers what was off.
+
+    Settings are validated field by field, and plugins are plugins: the host
+    only needs to persist each plugin's installed/enabled flags and its small
+    bag of toggle/choice values. Anything that does not look like a plugin
+    record is dropped instead of being written back to the notebook.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    clean = {}
+    for plugin_id, record in list(raw.items())[:200]:
+        if not isinstance(plugin_id, str) or not PLUGIN_ID_RE.fullmatch(plugin_id):
+            continue
+        if not isinstance(record, dict):
+            continue
+        item = {}
+        if isinstance(record.get("installed"), bool):
+            item["installed"] = record["installed"]
+        if isinstance(record.get("enabled"), bool):
+            item["enabled"] = record["enabled"]
+        settings = record.get("settings")
+        values = {}
+        if isinstance(settings, dict):
+            for key, value in list(settings.items())[:40]:
+                if not isinstance(key, str) or not re.fullmatch(r"[a-z0-9_-]{1,64}", key):
+                    continue
+                if isinstance(value, bool):
+                    values[key] = value
+                elif isinstance(value, (int, float)):
+                    values[key] = value
+                elif isinstance(value, str) and len(value) <= 200:
+                    values[key] = value
+        item["settings"] = values
+        clean[plugin_id] = item
+    return clean
+
+
 def safe_http_url(value) -> str:
     raw = str(value or "").strip()
     if not raw or len(raw) > 2000:
@@ -377,22 +509,79 @@ def safe_http_url(value) -> str:
 
 
 def plugin_setting_rows(raw) -> list:
+    """Keep the small controls a plugin manifest declares.
+
+    Plugins can offer switches and one-of-many choices (the Head Bar's bottle
+    colour is a choice). The host only needs a stable description of each
+    control so Settings can rebuild the same row after a restart; the chosen
+    values themselves live in the reader's saved plugin state.
+    """
     rows = []
     if not isinstance(raw, list):
         return rows
     for item in raw[:12]:
-        if not isinstance(item, dict) or item.get("type") != "toggle":
+        if not isinstance(item, dict):
+            continue
+        kind = item.get("type")
+        if kind not in ("toggle", "choice"):
             continue
         setting_id = str(item.get("id") or "").strip()
         if not re.fullmatch(r"[a-z0-9_-]{1,40}", setting_id):
             continue
+        label = str(item.get("label") or setting_id)[:80]
+        detail = str(item.get("detail") or "")[:220]
+        if kind == "toggle":
+            rows.append(
+                {
+                    "id": setting_id,
+                    "label": label,
+                    "detail": detail,
+                    "type": "toggle",
+                    "default": item.get("default") is not False,
+                }
+            )
+            continue
+        options = []
+        seen = set()
+        raw_options = item.get("options")
+        if not isinstance(raw_options, list):
+            raw_options = []
+        for option in raw_options:
+            if isinstance(option, str):
+                value, option_label, option_detail = option, option, ""
+            elif isinstance(option, dict):
+                value = str(option.get("value") or "").strip()
+                option_label = str(option.get("label") or value)
+                option_detail = str(option.get("detail") or "")
+            else:
+                continue
+            if not value or len(value) > 64 or value in seen:
+                continue
+            if not re.fullmatch(r"[A-Za-z0-9_:#.-]+", value):
+                continue
+            seen.add(value)
+            options.append(
+                {
+                    "value": value,
+                    "label": option_label[:80],
+                    "detail": option_detail[:220],
+                }
+            )
+            if len(options) >= 12:
+                break
+        if not options:
+            continue
+        default = str(item.get("default") or "").strip()
+        if default not in seen:
+            default = options[0]["value"]
         rows.append(
             {
                 "id": setting_id,
-                "label": str(item.get("label") or setting_id)[:80],
-                "detail": str(item.get("detail") or "")[:220],
-                "type": "toggle",
-                "default": item.get("default") is not False,
+                "label": label,
+                "detail": detail,
+                "type": "choice",
+                "default": default,
+                "options": options,
             }
         )
     return rows
@@ -504,6 +693,184 @@ def _read_json_file(path: Path):
         return None
 
 
+def normalize_baseline_color(value) -> str:
+    """Accept one #rrggbb value; anything else falls back to the fixed default."""
+    if isinstance(value, str):
+        color = value.strip()
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            return color.lower()
+    return BASELINE_COLOR_DEFAULT
+
+
+def normalize_highlight_color(value) -> str:
+    """Accept one #rrggbb selection-highlight colour; empty hands it to the theme."""
+    if isinstance(value, str):
+        color = value.strip()
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            return color.lower()
+    return ""
+
+
+def read_baseline_color() -> str:
+    """Read ``baseline-color.json``; the file is the only source of the colour."""
+    raw = _read_json_file(BASELINE_COLOR_FILE)
+    if isinstance(raw, dict):
+        return normalize_baseline_color(
+            raw.get("color") or raw.get("baseline-color") or raw.get("baseline_color")
+        )
+    return BASELINE_COLOR_DEFAULT
+
+
+def write_baseline_color(value) -> str:
+    """Persist the page baseline colour outside the notebook settings."""
+    color = normalize_baseline_color(value)
+    try:
+        BASELINE_COLOR_FILE.parent.mkdir(parents=True, exist_ok=True)
+        BASELINE_COLOR_FILE.write_text(
+            json.dumps({"color": color}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+    return color
+
+
+def _page_line_number(value, fallback, minimum, maximum):
+    """Clamp a numeric page_line setting so a hand-edited file cannot break CSS."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if number != number:  # NaN
+        return fallback
+    return max(minimum, min(maximum, number))
+
+
+def normalize_page_line(raw) -> dict:
+    """Validate the ``page_line`` object: one colour plus its layout."""
+    if isinstance(raw, dict) and isinstance(raw.get("page_line"), dict):
+        raw = raw["page_line"]
+    if not isinstance(raw, dict):
+        raw = {}
+    color = raw.get("color") or raw.get("page-line") or raw.get("page_line")
+    color = color.strip() if isinstance(color, str) else ""
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+        color = PAGE_LINE_DEFAULT["color"]
+    opacity = round(
+        _page_line_number(raw.get("opacity"), PAGE_LINE_DEFAULT["opacity"], 0.0, 1.0), 2
+    )
+    row = int(round(
+        _page_line_number(
+            raw.get("row"),
+            PAGE_LINE_DEFAULT["row"],
+            PAGE_LINE_ROW_MIN,
+            PAGE_LINE_ROW_MAX,
+        )
+    ))
+    thickness = int(round(
+        _page_line_number(
+            raw.get("thickness"),
+            PAGE_LINE_DEFAULT["thickness"],
+            PAGE_LINE_THICKNESS_MIN,
+            PAGE_LINE_THICKNESS_MAX,
+        )
+    ))
+    return {
+        "color": color.lower(),
+        "opacity": opacity,
+        "row": row,
+        "thickness": thickness,
+    }
+
+
+def read_page_line() -> dict:
+    """Read ``page-line.json``; the file is the only source of the page dividers."""
+    raw = _read_json_file(PAGE_LINE_FILE)
+    if isinstance(raw, dict):
+        return normalize_page_line(raw)
+    # Before page_line existed the sheet boundary kept its colour in
+    # baseline-color.json. Reuse that choice once so it is not silently
+    # discarded; every later write goes to page-line.json.
+    legacy = _read_json_file(BASELINE_COLOR_FILE)
+    if isinstance(legacy, dict):
+        color = normalize_baseline_color(
+            legacy.get("color") or legacy.get("baseline-color") or legacy.get("baseline_color")
+        )
+        if color != BASELINE_COLOR_DEFAULT:
+            return {**PAGE_LINE_DEFAULT, "color": color}
+    return dict(PAGE_LINE_DEFAULT)
+
+
+def write_page_line(patch) -> dict:
+    """Merge a patch into the stored page line and persist the whole object."""
+    if isinstance(patch, dict) and isinstance(patch.get("page_line"), dict):
+        patch = patch["page_line"]
+    if not isinstance(patch, dict):
+        patch = {}
+    merged = {**read_page_line(), **patch}
+    page_line = normalize_page_line(merged)
+    try:
+        PAGE_LINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PAGE_LINE_FILE.write_text(
+            json.dumps(page_line, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+    return page_line
+
+
+def _baseline_row_color(value, fallback: str) -> str:
+    if isinstance(value, str):
+        color = value.strip()
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            return color.lower()
+    return fallback
+
+
+def normalize_baseline_row_rule(raw) -> dict:
+    """Validate the row-rule file. It is structured so a gradient survives."""
+    raw = raw.get("rule") if isinstance(raw, dict) and isinstance(raw.get("rule"), dict) else raw
+    if not isinstance(raw, dict):
+        raw = {}
+    mode = raw.get("mode")
+    mode = mode.strip().lower() if isinstance(mode, str) else ""
+    if mode not in BASELINE_ROW_MODES:
+        mode = BASELINE_ROW_DEFAULT["mode"]
+    try:
+        angle = int(round(float(raw.get("angle", BASELINE_ROW_DEFAULT["angle"]))))
+    except (TypeError, ValueError):
+        angle = BASELINE_ROW_DEFAULT["angle"]
+    return {
+        "mode": mode,
+        "color": _baseline_row_color(raw.get("color"), BASELINE_ROW_DEFAULT["color"]),
+        "color2": _baseline_row_color(
+            raw.get("color2") or raw.get("color_2"),
+            BASELINE_ROW_DEFAULT["color2"],
+        ),
+        "angle": max(0, min(180, angle)),
+    }
+
+
+def read_baseline_row_rule() -> dict:
+    """Read ``baseline-rule.json``; it is independent of every theme file."""
+    return normalize_baseline_row_rule(_read_json_file(BASELINE_RULE_FILE))
+
+
+def write_baseline_row_rule(raw) -> dict:
+    """Persist the row baseline without touching the page-divider colour."""
+    rule = normalize_baseline_row_rule(raw)
+    try:
+        BASELINE_RULE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        BASELINE_RULE_FILE.write_text(
+            json.dumps({"rule": rule}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+    return rule
+
+
 def _catalog_entry(raw) -> dict | None:
     if not isinstance(raw, dict):
         return None
@@ -595,6 +962,26 @@ def _load_catalog_override() -> dict | None:
     return None
 
 
+def _merge_bundled_catalog(catalog: dict | None, bundled: dict | None) -> dict | None:
+    """Keep bundled plugins visible even when the cache or remote index is old.
+
+    A community refresh can lag behind the app, and a cached index may predate a
+    plugin that shipped with this build. Bundled entries are part of the app, so
+    they are always appended when the catalogue does not list them yet.
+    """
+    if not catalog:
+        return bundled
+    if not bundled:
+        return catalog
+    plugins = list(catalog.get("plugins") or [])
+    known = {entry.get("id") for entry in plugins}
+    for entry in bundled.get("plugins") or []:
+        if entry.get("id") not in known:
+            plugins.append(entry)
+            known.add(entry.get("id"))
+    return {**catalog, "plugins": plugins}
+
+
 def community_catalog(refresh: bool = False) -> dict:
     """Return the community index with a cached/offline fallback.
 
@@ -641,7 +1028,7 @@ def community_catalog(refresh: bool = False) -> dict:
             error = str(fetch_error) or "Could not refresh the catalog"
 
     return {
-        **catalog,
+        **_merge_bundled_catalog(catalog, bundled),
         "catalog_source": source,
         "catalog_error": error,
         "cached_at": cache_age,
@@ -817,6 +1204,35 @@ def normalize_theme_color(value, fallback: str = "") -> str:
     return fallback
 
 
+def normalize_theme_alpha(value, fallback: float) -> float:
+    try:
+        alpha = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    return round(max(0.03, min(1.0, alpha)), 3)
+
+
+def normalize_theme_chrome(raw) -> dict | None:
+    """Optional colours a theme contributes to the page chrome.
+
+    ``baseline`` is the page divider, ``row`` the hairline under task rows,
+    ``submit`` the colour of the add/complete actions and ``highlight`` the
+    wash behind a selected cell. Only valid ``#rrggbb`` values are kept; a pack
+    with none of them simply leaves the reader's own files untouched.
+    """
+    if not isinstance(raw, dict):
+        return None
+    chrome = {}
+    for key in THEME_CHROME_KEYS:
+        color = normalize_theme_color(raw.get(key))
+        if color:
+            chrome[key] = color
+    row2 = normalize_theme_color(raw.get("row2"))
+    if row2:
+        chrome["row2"] = row2
+    return chrome or None
+
+
 def normalize_theme_palette(raw) -> dict | None:
     """Validate the colours a pack contributes to the postcard theme."""
     if not isinstance(raw, dict):
@@ -837,6 +1253,12 @@ def normalize_theme_palette(raw) -> dict | None:
         "accent2": normalize_theme_color(raw.get("accent2"), accent),
         "border": normalize_theme_color(raw.get("border"), paper),
         "stamp": normalize_theme_color(raw.get("stamp"), accent),
+        # Optional line colours. Older packs leave these empty so the client
+        # keeps deriving its subtle ink rule from the palette.
+        "line": normalize_theme_color(raw.get("line"), ""),
+        "rule": normalize_theme_color(raw.get("rule"), ""),
+        "lineAlpha": normalize_theme_alpha(raw.get("lineAlpha"), 0.42),
+        "ruleAlpha": normalize_theme_alpha(raw.get("ruleAlpha"), 0.28),
         "glow": str(raw.get("glow") or "")[:80],
         "motif": str(raw.get("motif") or "✦")[:8],
         "quote": str(raw.get("quote") or "A theme from the NeoTodo community.")[:220],
@@ -844,6 +1266,217 @@ def normalize_theme_palette(raw) -> dict | None:
     if not re.fullmatch(r"rgba?\([^)]{1,60}\)", palette["glow"]):
         palette["glow"] = ""
     return palette
+
+
+NOTE_PANE_PALETTE_KEYS = (
+    "paper", "ink", "muted", "rule", "accent", "accent2", "handle",
+)
+AI_PANE_PALETTE_KEYS = (
+    "bg", "soft", "ink", "inkSoft", "muted", "faint", "line", "lineStrong",
+    "accent", "notice", "handle",
+)
+
+
+def normalize_note_palette(raw) -> dict | None:
+    """Validate the optional notebook theme a pack may contribute."""
+    if not isinstance(raw, dict):
+        return None
+    paper = normalize_theme_color(raw.get("paper"))
+    ink = normalize_theme_color(raw.get("ink"))
+    if not paper or not ink:
+        return None
+    palette = {
+        "paper": paper,
+        "ink": ink,
+        "muted": normalize_theme_color(raw.get("muted"), ""),
+        "rule": normalize_theme_color(raw.get("rule"), ""),
+        "accent": normalize_theme_color(raw.get("accent"), ""),
+        "accent2": normalize_theme_color(raw.get("accent2"), ""),
+        "handle": normalize_theme_color(raw.get("handle"), ""),
+    }
+    return {key: palette[key] for key in NOTE_PANE_PALETTE_KEYS}
+
+
+def normalize_ai_palette(raw) -> dict | None:
+    """Validate the optional AI console theme a pack may contribute."""
+    if not isinstance(raw, dict):
+        return None
+    background = normalize_theme_color(raw.get("bg") or raw.get("paper"))
+    ink = normalize_theme_color(raw.get("ink"))
+    if not background or not ink:
+        return None
+    palette = {
+        "bg": background,
+        "soft": normalize_theme_color(raw.get("soft"), ""),
+        "ink": ink,
+        "inkSoft": normalize_theme_color(raw.get("inkSoft") or raw.get("ink_soft"), ""),
+        "muted": normalize_theme_color(raw.get("muted"), ""),
+        "faint": normalize_theme_color(raw.get("faint"), ""),
+        "line": normalize_theme_color(raw.get("line"), ""),
+        "lineStrong": normalize_theme_color(raw.get("lineStrong") or raw.get("line_strong"), ""),
+        "accent": normalize_theme_color(raw.get("accent"), ""),
+        "notice": normalize_theme_color(raw.get("notice"), ""),
+        "handle": normalize_theme_color(raw.get("handle"), ""),
+    }
+    return {key: palette[key] for key in AI_PANE_PALETTE_KEYS}
+
+
+# ---------------------------------------------------------------------------
+# Note and AI theme shelves
+# ---------------------------------------------------------------------------
+# A NeoTodo theme pack may describe a notebook palette and an AI console
+# palette. Those palettes belong to the notebook and the console, not to the
+# app paper, so they are saved into their own folders as plain JSON files. The
+# app theme shelf (theme-packs/) and the two pane shelves never share a file:
+# changing the app paper cannot recolor the notebook or the console.
+PANE_THEME_SHELVES = {
+    "note": NOTE_THEMES_DIR,
+    "ai": AI_THEMES_DIR,
+}
+PANE_THEME_KINDS = tuple(PANE_THEME_SHELVES)
+
+
+def pane_theme_folder(kind: str) -> Path:
+    folder = PANE_THEME_SHELVES.get(kind)
+    if folder is None:
+        raise ValueError("Unknown theme shelf")
+    return folder
+
+
+def ensure_pane_themes_dir(kind: str) -> Path:
+    folder = pane_theme_folder(kind)
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return folder
+
+
+def _pane_palette(kind: str, raw) -> dict | None:
+    return normalize_note_palette(raw) if kind == "note" else normalize_ai_palette(raw)
+
+
+def normalize_pane_theme(kind: str, raw, fallback_id: str = "") -> dict | None:
+    """Validate one ``note-theme/*.json`` / ``ai-theme/*.json`` palette file."""
+    if not isinstance(raw, dict):
+        return None
+    theme_id = normalized_theme_id(raw.get("id") or fallback_id)
+    if not theme_id:
+        return None
+    palette = _pane_palette(kind, raw.get("palette") or raw.get(kind))
+    if palette is None:
+        return None
+    return {
+        "id": theme_id,
+        "name": str(raw.get("name") or theme_id)[:80],
+        "englishName": str(raw.get("englishName") or raw.get("english_name") or "")[:80],
+        "source": str(raw.get("source") or "user")[:24],
+        "palette": palette,
+    }
+
+
+def discover_pane_themes(kind: str) -> list:
+    """Read one pane shelf. Only *.json files in that folder are considered."""
+    root = ensure_pane_themes_dir(kind)
+    try:
+        files = sorted(root.glob("*.json"), key=lambda item: item.name.lower())
+    except Exception:
+        files = []
+    themes = []
+    for path in files:
+        record = normalize_pane_theme(kind, _read_json_file(path), fallback_id=path.stem)
+        if record is not None:
+            themes.append(record)
+    return sorted(themes, key=lambda item: item["name"].lower())
+
+
+def write_pane_theme(kind: str, record: dict) -> Path:
+    """Save one palette file into the note-theme / ai-theme folder."""
+    if not isinstance(record, dict):
+        raise ValueError("Invalid theme")
+    theme_id = normalized_theme_id(record.get("id"))
+    if not theme_id:
+        raise ValueError("A note or AI theme needs a valid id")
+    palette = _pane_palette(kind, record.get("palette"))
+    if palette is None:
+        raise ValueError("A note or AI theme needs valid colours")
+    folder = ensure_pane_themes_dir(kind)
+    path = folder / f"{theme_id}.json"
+    payload = {
+        "id": theme_id,
+        "name": str(record.get("name") or theme_id)[:80],
+        "englishName": str(record.get("englishName") or "")[:80],
+        "source": str(record.get("source") or "user")[:24],
+        "palette": palette,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def read_pane_theme(kind: str, theme_id) -> dict | None:
+    theme_id = normalized_theme_id(theme_id)
+    if not theme_id:
+        return None
+    try:
+        path = ensure_pane_themes_dir(kind) / f"{theme_id}.json"
+        if not path.is_file():
+            return None
+        return normalize_pane_theme(kind, _read_json_file(path), fallback_id=theme_id)
+    except Exception:
+        return None
+
+
+def remove_pane_theme(kind: str, theme_id, only_pack: bool = False) -> None:
+    """Delete one pane palette. ``only_pack`` keeps user-made files intact."""
+    theme_id = normalized_theme_id(theme_id)
+    if not theme_id:
+        return
+    try:
+        current = read_pane_theme(kind, theme_id)
+        if only_pack and current is not None and current.get("source") != "pack":
+            return
+        (ensure_pane_themes_dir(kind) / f"{theme_id}.json").unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def sync_theme_pack_pane_themes(manifest: dict | None) -> None:
+    """Mirror a pack's optional note/ai palettes into their own folders.
+
+    ``theme-packs/`` stays the NeoTodo app-theme shelf. The notebook and the
+    console read only ``note-theme/`` and ``ai-theme/``, so applying a NeoTodo
+    theme never rewrites the active note or AI theme.
+    """
+    if not isinstance(manifest, dict):
+        return
+    pack_id = normalized_theme_id(manifest.get("id"))
+    if not pack_id:
+        return
+    for kind in PANE_THEME_KINDS:
+        palette = manifest.get(kind)
+        if palette:
+            write_pane_theme(kind, {
+                "id": pack_id,
+                "name": manifest.get("name") or pack_id,
+                "englishName": manifest.get("englishName") or "",
+                "source": "pack",
+                "palette": palette,
+            })
+        else:
+            remove_pane_theme(kind, pack_id, only_pack=True)
+
+
+def sync_all_theme_pack_pane_themes() -> None:
+    """Backfill note-theme/ and ai-theme/ for packs installed before the split."""
+    try:
+        packs = discover_theme_packs()
+    except Exception:
+        return
+    for pack in packs:
+        try:
+            sync_theme_pack_pane_themes(pack)
+        except Exception:
+            continue
 
 
 def _theme_asset_rel(raw, folder: Path, extensions: set) -> str:
@@ -905,6 +1538,9 @@ def normalize_theme_manifest(raw, folder: Path, source: str) -> dict | None:
         "repository": safe_http_url(raw.get("repository")),
         "tags": [str(tag)[:24] for tag in tags if isinstance(tag, str) and tag.strip()][:8],
         "palette": palette,
+        "chrome": normalize_theme_chrome(raw.get("chrome")),
+        "note": normalize_note_palette(raw.get("note")),
+        "ai": normalize_ai_palette(raw.get("ai")),
         "preview": preview,
         "icon": icon,
         "wallpaper": wallpaper,
@@ -1012,6 +1648,9 @@ def _theme_catalog_entry(raw) -> dict | None:
         "license": str(raw.get("license") or "")[:60],
         "sha256": str(raw.get("sha256") or "").strip().lower()[:64],
         "palette": palette,
+        "chrome": normalize_theme_chrome(raw.get("chrome")),
+        "note": normalize_note_palette(raw.get("note")),
+        "ai": normalize_ai_palette(raw.get("ai")),
         "featured": bool(raw.get("featured", False)),
         "bundled": bool(raw.get("bundled", False)),
         "official": bool(raw.get("official", False)),
@@ -1051,6 +1690,32 @@ def _load_theme_catalog_override() -> dict | None:
     if path.is_file():
         return _read_json_file(path)
     return None
+
+
+def _merge_bundled_theme_catalog(catalog: dict | None, bundled: dict | None) -> dict | None:
+    """Keep bundled theme packs visible even when the cache is older.
+
+    A cached or remote index may predate a pack that shipped with this build.
+    Bundled packs are part of the app, so append the missing entries.
+    """
+    if not catalog:
+        return bundled
+    if not bundled:
+        return catalog
+    themes = list(catalog.get("themes") or [])
+    by_id = {entry.get("id"): entry for entry in themes}
+    for entry in bundled.get("themes") or []:
+        theme_id = entry.get("id")
+        if theme_id not in by_id:
+            themes.append(entry)
+            by_id[theme_id] = entry
+            continue
+        # An older cached entry may predate the chrome block; keep the richer
+        # bundled metadata so the shelf can show the same badges offline.
+        existing = by_id[theme_id]
+        if not existing.get("chrome") and entry.get("chrome"):
+            existing["chrome"] = entry["chrome"]
+    return {**catalog, "themes": themes}
 
 
 def community_theme_catalog(refresh: bool = False) -> dict:
@@ -1095,7 +1760,7 @@ def community_theme_catalog(refresh: bool = False) -> dict:
             error = str(fetch_error) or "Could not refresh the catalog"
 
     return {
-        **catalog,
+        **_merge_bundled_theme_catalog(catalog, bundled),
         "catalog_source": source,
         "catalog_error": error,
         "cached_at": cache_age,
@@ -1171,6 +1836,10 @@ def _move_theme_pack_into_place(staging: Path, theme_id: str) -> None:
         raise
     if backup is not None:
         shutil.rmtree(backup, ignore_errors=True)
+    try:
+        sync_theme_pack_pane_themes(read_theme_manifest(destination, "user"))
+    except Exception:
+        pass
 
 
 def install_theme_archive(data: bytes, expected_id: str = "", expected_sha256: str = "") -> dict:
@@ -1232,7 +1901,66 @@ def uninstall_theme_pack(theme_id) -> dict:
     if not destination.is_dir():
         raise ValueError("That theme is not installed in the user theme folder")
     shutil.rmtree(destination)
+    # The pack's note and AI palettes live in their own folders; drop the copies
+    # it contributed, but never delete a file the user edited by hand.
+    for kind in PANE_THEME_KINDS:
+        remove_pane_theme(kind, theme_id, only_pack=True)
     return {"id": theme_id, "folder": str(destination)}
+
+
+def save_theme_pack(payload: dict) -> dict:
+    """Write a user-made palette to its own theme-pack folder.
+
+    The appearance picker treats every installed pack as a deletable custom
+    theme, so the palette lives in ``<data>/theme-packs/<id>/theme.json`` just
+    like a downloaded community pack.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid theme")
+    name = str(payload.get("name") or "Custom theme").strip()[:80] or "Custom theme"
+    theme_id = normalized_theme_id(payload.get("id") or "")
+    if not theme_id:
+        theme_id = f"custom-{new_id()[:8]}"
+    if theme_id in THEMES:
+        raise ValueError("That id is reserved by a built-in theme")
+    palette = normalize_theme_palette(payload.get("theme"))
+    if palette is None:
+        raise ValueError("A custom theme needs valid paper and ink colours")
+    ensure_theme_packs_dir()
+    temp_root = Path(tempfile.mkdtemp(prefix=".save-", dir=str(THEME_PACKS_DIR)))
+    staging = temp_root / "theme"
+    staging.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "id": theme_id,
+        "name": name,
+        "englishName": str(payload.get("englishName") or "")[:80],
+        "version": "1.0.0",
+        "description": str(payload.get("description") or "A custom palette made in NeoTodo.")[:900],
+        "author": str(payload.get("author") or "You")[:80],
+        "license": "",
+        "tags": ["custom"],
+        "theme": palette,
+        "preview": "preview.svg",
+    }
+    chrome = normalize_theme_chrome(payload.get("chrome"))
+    if chrome:
+        manifest["chrome"] = chrome
+    try:
+        try:
+            (staging / "preview.svg").write_text(_theme_preview_svg(palette), encoding="utf-8")
+        except Exception:
+            manifest.pop("preview", None)
+        (staging / "theme.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        _move_theme_pack_into_place(staging, theme_id)
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+    installed = read_theme_manifest(THEME_PACKS_DIR / theme_id, "user")
+    if installed is None:
+        raise ValueError("That custom theme could not be saved")
+    return installed
 
 
 def download_theme_archive(url: str) -> bytes:
@@ -1336,6 +2064,15 @@ def export_theme_pack(payload: dict) -> dict:
         "theme": palette,
         "tags": ["exported"],
     }
+    chrome = normalize_theme_chrome(payload.get("chrome"))
+    if chrome:
+        manifest["chrome"] = chrome
+    note_palette = normalize_note_palette(payload.get("note"))
+    if note_palette is not None:
+        manifest["note"] = note_palette
+    ai_palette = normalize_ai_palette(payload.get("ai"))
+    if ai_palette is not None:
+        manifest["ai"] = ai_palette
     prefixes = {"/user-pictures/": PICTURES_DIR, "/user-sounds/": SOUNDS_DIR}
     try:
         wallpaper_ref = str(payload.get("wallpaper") or "").strip()
@@ -1439,6 +2176,110 @@ def sanitize_picture_name(value, extensions) -> str:
     return name
 
 
+def save_postcard_art(items) -> dict:
+    """Write the web-drawn postcard scenes into the wallpaper folder.
+
+    Each scene is stored once as ``postcard-<id>.jpg``. An existing file is
+    never overwritten, so a picture the reader edited or replaced in the folder
+    survives the next export.
+    """
+    ensure_pictures_dir()
+    saved: list[str] = []
+    existing: list[str] = []
+    failed = 0
+    for item in items[:64]:
+        if not isinstance(item, dict):
+            failed += 1
+            continue
+        stem = re.sub(r"[^a-z0-9-]+", "-", Path(str(item.get("name") or "")).stem.lower()).strip("-")[:64]
+        data = item.get("data")
+        if not stem or not stem.startswith("postcard-"):
+            stem = f"postcard-{stem}" if stem else ""
+        if not stem or not isinstance(data, str) or not data:
+            failed += 1
+            continue
+        dest = PICTURES_DIR / f"{stem}.jpg"
+        if dest.exists():
+            existing.append(dest.name)
+            continue
+        try:
+            raw = base64.b64decode(data, validate=True)
+        except Exception:
+            raw = b""
+        if not raw or len(raw) > 30_000_000:
+            failed += 1
+            continue
+        try:
+            dest.write_bytes(raw)
+            saved.append(dest.name)
+        except Exception:
+            failed += 1
+    return {"saved": saved, "existing": existing, "failed": failed, "folder": str(PICTURES_DIR)}
+
+
+def sanitize_wallpaper_file_path(value) -> str:
+    """An absolute picture path the reader picked. NeoTodo only reads it.
+
+    The file is never copied, so a path that is temporarily unavailable (an
+    unmounted drive, a renamed folder) is still remembered: the path is only
+    checked for shape here and read when the wallpaper is served.
+    """
+    if not isinstance(value, str):
+        return ""
+    raw = value.strip()
+    if not raw or len(raw) > 4096:
+        return ""
+    if "\x00" in raw or "\n" in raw:
+        return ""
+    try:
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            return ""
+        if path.suffix.lower() not in (PICTURE_IMAGE_EXTS | PICTURE_VIDEO_EXTS):
+            return ""
+        return str(path)
+    except Exception:
+        return ""
+
+
+WALLPAPER_RECENT_LIMIT = 12
+
+
+def sanitize_wallpaper_recent(raw) -> list:
+    """The last few wallpaper files, in most-recently-picked order."""
+    if not isinstance(raw, list):
+        return []
+    seen = set()
+    recent = []
+    for item in raw:
+        name = sanitize_wallpaper_file_path(item)
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        recent.append(name)
+        if len(recent) >= WALLPAPER_RECENT_LIMIT:
+            break
+    return recent
+
+
+def wallpaper_file_allowed(raw, settings: dict) -> Path | None:
+    """Resolve a path only when the reader actually chose it."""
+    name = sanitize_wallpaper_file_path(raw)
+    if not name or not isinstance(settings, dict):
+        return None
+    allowed = {str(settings.get("wallpaper") or "")}
+    allowed.update(sanitize_wallpaper_recent(settings.get("wallpaper_recent")))
+    if name not in allowed:
+        return None
+    candidate = Path(name)
+    try:
+        if not candidate.is_file():
+            return None
+    except Exception:
+        return None
+    return candidate
+
+
 def sanitize_wallpaper_static(value) -> str:
     """A static wallpaper is postcard art, a theme-pack image or a picture file."""
     if not isinstance(value, str):
@@ -1449,15 +2290,33 @@ def sanitize_wallpaper_static(value) -> str:
     if name.startswith("theme:"):
         pack = theme_pack_by_id(name[6:])
         return name if pack and pack.get("wallpaper") else ""
+    picked = sanitize_wallpaper_file_path(name)
+    if picked:
+        return picked
     return sanitize_picture_name(name, PICTURE_IMAGE_EXTS)
 
 
-def sanitize_wallpaper_settings(settings: dict) -> None:
+def sanitize_wallpaper_value(value) -> str:
+    """The single wallpaper choice: a picked file, art, a theme picture or a legacy name."""
+    if not isinstance(value, str):
+        return ""
+    name = value.strip()
+    if name.startswith("art:"):
+        return name if name[4:] in THEMES else ""
+    if name.startswith("theme:"):
+        pack = theme_pack_by_id(name[6:])
+        return name if pack and pack.get("wallpaper") else ""
+    picked = sanitize_wallpaper_file_path(name)
+    if picked:
+        return picked
+    return sanitize_picture_name(name, PICTURE_IMAGE_EXTS | PICTURE_VIDEO_EXTS)
+
+
+def sanitize_wallpaper_settings(settings: dict, derive_legacy: bool = True) -> None:
     """Keep pattern (wallpaper) and colour (theme) as independent choices."""
-    ensure_pictures_dir()
-    postcard = str(settings.get("resolved_postcard") or settings.get("postcard") or "violet")
+    postcard = str(settings.get("resolved_postcard") or settings.get("postcard") or "light")
     if postcard not in THEMES and theme_pack_by_id(postcard) is None:
-        postcard = "violet"
+        postcard = "light"
     mode = settings.get("wallpaper_mode")
     # Older builds treated the postcard art as part of the theme. That art is
     # now the default static wallpaper, so the first launch keeps the look.
@@ -1472,6 +2331,18 @@ def sanitize_wallpaper_settings(settings: dict) -> None:
     settings["wallpaper_mode"] = mode
     settings["wallpaper_static"] = static_name
     settings["wallpaper_dynamic"] = dynamic_name
+    # Pictures and films share one choice now. A file saved by an older build
+    # is folded in, so the room keeps the same wallpaper after upgrading. A
+    # client that sends `wallpaper` directly (including an empty one, which
+    # means "no wallpaper") always wins over the retired fields.
+    wallpaper = sanitize_wallpaper_value(settings.get("wallpaper"))
+    if not wallpaper and derive_legacy:
+        if mode == "dynamic" and dynamic_name:
+            wallpaper = dynamic_name
+        elif mode == "static" and static_name:
+            wallpaper = static_name
+    settings["wallpaper"] = wallpaper
+    settings["wallpaper_recent"] = sanitize_wallpaper_recent(settings.get("wallpaper_recent"))
 
 
 def note_material_file_names() -> list:
@@ -1494,6 +2365,30 @@ def sound_file_names() -> list:
         )
     except Exception:
         return []
+
+
+def agent_workspace(folder: str = "") -> Path:
+    """Folder the AI agent actually works in for a todo or subtask.
+
+    A linked project folder wins when it is still on disk. Otherwise the agent
+    falls back to NeoTodo's own folder (or ``NEOTODO_AGENT_CWD`` when the crew
+    runner sets one), so the napkin card can always show the real working path
+    instead of an empty "no folder" state.
+    """
+    candidates = []
+    raw = str(folder or "").strip()
+    if raw:
+        candidates.append(raw)
+    candidates.append(os.environ.get("NEOTODO_AGENT_CWD") or str(APP_DIR))
+    candidates.append(str(APP_DIR))
+    for candidate in candidates:
+        try:
+            path = Path(candidate).expanduser()
+            if path.is_dir():
+                return path.resolve()
+        except Exception:
+            continue
+    return APP_DIR
 
 
 def list_folder_files(folder: str, limit: int = PROJECT_FILE_LIMIT) -> list:
@@ -1519,6 +2414,151 @@ def list_folder_files(folder: str, limit: int = PROJECT_FILE_LIMIT) -> list:
         return files
     except Exception:
         return []
+
+
+def list_folder_dir(folder: str, subpath: str = "", limit: int = PROJECT_FILE_LIMIT) -> list:
+    """One level of a linked project folder, for the working-folder card.
+
+    Each entry is ``{path, name, dir, count}`` where ``path`` stays relative to
+    the linked folder and ``count`` is a folder's direct child count. Listings
+    are lazy: the card fetches a folder's children only when it is expanded.
+    Noisy folders (``.git``, ``node_modules``, caches) stay hidden, matching the
+    file list the agent prompt receives.
+    """
+    try:
+        root = Path(folder).expanduser()
+        if not root.is_dir():
+            return []
+        base = root
+        rel_sub = str(subpath or "").strip().strip("/")
+        if rel_sub:
+            base = (root / rel_sub).resolve()
+            base.relative_to(root.resolve())  # a path outside the folder is not a folder
+            if not base.is_dir():
+                return []
+    except Exception:
+        return []
+    skip = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", "venv",
+            "dist", "build", ".next", ".cache", ".idea", ".vscode"}
+    try:
+        children = sorted(
+            base.iterdir(),
+            key=lambda item: (item.is_file(), item.name.lower()),
+        )
+    except OSError:
+        return []
+    entries = []
+    for child in children:
+        if len(entries) >= limit:
+            break
+        if child.name in skip or child.name.startswith("."):
+            continue
+        try:
+            is_dir = child.is_dir()
+        except OSError:
+            continue
+        try:
+            rel = child.relative_to(root)
+        except ValueError:
+            continue
+        count = 0
+        if is_dir:
+            try:
+                count = sum(
+                    1 for sub in child.iterdir()
+                    if sub.name not in skip and not sub.name.startswith(".")
+                )
+            except OSError:
+                count = 0
+        entries.append({
+            "path": rel.as_posix(),
+            "name": child.name,
+            "dir": is_dir,
+            "count": count,
+        })
+    return entries
+
+
+def _gvariant_string_list(values: list[str]) -> str:
+    """Render strings as a GVariant ``as`` literal for ``gdbus``."""
+    def one(value: str) -> str:
+        return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+    return "[" + ", ".join(one(value) for value in values) + "]"
+
+
+def file_manager_reveal_commands(target: Path) -> list[list[str]]:
+    """Commands that show ``target`` selected inside its parent folder.
+
+    The working folder is never drawn by NeoTodo: the desktop's own file
+    manager opens on the parent folder with the folder highlighted, which is
+    exactly what clicking the folder once in that window looks like. The
+    freedesktop ``FileManager1.ShowItems`` call covers Nautilus, Dolphin, Nemo
+    and Caja; managers without a DBus service get their own ``--select`` flag
+    and a plain ``xdg-open`` on the parent folder is the last resort.
+    """
+    target = Path(target).expanduser()
+    try:
+        # A deleted or unmounted folder still has a place on disk: reveal the
+        # nearest parent that exists instead of failing the whole click.
+        while not target.exists() and target != target.parent:
+            target = target.parent
+        target = target.resolve()
+    except OSError:
+        pass
+    commands: list[list[str]] = []
+    gdbus = shutil.which("gdbus")
+    if gdbus:
+        commands.append([
+            gdbus, "call", "--session",
+            "--dest", "org.freedesktop.FileManager1",
+            "--object-path", "/org/freedesktop/FileManager1",
+            "--method", "org.freedesktop.FileManager1.ShowItems",
+            _gvariant_string_list([target.as_uri()]), "",
+        ])
+    for name in ("nautilus", "dolphin", "nemo", "caja"):
+        binary = shutil.which(name)
+        if binary:
+            commands.append([binary, "--select", str(target)])
+    xdg_open = shutil.which("xdg-open")
+    if xdg_open:
+        commands.append([xdg_open, str(target.parent)])
+    return commands
+
+
+def _spawn_detached_process(command: list[str]) -> subprocess.Popen:
+    """Start a desktop helper (file manager) outside NeoTodo's process group."""
+    kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if os.name == "posix":
+        kwargs["start_new_session"] = True
+    else:
+        kwargs["creationflags"] = (
+            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+        )
+    return subprocess.Popen(command, **kwargs)
+
+
+def reveal_in_file_manager(target: Path) -> None:
+    """Open the system file manager with ``target`` selected in its parent."""
+    if sys.platform == "win32":
+        _spawn_detached_process(["explorer", f"/select,{Path(target).expanduser()}"])
+        return
+    if sys.platform == "darwin":
+        _spawn_detached_process(["open", "-R", str(Path(target).expanduser())])
+        return
+    for command in file_manager_reveal_commands(target):
+        try:
+            process = _spawn_detached_process(command)
+        except OSError:
+            continue
+        try:
+            returncode = process.wait(timeout=4)
+        except subprocess.TimeoutExpired:
+            # A fresh file manager keeps the window in the foreground; that is
+            # a success, not a hang, so leave the process alone.
+            return
+        if returncode == 0:
+            return
+    raise RuntimeError("No file manager could show this folder")
 
 
 def new_id() -> str:
@@ -1565,10 +2605,10 @@ def default_data() -> dict:
         "trash": [],
         "settings": {
             "theme": "postcard",
-            "postcard": "violet",
-            "resolved_postcard": "violet",
-            "light_postcard": "violet",
-            "dark_postcard": "tokyo",
+            "postcard": "light",
+            "resolved_postcard": "light",
+            "light_postcard": "light",
+            "dark_postcard": "dark",
             "font": "serif",
             "note_font": "pen",
             "scale": 1,
@@ -1582,13 +2622,18 @@ def default_data() -> dict:
             "caret_shape": "line",
             "caret_color": "#1b1b1b",
             "note_material": "paper",
+            "note_theme": "white",
+            "ai_theme": "auto",
             "note_background": "",
             "note_background_image": "",
             "note_blur": 16,
             "sticker_backgrounds": {},
             "wallpaper_mode": "static",
-            "wallpaper_static": "art:violet",
+            "wallpaper_static": "art:light",
             "wallpaper_dynamic": "",
+            "wallpaper": "art:light",
+            "wallpaper_recent": [],
+            "postcards_exported": False,
         },
     }
 
@@ -1596,7 +2641,7 @@ def default_data() -> dict:
 def _activity_stamp(item: dict) -> float:
     """Latest meaningful timestamp for ordering; 0 when no usable date."""
     stamp = 0.0
-    for key in ("created_at", "completed_at"):
+    for key in ("created_at", "reopened_at", "completed_at"):
         value = item.get(key)
         if not value:
             continue
@@ -1607,13 +2652,14 @@ def _activity_stamp(item: dict) -> float:
     return stamp
 
 
-def load_data() -> dict:
+def load_data(path: Path | None = None) -> dict:
+    target = Path(path) if path is not None else DATA_FILE
     try:
-        if not DATA_FILE.exists() and LEGACY_FILE.exists():
+        if target == DATA_FILE and not DATA_FILE.exists() and LEGACY_FILE.exists():
             DATA_DIR.mkdir(parents=True, exist_ok=True)
             LEGACY_FILE.replace(DATA_FILE)
-        if DATA_FILE.exists():
-            data = json.loads(DATA_FILE.read_text())
+        if target.exists():
+            data = json.loads(target.read_text())
             if not isinstance(data, dict):
                 return default_data()
             categories = data.get("categories")
@@ -1634,12 +2680,6 @@ def load_data() -> dict:
                     todo.setdefault("time_cost", None)
                     todo.setdefault("subtasks", [])
                     todo.setdefault("note", "")
-                    images = todo.get("images")
-                    if not isinstance(images, list):
-                        images = []
-                    if todo.get("image") and not images:
-                        images = [todo["image"]]
-                    todo["images"] = [str(image) for image in images if image]
                     if not todo.get("created_at"):
                         todo["created_at"] = todo.get("completed_at") or now
                     if todo.get("done") and not todo.get("completed_at"):
@@ -1652,10 +2692,6 @@ def load_data() -> dict:
                         subtask.setdefault("created_at", None)
                         subtask.setdefault("time_cost", None)
                         subtask.setdefault("note", "")
-                        sub_images = subtask.get("images")
-                        if not isinstance(sub_images, list):
-                            sub_images = []
-                        subtask["images"] = [str(image) for image in sub_images if image]
                         if not subtask.get("created_at"):
                             subtask["created_at"] = subtask.get("completed_at") or now
                         if subtask.get("done") and not subtask.get("completed_at"):
@@ -1684,21 +2720,21 @@ def load_data() -> dict:
             if not isinstance(settings, dict):
                 settings = {}
             settings["theme"] = "postcard"
-            settings.setdefault("postcard", "violet")
-            settings.setdefault("resolved_postcard", "violet")
+            settings.setdefault("postcard", "light")
+            settings.setdefault("resolved_postcard", "light")
             if settings.get("postcard") not in THEMES and settings.get("postcard") != "random":
-                settings["postcard"] = "violet"
+                settings["postcard"] = "light"
             if settings.get("resolved_postcard") not in THEMES:
-                settings["resolved_postcard"] = "violet"
-            light_themes = ("violet", "ocean", "forest", "vintage", "alpine", "desert", "emerald")
-            dark_themes = ("tokyo", "space", "aurora")
+                settings["resolved_postcard"] = "light"
+            light_themes = ("light", "violet", "ocean", "forest", "vintage", "alpine", "desert", "emerald")
+            dark_themes = ("dark", "tokyo", "space", "aurora")
             if settings.get("light_postcard") not in light_themes:
                 settings["light_postcard"] = (
-                    settings["resolved_postcard"] if settings.get("resolved_postcard") in light_themes else "violet"
+                    settings["resolved_postcard"] if settings.get("resolved_postcard") in light_themes else "light"
                 )
             if settings.get("dark_postcard") not in dark_themes:
                 settings["dark_postcard"] = (
-                    settings["resolved_postcard"] if settings.get("resolved_postcard") in dark_themes else "tokyo"
+                    settings["resolved_postcard"] if settings.get("resolved_postcard") in dark_themes else "dark"
                 )
             settings.setdefault("font", "serif")
             settings.setdefault("note_font", "pen")
@@ -1728,6 +2764,12 @@ def load_data() -> dict:
                 settings["focus_log"] = []
             settings["caret_blink"] = settings.get("caret_blink") is True
             settings["note_material"] = "blur" if settings.get("note_material") == "blur" else "paper"
+            # Pane themes: a built-in id (paper/ivory/…) or a pack reference
+            # (pack:<theme-id>). Unknown values fall back to the defaults.
+            for theme_key, default_theme in (("note_theme", "white"), ("ai_theme", "auto")):
+                value = settings.get(theme_key)
+                if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
+                    settings[theme_key] = default_theme
             background = settings.get("note_background")
             image = settings.get("note_background_image")
             if isinstance(background, str) and background.startswith("data:"):
@@ -1753,7 +2795,13 @@ def load_data() -> dict:
             settings.setdefault("wallpaper_mode", "theme")
             settings.setdefault("wallpaper_static", "")
             settings.setdefault("wallpaper_dynamic", "")
-            sanitize_wallpaper_settings(settings)
+            settings.setdefault("wallpaper", "art:light")
+            settings.setdefault("wallpaper_recent", [])
+            settings.setdefault("postcards_exported", False)
+            # "wallpaper" is the reader's one choice. An empty value is a real
+            # choice — the theme paper shows through — so the retired
+            # static/dynamic shelf must not resurrect a picture on load.
+            sanitize_wallpaper_settings(settings, derive_legacy=False)
             data["settings"] = settings
             for card in data["archive"]:
                 card.setdefault("id", new_id())
@@ -1771,12 +2819,13 @@ def load_data() -> dict:
     return default_data()
 
 
-def save_data(data: dict) -> None:
+def save_data(data: dict, path: Path | None = None) -> None:
+    target = Path(path) if path is not None else DATA_FILE
     try:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        tmp = DATA_FILE.with_suffix(".tmp")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-        tmp.replace(DATA_FILE)
+        tmp.replace(target)
     except Exception:
         pass
 
@@ -1796,11 +2845,14 @@ class Store:
     def __init__(self, path: Path):
         self.path = path
         self.lock = threading.RLock()
-        self.data = load_data()
+        # A fork app runs its own Store in the same process. Quitting it must
+        # stop that server instead of the main window.
+        self.quit_callback = None
+        self.data = load_data(self.path)
         with self.lock:
             self._archive_finished_weeks()
             # Persist load-time migrations such as created_at/time_cost.
-            save_data(self.data)
+            save_data(self.data, self.path)
 
     def categories(self) -> list:
         return self.data.get("categories", [])
@@ -1833,8 +2885,6 @@ class Store:
                                 "name": todo.get("name", "Untitled"),
                                 "completed_at": todo.get("completed_at"),
                                 "note": todo.get("note", ""),
-                                "image": todo.get("image", ""),
-                                "images": todo.get("images", []),
                                 "subtasks": [
                                     {
                                         "name": sub.get("name", "Untitled"),
@@ -1886,6 +2936,10 @@ class Store:
         return True
 
     def trophy_count(self) -> int:
+        # A fork window is a fake todo app: finishing its work must never earn
+        # a trophy in that window or in the notebook that created it.
+        if self.data.get("fork"):
+            return 0
         count = sum(
             1
             for category in self.categories()
@@ -1898,23 +2952,11 @@ class Store:
             count += len(card.get("items", []))
         return count
 
-    def boot_colors(self) -> dict:
-        settings = self.data.get("settings") if isinstance(self.data, dict) else {}
-        if not isinstance(settings, dict):
-            settings = {}
-        theme = settings.get("resolved_postcard") or settings.get("postcard") or "violet"
-        paper = POSTCARD_PAPERS.get(str(theme))
-        if paper is None:
-            pack = theme_pack_by_id(theme)
-            if pack:
-                paper = pack.get("palette", {}).get("paper")
-        return {"paper": paper or "#f7efe3"}
-
     def state(self) -> dict:
         with self.lock:
             self._archive_finished_weeks()
             # Persist load-time migrations such as created_at/time_cost.
-            save_data(self.data)
+            save_data(self.data, self.path)
             selected = self.data.get("selected_category")
             if selected is None and self.categories():
                 selected = self.categories()[0]["id"]
@@ -1934,6 +2976,24 @@ class Store:
                 "trophy_count": self.trophy_count(),
                 "today": date.today().isoformat(),
                 "settings": self.data.get("settings", {}),
+                # The page baseline is a standalone colour file, not a theme
+                # slot. It is published with the state so the page can paint it
+                # before Settings is opened.
+                "baseline_color": read_baseline_color(),
+                # The page's horizontal dividers (the ruled grid of the header,
+                # the task rows and the desk) are one object with its own file.
+                # It is published with the state so the page can paint before
+                # Settings is opened, and it never reads a theme palette.
+                "page_line": read_page_line(),
+                # The row baseline (subtask / Doing hairlines) is its own file
+                # and can carry a gradient or a per-row height ramp.
+                "baseline_rule": read_baseline_row_rule(),
+                # Present only in a fork window; it marks the fake todo that
+                # must never add to the parent notebook's achievements.
+                "fork": self.data.get("fork"),
+                # Shown by the napkin card for todos that have not linked a
+                # project folder yet: it is where their agents really run.
+                "default_project_folder": str(agent_workspace()),
             }
 
     def _find_category(self, category_id: str):
@@ -1977,15 +3037,6 @@ class Store:
         if len(trash) > 100:
             del trash[:-100]
 
-    def _image_owner(self, payload):
-        _, todo = self._find_todo(payload.get("id"))
-        subtask = self._find_subtask(todo, payload.get("subtask_id"))
-        if todo is None:
-            return None, None, "Todo not found"
-        if payload.get("subtask_id") and subtask is None:
-            return None, None, "Subtask not found"
-        return todo, subtask or todo, None
-
     def action(self, payload: dict) -> dict:
         # The native folder picker is async on the GTK main loop; never hold
         # the store lock while the user is choosing a directory.
@@ -1994,13 +3045,25 @@ class Store:
                 return {"ok": False, "error": "Folder picker is not available"}
             path = FOLDER_PICK_CALLBACK()
             return {"ok": True, "path": path or "", "cancelled": not bool(path), "state": self.state()}
+        # The wallpaper is chosen, not copied: the native picker returns a path
+        # and the store only remembers it. Platforms without the picker fall
+        # back to the browser file input and let the client upload instead.
+        if payload.get("action") == "choose_wallpaper_file":
+            if FILE_PICK_CALLBACK is None:
+                return {"ok": False, "fallback": "upload", "error": "File picker is not available"}
+            path = FILE_PICK_CALLBACK()
+            picked = sanitize_wallpaper_file_path(path)
+            if path and not picked:
+                return {"ok": False, "error": "Choose an image or a film"}
+            return {"ok": True, "path": picked, "cancelled": not bool(picked)}
         with self.lock:
             name = payload.get("action")
             result = {}
             error = None
             if name == "quit":
-                if QUIT_CALLBACK:
-                    QUIT_CALLBACK()
+                callback = self.quit_callback or QUIT_CALLBACK
+                if callback:
+                    callback()
             elif name == "open_url":
                 url = payload.get("url")
                 if isinstance(url, str) and url.startswith(("https://", "http://", "mailto:")):
@@ -2091,7 +3154,6 @@ class Store:
                         "completed_at": None,
                         "time_cost": None,
                         "note": "",
-                        "image": "",
                         "subtasks": [],
                     }
                     # A new todo is the latest activity, so it leads the category.
@@ -2197,7 +3259,7 @@ class Store:
                     else:
                         restored = {
                             key: entry[key]
-                            for key in ("id", "name", "note", "image", "images", "created_at")
+                            for key in ("id", "name", "note", "created_at")
                             if key in entry
                         }
                         restored["done"] = False
@@ -2259,13 +3321,6 @@ class Store:
                         "subtask_name": subtask.get("name", ""),
                         "at": now,
                     }
-                    forked_images = subtask.get("images")
-                    if not isinstance(forked_images, list):
-                        forked_images = []
-                    forked_images = [
-                        item for item in forked_images
-                        if isinstance(item, str) and item
-                    ]
                     forked_todo = {
                         "id": new_id(),
                         "name": str(subtask.get("name") or "Untitled"),
@@ -2274,8 +3329,6 @@ class Store:
                         "completed_at": None,
                         "time_cost": None,
                         "note": str(subtask.get("note") or ""),
-                        "image": str(subtask.get("image") or ""),
-                        "images": forked_images,
                         "subtasks": [],
                         "forked_from": dict(branch),
                     }
@@ -2343,9 +3396,12 @@ class Store:
                 else:
                     now = datetime.now()
                     start = None
-                    if subtask.get("created_at"):
+                    # Time cost belongs to the work run, not to the row's whole
+                    # lifetime: a reopened subtask restarts the clock.
+                    start_stamp = subtask.get("reopened_at") or subtask.get("created_at")
+                    if start_stamp:
                         try:
-                            start = datetime.fromisoformat(subtask["created_at"])
+                            start = datetime.fromisoformat(start_stamp)
                         except Exception:
                             start = None
                     subtask["done"] = True
@@ -2353,6 +3409,31 @@ class Store:
                     subtask["time_cost"] = max(0, int((now - start).total_seconds())) if start else 0
                     # The finished subtask is the latest activity, so it leads
                     # the stored list; a newer task can still open above it.
+                    subtasks = todo.setdefault("subtasks", [])
+                    subtasks[:] = [
+                        item for item in subtasks
+                        if str(item.get("id")) != str(subtask.get("id"))
+                    ]
+                    subtasks.insert(0, subtask)
+            elif name == "reopen_subtask":
+                # A finished subtask can go back to the board: clicking its fan
+                # in the finished card, or continuing it with the AI, sends it
+                # back to the pending lane instead of leaving it done.
+                _, todo = self._find_todo(payload.get("todo_id"))
+                subtask = self._find_subtask(todo, payload.get("subtask_id"))
+                if todo is None or subtask is None:
+                    error = "Subtask not found"
+                elif todo.get("done"):
+                    error = "Completed todos are locked"
+                elif not subtask.get("done"):
+                    error = "Subtask is still pending"
+                else:
+                    subtask["done"] = False
+                    subtask["completed_at"] = None
+                    subtask["time_cost"] = None
+                    # Reopening starts a fresh work run: it leads the board and
+                    # the next completion measures from this moment.
+                    subtask["reopened_at"] = datetime.now().isoformat(timespec="seconds")
                     subtasks = todo.setdefault("subtasks", [])
                     subtasks[:] = [
                         item for item in subtasks
@@ -2384,7 +3465,29 @@ class Store:
                 if todo is None:
                     error = "Todo not found"
                 else:
-                    result["files"] = list_folder_files(todo.get("project_folder") or "")
+                    linked = str(todo.get("project_folder") or "").strip()
+                    folder = str(agent_workspace(linked))
+                    linked_path = Path(linked).expanduser() if linked else None
+                    subpath = str(payload.get("path") or "")
+                    entries = list_folder_dir(folder, subpath)
+                    result["folder"] = folder
+                    result["linked"] = bool(linked)
+                    result["linked_exists"] = bool(linked_path and linked_path.is_dir())
+                    result["path"] = subpath
+                    result["files"] = [entry["path"] for entry in entries if not entry["dir"]]
+                    result["entries"] = entries
+                    result["truncated"] = len(entries) >= PROJECT_FILE_LIMIT
+                    result["exists"] = Path(folder).is_dir()
+            elif name == "open_project_folder":
+                _, todo = self._find_todo(payload.get("id"))
+                folder = agent_workspace(todo.get("project_folder") if todo else "")
+                if not folder.is_dir():
+                    error = "Folder not found"
+                else:
+                    try:
+                        reveal_in_file_manager(folder)
+                    except Exception as exc:
+                        error = f"Could not open folder: {exc}"
             elif name == "open_sounds_folder":
                 ensure_sounds_dir()
                 try:
@@ -2424,8 +3527,16 @@ class Store:
                 except Exception as open_error:
                     error = str(open_error)
                 result["folder"] = str(PLUGINS_DIR)
-            elif name in ("open_theme_packs_folder", "open_theme_exports_folder"):
-                folder = ensure_theme_packs_dir() if name == "open_theme_packs_folder" else ensure_theme_exports_dir()
+            elif name in ("open_theme_packs_folder", "open_theme_exports_folder",
+                          "open_note_themes_folder", "open_ai_themes_folder"):
+                if name == "open_theme_packs_folder":
+                    folder = ensure_theme_packs_dir()
+                elif name == "open_note_themes_folder":
+                    folder = ensure_pane_themes_dir("note")
+                elif name == "open_ai_themes_folder":
+                    folder = ensure_pane_themes_dir("ai")
+                else:
+                    folder = ensure_theme_exports_dir()
                 try:
                     if sys.platform == "win32":
                         os.startfile(str(folder))
@@ -2507,26 +3618,15 @@ class Store:
                                 result["kind"] = kind
                             except Exception as write_error:
                                 error = str(write_error)
+            elif name == "save_postcard_art":
+                items = payload.get("items")
+                if not isinstance(items, list):
+                    error = "No artwork"
+                else:
+                    result.update(save_postcard_art(items))
             elif name == "sound_files":
                 result["files"] = sound_file_names()
                 result["folder"] = str(SOUNDS_DIR)
-            elif name == "save_page_cache":
-                html = payload.get("html")
-                if not isinstance(html, str) or len(html) > 4_000_000:
-                    error = "Invalid page cache"
-                else:
-                    try:
-                        PAGE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-                        tmp = PAGE_CACHE_FILE.with_suffix(".tmp")
-                        tmp.write_text(html, encoding="utf-8")
-                        tmp.replace(PAGE_CACHE_FILE)
-                    except Exception as cache_error:
-                        error = f"Could not save page cache: {cache_error}"
-            elif name == "clear_page_cache":
-                try:
-                    PAGE_CACHE_FILE.unlink(missing_ok=True)
-                except Exception:
-                    pass
             elif name == "save_note":
                 _, todo = self._find_todo(payload.get("id"))
                 subtask_id = payload.get("subtask_id")
@@ -2544,50 +3644,6 @@ class Store:
                     subtask["note"] = str(payload.get("note", ""))
                 else:
                     todo["note"] = str(payload.get("note", ""))
-            elif name == "add_images":
-                todo, owner, owner_error = self._image_owner(payload)
-                incoming = payload.get("images")
-                if owner_error:
-                    error = owner_error
-                elif not isinstance(incoming, list) or not all(isinstance(item, str) for item in incoming):
-                    error = "Invalid images"
-                elif sum(len(item) for item in incoming) > 24_000_000:
-                    error = "Images are too large"
-                else:
-                    images = owner.setdefault("images", [])
-                    images.extend(item for item in incoming if item)
-                    owner["images"] = images
-            elif name == "remove_image":
-                todo, owner, owner_error = self._image_owner(payload)
-                try:
-                    index = int(payload.get("index"))
-                except (TypeError, ValueError):
-                    index = -1
-                if owner_error:
-                    error = owner_error
-                else:
-                    images = owner.get("images")
-                    if not isinstance(images, list) or not images:
-                        images = [owner["image"]] if owner.get("image") else []
-                    if index < 0 or index >= len(images):
-                        error = "Picture not found"
-                    else:
-                        images.pop(index)
-                        owner["images"] = images
-                        owner["image"] = images[0] if images else ""
-            elif name == "save_image":
-                _, todo = self._find_todo(payload.get("id"))
-                image = payload.get("image")
-                if todo is None:
-                    error = "Todo not found"
-                elif image is not None and not isinstance(image, str):
-                    error = "Invalid image"
-                elif image and len(image) > 8_000_000:
-                    error = "Image is too large"
-                elif image:
-                    todo["image"] = image
-                else:
-                    todo.pop("image", None)
             elif name == "save_settings":
                 incoming = payload.get("settings")
                 if not isinstance(incoming, dict):
@@ -2607,7 +3663,7 @@ class Store:
                     if current.get("theme") == "postcard" and current.get("postcard") in allowed_themes:
                         current["resolved_postcard"] = current["postcard"]
                     if current.get("resolved_postcard") not in allowed_themes:
-                        current["resolved_postcard"] = "violet"
+                        current["resolved_postcard"] = "light"
                     if incoming.get("font") in ("serif", "humanist", "bookman", "mono", "hand", "pen"):
                         current["font"] = incoming["font"]
                     if incoming.get("note_font") in ("serif", "humanist", "bookman", "mono", "hand", "pen"):
@@ -2634,6 +3690,10 @@ class Store:
                         current["caret_shape"] = incoming["caret_shape"]
                     if incoming.get("note_material") in ("paper", "blur"):
                         current["note_material"] = incoming["note_material"]
+                    for theme_key in ("note_theme", "ai_theme"):
+                        value = incoming.get(theme_key)
+                        if isinstance(value, str) and re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
+                            current[theme_key] = value
                     try:
                         current["saved_at"] = int(incoming.get("saved_at", 0))
                     except (TypeError, ValueError):
@@ -2653,6 +3713,15 @@ class Store:
                         pass
                     if isinstance(incoming.get("caret_color"), str) and re.fullmatch(r"#[0-9a-fA-F]{6}", incoming["caret_color"]):
                         current["caret_color"] = incoming["caret_color"].lower()
+                    # The selection highlight is a reader-owned wash colour. An
+                    # empty value is meaningful: the active theme's accent inks
+                    # the active row and menu entry again.
+                    if "highlight" in incoming:
+                        highlight = normalize_highlight_color(incoming.get("highlight"))
+                        if highlight:
+                            current["highlight"] = highlight
+                        else:
+                            current.pop("highlight", None)
                     if "sticker_backgrounds" in incoming:
                         current["sticker_backgrounds"] = sanitize_sticker_backgrounds(incoming.get("sticker_backgrounds"))
                     if incoming.get("wallpaper_mode") in (*WALLPAPER_MODES, "theme"):
@@ -2661,7 +3730,13 @@ class Store:
                         current["wallpaper_static"] = incoming["wallpaper_static"]
                     if isinstance(incoming.get("wallpaper_dynamic"), str):
                         current["wallpaper_dynamic"] = incoming["wallpaper_dynamic"]
-                    sanitize_wallpaper_settings(current)
+                    if isinstance(incoming.get("wallpaper"), str):
+                        current["wallpaper"] = incoming["wallpaper"]
+                    if "wallpaper_recent" in incoming:
+                        current["wallpaper_recent"] = sanitize_wallpaper_recent(incoming.get("wallpaper_recent"))
+                    if isinstance(incoming.get("postcards_exported"), bool):
+                        current["postcards_exported"] = incoming["postcards_exported"]
+                    sanitize_wallpaper_settings(current, derive_legacy="wallpaper" not in incoming)
                     if "sound_overrides" in incoming:
                         overrides = {}
                         raw_overrides = incoming.get("sound_overrides")
@@ -2676,11 +3751,35 @@ class Store:
                                 if theme_pack_asset_path(match.group(1), match.group(2)) is not None:
                                     overrides[key] = url
                         current["sound_overrides"] = overrides
+                    if "plugins" in incoming:
+                        current["plugins"] = sanitize_plugin_states(incoming.get("plugins"))
                     try:
                         scale = float(incoming.get("scale", 1))
                         current["scale"] = max(0.85, min(1.25, scale))
                     except (TypeError, ValueError):
                         pass
+            elif name == "save_baseline_color":
+                color = payload.get("color")
+                if not isinstance(color, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color.strip()):
+                    error = "Invalid baseline colour"
+                else:
+                    result["color"] = write_baseline_color(color)
+            elif name == "save_page_line":
+                # The page dividers are a single object: colour, opacity and
+                # the two layout numbers (row pitch and line weight). A partial
+                # patch is merged with the stored values so one slider never
+                # resets the others.
+                raw_line = payload.get("page_line")
+                result["page_line"] = write_page_line(
+                    raw_line if isinstance(raw_line, dict) else payload
+                )
+            elif name == "save_baseline_rule":
+                # Row hairlines have their own file. Normalising here keeps an
+                # unknown mode or a bad hex from ever reaching the stylesheet.
+                raw_rule = payload.get("rule")
+                result["rule"] = write_baseline_row_rule(
+                    raw_rule if isinstance(raw_rule, dict) else payload
+                )
             elif name == "mark_seen":
                 if payload.get("all"):
                     for card in self.data.get("archive", []):
@@ -2717,8 +3816,192 @@ class Store:
                 error = "Unknown action"
             if error:
                 return {"ok": False, "error": error, "state": self.state()}
-            save_data(self.data)
+            save_data(self.data, self.path)
             return {"ok": True, "state": self.state(), **result}
+
+
+def clean_ai_config(raw: dict) -> dict:
+    """Normalize the AI settings file and keep secrets out of bad shapes."""
+    raw = raw if isinstance(raw, dict) else {}
+    config = json.loads(json.dumps(AI_DEFAULT_CONFIG))
+    agent = str(raw.get("default_agent") or "opencode").strip().lower()
+    config["default_agent"] = agent if agent in ("opencode", "claude", "codex") else "opencode"
+    model = str(raw.get("default_model") or "").strip()
+    if model and AI_MODEL_RE.match(model):
+        config["default_model"] = model
+    mode = str(raw.get("default_mode") or "chat").strip().lower()
+    config["default_mode"] = mode if mode in ("chat", "build") else "chat"
+    agent_models = raw.get("agent_models") if isinstance(raw.get("agent_models"), dict) else {}
+    for kind in AI_AGENT_KINDS:
+        value = str(agent_models.get(kind) or "").strip()
+        if value and AI_MODEL_RE.match(value):
+            config["agent_models"][kind] = value
+    agent_modes = raw.get("agent_modes") if isinstance(raw.get("agent_modes"), dict) else {}
+    for kind in AI_AGENT_KINDS:
+        value = str(agent_modes.get(kind) or config["agent_modes"][kind]).strip().lower()
+        config["agent_modes"][kind] = value if value in ("chat", "build") else config["agent_modes"][kind]
+    enabled = raw.get("enabled_models") if isinstance(raw.get("enabled_models"), list) else []
+    config["enabled_models"] = [
+        str(item).strip() for item in enabled[:500]
+        if isinstance(item, str) and AI_MODEL_RE.match(item.strip())
+    ]
+    config["notifications"] = raw.get("notifications") is not False
+    sound = str(raw.get("notification_sound") or "trainWhistle")
+    config["notification_sound"] = sound if sound in AI_NOTIFICATION_SOUNDS else "trainWhistle"
+    config["auto_attach_note"] = raw.get("auto_attach_note") is not False
+    config["save_chats"] = raw.get("save_chats") is True
+    instructions = raw.get("custom_instructions")
+    config["custom_instructions"] = instructions[:20000] if isinstance(instructions, str) else ""
+    providers = []
+    for item in raw.get("providers") if isinstance(raw.get("providers"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        provider_id = str(item.get("id") or "").strip().lower()
+        if not AI_PROVIDER_ID_RE.match(provider_id):
+            continue
+        base_url = str(item.get("base_url") or "").strip()
+        if not re.match(r"^https?://", base_url):
+            continue
+        provider_models = []
+        for model_id in item.get("models") if isinstance(item.get("models"), list) else []:
+            text = str(model_id or "").strip()
+            if text and re.fullmatch(r"[A-Za-z0-9_.:/#-]{1,160}", text):
+                provider_models.append(text)
+        if not provider_models:
+            continue
+        api_key = item.get("api_key")
+        providers.append({
+            "id": provider_id,
+            "name": str(item.get("name") or provider_id)[:80],
+            "base_url": base_url[:500],
+            "api_key": api_key[:800] if isinstance(api_key, str) else "",
+            "models": provider_models[:120],
+            "enabled": item.get("enabled") is not False,
+        })
+    config["providers"] = providers[:24]
+    commands = []
+    for item in raw.get("commands") if isinstance(raw.get("commands"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        prompt = item.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            continue
+        command_id = re.sub(r"[^a-z0-9_-]+", "-", str(item.get("id") or item.get("name") or "").lower()).strip("-")
+        if not command_id:
+            continue
+        commands.append({
+            "id": command_id[:64],
+            "name": str(item.get("name") or command_id)[:80],
+            "prompt": prompt[:12000],
+            "show_in_menu": item.get("show_in_menu") is not False,
+        })
+    config["commands"] = commands[:80]
+    environment = []
+    for item in raw.get("environment") if isinstance(raw.get("environment"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        value = item.get("value")
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) or not isinstance(value, str):
+            continue
+        environment.append({"name": name, "value": value[:4000]})
+    config["environment"] = environment[:32]
+    config["activity_log"] = raw.get("activity_log") is not False
+    try:
+        config["timeout_minutes"] = max(1, min(120, int(raw.get("timeout_minutes") or 15)))
+    except (TypeError, ValueError):
+        config["timeout_minutes"] = 15
+    try:
+        config["max_parallel"] = max(1, min(32, int(raw.get("max_parallel") or 12)))
+    except (TypeError, ValueError):
+        config["max_parallel"] = 12
+    return config
+
+
+def read_ai_config() -> dict:
+    try:
+        raw = json.loads(AI_CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        raw = {}
+    return clean_ai_config(raw)
+
+
+def write_ai_config(config: dict) -> dict:
+    clean = clean_ai_config(config)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    temp = AI_CONFIG_FILE.with_suffix(".tmp")
+    temp.write_text(json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        os.chmod(temp, 0o600)
+    except Exception:
+        pass
+    temp.replace(AI_CONFIG_FILE)
+    return clean
+
+
+def ai_public_config(config: dict) -> dict:
+    """The settings page never receives stored API keys back."""
+    public = json.loads(json.dumps(config))
+    for provider in public.get("providers", []):
+        provider["api_key_set"] = bool(provider.pop("api_key", ""))
+    return public
+
+
+def ai_opencode_env(config: dict) -> dict:
+    """Environment for `opencode` children: custom providers + user env rows."""
+    env = os.environ.copy()
+    custom = [item for item in config.get("providers", []) if item.get("enabled", True)]
+    if custom:
+        base = {"$schema": "https://opencode.ai/config.json"}
+        existing = os.environ.get("OPENCODE_CONFIG")
+        if existing:
+            try:
+                loaded = json.loads(Path(existing).expanduser().read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    base.update(loaded)
+            except Exception:
+                pass
+        providers = base.get("provider") if isinstance(base.get("provider"), dict) else {}
+        for provider in custom:
+            options = {"baseURL": provider.get("base_url") or ""}
+            if provider.get("api_key"):
+                options["apiKey"] = provider["api_key"]
+            providers[provider["id"]] = {
+                "name": provider.get("name") or provider["id"],
+                "options": options,
+                "models": {
+                    model_id: {"name": model_id}
+                    for model_id in provider.get("models", [])
+                },
+            }
+        base["provider"] = providers
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        AI_OPENCODE_CONFIG.write_text(json.dumps(base, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            os.chmod(AI_OPENCODE_CONFIG, 0o600)
+        except Exception:
+            pass
+        env["OPENCODE_CONFIG"] = str(AI_OPENCODE_CONFIG)
+    for item in config.get("environment", []):
+        name = str(item.get("name") or "").strip()
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            env[name] = str(item.get("value") or "")
+    return env
+
+
+def ai_log_activity(config: dict, entry: dict) -> None:
+    if not config.get("activity_log", True):
+        return
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        row = {"at": datetime.now().isoformat(timespec="seconds"), **entry}
+        with AI_ACTIVITY_FILE.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+        if AI_ACTIVITY_FILE.stat().st_size > 2_000_000:
+            lines = AI_ACTIVITY_FILE.read_text(encoding="utf-8", errors="replace").splitlines()[-800:]
+            AI_ACTIVITY_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
 
 
 class AgentStore:
@@ -2730,7 +4013,7 @@ class AgentStore:
     time. Requests wait for the lock instead of being rejected.
     """
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, resume: bool = True):
         self.path = path
         self.lock = threading.Lock()
         # Build agents run in parallel. Only agents whose instructions name a
@@ -2751,26 +4034,43 @@ class AgentStore:
         self.shared_lock = threading.Lock()
         self.models_cache = None
         self.models_at = 0.0
-        # A previous process may have died mid-run. Never keep its streaming
-        # placeholder pending forever; it would render as "Interrupted" in
-        # every later render of that conversation.
+        self.config_lock = threading.Lock()
         try:
-            with self.lock:
-                data = self._load()
-                changed = False
-                for stored in data.get("agents", {}).values():
-                    if not isinstance(stored, dict):
-                        continue
-                    messages = stored.get("messages")
-                    if isinstance(messages, list):
-                        settled = self._settle_pending(messages)
-                        if settled != messages:
-                            stored["messages"] = settled
-                            changed = True
-                if changed:
-                    self._save(data)
+            self.build_max = max(1, min(32, int(read_ai_config().get("max_parallel") or self.build_max)))
         except Exception:
             pass
+        # Runs are journaled on disk so closing the app no longer cancels the
+        # work: the next launch picks the same instruction up again.
+        self.runs_path = AGENT_RUNS_FILE
+        self.runs_lock = threading.Lock()
+        # Set while the app is closing: workers must leave their journal and
+        # pending turn in place so the next launch continues them.
+        self.stopping = threading.Event()
+        # A previous process may have died mid-run. Runs that were cut off by
+        # closing the app are resumed below; anything else is settled so no
+        # streaming placeholder stays pending forever.
+        resumable = self._resumable_runs() if resume else {}
+        if resume:
+            try:
+                with self.lock:
+                    data = self._load()
+                    changed = False
+                    for agent_id, stored in data.get("agents", {}).items():
+                        if not isinstance(stored, dict):
+                            continue
+                        if agent_id in resumable:
+                            continue
+                        messages = stored.get("messages")
+                        if isinstance(messages, list):
+                            settled = self._settle_pending(messages)
+                            if settled != messages:
+                                stored["messages"] = settled
+                                changed = True
+                    if changed:
+                        self._save(data)
+            except Exception:
+                pass
+        self._schedule_resume(resumable)
 
     @staticmethod
     def _settle_pending(messages: list) -> list:
@@ -2806,10 +4106,273 @@ class AgentStore:
         except Exception:
             pass
 
+    def copy_session(self, source_id: str, target_id: str) -> bool:
+        """Carry a subtask's conversation into a forked todo's AI panel.
+
+        The fork is a separate app, but the work should not start from a blank
+        chat: the messages are copied to the new todo's agent id. Run markers,
+        pending flags and local attachment lists are stripped so the new panel
+        reads as finished history rather than a live run from another window.
+        """
+        source_key = str(source_id or "")
+        target_key = str(target_id or "")
+        if not source_key or not target_key:
+            return False
+        with self.lock:
+            data = self._load()
+            agents = data.setdefault("agents", {})
+            source = agents.get(source_key)
+            if not isinstance(source, dict):
+                return False
+            messages = source.get("messages")
+            if not isinstance(messages, list) or not messages:
+                return False
+            copied = json.loads(json.dumps(source))
+            copied["messages"] = [
+                {key: value for key, value in message.items() if key not in ("pending", "live")}
+                for message in copied.get("messages", [])
+                if isinstance(message, dict)
+            ]
+            for key in ("opencode_session", "usage", "files", "live", "queued"):
+                copied.pop(key, None)
+            copied["mode"] = "chat"
+            agents[target_key] = copied
+            self._save(data)
+            return True
+
+    # ------------------------------------------------------- run journal ---
+    # A run record says "this agent still owes an answer". It is written when
+    # a run starts and removed when the run settles, so a record found at
+    # startup always means the previous app process closed mid-run.
+
+    def _load_runs(self) -> dict:
+        try:
+            data = json.loads(self.runs_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        return {}
+
+    def _save_runs(self, runs: dict) -> None:
+        try:
+            self.runs_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.runs_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(runs, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(self.runs_path)
+        except Exception:
+            pass
+
+    def _set_run(self, agent_id: str, record: dict) -> None:
+        with self.runs_lock:
+            runs = self._load_runs()
+            runs[agent_id] = record
+            self._save_runs(runs)
+
+    def _drop_run(self, agent_id: str) -> None:
+        with self.runs_lock:
+            runs = self._load_runs()
+            if agent_id in runs:
+                runs.pop(agent_id, None)
+                self._save_runs(runs)
+
+    def _resumable_runs(self) -> dict:
+        """Return the run records whose conversation still waits for an answer."""
+        runs = self._load_runs()
+        if not runs:
+            return {}
+        try:
+            with self.lock:
+                agents = self._load().get("agents", {})
+        except Exception:
+            agents = {}
+        keep = {}
+        for agent_id, record in runs.items():
+            if not isinstance(record, dict):
+                continue
+            stored = agents.get(agent_id) or {}
+            messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
+            last = messages[-1] if messages else {}
+            if not (isinstance(last, dict) and last.get("role") == "assistant" and last.get("pending")):
+                continue
+            if int(record.get("resumes") or 0) >= 2:
+                # Give up after two launches; the conversation settles below.
+                continue
+            keep[agent_id] = record
+        if len(keep) != len(runs):
+            with self.runs_lock:
+                self._save_runs(keep)
+        return keep
+
+    def _schedule_resume(self, runs: dict) -> None:
+        for agent_id, record in runs.items():
+            model = str(record.get("model") or "")
+            mode = str(record.get("mode") or "build")
+            with self.live_lock:
+                self.live[agent_id] = {
+                    "process": "",
+                    "text": "",
+                    "usage": {"tokens": 0, "cost": 0.0, "context": 0},
+                    "started": time.time(),
+                    "model": model,
+                    "mode": mode,
+                }
+            with self.procs_lock:
+                self.running_agents.add(agent_id)
+            threading.Thread(
+                target=self._resume_run,
+                args=(agent_id, record),
+                daemon=True,
+            ).start()
+
+    def _settle_stored(self, agent_id: str) -> None:
+        """Mark any abandoned streaming reply as finished for one agent."""
+        try:
+            with self.lock:
+                data = self._load()
+                stored = data.get("agents", {}).get(agent_id)
+                if not isinstance(stored, dict):
+                    return
+                messages = stored.get("messages")
+                if not isinstance(messages, list):
+                    return
+                settled = self._settle_pending(messages)
+                if settled != messages:
+                    stored["messages"] = settled
+                    self._save(data)
+        except Exception:
+            pass
+
+    def _resume_run(self, agent_id: str, record: dict) -> None:
+        """Continue a run that the previous app process could not finish."""
+        # Wait for the HTTP server and the first page to settle.
+        time.sleep(2.0)
+        try:
+            with self.lock:
+                stored = (self._load().get("agents", {}) or {}).get(agent_id)
+            if not isinstance(stored, dict):
+                self._drop_run(agent_id)
+                return
+            messages = [m for m in (stored.get("messages") or []) if isinstance(m, dict)]
+            last = messages[-1] if messages else {}
+            if not (last.get("role") == "assistant" and last.get("pending")):
+                self._drop_run(agent_id)
+                return
+            if len(messages) >= 2 and messages[-2].get("role") == "user":
+                history = self._settle_pending(messages[:-2])
+                message = str(messages[-2].get("content") or record.get("message") or "")
+            else:
+                history = self._settle_pending(messages[:-1])
+                message = str(record.get("message") or "")
+            scope = record.get("scope") if isinstance(record.get("scope"), dict) else {}
+            title = str(record.get("title") or stored.get("title") or "Agent")[:120]
+            model = str(record.get("model") or stored.get("model") or self._default_model(str(scope.get("kind") or "")))
+            mode = self._normalize_mode(record.get("mode") or stored.get("mode"), scope.get("kind"))
+            file_args, _files = self._agent_file_args(agent_id, stored)
+            resumed = dict(record)
+            resumed["resumes"] = int(record.get("resumes") or 0) + 1
+            resumed["resumed_at"] = datetime.now().isoformat(timespec="seconds")
+            self._set_run(agent_id, resumed)
+            self._spawn_run(
+                agent_id=agent_id,
+                title=title,
+                scope=scope,
+                message=message or "继续执行上一条指令。",
+                model=model,
+                mode=mode,
+                file_args=file_args,
+                history=history,
+                resume=True,
+            )
+        except Exception:
+            self._drop_run(agent_id)
+            self._settle_stored(agent_id)
+            self._clear_live(agent_id)
+            with self.procs_lock:
+                self.running_agents.discard(agent_id)
+
+    @staticmethod
+    def _stop_process(process, force: bool = False) -> None:
+        """Stop an agent process and the tools it started.
+
+        Agent runs get their own session, so a pause also ends the shell
+        commands OpenCode spawned instead of leaving them holding the pipe.
+        """
+        if process is None:
+            return
+        try:
+            if process.poll() is not None:
+                return
+        except Exception:
+            pass
+        if os.name == "posix":
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL if force else signal.SIGTERM)
+                return
+            except Exception:
+                pass
+        try:
+            if force:
+                process.kill()
+            else:
+                process.terminate()
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+
+    def shutdown(self) -> None:
+        """Stop the child processes but keep their run records for the resume."""
+        self.stopping.set()
+        with self.procs_lock:
+            procs = list(self.procs.values())
+        for process in procs:
+            self._stop_process(process)
+        # Give OpenCode a moment to release its session so the next launch can
+        # continue the same conversation without a lock fight.
+        deadline = time.time() + 2.0
+        for process in procs:
+            try:
+                process.wait(timeout=max(0.05, deadline - time.time()))
+            except Exception:
+                pass
+
+    def _config(self) -> dict:
+        with self.config_lock:
+            return read_ai_config()
+
+    def _save_config(self, config: dict) -> dict:
+        with self.config_lock:
+            clean = write_ai_config(config)
+        self.models_cache = None
+        self.models_at = 0.0
+        self.build_max = max(1, min(32, int(clean.get("max_parallel") or 12)))
+        return clean
+
+    def _opencode_info(self) -> dict:
+        path = shutil.which("opencode") or ""
+        version = ""
+        if path:
+            try:
+                process = subprocess.run(
+                    [path, "--version"], capture_output=True, text=True, timeout=8,
+                )
+                version = (process.stdout or "").strip().splitlines()[-1][:40]
+            except Exception:
+                version = ""
+        info = {
+            "opencode": {"id": "opencode", "name": "OpenCode", "available": bool(path), "supported": True, "version": version, "path": path},
+            "claude": {"id": "claude", "name": "Claude", "available": bool(shutil.which("claude")), "supported": False, "version": "", "path": shutil.which("claude") or ""},
+            "codex": {"id": "codex", "name": "Codex", "available": bool(shutil.which("codex")), "supported": False, "version": "", "path": shutil.which("codex") or ""},
+        }
+        return info
+
     def _available_models(self) -> list:
         now = time.time()
         if self.models_cache is not None and now - self.models_at < 600:
             return self.models_cache
+        config = self._config()
         opencode = shutil.which("opencode")
         models = []
         if opencode:
@@ -2819,14 +4382,24 @@ class AgentStore:
                     capture_output=True,
                     text=True,
                     timeout=40,
+                    env=ai_opencode_env(config),
                 )
                 models = [
                     line.strip()
                     for line in (process.stdout or "").splitlines()
-                    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", line.strip())
+                    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:#/-]+", line.strip())
                 ]
             except Exception:
                 models = []
+        # Custom provider rows are part of the picker even before discovery has
+        # refreshed, so a freshly added endpoint is immediately selectable.
+        for provider in config.get("providers", []):
+            if not provider.get("enabled", True):
+                continue
+            for model_id in provider.get("models", []):
+                candidate = f"{provider['id']}/{model_id}"
+                if candidate not in models:
+                    models.append(candidate)
         if not models:
             models = ["deepseek/deepseek-flash"]
         self.models_cache = models
@@ -2836,7 +4409,7 @@ class AgentStore:
     @staticmethod
     def _configured_model() -> str:
         override = os.environ.get("NEOTODO_AGENT_MODEL") or ""
-        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", override):
+        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:#/-]+", override):
             return override
         config = Path(
             os.environ.get("OPENCODE_CONFIG")
@@ -2844,22 +4417,228 @@ class AgentStore:
         )
         try:
             text = config.read_text(encoding="utf-8")
-            match = re.search(r'"model"\s*:\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"', text)
+            match = re.search(r'"model"\s*:\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.:#/-]+)"', text)
             if match:
                 return match.group(1)
         except Exception:
             pass
         return ""
 
-    def _default_model(self) -> str:
+    def _default_model(self, kind: str = "") -> str:
         models = self._available_models()
-        configured = self._configured_model()
-        if configured and configured in models:
-            return configured
+        config = self._config()
+        candidates = []
+        if kind:
+            candidates.append(config["agent_models"].get(kind) or "")
+        candidates.append(config.get("default_model") or "")
+        candidates.append(self._configured_model())
+        for candidate in candidates:
+            if candidate and candidate in models:
+                return candidate
         for model in models:
             if model.startswith("deepseek/"):
                 return model
         return models[0] if models else "deepseek/deepseek-flash"
+
+    def _enabled_models(self) -> list:
+        models = self._available_models()
+        config = self._config()
+        enabled = config.get("enabled_models") or []
+        if not enabled:
+            return models
+        wanted = set(enabled)
+        for kind in AI_AGENT_KINDS:
+            value = config["agent_models"].get(kind) or ""
+            if value:
+                wanted.add(value)
+        wanted.add(self._default_model())
+        filtered = [model for model in models if model in wanted]
+        return filtered or models
+
+    def _agent_defaults(self) -> dict:
+        config = self._config()
+        return {
+            kind: {
+                "model": self._default_model(kind),
+                "mode": config["agent_modes"].get(kind) or ("build" if kind == "subtask" else "chat"),
+            }
+            for kind in AI_AGENT_KINDS
+        }
+
+    def _provider_list(self) -> list:
+        config = self._config()
+        providers = {}
+        for model in self._available_models():
+            provider_id = model.split("/")[0]
+            entry = providers.setdefault(provider_id, {
+                "id": provider_id,
+                "name": "",
+                "models": [],
+                "custom": False,
+                "enabled": True,
+                "base_url": "",
+                "api_key_set": False,
+                "status": "ready",
+            })
+            entry["models"].append(model)
+        for provider in config.get("providers", []):
+            entry = providers.get(provider["id"]) or {
+                "id": provider["id"],
+                "name": provider.get("name") or provider["id"],
+                "models": [],
+                "custom": True,
+                "enabled": provider.get("enabled", True),
+                "base_url": provider.get("base_url") or "",
+                "api_key_set": bool(provider.get("api_key")),
+                "status": "api-key" if provider.get("api_key") else "key-required",
+            }
+            entry["custom"] = True
+            entry["enabled"] = provider.get("enabled", True)
+            entry["base_url"] = provider.get("base_url") or ""
+            entry["api_key_set"] = bool(provider.get("api_key"))
+            local = bool(re.match(r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|/|$)", entry["base_url"]))
+            entry["status"] = (
+                "disabled" if not entry["enabled"]
+                else ("local" if local else ("api-key" if entry["api_key_set"] else "key-required"))
+            )
+            entry["name"] = provider.get("name") or provider["id"]
+            for model in provider.get("models", []):
+                ref = f"{provider['id']}/{model}"
+                if ref not in entry["models"]:
+                    entry["models"].append(ref)
+            providers[provider["id"]] = entry
+        for entry in providers.values():
+            entry["count"] = len(entry["models"])
+            if not entry["name"]:
+                entry["name"] = self._provider_for_model(f"{entry['id']}/model")
+        return sorted(providers.values(), key=lambda item: (not item["custom"], item["id"]))
+
+    def _activity_tail(self, limit: int = 60) -> list:
+        try:
+            lines = AI_ACTIVITY_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            return []
+        rows = []
+        for line in lines[-600:]:
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(item, dict):
+                rows.append(item)
+        return rows[-limit:]
+
+    def _skill_roots(self) -> list:
+        home = Path.home()
+        return [
+            (home / ".agents" / "skills", "global", "Global · Agents"),
+            (home / ".claude" / "skills", "global", "Global · Claude"),
+            (home / ".config" / "opencode" / "skills", "global", "Global · OpenCode"),
+            (APP_DIR / ".agents" / "skills", "project", "Project · Agents"),
+            (APP_DIR / ".claude" / "skills", "project", "Project · Claude"),
+            (APP_DIR / ".opencode" / "skills", "project", "Project · OpenCode"),
+        ]
+
+    @staticmethod
+    def _skill_meta(path: Path, skill_id: str, scope: str, source: str) -> dict:
+        name = skill_id
+        description = ""
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")[:12000]
+        except Exception:
+            text = ""
+        match = re.match(r"^---\s*\n(.*?)\n---", text, re.S)
+        if match:
+            front = match.group(1)
+            name_match = re.search(r"^name:\s*(.+?)\s*$", front, re.M)
+            desc_match = re.search(r"^description:\s*(.+?)\s*$", front, re.M)
+            if name_match:
+                name = name_match.group(1).strip().strip("\"'")[:120]
+            if desc_match:
+                description = desc_match.group(1).strip().strip("\"'")[:500]
+        if not description:
+            body = re.sub(r"^---\s*\n.*?\n---", "", text, flags=re.S).strip()
+            first = next((line.strip() for line in body.splitlines() if line.strip()), "")
+            description = re.sub(r"^#+\s*", "", first)[:300]
+        return {
+            "id": skill_id,
+            "name": name,
+            "description": description,
+            "scope": scope,
+            "source": source,
+            "path": str(path),
+        }
+
+    def _skill_list(self) -> list:
+        skills = {}
+        for root, scope, label in self._skill_roots():
+            if not root.is_dir():
+                continue
+            try:
+                files = list(root.glob("*.md"))[:100]
+                files += list(root.glob("*/SKILL.md"))[:100]
+                files += list(root.glob("*/*/SKILL.md"))[:100]
+            except Exception:
+                continue
+            for path in files:
+                if not path.is_file():
+                    continue
+                skill_id = path.parent.name if path.name == "SKILL.md" else path.stem
+                if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", skill_id):
+                    continue
+                # Project skills come after global roots, so they overwrite.
+                skills[skill_id] = self._skill_meta(path, skill_id, scope, label)
+        return sorted(skills.values(), key=lambda item: (item["scope"] == "project", item["name"].lower()))
+
+    def _config_payload(self) -> dict:
+        config = self._config()
+        return {
+            "ok": True,
+            "config": ai_public_config(config),
+            "models": self._available_models(),
+            "enabled_models": self._enabled_models(),
+            "default_model": self._default_model(),
+            "agent_defaults": self._agent_defaults(),
+            "providers": self._provider_list(),
+            "skills": self._skill_list(),
+            "backends": self._opencode_info(),
+            "activity": self._activity_tail(40),
+            "paths": {
+                "ai_config": str(AI_CONFIG_FILE),
+                "opencode_config": str(AI_OPENCODE_CONFIG),
+                "activity_log": str(AI_ACTIVITY_FILE),
+                "data": str(DATA_DIR),
+                "project_skills": str(APP_DIR / ".opencode" / "skills"),
+                "global_skills": str(Path.home() / ".config" / "opencode" / "skills"),
+            },
+        }
+
+    @staticmethod
+    def _test_provider(row: dict) -> dict:
+        base_url = str(row.get("base_url") or "").strip().rstrip("/")
+        if not re.match(r"^https?://", base_url):
+            return {"ok": False, "error": "Enter an http(s) Base URL"}
+        api_key = str(row.get("api_key") or "").strip()
+        headers = {"Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        request = urllib.request.Request(f"{base_url}/models", headers=headers, method="GET")
+        started = time.time()
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                payload = json.loads(response.read(2_000_000).decode("utf-8", errors="replace") or "{}")
+            models = []
+            for item in payload.get("data", []) if isinstance(payload, dict) else []:
+                if isinstance(item, dict) and item.get("id"):
+                    models.append(str(item["id"]))
+            return {
+                "ok": True,
+                "models": models[:300],
+                "count": len(models),
+                "latency_ms": int((time.time() - started) * 1000),
+            }
+        except Exception as error:
+            return {"ok": False, "error": str(error)[:300]}
 
     @staticmethod
     def _model_leaf(model: str) -> str:
@@ -2978,6 +4757,26 @@ class AgentStore:
             })
         return cleaned
 
+    @staticmethod
+    def _unique_file_name(name: str, taken: set) -> str:
+        """Return a file name that is not already used by an attachment.
+
+        Clipboard images reach the web UI under one generic name every time
+        ("image.png" in WebKitGTK) and the store is keyed by name, so a second
+        screenshot used to overwrite the one pasted before it. A numbered
+        suffix keeps every pasted file instead of displacing it.
+        """
+        if name not in taken:
+            return name
+        stem = Path(name).stem or "file"
+        suffix = Path(name).suffix
+        index = 2
+        candidate = f"{stem}-{index}{suffix}"
+        while candidate in taken:
+            index += 1
+            candidate = f"{stem}-{index}{suffix}"
+        return candidate
+
     @classmethod
     def _agent_file_args(cls, agent_id: str, agent: dict) -> tuple[list, list]:
         folder = cls._agent_folder(agent_id)
@@ -3038,13 +4837,15 @@ class AgentStore:
         with self.live_lock:
             self.live.pop(agent_id, None)
 
-    @staticmethod
-    def _normalize_mode(value, kind: str) -> str:
+    def _normalize_mode(self, value, kind: str) -> str:
         text = str(value or "")
         if text == "execute":
             text = "build"
         if text in ("chat", "build"):
             return text
+        configured = (self._config().get("agent_modes") or {}).get(kind)
+        if configured in ("chat", "build"):
+            return configured
         return "build" if kind == "subtask" else "chat"
 
     def _cache_shared_read(self, key: str, root: Path, path: str, output) -> None:
@@ -3305,7 +5106,7 @@ class AgentStore:
     def _run_opencode(self, agent_id: str, agent: dict, title: str, scope: dict,
                       message: str, model: str, mode: str,
                       file_args: list | None = None,
-                      partial_cb=None) -> tuple[str, str, str, dict]:
+                      partial_cb=None, resume: bool = False) -> tuple[str, str, str, dict, bool]:
         opencode = shutil.which("opencode")
         if not opencode:
             raise RuntimeError(
@@ -3315,13 +5116,11 @@ class AgentStore:
         # can read that project's files as their work content.
         project_folder = str(scope.get("project_folder") or "").strip()
         project_dir = Path(project_folder).expanduser() if project_folder else None
-        if project_dir is not None and project_dir.is_dir():
-            cwd = project_dir
-        else:
-            cwd = Path(os.environ.get("NEOTODO_AGENT_CWD") or APP_DIR)
+        linked_dir = project_dir if project_dir is not None and project_dir.is_dir() else None
+        cwd = agent_workspace(project_folder)
         if not cwd.exists():
             raise RuntimeError(f"Agent project directory not found: {cwd}")
-        project_key = str(project_dir.resolve()) if project_dir is not None and project_dir.is_dir() else ""
+        project_key = str(linked_dir.resolve()) if linked_dir is not None else ""
         shared_key = f"{str(scope.get('todo_id') or '')}|{project_key}" if project_key else ""
         if mode == "build":
             if str(scope.get("kind") or "") == "subtask":
@@ -3330,18 +5129,36 @@ class AgentStore:
                 prompt = self._build_prompt(scope, title, message)
         else:
             prompt = f"{self._system_prompt(scope, title)}\n\nUser message:\n{message}"
-        if project_dir is not None and project_dir.is_dir():
-            files = list_folder_files(str(project_dir), limit=120)
+        if linked_dir is not None:
+            files = list_folder_files(str(linked_dir), limit=120)
             listing = "\n".join(f"- {name}" for name in files) if files else "(no readable files found)"
             prompt += (
-                f"\n\nActive project folder: {project_dir}\n"
+                f"\n\nActive project folder: {linked_dir}\n"
                 "Read files from this folder as the work content for this todo/subtask. "
                 "Keep outputs inside this folder when the user asks you to write files.\n"
                 f"Files:\n{listing}"
             )
         if shared_key:
-            prompt += self._shared_file_context(shared_key, project_dir)
+            prompt += self._shared_file_context(shared_key, linked_dir)
+        # Settings → AI custom instructions are appended to every run, so they
+        # apply to chat, planning and executor agents alike.
+        ai_config = self._config()
+        extra_instructions = str(ai_config.get("custom_instructions") or "").strip()
+        if extra_instructions:
+            prompt += (
+                "\n\nNeoTodo AI instructions (Settings → AI):\n"
+                + extra_instructions[:20000]
+            )
         session_id = str(agent.get("opencode_session") or "")
+        continue_session = bool(resume and session_id)
+        if continue_session:
+            # The session already holds the user's instruction. Ask the same
+            # thread to carry on instead of starting a fresh conversation.
+            prompt = (
+                "NeoTodo 应用刚刚被关闭，这次运行在中途停止。请从断点继续完成上一条用户指令："
+                "先检查工作目录里已经完成的部分，只补做剩余的工作，不要重复已经完成的修改；"
+                "如果全部工作其实已经完成，直接说明结果即可。"
+            )
         command = [
             opencode, "run", "--standalone", "--format", "json",
             "--title", f"NeoTodo · {title}",
@@ -3385,18 +5202,22 @@ class AgentStore:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                start_new_session=(os.name == "posix"),
+                env=ai_opencode_env(ai_config),
             )
             with self.procs_lock:
                 if agent_id in self.interrupts:
                     self.interrupts.discard(agent_id)
                     raise RuntimeError("已打断")
                 self.procs[agent_id] = process
-            deadline = time.time() + 900
+            deadline = time.time() + max(60, int(ai_config.get("timeout_minutes") or 15) * 60)
             assert process.stdout is not None
             for line in process.stdout:
                 if time.time() > deadline:
-                    process.kill()
-                    raise RuntimeError("The agent timed out after 15 minutes.")
+                    self._stop_process(process, force=True)
+                    raise RuntimeError(
+                        f"The agent timed out after {max(1, int(ai_config.get('timeout_minutes') or 15))} minutes."
+                    )
                 line = line.strip()
                 if not line:
                     continue
@@ -3469,9 +5290,14 @@ class AgentStore:
             try:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                process.kill()
+                self._stop_process(process, force=True)
                 process.wait(timeout=5)
         finally:
+            try:
+                if process is not None and process.stdout is not None:
+                    process.stdout.close()
+            except Exception:
+                pass
             with self.procs_lock:
                 self.procs.pop(agent_id, None)
                 interrupted = agent_id in self.interrupts
@@ -3490,7 +5316,142 @@ class AgentStore:
         exported = self._session_usage(new_session)
         if exported:
             usage = exported
-        return reply[-20000:], new_session, "\n".join(process_lines)[-12000:], usage
+        return reply[-20000:], new_session, "\n".join(process_lines)[-12000:], usage, interrupted
+
+    def _spawn_run(self, agent_id: str, title: str, scope: dict, message: str,
+                   model: str, mode: str, file_args: list | None, history: list,
+                   resume: bool = False) -> None:
+        """Run one agent turn in a worker thread (fresh message or a resume)."""
+        def save_partial(reply_text, process_text):
+            self._save_partial(agent_id, title, model, mode, reply_text, process_text)
+
+        def worker():
+            started_at = time.time()
+            try:
+                with self.lock:
+                    agent_state = (self._load().get("agents", {}) or {}).get(agent_id) or {}
+                if not isinstance(agent_state, dict):
+                    agent_state = {}
+                ai_log_activity(self._config(), {
+                    "event": "start",
+                    "agent": agent_id,
+                    "title": title,
+                    "model": model,
+                    "mode": mode,
+                })
+                conflicts = set()
+                interrupted = False
+                try:
+                    if mode == "build":
+                        project_key = self._project_key(scope)
+                        intended = self._intended_paths(f"{title}\n{message}")
+                        if not self._acquire_build_slot(agent_id, project_key, intended):
+                            reply, opencode_session, process_text = "已打断。", "", ""
+                            usage = {"tokens": 0, "cost": 0.0, "context": 0}
+                            interrupted = True
+                        else:
+                            try:
+                                reply, opencode_session, process_text, usage, interrupted = self._run_opencode(
+                                    agent_id, agent_state, title, scope, message, model, mode,
+                                    file_args, save_partial, resume,
+                                )
+                            finally:
+                                conflicts = self._release_build_slot(agent_id)
+                    else:
+                        reply, opencode_session, process_text, usage, interrupted = self._run_opencode(
+                            agent_id, agent_state, title, scope, message, model, mode,
+                            file_args, save_partial, resume,
+                        )
+                    if conflicts:
+                        reply = (reply + "\n\n(注意：以下文件与并行 agent 同时修改，请检查是否冲突："
+                                 + ", ".join(sorted(conflicts)) + "）").strip()
+                    if self.stopping.is_set():
+                        # The app is closing: keep the journal and the pending
+                        # turn so the next launch resumes this instruction.
+                        return
+                    assistant = {
+                        "role": "assistant",
+                        "content": reply,
+                        "process": process_text,
+                        "model": model,
+                        "usage": {
+                            "tokens": int(usage.get("tokens") or 0),
+                            "cost": round(float(usage.get("cost") or 0), 6),
+                            "context": int(usage.get("context") or 0),
+                        },
+                    }
+                    # A run the user paused is not a finished run: the board
+                    # must not play the completion ceremony for it.
+                    if interrupted:
+                        assistant["interrupted"] = True
+                    user_entry = {"role": "user", "content": message}
+                    updated = (history + [user_entry, assistant])[-40:]
+                except Exception as error:
+                    if not self.stopping.is_set():
+                        self._finish_agent_error(agent_id, title, model, mode, str(error))
+                    ai_log_activity(self._config(), {
+                        "event": "error",
+                        "agent": agent_id,
+                        "title": title,
+                        "model": model,
+                        "mode": mode,
+                        "seconds": int(time.time() - started_at),
+                        "error": str(error)[:500],
+                    })
+                    return
+                with self.lock:
+                    data = self._load()
+                    stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                    stored["title"] = title
+                    stored["messages"] = updated
+                    stored["updated_at"] = datetime.now().isoformat(timespec="seconds")
+                    stored["mode"] = mode
+                    stored["model"] = model
+                    if opencode_session:
+                        stored["opencode_session"] = opencode_session
+                    previous = stored.get("usage") if isinstance(stored.get("usage"), dict) else {}
+                    if usage.get("cumulative"):
+                        stored["usage"] = {
+                            "tokens": int(usage.get("tokens") or 0),
+                            "cost": round(float(usage.get("cost") or 0), 6),
+                            "context": int(usage.get("context") or 0),
+                        }
+                    else:
+                        try:
+                            total_tokens = int(previous.get("tokens") or 0) + int(usage.get("tokens") or 0)
+                            total_cost = float(previous.get("cost") or 0) + float(usage.get("cost") or 0)
+                        except (TypeError, ValueError):
+                            total_tokens, total_cost = usage.get("tokens", 0), usage.get("cost", 0)
+                        stored["usage"] = {
+                            "tokens": total_tokens,
+                            "cost": round(total_cost, 6),
+                            "context": usage.get("context") or previous.get("context") or 0,
+                        }
+                    data["agents"][agent_id] = stored
+                    self._save(data)
+                    ai_log_activity(self._config(), {
+                        "event": "interrupted" if interrupted else "finish",
+                        "agent": agent_id,
+                        "title": title,
+                        "model": model,
+                        "mode": mode,
+                        "seconds": int(time.time() - started_at),
+                        "tokens": int(usage.get("tokens") or 0),
+                        "cost": round(float(usage.get("cost") or 0), 6),
+                    })
+            finally:
+                # The answer is on disk: this run never needs resuming again.
+                # While the app closes, the journal stays so it can resume.
+                if not self.stopping.is_set():
+                    self._drop_run(agent_id)
+                with self.procs_lock:
+                    self.running_agents.discard(agent_id)
+                with self.live_lock:
+                    self.live.pop(agent_id, None)
+
+        with self.procs_lock:
+            self.running_agents.add(agent_id)
+        threading.Thread(target=worker, daemon=True).start()
 
     def action(self, payload: dict) -> dict:
         name = payload.get("action")
@@ -3498,22 +5459,161 @@ class AgentStore:
             with self.lock:
                 data = self._load()
             return {"ok": True, "agents": data.get("agents", {})}
+        if name == "config":
+            return self._config_payload()
+        if name == "refresh_models":
+            self.models_cache = None
+            self.models_at = 0.0
+            return self._config_payload()
+        if name == "set_config":
+            patch = payload.get("config") if isinstance(payload.get("config"), dict) else {}
+            current = self._config()
+            for key in (
+                "default_agent", "default_model", "default_mode", "enabled_models",
+                "notifications", "notification_sound", "auto_attach_note", "save_chats",
+                "custom_instructions", "environment", "activity_log", "timeout_minutes",
+                "max_parallel", "commands",
+            ):
+                if key in patch:
+                    current[key] = patch[key]
+            for key in ("agent_models", "agent_modes"):
+                if isinstance(patch.get(key), dict):
+                    current[key] = {**current.get(key, {}), **patch[key]}
+            self._save_config(current)
+            return self._config_payload()
+        if name == "save_provider":
+            row = payload.get("provider") if isinstance(payload.get("provider"), dict) else {}
+            provider_id = str(row.get("id") or "").strip().lower()
+            if not AI_PROVIDER_ID_RE.match(provider_id):
+                return {"ok": False, "error": "Provider id must be lowercase letters, numbers or dashes"}
+            current = self._config()
+            providers = list(current.get("providers") or [])
+            existing = next((item for item in providers if item.get("id") == provider_id), None)
+            api_key = row.get("api_key")
+            if not isinstance(api_key, str):
+                api_key = ""
+            if not api_key and existing and not row.get("clear_api_key"):
+                api_key = str(existing.get("api_key") or "")
+            candidate = {
+                "id": provider_id,
+                "name": row.get("name") or provider_id,
+                "base_url": row.get("base_url") or "",
+                "api_key": api_key,
+                "models": row.get("models") if isinstance(row.get("models"), list) else [],
+                "enabled": row.get("enabled") is not False,
+            }
+            if existing:
+                providers = [candidate if item.get("id") == provider_id else item for item in providers]
+            else:
+                providers.append(candidate)
+            current["providers"] = providers
+            # New BYOK models join a curated list automatically, matching the
+            # plugin's behavior. A still-empty list keeps meaning "everything".
+            if current.get("enabled_models"):
+                enabled = list(current["enabled_models"])
+                for model_id in candidate["models"]:
+                    ref = f"{provider_id}/{model_id}"
+                    if ref not in enabled:
+                        enabled.append(ref)
+                current["enabled_models"] = enabled
+            cleaned = self._save_config(current)
+            added = [item for item in cleaned.get("providers", []) if item.get("id") == provider_id]
+            if not added:
+                return {"ok": False, "error": "Add a Base URL and at least one model id"}
+            return self._config_payload()
+        if name == "remove_provider":
+            provider_id = str(payload.get("provider_id") or "").strip().lower()
+            current = self._config()
+            current["providers"] = [item for item in current.get("providers", []) if item.get("id") != provider_id]
+            self._save_config(current)
+            return self._config_payload()
+        if name == "test_provider":
+            row = payload.get("provider") if isinstance(payload.get("provider"), dict) else {}
+            provider_id = str(row.get("id") or "").strip().lower()
+            if provider_id:
+                existing = next(
+                    (item for item in self._config().get("providers", []) if item.get("id") == provider_id),
+                    None,
+                )
+                if existing:
+                    merged = dict(existing)
+                    for key in ("name", "base_url", "api_key"):
+                        value = row.get(key)
+                        if isinstance(value, str) and value.strip():
+                            merged[key] = value
+                    row = merged
+            result = self._test_provider(row)
+            return {**result, "ok": result.get("ok", False)}
+        if name == "clear_activity":
+            try:
+                AI_ACTIVITY_FILE.write_text("", encoding="utf-8")
+            except Exception:
+                pass
+            return {**self._config_payload(), "ok": True}
+        if name == "reset_config":
+            self._save_config({})
+            return self._config_payload()
+        if name == "open_skill_folder":
+            raw = str(payload.get("path") or "")
+            try:
+                candidate = Path(raw).expanduser().resolve()
+            except Exception:
+                return {"ok": False, "error": "Invalid skill path"}
+            roots = [root.expanduser().resolve() for root, _scope, _label in self._skill_roots()]
+            allowed = any(candidate == root or root in candidate.parents for root in roots)
+            if not allowed:
+                return {"ok": False, "error": "That skill is outside the known skill folders"}
+            folder = candidate.parent if candidate.is_file() else candidate
+            if candidate.name == "skills" and not folder.exists():
+                try:
+                    folder.mkdir(parents=True, exist_ok=True)
+                except Exception:
+                    pass
+            try:
+                if sys.platform == "win32":
+                    os.startfile(str(folder))
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", str(folder)], start_new_session=True)
+                else:
+                    subprocess.Popen(
+                        ["xdg-open", str(folder)], start_new_session=True,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+            except Exception as error:
+                return {"ok": False, "error": str(error)}
+            return {"ok": True, "folder": str(folder)}
+        if name == "open_ai_folder":
+            try:
+                if sys.platform == "win32":
+                    os.startfile(str(DATA_DIR))
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", str(DATA_DIR)], start_new_session=True)
+                else:
+                    subprocess.Popen(
+                        ["xdg-open", str(DATA_DIR)], start_new_session=True,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+            except Exception:
+                pass
+            return {**self._config_payload(), "ok": True}
         if name == "models":
             return {
                 "ok": True,
-                "models": self._available_models(),
+                "models": self._enabled_models(),
+                "all_models": self._available_models(),
                 "default_model": self._default_model(),
+                "agent_defaults": self._agent_defaults(),
             }
         if name == "get":
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
                 return {"ok": False, "error": "Missing agent"}
+            kind = "subtask" if agent_id.startswith("subtask:") else ("todo" if agent_id.startswith("todo:") else "captain")
             with self.lock:
                 data = self._load()
                 agent = data.get("agents", {}).get(agent_id) or {"messages": []}
-            default_model = self._default_model()
+            default_model = self._default_model(kind)
             model = agent.get("model") or default_model
-            kind = "subtask" if agent_id.startswith("subtask:") else "captain"
             mode = self._normalize_mode(agent.get("mode"), kind)
             with self.live_lock:
                 live = dict(self.live.get(agent_id) or {})
@@ -3546,8 +5646,9 @@ class AgentStore:
                 "model": model,
                 "mode": mode,
                 "files": self._clean_files(agent_id, agent.get("files") if isinstance(agent.get("files"), list) else []),
-                "models": self._available_models(),
+                "models": self._enabled_models(),
                 "default_model": default_model,
+                "agent_defaults": self._agent_defaults(),
                 "live": live,
             }
         if name == "set_model":
@@ -3591,6 +5692,7 @@ class AgentStore:
                 stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
                 metas = self._clean_files(agent_id, stored.get("files") if isinstance(stored.get("files"), list) else [])
                 total = sum(int(item.get("size") or 0) for item in metas)
+                taken = {str(item.get("name") or "") for item in metas}
                 added = []
                 for index, raw_path in enumerate(paths[:20]):
                     try:
@@ -3606,19 +5708,21 @@ class AgentStore:
                     name = Path(name.replace("\\", "/")).name.strip()
                     if not name or name in (".", ".."):
                         name = f"file-{index + 1}"
-                    existing = next((m for m in metas if m["name"] == name), None)
-                    if existing is None and len(metas) >= 20:
+                    if len(metas) >= 20:
                         continue
-                    previous_size = int(existing.get("size") or 0) if existing else 0
-                    if total + len(raw) - previous_size > 50_000_000:
+                    if total + len(raw) > 50_000_000:
                         continue
+                    # Keep every pasted file: two screenshots copied minutes
+                    # apart share the same name, and replacing by name dropped
+                    # the earlier one.
+                    name = self._unique_file_name(name, taken)
                     target = folder / name
                     try:
                         target.write_bytes(raw)
                     except Exception:
                         continue
-                    total += len(raw) - previous_size
-                    metas = [m for m in metas if m["name"] != name]
+                    total += len(raw)
+                    taken.add(name)
                     metas.append({"name": name, "size": len(raw), "added_at": datetime.now().isoformat(timespec="seconds")})
                     added.append(name)
                 stored["files"] = metas
@@ -3639,6 +5743,7 @@ class AgentStore:
                 stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
                 metas = self._clean_files(agent_id, stored.get("files") if isinstance(stored.get("files"), list) else [])
                 total = sum(int(item.get("size") or 0) for item in metas)
+                taken = {str(item.get("name") or "") for item in metas}
                 added = []
                 for index, item in enumerate(attachments[:20]):
                     if not isinstance(item, dict):
@@ -3653,19 +5758,21 @@ class AgentStore:
                         continue
                     if not raw or len(raw) > 10_000_000:
                         continue
-                    existing = next((m for m in metas if m["name"] == name), None)
-                    if existing is None and len(metas) >= 20:
+                    if len(metas) >= 20:
                         continue
-                    previous_size = int(existing.get("size") or 0) if existing else 0
-                    if total + len(raw) - previous_size > 50_000_000:
+                    if total + len(raw) > 50_000_000:
                         continue
+                    # Clipboard pastes reuse one generic file name, so give the
+                    # new arrival its own name instead of overwriting the last
+                    # attachment.
+                    name = self._unique_file_name(name, taken)
                     target = folder / name
                     try:
                         target.write_bytes(raw)
                     except Exception:
                         continue
-                    total += len(raw) - previous_size
-                    metas = [m for m in metas if m["name"] != name]
+                    total += len(raw)
+                    taken.add(name)
                     metas.append({"name": name, "size": len(raw), "added_at": datetime.now().isoformat(timespec="seconds")})
                     added.append(name)
                 stored["files"] = metas
@@ -3693,15 +5800,27 @@ class AgentStore:
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
                 return {"ok": False, "error": "Missing agent"}
+            self._drop_run(agent_id)
             with self.lock:
                 data = self._load()
                 data.get("agents", {}).pop(agent_id, None)
                 self._save(data)
             return {"ok": True, "agents": data.get("agents", {})}
+        if name == "running":
+            # The visible fans follow the backend, not only the local stamps:
+            # a resumed run keeps spinning after the app restarts.
+            with self.procs_lock:
+                active = sorted(self.running_agents)
+            with self.build_cond:
+                waiting = sorted(self.build_waiting)
+            return {"ok": True, "running": active, "queued": waiting}
         if name == "interrupt":
             agent_id = str(payload.get("agent_id") or "").strip()
             if not agent_id:
                 return {"ok": False, "error": "Missing agent"}
+            # A deliberate stop is not a crash: drop the journal entry first so
+            # the next launch never resumes it.
+            self._drop_run(agent_id)
             with self.procs_lock:
                 process = self.procs.get(agent_id)
                 if process is not None and process.poll() is None:
@@ -3719,12 +5838,9 @@ class AgentStore:
                     return {"ok": True, "interrupted": False}
                 return {"ok": True, "interrupted": True, "queued": True}
             try:
-                process.terminate()
+                self._stop_process(process)
             except Exception:
-                try:
-                    process.kill()
-                except Exception:
-                    pass
+                pass
             return {"ok": True, "interrupted": True}
         if name != "chat":
             return {"ok": False, "error": "Unknown agent action"}
@@ -3745,7 +5861,7 @@ class AgentStore:
         mode = self._normalize_mode(payload.get("mode") or agent.get("mode"), kind)
         requested = str(payload.get("model") or agent.get("model") or "").strip()
         models = self._available_models()
-        model = requested if requested in models else self._default_model()
+        model = requested if requested in models else self._default_model(kind)
         file_args, persistent_files = self._agent_file_args(agent_id, agent)
         with self.lock:
             data = self._load()
@@ -3766,88 +5882,27 @@ class AgentStore:
             stored["model"] = model
             self._save(data)
 
-        def save_partial(reply_text, process_text):
-            self._save_partial(agent_id, title, model, mode, reply_text, process_text)
-
-        def worker():
-            try:
-                conflicts = set()
-                try:
-                    if mode == "build":
-                        project_key = self._project_key(scope)
-                        intended = self._intended_paths(f"{title}\n{message}")
-                        if not self._acquire_build_slot(agent_id, project_key, intended):
-                            reply, opencode_session, process_text = "已打断。", "", ""
-                            usage = {"tokens": 0, "cost": 0.0, "context": 0}
-                        else:
-                            try:
-                                reply, opencode_session, process_text, usage = self._run_opencode(
-                                    agent_id, agent, title, scope, message, model, mode, file_args, save_partial
-                                )
-                            finally:
-                                conflicts = self._release_build_slot(agent_id)
-                    else:
-                        reply, opencode_session, process_text, usage = self._run_opencode(
-                            agent_id, agent, title, scope, message, model, mode, file_args, save_partial
-                        )
-                    if conflicts:
-                        reply = (reply + "\n\n(注意：以下文件与并行 agent 同时修改，请检查是否冲突："
-                                 + ", ".join(sorted(conflicts)) + "）").strip()
-                    assistant = {
-                        "role": "assistant",
-                        "content": reply,
-                        "process": process_text,
-                        "model": model,
-                        "usage": {
-                            "tokens": int(usage.get("tokens") or 0),
-                            "cost": round(float(usage.get("cost") or 0), 6),
-                            "context": int(usage.get("context") or 0),
-                        },
-                    }
-                    user_entry = {"role": "user", "content": message}
-                    updated = (history + [user_entry, assistant])[-40:]
-                except Exception as error:
-                    self._finish_agent_error(agent_id, title, model, mode, str(error))
-                    return
-                with self.lock:
-                    data = self._load()
-                    stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
-                    stored["title"] = title
-                    stored["messages"] = updated
-                    stored["updated_at"] = datetime.now().isoformat(timespec="seconds")
-                    stored["mode"] = mode
-                    stored["model"] = model
-                    if opencode_session:
-                        stored["opencode_session"] = opencode_session
-                    previous = stored.get("usage") if isinstance(stored.get("usage"), dict) else {}
-                    if usage.get("cumulative"):
-                        stored["usage"] = {
-                            "tokens": int(usage.get("tokens") or 0),
-                            "cost": round(float(usage.get("cost") or 0), 6),
-                            "context": int(usage.get("context") or 0),
-                        }
-                    else:
-                        try:
-                            total_tokens = int(previous.get("tokens") or 0) + int(usage.get("tokens") or 0)
-                            total_cost = float(previous.get("cost") or 0) + float(usage.get("cost") or 0)
-                        except (TypeError, ValueError):
-                            total_tokens, total_cost = usage.get("tokens", 0), usage.get("cost", 0)
-                        stored["usage"] = {
-                            "tokens": total_tokens,
-                            "cost": round(total_cost, 6),
-                            "context": usage.get("context") or previous.get("context") or 0,
-                        }
-                    data["agents"][agent_id] = stored
-                    self._save(data)
-            finally:
-                with self.procs_lock:
-                    self.running_agents.discard(agent_id)
-                with self.live_lock:
-                    self.live.pop(agent_id, None)
-
-        with self.procs_lock:
-            self.running_agents.add(agent_id)
-        threading.Thread(target=worker, daemon=True).start()
+        # Journal the run before the worker starts so a crash or a closed app
+        # can pick the same instruction up again on the next launch.
+        self._set_run(agent_id, {
+            "title": title,
+            "scope": scope,
+            "message": message,
+            "model": model,
+            "mode": mode,
+            "resumes": 0,
+            "started": datetime.now().isoformat(timespec="seconds"),
+        })
+        self._spawn_run(
+            agent_id=agent_id,
+            title=title,
+            scope=scope,
+            message=message,
+            model=model,
+            mode=mode,
+            file_args=file_args,
+            history=history,
+        )
         with self.lock:
             fresh = self._load()
             stored_now = fresh.get("agents", {}).get(agent_id) or {}
@@ -3887,9 +5942,9 @@ class ApiHandler(BaseHTTPRequestHandler):
             "application/json; charset=utf-8",
         )
 
-    def _send_media(self, candidate: Path) -> None:
-        """Serve an audio file with byte ranges so seeking works in WebKit."""
-        content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+    def _send_media(self, candidate: Path, content_type: str = "") -> None:
+        """Serve an audio/video file with byte ranges so seeking works in WebKit."""
+        content_type = content_type or mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
         try:
             size = candidate.stat().st_size
             start, end = 0, size - 1
@@ -3946,6 +6001,20 @@ class ApiHandler(BaseHTTPRequestHandler):
                 return
             content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
             self._send(200, body, content_type)
+            return
+        if parsed.path == "/user-wallpaper":
+            # A wallpaper the reader picked: served straight from its own path,
+            # and only while that path is one they chose. Nothing is copied.
+            raw = parse_qs(parsed.query).get("path", [""])[0]
+            state = self.store.state() if self.store is not None else {}
+            candidate = wallpaper_file_allowed(raw, (state or {}).get("settings") or {})
+            if candidate is None:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            content_type = ""
+            if candidate.suffix.lower() in (".m4v", ".mov"):
+                content_type = "video/mp4"
+            self._send_media(candidate, content_type)
             return
         if parsed.path.startswith("/user-pictures/"):
             name = unquote(parsed.path.rsplit("/", 1)[-1])
@@ -4017,16 +6086,6 @@ class ApiHandler(BaseHTTPRequestHandler):
                 return
             self._send(200, body, "text/css; charset=utf-8")
             return
-        if parsed.path == "/page-cache":
-            try:
-                if not PAGE_CACHE_FILE.exists() or PAGE_CACHE_FILE.stat().st_size > 4_000_000:
-                    raise ValueError
-                body = PAGE_CACHE_FILE.read_bytes()
-            except Exception:
-                self._json(404, {"ok": False, "error": "No page cache"})
-                return
-            self._send(200, body, "text/html; charset=utf-8")
-            return
         if parsed.path.startswith("/user-music/"):
             name = unquote(parsed.path.rsplit("/", 1)[-1])
             candidate = music_file(name)
@@ -4049,6 +6108,13 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "packs": discover_theme_packs(),
                 "folder": str(ensure_theme_packs_dir()),
                 "exports": str(ensure_theme_exports_dir()),
+                # The notebook and the console keep their own palettes in their
+                # own folders. They are listed separately so an app theme can
+                # never repaint either pane.
+                "note_themes": discover_pane_themes("note"),
+                "ai_themes": discover_pane_themes("ai"),
+                "note_folder": str(ensure_pane_themes_dir("note")),
+                "ai_folder": str(ensure_pane_themes_dir("ai")),
                 "catalog_url": THEME_CATALOG_URL,
             })
             return
@@ -4144,14 +6210,10 @@ class ApiHandler(BaseHTTPRequestHandler):
             ):
                 raise ValueError
             if parsed.path == "/":
-                raw = resolved.read_text(encoding="utf-8")
-                colors = self.store.boot_colors()
-                # Keep the HTML tiny: the state is fetched after the first
-                # paint instead of inlining a 1.2 MB snapshot that delayed
-                # DOMContentLoaded and the window reveal.
-                inject = f'<script>window.__BOOT_PAPER__={json.dumps(colors["paper"])};</script>'
-                raw = raw.replace("<!-- BOOT_DATA -->", inject, 1)
-                body = raw.encode("utf-8")
+                # The boot document carries no colour of its own: the window is
+                # transparent and stays hidden until the finished page reports
+                # ready. Nothing is injected, so there is no themed first frame.
+                body = resolved.read_bytes()
                 self._send(200, body, "text/html; charset=utf-8")
                 return
             body = resolved.read_bytes()
@@ -4167,8 +6229,10 @@ class ApiHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         allowed = (
             "/api/action", "/api/agent",
+            "/api/fork-app", "/api/fork-app/branch", "/api/fork-app/open", "/api/fork-focus",
             "/api/plugins/install", "/api/plugins/uninstall",
             "/api/themes/install", "/api/themes/uninstall", "/api/themes/export",
+            "/api/themes/save",
         )
         if path not in allowed:
             self._json(404, {"ok": False, "error": "Not found"})
@@ -4202,11 +6266,29 @@ class ApiHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "theme": manifest,
                     "packs": discover_theme_packs(),
+                    "note_themes": discover_pane_themes("note"),
+                    "ai_themes": discover_pane_themes("ai"),
                     "folder": str(ensure_theme_packs_dir()),
                 }
             elif path == "/api/themes/uninstall":
                 removed = uninstall_theme_pack(payload.get("id"))
-                result = {"ok": True, **removed, "packs": discover_theme_packs()}
+                result = {
+                    "ok": True,
+                    **removed,
+                    "packs": discover_theme_packs(),
+                    "note_themes": discover_pane_themes("note"),
+                    "ai_themes": discover_pane_themes("ai"),
+                }
+            elif path == "/api/themes/save":
+                manifest = save_theme_pack(payload)
+                result = {
+                    "ok": True,
+                    "theme": manifest,
+                    "packs": discover_theme_packs(),
+                    "note_themes": discover_pane_themes("note"),
+                    "ai_themes": discover_pane_themes("ai"),
+                    "folder": str(ensure_theme_packs_dir()),
+                }
             elif path == "/api/themes/export":
                 exported = export_theme_pack(payload)
                 result = {"ok": True, **exported}
@@ -4234,6 +6316,22 @@ class ApiHandler(BaseHTTPRequestHandler):
             elif path == "/api/plugins/uninstall":
                 removed = uninstall_plugin_files(payload.get("id"))
                 result = {"ok": True, **removed, "plugins": discover_plugins()}
+            elif path == "/api/fork-app/branch":
+                result = spawn_fork_branch(self.store, self.agent_store, payload)
+            elif path == "/api/fork-app/open":
+                result = open_fork_instance(self.agent_store, payload.get("fork_id"))
+            elif path == "/api/fork-focus":
+                callback = getattr(type(self), "focus_callback", None)
+                if callback is None:
+                    result = {"ok": False, "error": "No fork window"}
+                else:
+                    try:
+                        callback()
+                        result = {"ok": True, "focused": True}
+                    except Exception as error:
+                        result = {"ok": False, "error": str(error)}
+            elif path == "/api/fork-app":
+                result = spawn_fork_app(self.store, self.agent_store, payload)
             else:
                 result = self.store.action(payload)
             self._json(200 if result.get("ok") else 400, result)
@@ -4241,23 +6339,481 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._json(400, {"ok": False, "error": str(error)})
 
 
+_FORK_WINDOW_SUPPORTED = None
+
+
+def fork_window_supported() -> bool:
+    """True when this platform can own a separate GTK window process."""
+    global _FORK_WINDOW_SUPPORTED
+    if _FORK_WINDOW_SUPPORTED is not None:
+        return _FORK_WINDOW_SUPPORTED
+    _FORK_WINDOW_SUPPORTED = False
+    if not sys.platform.startswith("linux"):
+        return False
+    try:
+        import gi
+        gi.require_version("Gtk", "4.0")
+        gi.require_version("WebKit", "6.0")
+        from gi.repository import Gtk, WebKit  # noqa: F401
+        _FORK_WINDOW_SUPPORTED = True
+    except Exception:
+        pass
+    return _FORK_WINDOW_SUPPORTED
+
+
+def fork_server_record_path(fork_id: str) -> Path:
+    return FORK_DIR / f"{fork_id}.server.json"
+
+
+def read_fork_server_record(fork_id: str) -> dict | None:
+    try:
+        data = json.loads(fork_server_record_path(fork_id).read_text(encoding="utf-8"))
+        port = int(data.get("port") or 0)
+        if port <= 0:
+            return None
+        return {
+            "pid": int(data.get("pid") or 0),
+            "port": port,
+            "started_at": str(data.get("started_at") or ""),
+        }
+    except Exception:
+        return None
+
+
+def write_fork_server_record(fork_id: str, port: int) -> None:
+    try:
+        FORK_DIR.mkdir(parents=True, exist_ok=True)
+        path = fork_server_record_path(fork_id)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({
+            "pid": os.getpid(),
+            "port": int(port),
+            "started_at": datetime.now().isoformat(timespec="seconds"),
+        }), encoding="utf-8")
+        tmp.replace(path)
+    except Exception:
+        pass
+
+
+def clear_fork_server_record(fork_id: str) -> None:
+    try:
+        fork_server_record_path(fork_id).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def port_is_live(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", int(port)), timeout=0.35):
+            return True
+    except OSError:
+        return False
+
+
+def focus_fork_window(port: int) -> bool:
+    """Raise an already running fork window instead of opening a duplicate."""
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{int(port)}/api/fork-focus",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=1.5) as response:
+            return bool(json.load(response).get("ok"))
+    except Exception:
+        return False
+
+
+def launch_fork_process(args: list[str]) -> subprocess.Popen:
+    """Start a detached NeoTodo process that owns its own window + server."""
+    command = [sys.executable]
+    if not getattr(sys, "frozen", False):
+        command.append(str(Path(__file__).resolve()))
+    command.extend(args)
+    kwargs = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+        "cwd": str(APP_DIR),
+    }
+    if os.name == "posix":
+        kwargs["start_new_session"] = True
+    else:
+        kwargs["creationflags"] = (
+            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+        )
+    return subprocess.Popen(command, **kwargs)
+
+
+def spawn_fork_app_process(path: Path) -> dict | None:
+    """Launch a child process that serves the fork and opens its own window."""
+    fork_id = path.stem
+    port = 0
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = int(sock.getsockname()[1])
+    except Exception:
+        port = 0
+    try:
+        proc = launch_fork_process(["--fork-app", str(path), "--port", str(port)])
+    except Exception:
+        return None
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            break
+        record = read_fork_server_record(fork_id)
+        if record and port_is_live(record["port"]):
+            record["child_pid"] = proc.pid
+            return record
+        time.sleep(0.08)
+    try:
+        proc.terminate()
+    except Exception:
+        pass
+    return None
+
+
+def spawn_fork_window_process(url: str, title: str) -> bool:
+    try:
+        launch_fork_process(["--fork-window", str(url), "--title", str(title or "")])
+        return True
+    except Exception:
+        return False
+
+
+def fork_data_title(path: Path) -> str:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        category = (data.get("categories") or [{}])[0]
+        todo = (category.get("todos") or [{}])[0]
+        return str(todo.get("name") or category.get("name") or "")
+    except Exception:
+        return ""
+
+
+def start_fork_server(fork_store: Store, agent_store) -> tuple[ThreadingHTTPServer, int]:
+    """Serve one fork workspace on a fresh loopback port."""
+    class ForkApiHandler(ApiHandler):
+        pass
+
+    ForkApiHandler.store = fork_store
+    ForkApiHandler.agent_store = agent_store
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ForkApiHandler)
+
+    def quit_fork() -> None:
+        try:
+            server.shutdown()
+        except Exception:
+            pass
+        with FORK_SERVERS_LOCK:
+            for key, entry in list(FORK_SERVERS.items()):
+                if entry.get("server") is server:
+                    FORK_SERVERS.pop(key, None)
+
+    fork_store.quit_callback = quit_fork
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, server.server_address[1]
+
+
+def open_fork_instance(agent_store, fork_id: str) -> dict:
+    """Open a persisted fork in its own independent window/process."""
+    key = str(fork_id or "").strip()
+    if not re.fullmatch(r"[0-9a-f]{8,64}", key):
+        return {"ok": False, "error": "Invalid fork"}
+    path = FORK_DIR / f"{key}.json"
+    if not path.is_file():
+        return {"ok": False, "error": "Fork not found"}
+    record = read_fork_server_record(key)
+    if record and port_is_live(record["port"]):
+        url = f"http://127.0.0.1:{record['port']}/"
+        focused = focus_fork_window(record["port"])
+        opened = False
+        if not focused and fork_window_supported():
+            opened = spawn_fork_window_process(url, fork_data_title(path))
+        return {
+            "ok": True,
+            "url": url,
+            "port": record["port"],
+            "fork_id": key,
+            "window_opened": focused or opened,
+            "focused": focused,
+        }
+    with FORK_SERVERS_LOCK:
+        entry = FORK_SERVERS.get(key)
+    if entry:
+        return {
+            "ok": True,
+            "url": f"http://127.0.0.1:{entry['port']}/",
+            "port": entry["port"],
+            "fork_id": key,
+            "window_opened": False,
+        }
+    if fork_window_supported():
+        record = spawn_fork_app_process(path)
+        if record:
+            return {
+                "ok": True,
+                "url": f"http://127.0.0.1:{record['port']}/",
+                "port": record["port"],
+                "fork_id": key,
+                "window_opened": True,
+            }
+    fork_store = Store(path)
+    server, port = start_fork_server(fork_store, agent_store)
+    with FORK_SERVERS_LOCK:
+        FORK_SERVERS[key] = {
+            "server": server,
+            "path": str(path),
+            "port": port,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "source": {},
+        }
+    return {
+        "ok": True,
+        "url": f"http://127.0.0.1:{port}/",
+        "port": port,
+        "fork_id": key,
+        "window_opened": False,
+    }
+
+
+def create_fork_instance(
+    agent_store,
+    *,
+    title: str,
+    category_name: str,
+    color: str,
+    note: str,
+    source: dict,
+    settings: dict,
+    subtasks: list | None = None,
+    project_folder: str = "",
+    project_file_count: int = 0,
+) -> dict:
+    """Materialize one fake-todo app and serve it on a fresh port."""
+    now = datetime.now().isoformat(timespec="seconds")
+    fork_id = new_id()
+    fork_category_id = new_id()
+    fork_todo_id = new_id()
+
+    fork_subtasks = []
+    for item in subtasks or []:
+        if not isinstance(item, dict):
+            continue
+        item_name = str(item.get("name") or "").strip()
+        if not item_name:
+            continue
+        created = item.get("created_at") or item.get("createdAt") or now
+        completed = item.get("completed_at") or item.get("completedAt")
+        done = bool(item.get("done"))
+        fork_subtasks.append({
+            "id": new_id(),
+            "name": item_name,
+            "done": done,
+            "created_at": created,
+            "completed_at": completed if done else None,
+            "time_cost": item.get("time_cost"),
+            "note": str(item.get("note") or ""),
+        })
+
+    fork_todo = {
+        "id": fork_todo_id,
+        "name": str(title or "Untitled"),
+        "done": False,
+        "created_at": now,
+        "completed_at": None,
+        "time_cost": None,
+        "note": str(note or ""),
+        "subtasks": fork_subtasks,
+        "forked_from": dict(source),
+        "fork_app": True,
+    }
+    if project_folder:
+        fork_todo["project_folder"] = project_folder
+        if project_file_count:
+            fork_todo["project_file_count"] = int(project_file_count)
+    fork_data = {
+        "categories": [{
+            "id": fork_category_id,
+            "name": str(category_name or "Fork"),
+            "color": color or PALETTE[0],
+            "todos": [fork_todo],
+            "forked_from": dict(source),
+            "fork_app": True,
+        }],
+        "selected_category": fork_category_id,
+        "opened_category": fork_category_id,
+        "selected_todo": None,
+        "archive": [],
+        "trash": [],
+        "settings": json.loads(json.dumps(settings or {})),
+        "fork": {
+            "id": fork_id,
+            "created_at": now,
+            "source": dict(source),
+        },
+    }
+    # The fork is a fresh focused session: no trophies or focus history from
+    # the parent, but the same paper, fonts, wallpaper and plugins.
+    fork_data["settings"]["focus_count"] = 0
+    fork_data["settings"]["focus_log"] = []
+
+    path = FORK_DIR / f"{fork_id}.json"
+    save_data(fork_data, path)
+    # The new todo opens its AI panel on the conversation the subtask already
+    # had. Copy it before the child process starts reading the same store.
+    source_subtask_id = source.get("subtask_id") or source.get("subtaskId") or ""
+    if source_subtask_id:
+        try:
+            agent_store.copy_session(
+                f"subtask:{source_subtask_id}",
+                f"todo:{fork_todo_id}",
+            )
+        except Exception:
+            pass
+    if fork_window_supported():
+        record = spawn_fork_app_process(path)
+        if record:
+            with FORK_SERVERS_LOCK:
+                FORK_SERVERS.pop(fork_id, None)
+            return {
+                "ok": True,
+                "url": f"http://127.0.0.1:{record['port']}/",
+                "port": record["port"],
+                "fork_id": fork_id,
+                "todo_id": fork_todo_id,
+                "category_id": fork_category_id,
+                "name": fork_todo["name"],
+                "source": dict(source),
+                "window_opened": True,
+                "mode": "process",
+            }
+    # Platform fallback (no separate GTK shell): keep the server in this
+    # process and let the parent shell open the window.
+    fork_store = Store(path)
+    server, port = start_fork_server(fork_store, agent_store)
+    with FORK_SERVERS_LOCK:
+        FORK_SERVERS[fork_id] = {
+            "server": server,
+            "path": str(path),
+            "port": port,
+            "created_at": now,
+            "source": dict(source),
+        }
+    return {
+        "ok": True,
+        "url": f"http://127.0.0.1:{port}/",
+        "port": port,
+        "fork_id": fork_id,
+        "todo_id": fork_todo_id,
+        "category_id": fork_category_id,
+        "name": fork_todo["name"],
+        "source": dict(source),
+        "window_opened": False,
+        "mode": "thread",
+    }
+
+
+def spawn_fork_app(parent_store: Store, agent_store, payload: dict) -> dict:
+    """Create a fake-todo NeoTodo window from one subtask."""
+    with parent_store.lock:
+        category, todo = parent_store._find_todo(payload.get("todo_id"))
+        subtask = parent_store._find_subtask(todo, payload.get("subtask_id"))
+        if todo is None:
+            return {"ok": False, "error": "Todo not found"}
+        if subtask is None:
+            return {"ok": False, "error": "Subtask not found"}
+        now = datetime.now().isoformat(timespec="seconds")
+        source = {
+            "category_id": category.get("id") if category else None,
+            "category_name": category.get("name", "") if category else "",
+            "todo_id": todo.get("id"),
+            "todo_name": todo.get("name", ""),
+            "subtask_id": subtask.get("id"),
+            "subtask_name": subtask.get("name", ""),
+            "at": now,
+        }
+        settings = json.loads(json.dumps(parent_store.data.get("settings") or {}))
+        return create_fork_instance(
+            agent_store,
+            title=str(subtask.get("name") or "Untitled"),
+            category_name=str(todo.get("name") or "Untitled"),
+            color=(category or {}).get("color") or PALETTE[0],
+            note=str(subtask.get("note") or ""),
+            source=source,
+            settings=settings,
+            subtasks=[],
+            project_folder=str(todo.get("project_folder") or ""),
+            project_file_count=int(todo.get("project_file_count") or 0),
+        )
+
+
+def spawn_fork_branch(parent_store: Store, agent_store, payload: dict) -> dict:
+    """Open a plugin-store fork (including the first-build imports) as a port app."""
+    branch = payload.get("branch")
+    if not isinstance(branch, dict):
+        return {"ok": False, "error": "Missing branch"}
+    title = str(branch.get("name") or "").strip()
+    raw_source = branch.get("source") if isinstance(branch.get("source"), dict) else {}
+    source = {
+        "category_id": raw_source.get("category_id") or raw_source.get("categoryId") or "",
+        "category_name": raw_source.get("category_name") or raw_source.get("categoryName") or "",
+        "todo_id": raw_source.get("todo_id") or raw_source.get("todoId") or "",
+        "todo_name": raw_source.get("todo_name") or raw_source.get("todoName") or "",
+        "subtask_id": raw_source.get("subtask_id") or raw_source.get("subtaskId") or "",
+        "subtask_name": raw_source.get("subtask_name") or raw_source.get("subtaskName") or title,
+        "at": datetime.now().isoformat(timespec="seconds"),
+    }
+    if not title or not source["todo_id"]:
+        return {"ok": False, "error": "Invalid fork branch"}
+    with parent_store.lock:
+        settings = json.loads(json.dumps(parent_store.data.get("settings") or {}))
+        category = parent_store._find_category(source.get("category_id"))
+    return create_fork_instance(
+        agent_store,
+        title=title,
+        category_name=source["todo_name"] or "Fork",
+        color=(category or {}).get("color") or PALETTE[0],
+        note=str(branch.get("note") or ""),
+        source=source,
+        settings=settings,
+        subtasks=branch.get("subtasks") if isinstance(branch.get("subtasks"), list) else [],
+    )
+
+
 def start_server(store: Store):
     ensure_sounds_dir()
     ensure_note_materials_dir()
-    ensure_pictures_dir()
     ensure_music_dir()
     ensure_plugins_dir()
     ensure_theme_packs_dir()
     ensure_theme_exports_dir()
+    ensure_pane_themes_dir("note")
+    ensure_pane_themes_dir("ai")
+    sync_all_theme_pack_pane_themes()
     # A fixed loopback port keeps the browser origin stable across launches,
     # so localStorage (volume, mute, panel geometry, caret choices) survives.
     # If another copy already owns it, fall back to an ephemeral port.
     try:
         server = ThreadingHTTPServer(("127.0.0.1", 47321), ApiHandler)
+        primary = True
     except OSError:
         server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
+        # A second copy of the app must not resume runs that the first copy
+        # is still working on.
+        primary = False
     ApiHandler.store = store
-    ApiHandler.agent_store = AgentStore(AGENT_FILE)
+    ApiHandler.agent_store = AgentStore(AGENT_FILE, resume=primary)
+    # Warm the capability check in the main thread. Fork windows are separate
+    # GTK processes; the HTTP request thread only reads this cached flag.
+    try:
+        fork_window_supported()
+    except Exception:
+        pass
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, server.server_address[1]
@@ -4286,11 +6842,13 @@ def run_gtk() -> None:
     except Exception:
         pass
     store = Store(DATA_FILE)
-    boot_paper = store.boot_colors().get("paper", "#f7efe3")
     try:
+        # The window never paints a colour of its own. While the live page is
+        # being prepared the window is transparent, so a frame that escapes the
+        # reveal gate can only show the desktop, never a theme or boot colour.
         provider = Gtk.CssProvider()
         provider.load_from_data(
-            f"window, window.background {{ background-color: {boot_paper}; }}".encode("utf-8")
+            b"window, window.background { background-color: transparent; }"
         )
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
@@ -4361,11 +6919,64 @@ def run_gtk() -> None:
                 done.wait(timeout=600)
                 return chosen["path"]
 
-            global FOLDER_PICK_CALLBACK
+            def pick_wallpaper_file():
+                # The wallpaper is the reader's own file: the picker returns its
+                # path and NeoTodo never copies it. Images and films both work.
+                chosen = {"path": None}
+                done = threading.Event()
+
+                def show_dialog():
+                    chooser = Gtk.FileChooserNative(
+                        title="Choose wallpaper",
+                        transient_for=window,
+                        action=Gtk.FileChooserAction.OPEN,
+                        accept_label="Use",
+                        cancel_label="Cancel",
+                    )
+                    filters = []
+                    pictures = Gtk.FileFilter()
+                    pictures.set_name("Pictures and films")
+                    for pattern in ("*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.avif",
+                                    "*.mp4", "*.webm", "*.mov", "*.m4v", "*.ogv"):
+                        pictures.add_pattern(pattern)
+                    filters.append(pictures)
+                    everything = Gtk.FileFilter()
+                    everything.set_name("All files")
+                    everything.add_pattern("*")
+                    filters.append(everything)
+                    for item in filters:
+                        chooser.add_filter(item)
+                    window._wallpaper_dialog = chooser
+
+                    def on_response(dialog, response):
+                        if response == Gtk.ResponseType.ACCEPT:
+                            file = dialog.get_file()
+                            chosen["path"] = file.get_path() if file else None
+                        else:
+                            chosen["path"] = None
+                        try:
+                            dialog.destroy()
+                        except Exception:
+                            pass
+                        window._wallpaper_dialog = None
+                        done.set()
+
+                    chooser.connect("response", on_response)
+                    chooser.show()
+                    return False
+
+                GLib.idle_add(show_dialog)
+                done.wait(timeout=600)
+                return chosen["path"]
+
+            global FOLDER_PICK_CALLBACK, FILE_PICK_CALLBACK
             FOLDER_PICK_CALLBACK = pick_project_folder
+            FILE_PICK_CALLBACK = pick_wallpaper_file
 
             background = Gdk.RGBA()
-            background.parse(boot_paper)
+            # WebKit's own unpainted background stays transparent too: the page
+            # supplies its first frame, the window never supplies a theme colour.
+            background.parse("rgba(0,0,0,0)")
             view = WebKit.WebView()
             view.set_background_color(background)
             def apply_view_settings(target):
@@ -4645,39 +7256,42 @@ def run_gtk() -> None:
             self.view = view
             self.window = window
             window.connect("close-request", self._on_close)
-            window.connect("notify::is-active", self._on_active_changed)
             started_at = time.monotonic()
             revealed = {"done": False}
-            overlay = Gtk.Overlay()
-            overlay.set_child(view)
-            preview = startup.make_preview(SNAPSHOT_FILE)
-            if preview is not None:
-                overlay.add_overlay(preview)
-
-            window.set_child(overlay)
-            self._active_once = False
-            if preview is not None:
-                # The last screen is a local PNG, so it appears immediately.
-                # The live WebView keeps loading underneath it.
-                revealed["done"] = True
-                window.present()
-                print("[startup] last-page preview shown immediately", flush=True)
-
-            def drop_preview():
-                nonlocal preview
-                if preview is None:
-                    return
+            presented = {"done": False}
+            polling = {"active": False}
+            # The live page is the only first frame. The window is mapped right
+            # away at zero opacity, so WebKit can prepare the real page in the
+            # background. The page reports `app-painted` once the finished page
+            # has actually been painted; the window then turns opaque in the
+            # same frame. There is no splash, snapshot or boot colour, so the
+            # first pixels the user sees are the finished page itself.
+            window.set_child(view)
+            for stale in LEGACY_STARTUP_FILES:
                 try:
-                    overlay.remove_overlay(preview)
+                    stale.unlink(missing_ok=True)
                 except Exception:
                     pass
-                preview = None
+
+            def present_window():
+                if presented["done"]:
+                    return False
+                presented["done"] = True
+                try:
+                    window.set_opacity(0.0)
+                except Exception:
+                    pass
+                window.present()
+                return False
 
             def reveal_window(reason="ready"):
                 if revealed["done"]:
                     return False
                 revealed["done"] = True
-                window.present()
+                try:
+                    window.set_opacity(1.0)
+                except Exception:
+                    window.present()
                 try:
                     print(f"[startup] window shown after {(time.monotonic() - started_at) * 1000:.0f} ms ({reason})", flush=True)
                 except Exception:
@@ -4685,51 +7299,55 @@ def run_gtk() -> None:
                 return False
 
             def poll_ready():
-                if revealed["done"]:
+                if revealed["done"] or polling["active"]:
                     return False
+                polling["active"] = True
 
                 def evaluated(target, result, _data=None):
-                    state = 0
+                    ready = False
                     try:
                         value = target.evaluate_javascript_finish(result)
-                        state = int(value.to_int32()) if value is not None else 0
+                        ready = bool(value.to_int32()) if value is not None else False
                     except Exception:
-                        state = 0
-                    if state:
-                        GLib.idle_add(drop_preview)
-                        GLib.idle_add(reveal_window, "cache" if state == 1 else "app")
+                        ready = False
+                    if ready:
+                        reveal_window("painted")
                     else:
+                        polling["active"] = False
                         GLib.timeout_add(16, poll_ready)
                     return False
 
                 script = (
-                    "(() => {"
-                    "  const f = document.getElementById('boot-preview');"
-                    "  if (f) { try {"
-                    "    const d = f.contentDocument;"
-                    "    if (d && d.readyState === 'complete' && d.body && d.body.scrollHeight > 0) return 1;"
-                    "  } catch (e) {} }"
-                    "  if (document.body && document.body.classList.contains('app-ready')) return 2;"
-                    "  return 0;"
-                    "})()"
+                    "Boolean(document.body && document.body.classList.contains('app-painted'))"
                 )
                 try:
                     view.evaluate_javascript(script, -1, None, None, None, evaluated, None)
                 except Exception:
+                    polling["active"] = False
                     GLib.timeout_add(16, poll_ready)
                 return False
 
             def on_load_changed(_view, event):
                 if event == WebKit.LoadEvent.FINISHED:
                     GLib.timeout_add(0, poll_ready)
-                    GLib.timeout_add(300, lambda: (drop_preview(), reveal_window("load-fallback")))
                 return False
 
             view.connect("load-changed", on_load_changed)
-            GLib.timeout_add(1200, lambda: (drop_preview(), reveal_window("global-fallback")))
+            present_window()
+            GLib.timeout_add(1200, poll_ready)
+            # Only a page that never becomes ready (a broken init) falls back
+            # to an early reveal, so its error message is still reachable.
+            GLib.timeout_add(5000, lambda: reveal_window("global-fallback"))
             view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
 
         def _shutdown(self):
+            # Keep the run journal: the child process stops with the app, but
+            # the next launch resumes the instruction where it left off.
+            try:
+                if ApiHandler.agent_store is not None:
+                    ApiHandler.agent_store.shutdown()
+            except Exception:
+                pass
             for detached_window, _view in getattr(self, "detached_windows", []):
                 try:
                     detached_window.destroy()
@@ -4737,42 +7355,223 @@ def run_gtk() -> None:
                     pass
             self.quit()
 
-        def capture_and_quit(self):
+        def quit_now(self):
             if getattr(self, "_closing", False):
                 return
             self._closing = True
-            view = getattr(self, "view", None)
-            if view is None:
-                self._shutdown()
-                return
-            startup.capture_view(view, SNAPSHOT_FILE, self._shutdown)
+            self._shutdown()
 
         def _on_close(self, window):
             if getattr(self, "_closing", False):
                 return False
             self._closing = True
-            view = getattr(self, "view", None)
-            if view is None:
-                self._shutdown()
-                return False
-            startup.capture_view(view, SNAPSHOT_FILE, self._shutdown)
+            self._shutdown()
             return True
-
-        def _on_active_changed(self, window, _pspec):
-            if window.get_property("is-active"):
-                self._active_once = True
-                return
-            # Ignore the initial inactive notification before the app is up.
-            if not getattr(self, "_active_once", False):
-                return
-            view = getattr(self, "view", None)
-            if view is not None and not getattr(self, "_closing", False):
-                startup.capture_view(view, SNAPSHOT_FILE)
 
     app = NeoTodoApp()
     global QUIT_CALLBACK
-    QUIT_CALLBACK = lambda: GLib.idle_add(app.capture_and_quit)
+    QUIT_CALLBACK = lambda: GLib.idle_add(app.quit_now)
     app.run(None)
+
+
+def _fork_arg(flag: str, default: str = "") -> str:
+    try:
+        return str(sys.argv[sys.argv.index(flag) + 1])
+    except (ValueError, IndexError):
+        return default
+
+
+def _prepare_fork_assets() -> None:
+    for ensure in (
+        ensure_sounds_dir,
+        ensure_note_materials_dir,
+        ensure_music_dir,
+        ensure_plugins_dir,
+        ensure_theme_packs_dir,
+        ensure_theme_exports_dir,
+    ):
+        try:
+            ensure()
+        except Exception:
+            pass
+    for kind in ("note", "ai"):
+        try:
+            ensure_pane_themes_dir(kind)
+        except Exception:
+            pass
+    try:
+        sync_all_theme_pack_pane_themes()
+    except Exception:
+        pass
+
+
+def run_fork_gtk_window(url: str, title: str, on_close=None, on_ready=None) -> None:
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("WebKit", "6.0")
+    from gi.repository import Gtk, WebKit
+
+    try:
+        Gtk.Window.set_default_icon_name("io.github.neotodo")
+    except Exception:
+        pass
+    try:
+        Gtk.Settings.get_default().set_property("gtk-cursor-blink", False)
+    except Exception:
+        pass
+
+    application = Gtk.Application(application_id=f"io.github.neotodo.fork{os.getpid()}")
+
+    def activate(app):
+        window = Gtk.ApplicationWindow(application=app)
+        window.set_default_size(1100, 820)
+        window.set_title(title or "NeoTodo")
+        view = WebKit.WebView()
+        try:
+            settings = view.get_settings()
+            settings.set_media_playback_allows_inline(True)
+            settings.set_javascript_can_open_windows_automatically(True)
+        except Exception:
+            pass
+        view.load_uri(url)
+        view.connect(
+            "notify::title",
+            lambda target, _pspec, win=window: win.set_title(
+                target.get_title() or title or "NeoTodo"
+            ),
+        )
+        try:
+            view.connect("close", lambda *_args, win=window: win.close())
+        except Exception:
+            pass
+        window.set_child(view)
+
+        def close_request(*_args):
+            try:
+                if on_close:
+                    on_close()
+            except Exception:
+                pass
+            return False
+
+        window.connect("close-request", close_request)
+        window.present()
+        if on_ready:
+            try:
+                on_ready(app, window)
+            except Exception:
+                pass
+
+    application.connect("activate", activate)
+    application.run([])
+
+
+def run_fork_app_process() -> None:
+    """Serve one fork and own its window; this process outlives the notebook."""
+    raw_path = _fork_arg("--fork-app")
+    path = Path(raw_path).expanduser()
+    if not path.is_file():
+        return
+    fork_id = path.stem
+    requested_port = int(_fork_arg("--port", "0") or 0)
+    _prepare_fork_assets()
+    store = Store(path)
+
+    class ForkApiHandler(ApiHandler):
+        pass
+
+    ForkApiHandler.store = store
+    ForkApiHandler.agent_store = AgentStore(AGENT_FILE, resume=False)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", requested_port), ForkApiHandler)
+    except OSError:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ForkApiHandler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    holder = {"app": None, "window": None}
+
+    def focus_window() -> bool:
+        window = holder.get("window")
+        if window is None:
+            return False
+        try:
+            from gi.repository import GLib
+            GLib.idle_add(window.present)
+            return True
+        except Exception:
+            return False
+
+    ForkApiHandler.focus_callback = focus_window
+
+    def stop() -> None:
+        clear_fork_server_record(fork_id)
+        try:
+            server.shutdown()
+        except Exception:
+            pass
+        app = holder.get("app")
+        if app is not None:
+            try:
+                from gi.repository import GLib
+                GLib.idle_add(app.quit)
+            except Exception:
+                pass
+
+    store.quit_callback = stop
+    title = ""
+    try:
+        category = (store.data.get("categories") or [{}])[0]
+        todo = (category.get("todos") or [{}])[0]
+        title = str(todo.get("name") or category.get("name") or "")
+    except Exception:
+        pass
+
+    # Used by the automated tests and by headless sessions: the port still
+    # runs, but no GTK window is created.
+    if os.environ.get("NEOTODO_FORK_NO_WINDOW") == "1":
+        write_fork_server_record(fork_id, port)
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            clear_fork_server_record(fork_id)
+            try:
+                server.shutdown()
+            except Exception:
+                pass
+        return
+
+    def ready(app, window) -> None:
+        holder["app"] = app
+        holder["window"] = window
+        # Publish the port only once the window really exists, so the parent
+        # never records a server whose window failed to open.
+        write_fork_server_record(fork_id, port)
+
+    try:
+        run_fork_gtk_window(
+            f"http://127.0.0.1:{port}/",
+            title,
+            on_close=stop,
+            on_ready=ready,
+        )
+    finally:
+        clear_fork_server_record(fork_id)
+        try:
+            server.shutdown()
+        except Exception:
+            pass
+
+
+def run_fork_window_process() -> None:
+    url = _fork_arg("--fork-window")
+    if not url:
+        return
+    run_fork_gtk_window(url, _fork_arg("--title", "NeoTodo"))
 
 
 def run_server() -> None:
@@ -4789,6 +7588,12 @@ def run_server() -> None:
 
 
 def main() -> None:
+    if "--fork-app" in sys.argv:
+        run_fork_app_process()
+        return
+    if "--fork-window" in sys.argv:
+        run_fork_window_process()
+        return
     if "--serve" in sys.argv:
         run_server()
     else:
