@@ -53,53 +53,6 @@ const THEMES = {
       <path d="M0 196 H1000" stroke="${p.border}" stroke-width="1.5"/>
     </svg>`; }
   },
-  violet: {
-    name: "Violet", motif: "☾", airmail: false,
-    paper: "#f4ecfa", paper2: "#e7d8f3", ink: "#3d2f4a", muted: "#8c7a9c",
-    accent: "#8d63b8", accent2: "#b88cff", border: "#d4c0e6", stamp: "#7b5aa6",
-    glow: "rgba(141,99,184,.18)",
-    display: '"Noto Serif","Liberation Serif",Georgia,serif',
-    body: '"Adwaita Sans","Noto Sans","Noto Sans CJK SC",sans-serif',
-    quote: "Every week leaves a little color behind.",
-    art(p) { return `<svg viewBox="0 0 1000 300" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <linearGradient id="sky-v" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stop-color="#0e081b"/>
-          <stop offset=".5" stop-color="#241338"/>
-          <stop offset="1" stop-color="#4a2c62"/>
-        </linearGradient>
-        <radialGradient id="moon-v" cx="38%" cy="34%" r="72%">
-          <stop offset="0" stop-color="#fff2ff"/>
-          <stop offset=".58" stop-color="#d9bcff"/>
-          <stop offset="1" stop-color="#8a63b8"/>
-        </radialGradient>
-        <linearGradient id="field-v" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stop-color="#3a2254"/>
-          <stop offset="1" stop-color="#160e24"/>
-        </linearGradient>
-      </defs>
-      <rect width="1000" height="300" fill="url(#sky-v)"/>
-      <g fill="#fff" opacity=".72">
-        <circle cx="120" cy="56" r="1.6"/><circle cx="240" cy="34" r="1.2"/><circle cx="360" cy="70" r="1.4"/><circle cx="510" cy="42" r="1.1"/><circle cx="640" cy="66" r="1.5"/><circle cx="880" cy="38" r="1.3"/><circle cx="940" cy="88" r="1.5"/>
-      </g>
-      <circle cx="770" cy="82" r="44" fill="url(#moon-v)" opacity=".95"/>
-      <circle cx="770" cy="82" r="62" fill="none" stroke="#e1ccff" stroke-width="1" opacity=".22"/>
-      <path d="M0 205 L140 142 L270 202 L420 118 L560 198 L720 140 L860 205 L960 172 L1000 190 L1000 300 L0 300Z" fill="#221331" opacity=".92"/>
-      <path d="M0 236 C160 196 300 244 470 216 C640 188 790 244 1000 204 L1000 300 L0 300Z" fill="url(#field-v)" opacity=".95"/>
-      <g stroke="#b88cff" stroke-width="2" opacity=".42">
-        <path d="M0 272 C160 240 320 278 480 254 C640 230 820 276 1000 244"/>
-        <path d="M0 286 C180 258 340 292 520 268 C700 244 840 288 1000 262"/>
-        <path d="M0 298 C200 274 380 304 560 284 C740 264 880 300 1000 280"/>
-      </g>
-      <g fill="#d9bcff" opacity=".78">
-        <circle cx="90" cy="262" r="2.2"/><circle cx="150" cy="278" r="2"/><circle cx="220" cy="252" r="2.4"/>
-        <circle cx="290" cy="270" r="2"/><circle cx="360" cy="246" r="2.6"/><circle cx="430" cy="268" r="2.1"/>
-        <circle cx="520" cy="250" r="2.3"/><circle cx="600" cy="272" r="2"/><circle cx="680" cy="248" r="2.5"/>
-        <circle cx="760" cy="266" r="2.1"/><circle cx="840" cy="244" r="2.4"/><circle cx="920" cy="264" r="2"/>
-      </g>
-      <path d="M330 80 q38 -18 76 0 M590 52 q30 -14 60 0" fill="none" stroke="#e1ccff" stroke-width="1" opacity=".2"/>
-    </svg>`; }
-  },
   alpine: {
     name: "Alpine Dawn", motif: "⛰", airmail: true,
     paper: "#f7efe3", paper2: "#ecdfcd", ink: "#332b2d", muted: "#88786a",
@@ -2023,7 +1976,7 @@ const AudioFX = (() => {
 // Images and films share the same option now; there is no separate
 // static/dynamic switch.
 const WALLPAPER_RECENT_LIMIT = 12;
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], plugins: {}, sound_overrides: {} };
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {} };
 // The page baseline is saved in its own baseline-color.json file, outside the
 // theme and outside the notebook settings. This is only the first-paint
 // fallback until /api/state answers with the stored colour.
@@ -2061,7 +2014,7 @@ const NOTE_BG_PRESETS = {
   mist: "/notes-mist.jpg",
   dusk: "/notes-dusk.jpg",
 };
-const POSTCARD_IDS = ["violet", "tokyo", "space", "aurora", "ocean", "forest", "vintage", "alpine", "desert", "emerald"];
+const POSTCARD_IDS = ["tokyo", "space", "aurora", "ocean", "forest", "vintage", "alpine", "desert", "emerald"];
 // Wallpaper art is independent of the picker's curated postcard list, so an
 // older saved theme (rain, field, deco, bauhaus…) can still become a pattern.
 const WALLPAPER_ART_IDS = Object.keys(THEMES).filter((id) => typeof THEMES[id]?.art === "function");
@@ -2112,6 +2065,9 @@ const BASE_DARK_THEME = "dark";
 const CUSTOM_THEME_COLOR_KEYS = ["paper", "ink", "line", "accent"];
 let customThemesOpen = false;
 let themeManageOpen = false;
+// Wallpaper → Manage folds out the three wallpaper options: Back, Blur and
+// Wallpaper theme. It behaves like the Theme row's Manage drawer.
+let wallpaperManageOpen = false;
 let customThemeEditorOpen = false;
 let customThemeDraft = null;
 let customThemeBusy = false;
@@ -2137,11 +2093,10 @@ const CARET_UNITS = [
 let themeFieldMode = "app";
 // `caretFieldMode` is the caret unit currently shown in the row.
 let caretFieldMode = "app";
-const fontPanelsOpen = { body: false, note: false };
 
 function randomPostcardId(exclude = null) {
   const pool = POSTCARD_IDS.filter((id) => id !== exclude);
-  return pool[Math.floor(Math.random() * pool.length)] || "violet";
+  return pool[Math.floor(Math.random() * pool.length)] || "light";
 }
 
 function currentPostcardId() {
@@ -2157,7 +2112,7 @@ function postcardIsDark(id) {
 function postcardName(id) {
   const theme = THEMES[id];
   if (!theme) return "Light";
-  return id === "violet" ? "紫罗兰 · Violet" : theme.name;
+  return theme.name;
 }
 
 function themeModeFor(id) {
@@ -3365,7 +3320,7 @@ function hideNotesPanel(silent = false) {
     positionDeskHandles();
     DeskHandle.snapHome("note");
     DeskHandle.appear("note", "below");
-  }, 180);
+  }, 140);
 }
 
 function hideNotesPanelNow(silent = false) {
@@ -3409,7 +3364,7 @@ function showNotesPanel(silent = false) {
   setupNotesPanel();
   if (!silent) {
     panel.classList.add("notes-solid-opening", "sheet-opening");
-    setTimeout(() => panel.classList.remove("sheet-opening", "notes-solid-opening"), 380);
+    setTimeout(() => panel.classList.remove("sheet-opening", "notes-solid-opening"), 160);
   }
   updateNotesHandle();
   positionNotesHandle();
@@ -6431,17 +6386,33 @@ function flashPageCopy() {
   setTimeout(() => node.remove(), 1100);
 }
 
+// The sheet a selection has to live in for the copy effect: the notebook
+// pages, Categories, the drawers, and every popup the notebook opens over
+// them (Settings, Community, AI settings, the postcard viewer, the timer and
+// the sound panel). The console keeps its own toast.
+const PAGE_COPY_ZONE = "#stage, #notes-half, #category-list, #archive-drawer, #trash-drawer, #modal-root, #timer-root, #sound-panel";
+
+// Fields in these sheets are written text too; the inline rename fields on
+// the page are not, because selecting a name to replace it must not copy.
+function pageCopyField(active) {
+  if (!active?.matches?.("textarea, input")) return null;
+  if (active.matches("textarea.note-block-editor, #notes-half textarea")) return active;
+  if (active.closest("#modal-root, #timer-root, #sound-panel")) return active;
+  return null;
+}
+
 // The page text a selection covers, or "" when the selection is not written
 // text: a caret, a lone dash, an icon, a rule, a button label or the console.
 function pageCopiedText() {
-  const active = document.activeElement;
-  const field = active?.matches?.("textarea.note-block-editor, #notes-half textarea") ? active : null;
+  const field = pageCopyField(document.activeElement);
   if (field) {
     const start = field.selectionStart;
     const end = field.selectionEnd;
-    if (start == null || end == null || end <= start) return "";
-    const text = field.value.slice(start, end).trim();
-    return /[\p{L}\p{N}]/u.test(text) ? text : "";
+    if (typeof start === "number" && typeof end === "number" && end > start) {
+      const text = String(field.value || "").slice(start, end).trim();
+      return /[\p{L}\p{N}]/u.test(text) ? text : "";
+    }
+    // A caret in a field leaves the page selection free to answer instead.
   }
   const selection = window.getSelection?.();
   if (!selection || selection.isCollapsed || !selection.rangeCount) return "";
@@ -6451,12 +6422,109 @@ function pageCopiedText() {
   let node = range.commonAncestorContainer;
   if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
   if (!node?.closest) return "";
-  // Only the notebook pages and their sheets own this effect; the console
-  // has its own toast beside the copied line.
-  if (!node.closest("#stage, #notes-half, #category-list, #archive-drawer, #trash-drawer")) return "";
+  if (!node.closest(PAGE_COPY_ZONE)) return "";
   if (node.closest("#agent-terminal, .context-menu, .page-copy-flash")) return "";
   if (node.closest("input, textarea, select, button, svg, [contenteditable='true'], [aria-hidden='true']")) return "";
   return text;
+}
+
+// "intheme" plugins run in their own same-origin frame, so the notebook binds
+// the same gesture handlers inside that document. The badge still belongs to
+// the notebook and paints over the plugin sheet.
+function frameCopiedText(win) {
+  const doc = win?.document;
+  if (!doc) return "";
+  const active = doc.activeElement;
+  if (active?.matches?.("textarea, input")) {
+    const start = active.selectionStart;
+    const end = active.selectionEnd;
+    if (typeof start === "number" && typeof end === "number" && end > start) {
+      const fieldText = String(active.value || "").slice(start, end).trim();
+      return /[\p{L}\p{N}]/u.test(fieldText) ? fieldText : "";
+    }
+    // A caret in a field leaves the page selection free to answer instead.
+  }
+  const selection = win.getSelection?.();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return "";
+  const text = selection.toString().trim();
+  if (!text || !/[\p{L}\p{N}]/u.test(text)) return "";
+  const range = selection.getRangeAt(0);
+  let node = range.commonAncestorContainer;
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+  if (!node?.closest) return "";
+  if (node.closest("input, textarea, select, button, svg, [contenteditable='true'], [aria-hidden='true']")) return "";
+  return text;
+}
+
+function bindFrameCopy(frame) {
+  if (!frame) return;
+  let doc = null;
+  let win = null;
+  try {
+    doc = frame.contentDocument;
+    win = frame.contentWindow;
+  } catch (error) {
+    return;
+  }
+  if (!doc?.body || !win) return;
+  // Mark the plugin document itself, so a reload inside the same frame binds
+  // again instead of leaving stale handlers behind.
+  if (doc.body.dataset.frameCopyBound === "1") return;
+  doc.body.dataset.frameCopyBound = "1";
+
+  // The plugin frame owns the focus, so its own clipboard is the reliable
+  // path; the notebook's helper is the fallback.
+  const copyFrameText = async (text) => {
+    try {
+      if (win.navigator.clipboard?.writeText) {
+        await win.navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (error) {}
+    try {
+      const area = doc.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.cssText = "position:fixed;left:-9999px;top:0";
+      doc.body.appendChild(area);
+      area.select();
+      const ok = doc.execCommand("copy");
+      area.remove();
+      return ok;
+    } catch (error) {
+      return copyToClipboard(text);
+    }
+  };
+
+  let lastText = "";
+  const copySelection = () => {
+    const text = frameCopiedText(win);
+    if (!text) {
+      lastText = "";
+      return;
+    }
+    if (text === lastText) return;
+    copyFrameText(text).then((ok) => {
+      if (!ok) return;
+      lastText = text;
+      flashPageCopy();
+    });
+  };
+
+  doc.addEventListener("pointerdown", () => {
+    lastText = "";
+  });
+  doc.addEventListener("pointerup", () => setTimeout(copySelection, 0));
+  doc.addEventListener("keyup", (event) => {
+    if (event.key === "Shift" || event.key.startsWith("Arrow") || (event.key === "a" && (event.ctrlKey || event.metaKey))) {
+      setTimeout(copySelection, 0);
+    }
+  });
+  doc.addEventListener("copy", () => {
+    setTimeout(() => {
+      if (frameCopiedText(win)) flashPageCopy();
+    }, 0);
+  });
 }
 
 function bindPageCopy() {
@@ -7395,7 +7463,7 @@ function openAgentTerminal(silent = false) {
   panel?.classList.remove("sheet-closing");
   if (!silent) {
     panel?.classList.add("sheet-opening");
-    setTimeout(() => panel?.classList.remove("sheet-opening"), 200);
+    setTimeout(() => panel?.classList.remove("sheet-opening"), 140);
     setTimeout(() => $("#agent-input")?.focus(), 80);
   }
   requestAnimationFrame(() => {
@@ -7447,7 +7515,7 @@ function closeAgentTerminal() {
     DeskHandle.snapHome("ai");
     DeskHandle.appear("ai", "below");
     saveViewState();
-  }, 180);
+  }, 140);
 }
 
 function detachedAgentUrl(agent) {
@@ -9435,6 +9503,10 @@ function openPluginPanel(id, options = {}) {
   frame?.addEventListener("load", () => {
     syncPluginTheme();
     syncPluginSettings();
+    // In-theme plugins are the notebook's own Settings-style sheets, so their
+    // text answers with the same select-to-copy badge. Mini-apps keep their
+    // own interactions.
+    if (inTheme) bindFrameCopy(frame);
   });
   pluginThemeObserver = new MutationObserver(syncPluginTheme);
   // A new theme pack rewrites the palette variables on :root and the page line
@@ -12538,6 +12610,40 @@ async function handleAction(actionName, element) {
   if (actionName === "export-theme-pack") { exportCurrentThemePack(); return; }
   if (actionName === "reset-theme-sounds") { resetThemeSounds(); return; }
   if (actionName === "choose-wallpaper") { chooseWallpaperFile(); return; }
+  if (actionName === "toggle-wallpaper-manage") {
+    wallpaperManageOpen = !wallpaperManageOpen;
+    renderSettings();
+    return;
+  }
+  if (actionName === "wallpaper-back") {
+    // "Back" returns to the wallpaper the current theme ships with: a pack's
+    // own picture when it has one, otherwise the postcard art.
+    settings.wallpaper = themeWallpaperValue();
+    saveSettings();
+    applySettings();
+    renderSettings();
+    toast("Theme wallpaper");
+    return;
+  }
+  if (actionName === "toggle-wallpaper-blur") {
+    const on = settings.wallpaper_blur_on !== true;
+    settings.wallpaper_blur_on = on;
+    // A fresh switch with a zero amount would paint nothing: give the glass a
+    // readable default the reader can then tune down.
+    if (on && !(Number(settings.wallpaper_blur) > 0)) settings.wallpaper_blur = 30;
+    saveSettings();
+    applySettings();
+    renderSettings();
+    return;
+  }
+  if (actionName === "toggle-wallpaper-cards") {
+    settings.wallpaper_cards = settings.wallpaper_cards === false;
+    saveSettings();
+    applySettings();
+    renderSettings();
+    toast(settings.wallpaper_cards ? "Wallpaper cards on" : "Wallpaper cards off");
+    return;
+  }
   if (actionName === "clear-wallpaper") {
     // "No wallpaper" is a real choice: the postcard paper shows through.
     settings.wallpaper = "";
@@ -13069,6 +13175,19 @@ function loadSettings() {
     settings.dark_postcard = "dark";
   }
   settings.scale = Math.min(1.25, Math.max(0.85, Number(settings.scale) || 1));
+  // Typography now owns two explicit sizes. The old percentage slider was a
+  // single `scale`; fold it into the body size so upgrading keeps the same
+  // look, and let a saved px value win from then on.
+  const savedBodySize = Math.round(Number(settings.body_font_size));
+  settings.body_font_size = Number.isFinite(savedBodySize) && savedBodySize > 0
+    ? Math.min(20, Math.max(14, savedBodySize))
+    : Math.round(settings.scale * 16);
+  const savedNoteSize = Math.round(Number(settings.note_font_size));
+  settings.note_font_size = Number.isFinite(savedNoteSize) && savedNoteSize > 0
+    ? Math.min(28, Math.max(10, savedNoteSize))
+    : 14;
+  if (!/^#[0-9a-f]{6}$/i.test(String(settings.body_font_color || ""))) settings.body_font_color = "";
+  if (!/^#[0-9a-f]{6}$/i.test(String(settings.note_font_color || ""))) settings.note_font_color = "";
   settings.show_time_cost = settings.show_time_cost === true;
   settings.show_clock = settings.show_clock !== false;
   settings.focus_count = Math.max(0, Math.floor(Number(settings.focus_count) || 0));
@@ -13150,6 +13269,14 @@ function loadSettings() {
     return "";
   };
   settings.wallpaper = normalizeWallpaperValue(settings.wallpaper);
+  // Wallpaper glass: the blur amount is the 0..100 number the reader sees in
+  // Settings, and the switch decides whether the frosted mask is painted at all.
+  settings.wallpaper_blur = Math.min(100, Math.max(0, Math.round(Number(settings.wallpaper_blur) || 0)));
+  settings.wallpaper_blur_on = settings.wallpaper_blur_on === true;
+  // Cards built out of the wallpaper are the default scheme: a still picture
+  // bakes a card-sized piece from the room where the card sits, a film bakes
+  // its middle frame. Turning it off returns the cards to their own paper.
+  settings.wallpaper_cards = settings.wallpaper_cards !== false;
   // Older builds kept a static and a dynamic shelf. Fold whichever one was in
   // use into the single choice so an upgrade keeps the same room.
   const legacyStatic = (() => {
@@ -13529,7 +13656,7 @@ function applyNoteTheme() {
   root.dataset.noteTheme = choice.id.startsWith("pack:") ? "custom" : choice.id;
   root.dataset.noteDark = hexLuminance(palette.paper) < 0.45 ? "true" : "false";
   root.style.setProperty("--note-theme-paper", palette.paper);
-  root.style.setProperty("--note-theme-ink", palette.ink);
+  root.style.setProperty("--note-theme-ink", fontHexColor(settings.note_font_color) || palette.ink);
   root.style.setProperty("--note-theme-muted", palette.muted);
   root.style.setProperty("--note-theme-rule", palette.rule);
   root.style.setProperty("--note-theme-accent", palette.accent);
@@ -13851,7 +13978,7 @@ function themeCommunitySection() {
   return `<div class="settings-section theme-community-hero">
       <div class="theme-community-hero-copy">
         <strong>Make NeoTodo yours — together.</strong>
-        <p>导入别人做的 <code>.zip</code> 主题包，或者把当前的纸色、壁纸、音效和成就图标导出成一只包，上传到社区与朋友分享。带 <strong>Note theme</strong> 或 <strong>AI theme</strong> 标记的包，装好后会出现在 <strong>Theme</strong> 页的笔记 / AI 主题里。</p>
+        <p>导入别人做的 <code>.zip</code> 主题包，或者把当前的纸色、壁纸、音效和成就图标导出成一只包，上传到社区与朋友分享。带 <strong>Note theme</strong> 或 <strong>AI theme</strong> 标记的包，装好后会出现在 <strong>Appearance</strong> 页的笔记 / AI 主题里。</p>
       </div>
       <div class="theme-community-actions">
         <button class="btn small primary" type="button" data-action="import-theme-pack" ${themePackBusy === "import" ? "disabled" : ""}>${themePackBusy === "import" ? "Importing…" : "Import .zip"}</button>
@@ -14854,9 +14981,15 @@ function subcardPaneStamp(host, wallpaper, pane) {
   return `${subcardName(host)}|${wallpaper.key}|${pane.fit}|${pane.url}`;
 }
 
+/** Wallpaper theme: cards borrow the room's picture. Off means the cards keep
+    their own paper even though the room behind them is still a wallpaper. */
+function wallpaperCardsEnabled() {
+  return settings.wallpaper_cards !== false;
+}
+
 function mountCardWallpaper(host) {
   const wallpaper = activeWallpaper();
-  if (!wallpaper.key) {
+  if (!wallpaper.key || (!wallpaperCardsEnabled() && host?.dataset?.subcard)) {
     host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`)?.remove();
     return;
   }
@@ -14894,11 +15027,15 @@ function ensureCardWallpapers() {
     return;
   }
   // A host can lose its marker (a surface that goes back to its own paper);
-  // its wallpaper pane must go with it.
+  // its wallpaper pane must go with it. Turning the wallpaper theme off also
+  // returns the cards' own paper, while the top box keeps its borrowed picture.
+  const cardsOn = wallpaperCardsEnabled();
   document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach((layer) => {
-    if (!wallpaperSurfaceHost(layer.parentElement)) layer.remove();
+    const host = layer.parentElement;
+    if (!wallpaperSurfaceHost(host) || (!cardsOn && host?.dataset?.subcard)) layer.remove();
   });
   subcardHosts().forEach((host) => {
+    if (!cardsOn && host.dataset.subcard) return;
     // A baked picture is the card's own surface before it ever slides out.
     // With a film, only the floating cards take a still: the categories spine
     // and the top box must keep the room's motion behind them, and must never
@@ -15163,6 +15300,19 @@ function applyWallpaper() {
   else root.removeAttribute("data-wallpaper");
   if (wallpaper.key) root.setAttribute("data-wallpaper-motion", wallpaper.moving ? "film" : "still");
   else root.removeAttribute("data-wallpaper-motion");
+  // Wallpaper theme: the cards are cut out of the room itself when on. Blur:
+  // a frosted pane sits between the room and the page, so text and icons are
+  // printed on glass instead of on the picture.
+  if (wallpaper.key && settings.wallpaper_cards !== false) root.setAttribute("data-wallpaper-cards", "on");
+  else root.removeAttribute("data-wallpaper-cards");
+  const glassAmount = Math.min(100, Math.max(0, Number(settings.wallpaper_blur) || 0));
+  const glassOn = wallpaper.key && settings.wallpaper_blur_on === true;
+  if (glassOn) root.setAttribute("data-wallpaper-blur", "on");
+  else root.removeAttribute("data-wallpaper-blur");
+  // 0..100 reads as a percentage; the painted radius tops out at 40px, and the
+  // paper veil thickens a little as the glass gets stronger.
+  root.style.setProperty("--wallpaper-veil-blur", `${(glassAmount * 0.4).toFixed(2)}px`);
+  root.style.setProperty("--wallpaper-veil-alpha", (0.12 + glassAmount * 0.0026).toFixed(3));
   if (!layer) return;
   if (!wallpaperVisibilityBound) {
     wallpaperVisibilityBound = true;
@@ -15199,10 +15349,15 @@ function applyDoingPalette(postcard) {
   const root = document.documentElement;
   const theme = postcard || THEMES[currentPostcardId()] || THEMES.light;
   const wallpaper = activeWallpaper();
-  const artTheme = wallpaper.kind === "art" ? THEMES[wallpaper.artId] : null;
-  const tint = artTheme
-    ? (artTheme.paper2 || artTheme.accent)
-    : (wallpaper.file ? wallpaperTintCache.get(wallpaper.key) : "");
+  // With the wallpaper theme off the right-hand card is a theme card again: it
+  // must not borrow the room's tint even though a wallpaper is behind it.
+  const cardsLook = settings.wallpaper_cards !== false;
+  const artTheme = cardsLook && wallpaper.kind === "art" ? THEMES[wallpaper.artId] : null;
+  const tint = !cardsLook
+    ? ""
+    : artTheme
+      ? (artTheme.paper2 || artTheme.accent)
+      : (wallpaper.file ? wallpaperTintCache.get(wallpaper.key) : "");
   const dark = postcardIsDark(currentPostcardId());
   let doingPaper, doingPaper2;
   if (tint) {
@@ -15225,6 +15380,29 @@ function applyDoingPalette(postcard) {
   root.style.setProperty("--doing-paper2", doingPaper2);
 }
 
+function fontHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toLowerCase() : "";
+}
+
+// Body size drives the app-wide text scale; the note size only reaches the
+// notebook, where it overrides --user-scale. A reader-picked body ink wins over
+// the postcard palette until they clear it.
+function applyFontSettings() {
+  const root = document.documentElement;
+  const bodyScale = Math.min(1.25, Math.max(0.875, (Number(settings.body_font_size) || 16) / 16));
+  settings.scale = bodyScale;
+  root.style.setProperty("--user-scale", String(bodyScale));
+  const noteScale = Math.min(2, Math.max(0.7, (Number(settings.note_font_size) || 14) / 14));
+  root.style.setProperty("--note-user-scale", String(noteScale));
+  // Never leave --pc-ink unset: postcard text fallbacks read it directly. With
+  // no reader pick the row returns to the current theme's own ink.
+  const themeInk = (THEMES[currentPostcardId()] || THEMES.light)?.ink || "#332b2d";
+  const bodyInk = fontHexColor(settings.body_font_color) || themeInk;
+  for (const slot of ["--ink", "--ink-soft", "--pc-ink", "--pc-ink-soft"]) {
+    root.style.setProperty(slot, bodyInk);
+  }
+}
+
 function applySettings() {
   const root = document.documentElement;
   settings.theme = "postcard";
@@ -15245,7 +15423,6 @@ function applySettings() {
   applyStickerBackgrounds();
   root.dataset.font = settings.font;
   root.dataset.noteFont = settings.note_font;
-  root.style.setProperty("--user-scale", String(settings.scale));
   document.body.classList.toggle("clock-hidden", !settings.show_clock);
   document.body.classList.add("custom-caret");
   AudioFX.setSampleOverrides(settings.sound_overrides);
@@ -15301,6 +15478,9 @@ function applySettings() {
       backdrop.innerHTML = "";
     }
   }
+  // Sizes and inks land after the postcard slots so a reader-picked body ink
+  // is not immediately replaced by the theme's own --pc-ink.
+  applyFontSettings();
   // The reader's own highlight wash: the theme accent by default, or their
   // saved colour behind the active row, the focused menu entry and the chosen
   // settings card.
@@ -15339,6 +15519,7 @@ function openSettings(tab = "theme") {
   const activeId = currentPostcardId();
   customThemesOpen = themeModeFor(activeId) === "custom";
   themeManageOpen = false;
+  wallpaperManageOpen = false;
   // The Theme row starts on the app palette every time the sheet opens; the
   // menu itself switches it to the note or AI palette without leaving the row.
   themeFieldMode = "app";
@@ -15347,8 +15528,6 @@ function openSettings(tab = "theme") {
   customThemeDraft = null;
   customThemeBusy = false;
   pendingCustomThemeDeleteId = null;
-  fontPanelsOpen.body = false;
-  fontPanelsOpen.note = false;
   AudioFX.paper();
   $("#modal-root").innerHTML = '<div class="settings-stage"><div class="settings-panel" role="dialog" aria-modal="true" aria-label="Settings"></div></div>';
   const stage = $(".settings-stage");
@@ -15703,42 +15882,58 @@ function themeSettings() {
 
 
 function fontSettings() {
-  return `<div class="settings-head"><h2>Font</h2><p>Make the page read like yours.</p></div>
-    <div class="settings-section">
-      <button class="font-collapse-row ${fontPanelsOpen.body ? "open" : ""}" type="button" data-font-panel="body" aria-expanded="${fontPanelsOpen.body ? "true" : "false"}">
-        <span class="font-sample" style="font-family:${FONT_STACKS[settings.font]}">Aa</span>
-        <span class="font-copy"><strong>Body font</strong><small>${FONT_OPTIONS.find((font) => font.id === settings.font)?.name || "Art Serif"}</small></span>
-        <svg class="font-collapse-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  const bodySize = Number(settings.body_font_size) || 16;
+  const noteSize = Number(settings.note_font_size) || 14;
+  const fallbackBodyInk = THEMES[currentPostcardId()]?.ink || "#2d2922";
+  const fallbackNoteInk = selectedNoteTheme()?.palette?.ink || "#2b2b2e";
+  const bodyInk = fontHexColor(settings.body_font_color) || fallbackBodyInk;
+  const noteInk = fontHexColor(settings.note_font_color) || fallbackNoteInk;
+  const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  // Attribute-safe stack: FONT_STACKS carries double quotes, but the whole
+  // declaration sits inside a double-quoted style attribute.
+  const fontStyle = (id) => `font-family:${(FONT_STACKS[id] || FONT_STACKS.serif).replace(/"/g, "'")}`;
+  // The font name opens a menu shaped exactly like the Theme picker above it:
+  // one flat list of names with a tick, no Aa thumbnails.
+  const fontMenu = (kind, currentId, label) => {
+    const current = FONT_OPTIONS.find((font) => font.id === currentId) || FONT_OPTIONS[0];
+    const attr = kind === "note" ? "data-note-font-choice" : "data-font-choice";
+    const items = FONT_OPTIONS.map((font) => `<div class="theme-menu-row ${currentId === font.id ? "active" : ""}">
+      <button class="theme-menu-item" type="button" role="option" aria-selected="${currentId === font.id ? "true" : "false"}" ${attr}="${esc(font.id)}" style="${fontStyle(font.id)}">
+        <span class="theme-menu-name">${esc(font.name)}</span>
+        <span class="choice-check" aria-hidden="true">✓</span>
       </button>
-      ${fontPanelsOpen.body ? `<div class="font-grid font-choice-list">
-        ${FONT_OPTIONS.map((font) => `<button class="font-choice ${settings.font === font.id ? "active" : ""}" data-font-choice="${font.id}">
-          <span class="font-sample" style="font-family:${FONT_STACKS[font.id]}">Aa</span>
-          <span class="font-copy"><strong>${font.name}</strong><small>${font.desc}</small></span>
-        </button>`).join("")}
-      </div>` : ""}
-    </div>
-    <div class="settings-section">
-      <button class="font-collapse-row ${fontPanelsOpen.note ? "open" : ""}" type="button" data-font-panel="note" aria-expanded="${fontPanelsOpen.note ? "true" : "false"}">
-        <span class="font-sample" style="font-family:${FONT_STACKS[settings.note_font]}">Aa</span>
-        <span class="font-copy"><strong>Note font</strong><small>${FONT_OPTIONS.find((font) => font.id === settings.note_font)?.name || "Art Serif"}</small></span>
-        <svg class="font-collapse-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      ${fontPanelsOpen.note ? `<div class="font-grid font-choice-list">
-        ${FONT_OPTIONS.map((font) => `<button class="font-choice ${settings.note_font === font.id ? "active" : ""}" data-note-font-choice="${font.id}">
-          <span class="font-sample" style="font-family:${FONT_STACKS[font.id]}">Aa</span>
-          <span class="font-copy"><strong>${font.name}</strong><small>${font.desc}</small></span>
-        </button>`).join("")}
-      </div>` : ""}
-    </div>
-    <div class="settings-section">
-      <div class="settings-label">Font size <span id="font-size-value">${Math.round(settings.scale * 100)}%</span></div>
-      <div class="font-size-row">
-        <button class="font-step" data-font-step="-5">A−</button>
-        <input id="font-size-range" type="range" min="85" max="125" step="5" value="${Math.round(settings.scale * 100)}">
-        <button class="font-step" data-font-step="5">A+</button>
+    </div>`).join("");
+    return `<details class="theme-menu font-menu" data-font-menu>
+      <summary class="theme-menu-trigger" aria-label="${esc(label)}: ${esc(current.name)}">
+        <span class="theme-menu-name font-menu-name" style="${fontStyle(current.id)}">${esc(current.name)}</span>
+        ${chevron}
+      </summary>
+      <div class="theme-menu-list font-menu-list">
+        <div class="theme-menu-items" role="listbox" aria-label="${esc(label)}">${items}</div>
+      </div>
+    </details>`;
+  };
+  const sizeField = (kind, value) => `<label class="font-size-field" title="${kind === "note" ? "Note" : "Body"} font size">
+      <span class="font-size-label">size</span>
+      <input class="font-size-input" type="number" min="${kind === "note" ? 10 : 14}" max="${kind === "note" ? 28 : 20}" step="1" value="${value}" data-font-size="${kind}" aria-label="${kind === "note" ? "Note" : "Body"} font size">
+    </label>`;
+  const colorField = (kind, value) => `<input class="theme-color-input font-color-input" type="color" value="${value}" data-font-color="${kind}" aria-label="${kind === "note" ? "Note" : "Body"} font colour" title="${kind === "note" ? "Note" : "Body"} font colour">`;
+  return `<div class="settings-section theme-settings-row font-settings-row">
+      <div class="theme-settings-title">Body font</div>
+      <div class="theme-settings-controls font-settings-controls">
+        ${fontMenu("body", settings.font, "Body font")}
+        ${sizeField("body", bodySize)}
+        ${colorField("body", bodyInk)}
       </div>
     </div>
-`;
+    <div class="settings-section theme-settings-row font-settings-row">
+      <div class="theme-settings-title">Note font</div>
+      <div class="theme-settings-controls font-settings-controls">
+        ${fontMenu("note", settings.note_font, "Note font")}
+        ${sizeField("note", noteSize)}
+        ${colorField("note", noteInk)}
+      </div>
+    </div>`;
 }
 
 async function loadNoteMaterialFiles() {
@@ -15792,6 +15987,17 @@ function rememberWallpaperChoice(path) {
   const recent = wallpaperRecentList().filter((item) => item !== name);
   if (name) recent.unshift(name);
   settings.wallpaper_recent = recent.slice(0, WALLPAPER_RECENT_LIMIT);
+}
+
+/** The wallpaper the current theme ships with: a pack's own picture when it has
+    one, otherwise the postcard art. Settings → Wallpaper → Manage → Back uses
+    this to leave a picked file and return to the theme's room. */
+function themeWallpaperValue() {
+  const id = currentPostcardId();
+  const pack = themePacks.find((item) => item.id === id);
+  if (pack?.wallpaper) return `theme:${id}`;
+  if (THEMES[id] && typeof THEMES[id].art === "function") return `art:${id}`;
+  return postcardIsDark(id) ? "art:dark" : "art:light";
 }
 
 /** Keep the chosen wallpaper and its place in the recent shelf in one save. */
@@ -15877,7 +16083,7 @@ function wallpaperSettingsSection() {
   }).join("");
   // Like the Theme row: the current wallpaper's name sits in the control, and
   // the recent picks live in the same small menu. No separate shelf heading,
-  // no empty-state paragraph, and Choose / Back share one button style.
+  // no empty-state paragraph. Manage folds out the three wallpaper options.
   const nameControl = recent.length
     ? `<details class="theme-menu wallpaper-menu" data-theme-menu>
         <summary class="theme-menu-trigger" aria-label="Wallpaper">
@@ -15887,15 +16093,33 @@ function wallpaperSettingsSection() {
         <div class="theme-menu-list" role="listbox" aria-label="Wallpaper">${recentRows}</div>
       </details>`
     : `<span class="theme-value wallpaper-current-name" title="${esc(name)}">${esc(name)}</span>`;
+  const blurOn = settings.wallpaper_blur_on === true;
+  const blurValue = Math.round(settings.wallpaper_blur);
+  const cardsOn = settings.wallpaper_cards !== false;
+  // Manage → three boxes from left to right: Back, Blur, Wallpaper theme.
+  // Back is one action, the other two are switches. Blur grows a 0..100 amount
+  // to its right, so the reader can say how thick the glass mask is.
+  const managePanel = wallpaperManageOpen ? `<div class="settings-section wallpaper-manage-panel">
+      <div class="wallpaper-manage-options">
+        <button class="theme-chip-button" type="button" data-action="wallpaper-back" title="Return to the theme wallpaper">Back</button>
+        <button class="theme-chip-button ${blurOn ? "active" : ""}" type="button" data-action="toggle-wallpaper-blur" aria-pressed="${blurOn ? "true" : "false"}" title="Frosted glass between the wallpaper and the page">Blur</button>
+        <button class="theme-chip-button ${cardsOn ? "active" : ""}" type="button" data-action="toggle-wallpaper-cards" aria-pressed="${cardsOn ? "true" : "false"}" title="Build the cards out of the wallpaper">Wallpaper theme</button>
+      </div>
+      ${blurOn ? `<div class="wallpaper-blur-row">
+        <input id="wallpaper-blur-range" class="wallpaper-blur-range" type="range" min="0" max="100" step="1" value="${blurValue}" aria-label="Wallpaper glass blur">
+        <span id="wallpaper-blur-value" class="wallpaper-blur-value">${blurValue}</span>
+      </div>` : ""}
+    </div>` : "";
   return `<div class="settings-section theme-settings-row wallpaper-settings-row">
       <div class="theme-settings-title">Wallpaper</div>
       <div class="theme-settings-controls">
         ${nameControl}
         <button class="theme-chip-button" type="button" data-action="choose-wallpaper">Choose</button>
-        ${wallpaper.key ? `<button class="theme-chip-button" type="button" data-action="clear-wallpaper">Back</button>` : ""}
+        <button class="theme-chip-button ${wallpaperManageOpen ? "active" : ""}" type="button" data-action="toggle-wallpaper-manage" aria-expanded="${wallpaperManageOpen ? "true" : "false"}">Manage</button>
       </div>
       <input type="file" accept="image/*,video/*" data-wallpaper-input hidden>
-    </div>`;
+    </div>
+    ${managePanel}`;
 }
 
 /* ---------------------------------------------------------------------------
@@ -15941,8 +16165,7 @@ function stickersSettings() {
       <input type="file" accept="image/*" data-sticker-input="${target.id}" hidden>
     </div>`;
   }).join("");
-  return `<div class="settings-head"><h2>Stickers</h2><p>The picture on each achievement. Pick any image and it sits on that badge.</p></div>
-    <div class="settings-section">
+  return `<div class="settings-section">
       <div class="sticker-settings-grid">${cards}</div>
     </div>`;
 }
@@ -15959,9 +16182,7 @@ function soundSettings() {
       </button>`;
     })
     .join("");
-  return `<div class="settings-head"><h2>Sound</h2></div>
-    <div class="settings-section">
-      <div class="settings-label">Sound</div>
+  return `<div class="settings-section">
       <button class="settings-toggle ${on ? "active" : ""}" data-action="toggle-sound" aria-pressed="${on ? "true" : "false"}">
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
         <span class="toggle-copy"><strong>${on ? "On" : "Off"}</strong></span>
@@ -15983,16 +16204,7 @@ function soundSettings() {
 }
 
 function aboutSettings() {
-  const wallpaper = activeWallpaper();
-  return `<div class="settings-head"><h2>About</h2><p>A small, quiet place for the next thing.</p></div>
-    <div class="settings-section about-section">
-      <div><span>NeoTodo</span><small>Desktop edition</small></div>
-      <div><span>Theme</span><small>明信片 / ${postcardName(currentPostcardId())}</small></div>
-      <div><span>Note theme</span><small>${esc(selectedNoteTheme().name)}</small></div>
-      <div><span>AI theme</span><small>${settings.ai_theme === "auto" ? `Auto · ${esc(resolvedAiTheme().name)}` : esc(resolvedAiTheme().name)}</small></div>
-      <div><span>Wallpaper</span><small>${esc(wallpaperDisplayName(wallpaper))}</small></div>
-      <div><span>Body font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.font)?.name || "Art Serif"}</small></div>
-      <div><span>Note font</span><small>${FONT_OPTIONS.find((font) => font.id === settings.note_font)?.name || "Art Serif"}</small></div>
+  return `<div class="settings-section about-section">
       <div><span>Shortcuts</span><small>Tab — Toggle categories · J/K — Move categories</small></div>
       <div><span>Project</span><small><a class="about-link" href="https://github.com/CellMeet/Neotodo" data-external-link="https://github.com/CellMeet/Neotodo">github.com/CellMeet/Neotodo</a></small></div>
     </div>`;
@@ -16243,9 +16455,6 @@ function pluginDetailSettings(pluginId) {
   }).join("");
   const pending = pluginPendingUninstallId === pluginId ? plugin : null;
   return `<button class="plugin-back" type="button" data-action="plugin-back">${BACK_ICON}<span>${communitySection === "games" ? "Games" : communitySection === "themes" ? "Themes" : "Plugins"}</span></button>
-    <div class="settings-head">
-      <h2>${esc(plugin.title)}</h2>
-    </div>
     <div class="settings-section">
       <div class="plugin-list">
         <div class="plugin-row ${on ? "plugin-on" : "plugin-off"}">
@@ -16296,7 +16505,6 @@ function pluginsSettings() {
     </div>` : "";
   return `${pluginUninstallConfirmMarkup(pending)}
     <div class="settings-section">
-      <div class="settings-label">Plugins</div>
       ${installed.length
         ? `<div class="plugin-list">${installed.map(pluginRowMarkup).join("")}</div>`
         : `<div class="plugin-empty">No plugins installed yet. Open the Community to add your first one.</div>`}
@@ -17039,9 +17247,19 @@ function renderSettings() {
     : settingsTab === "sound" ? soundSettings()
     : settingsTab === "about" ? aboutSettings()
     : themeSettings();
+  // Each page carries its name in the top row beside the close button, in the
+  // same quiet italic face the old in-page heading used.
+  const detailPlugin = settingsTab === "plugins" && pluginDetailId ? PLUGIN_REGISTRY[pluginDetailId] : null;
+  const pageTitle = detailPlugin ? detailPlugin.title
+    : settingsTab === "font" ? "Font"
+    : settingsTab === "stickers" ? "Stickers"
+    : settingsTab === "plugins" ? "Plugins"
+    : settingsTab === "sound" ? "Sound"
+    : settingsTab === "about" ? "About"
+    : "Appearance";
   panel.innerHTML = `<aside class="settings-nav">
       <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
-      <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Theme</button>
+      <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Appearance</button>
       <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
       <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
       <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
@@ -17050,7 +17268,7 @@ function renderSettings() {
       <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
     </aside>
     <section class="settings-main">
-      <div class="settings-topbar"><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
+      <div class="settings-topbar"><span class="settings-page-title">${esc(pageTitle)}</span><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
       <div class="settings-scroll"><div class="settings-view">${view}</div></div>
     </section>`;
   if (settingsTab === "theme") syncPageLineControls();
@@ -17528,19 +17746,10 @@ function bindEvents() {
       renderSettings();
       return;
     }
-    const fontPanel = event.target.closest("[data-font-panel]");
-    if (fontPanel) {
-      event.preventDefault();
-      const key = fontPanel.dataset.fontPanel === "note" ? "note" : "body";
-      fontPanelsOpen[key] = !fontPanelsOpen[key];
-      renderSettings();
-      return;
-    }
     const fontChoice = event.target.closest("[data-font-choice]");
     if (fontChoice) {
       event.preventDefault();
       settings.font = fontChoice.dataset.fontChoice;
-      fontPanelsOpen.body = false;
       saveSettings();
       applySettings();
       renderSettings();
@@ -17550,7 +17759,6 @@ function bindEvents() {
     if (noteFontChoice) {
       event.preventDefault();
       settings.note_font = noteFontChoice.dataset.noteFontChoice;
-      fontPanelsOpen.note = false;
       saveSettings();
       applySettings();
       renderSettings();
@@ -17638,16 +17846,7 @@ function bindEvents() {
       if (settingsScroll) settingsScroll.scrollTop = 0;
       return;
     }
-    const fontStep = event.target.closest("[data-font-step]");
-    if (fontStep) {
-      event.preventDefault();
-      const step = Number(fontStep.dataset.fontStep) / 100;
-      settings.scale = Math.min(1.25, Math.max(0.85, Math.round((settings.scale + step) * 100) / 100));
-      saveSettings();
-      applySettings();
-      renderSettings();
-      return;
-    }
+
     const restoreNode = event.target.closest("[data-restore-subtask]");
     if (restoreNode) {
       event.preventDefault();
@@ -17881,12 +18080,16 @@ function bindEvents() {
       updatePluginCommunityResults();
       return;
     }
-    if (event.target.id === "font-size-range") {
-      settings.scale = Math.min(1.25, Math.max(0.85, Number(event.target.value) / 100));
+    if (event.target.matches("[data-font-color]")) {
+      const note = event.target.dataset.fontColor === "note";
+      const value = fontHexColor(event.target.value);
+      if (!value) return;
+      settings[note ? "note_font_color" : "body_font_color"] = value;
       saveSettings();
-      applySettings();
-      const label = $("#font-size-value");
-      if (label) label.textContent = `${Math.round(settings.scale * 100)}%`;
+      // A live swatch drag should repaint text without rebuilding the sheet
+      // (which would steal focus from the open colour dialog).
+      if (note) applyNoteTheme();
+      else applyFontSettings();
       return;
     }
     if (event.target.id === "note-blur-range") {
@@ -17898,6 +18101,17 @@ function bindEvents() {
       // so the readout shows the blur that is actually painted.
       const scale = settings.note_material === "focus" ? 2 : 1;
       if (label) label.textContent = `${settings.note_blur * scale} px`;
+      return;
+    }
+    if (event.target.id === "wallpaper-blur-range") {
+      // The readout is the number the reader asked for (0..100); CSS maps it to
+      // a pixel radius so 100 is heavy frosted glass, not a 100px smear.
+      settings.wallpaper_blur = Math.min(100, Math.max(0, Math.round(Number(event.target.value) || 0)));
+      settings.wallpaper_blur_on = true;
+      saveSettings();
+      applySettings();
+      const label = $("#wallpaper-blur-value");
+      if (label) label.textContent = String(settings.wallpaper_blur);
       return;
     }
     if (event.target.matches("[data-custom-theme-color]")) {
@@ -18113,6 +18327,20 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    if (event.target.matches("[data-font-size]")) {
+      const note = event.target.dataset.fontSize === "note";
+      const raw = Math.round(Number(event.target.value));
+      if (!Number.isFinite(raw) || !event.target.value) {
+        event.target.value = String(note ? settings.note_font_size : settings.body_font_size);
+        return;
+      }
+      if (note) settings.note_font_size = Math.min(28, Math.max(10, raw));
+      else settings.body_font_size = Math.min(20, Math.max(14, raw));
+      event.target.value = String(note ? settings.note_font_size : settings.body_font_size);
+      saveSettings();
+      applyFontSettings();
+      return;
+    }
     if (event.target.id === "page-line-color" || event.target.id === "page-line-hex") {
       const color = normalizeBaselineColorInput(event.target.value);
       if (!color) {

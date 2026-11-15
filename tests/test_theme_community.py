@@ -158,8 +158,8 @@ def main() -> int:
         collision = io.BytesIO()
         with zipfile.ZipFile(collision, "w") as archive:
             archive.writestr("theme.json", json.dumps({
-                "id": "violet",
-                "name": "Fake Violet",
+                "id": "tokyo",
+                "name": "Fake Tokyo",
                 "theme": {"paper": "#ffffff", "ink": "#000000"},
             }))
         try:

@@ -3,10 +3,12 @@
    --------------------------------------------------------------------------
    A quiet box under the Categories rule:
 
-     · click the box on the bottom-left tool rail -> the box slides in under
-       "Categories" and pushes the category list down;
+     · the box on the bottom-left tool rail is the on/off switch: it slides
+       the strip in under "Categories" and pushes the category list down;
+       clicking the rail icon again closes the box, but keeps what is inside;
+     · click the box icon on the strip -> the stored categories unfold;
+       click the icon again to fold them away;
      · click a category while the box is open -> it moves into the box;
-     · click the box -> its stored categories appear;
      · click a stored category -> it returns to the bottom of the list.
 
    Stored ids live in localStorage (`neotodo.storage-box`) so a restart keeps
@@ -40,16 +42,15 @@
   box.dataset.storageBox = "1";
   box.setAttribute("aria-hidden", "true");
   box.innerHTML = `
-    <button class="storage-box-head" type="button" data-storage-box-toggle aria-expanded="false" aria-label="打开收纳箱">
-      <img class="storage-box-glyph" src="/plugins/storage-box/storage-box.svg" alt="">
-      <span class="storage-box-name">收纳箱</span>
-      <span class="storage-box-count" data-storage-box-count hidden>0</span>
-      <svg class="storage-box-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    <button class="storage-box-head" type="button" data-storage-box-toggle aria-expanded="false" aria-label="展开箱内分类">
+      <span class="storage-box-icon">
+        <img class="storage-box-glyph" src="/plugins/storage-box/storage-box.svg" alt="">
+        <span class="storage-box-count" data-storage-box-count hidden>0</span>
+      </span>
     </button>
     <div class="storage-box-tray">
-      <p class="storage-box-empty" data-storage-box-empty>还没有收纳分类。点一下上面的分类，就能把它放进箱子。</p>
       <div class="storage-box-list" data-storage-box-list role="list"></div>
-      <button class="storage-box-exit" type="button" data-storage-box-exit>退出收纳 · 全部分类放回列表</button>
+      <button class="storage-box-exit" type="button" data-storage-box-exit hidden>全部分类放回列表</button>
     </div>`;
 
   const head = index.querySelector(".index-head");
@@ -57,14 +58,15 @@
   else index.prepend(box);
 
   const countNode = box.querySelector("[data-storage-box-count]");
-  const emptyNode = box.querySelector("[data-storage-box-empty]");
   const listNode = box.querySelector("[data-storage-box-list]");
   const toggleNode = box.querySelector("[data-storage-box-toggle]");
+  const exitNode = box.querySelector("[data-storage-box-exit]");
 
   let active = false;
   let expanded = false;
   let orderChain = Promise.resolve();
   let renderFrame = 0;
+  let knockTimer = 0;
 
   // ------------------------------------------------------------------------
   // Plugin record helpers
@@ -130,16 +132,22 @@
   function renderBox() {
     const stored = storedCategories();
     const open = Boolean(active && pluginOn());
+    // An empty box has nothing to unfold, so keep the strip compact.
+    if (!stored.length) expanded = false;
+    const unfolded = open && expanded && stored.length > 0;
     box.classList.toggle("is-active", open);
-    box.classList.toggle("is-expanded", open && expanded);
+    box.classList.toggle("is-expanded", unfolded);
     box.setAttribute("aria-hidden", String(!open));
-    if (toggleNode) toggleNode.setAttribute("aria-expanded", String(open && expanded));
+    if (toggleNode) {
+      toggleNode.setAttribute("aria-expanded", String(unfolded));
+      toggleNode.setAttribute("aria-label", unfolded ? "收起箱内分类" : "展开箱内分类");
+    }
 
     if (countNode) {
       countNode.textContent = String(stored.length);
       countNode.hidden = !stored.length;
     }
-    if (emptyNode) emptyNode.hidden = Boolean(stored.length);
+    if (exitNode) exitNode.hidden = !stored.length;
 
     if (listNode) {
       listNode.innerHTML = stored.map((category) => {
@@ -175,6 +183,16 @@
     if (!active) expanded = false;
     document.body.classList.toggle("storage-box-collecting", active && pluginOn());
     renderBox();
+  }
+
+  /** A small knock when the box is empty, so the icon still answers a click. */
+  function knockBox() {
+    box.classList.remove("is-knock");
+    // Restart the animation even when two clicks arrive in the same frame.
+    void box.offsetWidth;
+    box.classList.add("is-knock");
+    clearTimeout(knockTimer);
+    knockTimer = setTimeout(() => box.classList.remove("is-knock"), 460);
   }
 
   // ------------------------------------------------------------------------
@@ -273,16 +291,13 @@
   // ------------------------------------------------------------------------
   // Events
   // ------------------------------------------------------------------------
+  // The rail icon is the storage box's on/off switch. Closing it keeps the
+  // stored categories inside; it only hides the strip from the index.
   railButton.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (!pluginOn()) return;
-    if (!active) {
-      setCollecting(true);
-    } else {
-      expanded = !expanded;
-      renderBox();
-    }
+    setCollecting(!active);
     vibrate();
   });
 
@@ -291,6 +306,11 @@
     if (toggle) {
       if (!pluginOn()) return;
       if (!active) setCollecting(true);
+      // The grey box icon on the strip only unfolds what is already inside.
+      if (!storedCategories().length) {
+        knockBox();
+        return;
+      }
       expanded = !expanded;
       renderBox();
       vibrate();
@@ -317,7 +337,7 @@
     boxCategory(row.dataset.categoryId);
   });
 
-  // Keep the box labels/count in sync when the index is re-rendered elsewhere.
+  // Keep the box list/count in sync when the index is re-rendered elsewhere.
   new MutationObserver(scheduleRenderBox).observe(categoryList, { childList: true });
 
   // The plugin switch toggles .plugin-hidden on the rail button. Watch it so

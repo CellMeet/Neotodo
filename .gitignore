@@ -18,3 +18,7 @@ android/app/src/main/python/web/
 
 # Local HTML scratch pages for manual probing
 /web/__*.html
+
+# Local run/scratch logs
+/run*.log
+*.log

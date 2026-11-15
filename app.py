@@ -211,7 +211,7 @@ PALETTE = [
 
 THEMES = [
     "light", "dark",
-    "violet", "tokyo", "space", "aurora", "ocean",
+    "tokyo", "space", "aurora", "ocean",
     "forest", "vintage", "alpine", "desert", "emerald",
     "rain", "field", "deco", "bauhaus",
 ]
@@ -2619,6 +2619,10 @@ def default_data() -> dict:
             "font": "serif",
             "note_font": "pen",
             "scale": 1,
+            "body_font_size": 16,
+            "note_font_size": 14,
+            "body_font_color": "",
+            "note_font_color": "",
             "show_time_cost": False,
             "focus_count": 0,
             "focus_log": [],
@@ -2637,6 +2641,9 @@ def default_data() -> dict:
             "wallpaper_dynamic": "",
             "wallpaper": "art:light",
             "wallpaper_recent": [],
+            "wallpaper_blur": 30,
+            "wallpaper_blur_on": False,
+            "wallpaper_cards": True,
             "postcards_exported": False,
         },
     }
@@ -2730,7 +2737,7 @@ def load_data(path: Path | None = None) -> dict:
                 settings["postcard"] = "light"
             if settings.get("resolved_postcard") not in THEMES:
                 settings["resolved_postcard"] = "light"
-            light_themes = ("light", "violet", "ocean", "forest", "vintage", "alpine", "desert", "emerald")
+            light_themes = ("light", "ocean", "forest", "vintage", "alpine", "desert", "emerald")
             dark_themes = ("dark", "tokyo", "space", "aurora")
             if settings.get("light_postcard") not in light_themes:
                 settings["light_postcard"] = (
@@ -2743,6 +2750,10 @@ def load_data(path: Path | None = None) -> dict:
             settings.setdefault("font", "serif")
             settings.setdefault("note_font", "pen")
             settings.setdefault("scale", 1)
+            settings.setdefault("body_font_size", 16)
+            settings.setdefault("note_font_size", 14)
+            settings.setdefault("body_font_color", "")
+            settings.setdefault("note_font_color", "")
             settings.setdefault("show_time_cost", False)
             try:
                 settings["focus_count"] = max(0, int(settings.get("focus_count", 0)))
@@ -2785,6 +2796,16 @@ def load_data(path: Path | None = None) -> dict:
             settings.setdefault("wallpaper_dynamic", "")
             settings.setdefault("wallpaper", "art:light")
             settings.setdefault("wallpaper_recent", [])
+            # Wallpaper glass (Blur) and the wallpaper-built card scheme. Older
+            # notebooks get the same defaults the front end assumes: glass off,
+            # cards made from the wallpaper.
+            settings.setdefault("wallpaper_blur", 30)
+            try:
+                settings["wallpaper_blur"] = max(0, min(100, int(settings.get("wallpaper_blur", 30))))
+            except (TypeError, ValueError):
+                settings["wallpaper_blur"] = 30
+            settings["wallpaper_blur_on"] = settings.get("wallpaper_blur_on") is True
+            settings["wallpaper_cards"] = settings.get("wallpaper_cards") is not False
             settings.setdefault("postcards_exported", False)
             # "wallpaper" is the reader's one choice. An empty value is a real
             # choice — the theme paper shows through — so the retired
@@ -3656,6 +3677,22 @@ class Store:
                         current["font"] = incoming["font"]
                     if incoming.get("note_font") in ("serif", "humanist", "bookman", "mono", "hand", "pen"):
                         current["note_font"] = incoming["note_font"]
+                    if "body_font_size" in incoming:
+                        try:
+                            current["body_font_size"] = max(14, min(20, int(incoming["body_font_size"])))
+                        except (TypeError, ValueError):
+                            pass
+                    if "note_font_size" in incoming:
+                        try:
+                            current["note_font_size"] = max(10, min(28, int(incoming["note_font_size"])))
+                        except (TypeError, ValueError):
+                            pass
+                    for color_key in ("body_font_color", "note_font_color"):
+                        color = incoming.get(color_key)
+                        if isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+                            current[color_key] = color.lower()
+                        elif color == "":
+                            current.pop(color_key, None)
                     if isinstance(incoming.get("show_time_cost"), bool):
                         current["show_time_cost"] = incoming["show_time_cost"]
                     try:
@@ -3714,6 +3751,14 @@ class Store:
                         current["wallpaper"] = incoming["wallpaper"]
                     if "wallpaper_recent" in incoming:
                         current["wallpaper_recent"] = sanitize_wallpaper_recent(incoming.get("wallpaper_recent"))
+                    try:
+                        current["wallpaper_blur"] = max(0, min(100, int(incoming.get("wallpaper_blur", 30))))
+                    except (TypeError, ValueError):
+                        pass
+                    if isinstance(incoming.get("wallpaper_blur_on"), bool):
+                        current["wallpaper_blur_on"] = incoming["wallpaper_blur_on"]
+                    if isinstance(incoming.get("wallpaper_cards"), bool):
+                        current["wallpaper_cards"] = incoming["wallpaper_cards"]
                     if isinstance(incoming.get("postcards_exported"), bool):
                         current["postcards_exported"] = incoming["postcards_exported"]
                     sanitize_wallpaper_settings(current, derive_legacy="wallpaper" not in incoming)

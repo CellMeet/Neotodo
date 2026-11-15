@@ -64,8 +64,8 @@ html[data-postcard-dark="true"] .storage-box-glyph {
 }
 
 .storage-box.is-active {
-  max-height: 48px;
-  margin: 0 0 10px;
+  max-height: 42px;
+  margin: 0 0 8px;
   border-width: 1px;
   border-color: color-mix(in srgb, var(--gold, #a8781f) 30%, var(--line, #ded5c2));
   background:
@@ -90,19 +90,29 @@ html[data-postcard-dark="true"] .storage-box.is-active {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34);
 }
 
+/* The strip is a single centred box: no name, no caret. Clicking it is what
+   unfolds the categories that live inside. */
 .storage-box-head {
   width: 100%;
-  height: 46px;
+  height: 40px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
+  justify-content: center;
+  padding: 0;
   border: 0;
   background: transparent;
   color: var(--ink, #2b2340);
   font-family: inherit;
-  text-align: left;
   cursor: pointer;
+}
+
+.storage-box-icon {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .storage-box-head:hover .storage-box-glyph {
@@ -115,48 +125,24 @@ html[data-postcard-dark="true"] .storage-box.is-active {
   flex: 0 0 28px;
 }
 
-.storage-box-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-}
-
 .storage-box-count {
-  flex: 0 0 auto;
-  min-width: 19px;
-  height: 19px;
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 17px;
+  height: 17px;
   display: grid;
   place-items: center;
-  padding: 0 5px;
+  padding: 0 4px;
   border-radius: 999px;
   background: var(--gold, #a8781f);
   color: #fffaf0;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   line-height: 1;
 }
 
 .storage-box-count[hidden] { display: none; }
-
-.storage-box-caret {
-  flex: 0 0 13px;
-  width: 13px;
-  height: 13px;
-  fill: none;
-  stroke: var(--muted, #6b6f78);
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform 0.2s ease;
-}
-
-.storage-box.is-expanded .storage-box-caret {
-  transform: rotate(180deg);
-}
 
 /* --------------------------------------------------------------------------
    Stored categories
@@ -169,7 +155,7 @@ html[data-postcard-dark="true"] .storage-box.is-active {
 
 .storage-box.is-expanded .storage-box-tray {
   display: block;
-  max-height: calc(min(42vh, 330px) - 54px);
+  max-height: calc(min(42vh, 330px) - 44px);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--gold, #a8781f) 45%, transparent) transparent;
@@ -233,13 +219,6 @@ html[data-postcard-dark="true"] .storage-box.is-active {
   opacity: 1;
 }
 
-.storage-box-empty {
-  margin: 2px 4px 6px;
-  color: var(--faint, #95897a);
-  font-size: 11px;
-  line-height: 1.6;
-}
-
 .storage-box-exit {
   width: 100%;
   height: 27px;
@@ -254,9 +233,23 @@ html[data-postcard-dark="true"] .storage-box.is-active {
   cursor: pointer;
 }
 
+.storage-box-exit[hidden] { display: none; }
+
 .storage-box-exit:hover {
   color: var(--gold, #a8781f);
   background: color-mix(in srgb, #ffc963 14%, transparent);
+}
+
+/* Empty box: a light knock so the centred icon still answers a click. */
+.storage-box.is-knock .storage-box-glyph {
+  animation: storage-box-knock 0.42s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+
+@keyframes storage-box-knock {
+  0%, 100% { transform: rotate(0) scale(1); }
+  22% { transform: rotate(-7deg) scale(1.05); }
+  48% { transform: rotate(5deg) scale(0.97); }
+  72% { transform: rotate(-3deg) scale(1.02); }
 }
 
 /* Collect mode: category rows read as things to put away. */
@@ -272,9 +265,11 @@ body.storage-box-collecting .category-item:hover .cat-name::after {
 @media (prefers-reduced-motion: reduce) {
   .storage-box,
   .storage-box-glyph,
-  .storage-box-caret,
   .storage-box-item,
   .storage-box-return {
     transition: none;
+  }
+  .storage-box.is-knock .storage-box-glyph {
+    animation: none;
   }
 }

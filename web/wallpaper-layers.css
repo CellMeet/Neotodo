@@ -144,6 +144,20 @@ html[data-wallpaper] .card-wallpaper > .wallpaper-media svg {
   display: block;
 }
 
+/* The Blur switch treats a card like any other room surface: a frosted pane
+   sits between the baked card picture and its rows. */
+html[data-wallpaper-blur] .card-wallpaper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: rgba(var(--pc-paper-rgb, 247, 239, 227), var(--wallpaper-veil-alpha, 0.14));
+  -webkit-backdrop-filter: blur(var(--wallpaper-veil-blur, 12px)) saturate(1.04);
+  backdrop-filter: blur(var(--wallpaper-veil-blur, 12px)) saturate(1.04);
+}
+
 /* One card, edge to edge. The wallpaper piece is the card's whole face — no
    paper mat and no top light: any of those would draw a dark edge on one side
    and a white line on the other, and the card would read as two pieces instead
@@ -179,9 +193,9 @@ html[data-wallpaper] [data-subcard] > .card-wallpaper::after {
 
 /* The card's ink sits on a picture now, so it gets a paper halo instead of a
    grey film: the words still read, and the picture keeps its colour. */
-html[data-wallpaper] #doing-peek,
-html[data-wallpaper] .completed-subtask-drawer,
-html[data-wallpaper] .trash-drawer {
+html[data-wallpaper][data-wallpaper-cards] #doing-peek,
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
+html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
   text-shadow: 0 1px 0 color-mix(in srgb, var(--pc-paper, #f7efe3) 62%, transparent);
 }
 
@@ -197,9 +211,9 @@ html[data-wallpaper] .trash-drawer {
    so it can be opened without tucking the finished card away. Keep this
    declaration as the fallback, but do not raise its specificity above the
    pile. */
-html[data-wallpaper] #doing-peek,
-html[data-wallpaper] .completed-subtask-drawer,
-html[data-wallpaper] .trash-drawer {
+html[data-wallpaper][data-wallpaper-cards] #doing-peek,
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
+html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
   /* The card's own 1px border is painted too, in the same ink green: a
      transparent border here would let the room show through as a thin line
      tinted by the background along the picture's edge. */
@@ -215,13 +229,13 @@ html[data-wallpaper] .trash-drawer {
 
 /* The old paper veil would gray the pane out; the pane's own scrim replaces
    it, so the film keeps its colour and its motion. */
-html[data-wallpaper] #doing-peek::before {
+html[data-wallpaper][data-wallpaper-cards] #doing-peek::before {
   background: none !important;
   opacity: 0 !important;
 }
 
 /* The finished-subtasks card paints its surface once, through the pane. */
-html[data-wallpaper] .completed-subtask-drawer .completed-subtask-sheet {
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer .completed-subtask-sheet {
   position: relative;
   z-index: 1;
   background: transparent !important;
@@ -289,9 +303,9 @@ html[data-wallpaper] .settings-nav {
 
 /* Older engines without backdrop blur still get a layer, just a denser one. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html[data-wallpaper] #doing-peek,
-  html[data-wallpaper] .completed-subtask-drawer,
-  html[data-wallpaper] .trash-drawer,
+  html[data-wallpaper][data-wallpaper-cards] #doing-peek,
+  html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
+  html[data-wallpaper][data-wallpaper-cards] .trash-drawer,
   html[data-wallpaper] .settings-panel,
   html[data-wallpaper] .community-panel,
   html[data-wallpaper] .completed-sheet {

@@ -103,7 +103,7 @@
     const { r, visible } = lineInfo();
     if (!visible) return;
     if (x < r.left - 12 || x > r.right + 12 || y < r.top - 14 || y > r.bottom + 14) return;
-    // A sheet that is already leaving is not a grab target: its 180ms close
+    // A sheet that is already leaving is not a grab target: its 140ms close
     // timer would hide the panel in the middle of the pull.
     if (notesClosing) return;
     if (boxOwnedByLayout()) return;

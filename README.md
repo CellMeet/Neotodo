@@ -48,7 +48,7 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 ## 🧭 Feature tour
 
 ### 📮 Postcards, themes and the weekly archive
-- 🃏 **Ten postcard palettes** — Violet, Alpine Dawn, Ocean Post, Tokyo Night, Desert Sun, Forest Walk, Northern Lights, Vintage Rose, Deep Space and Emerald, each with its own artwork, ink, accent and stamp.
+- 🃏 **Nine postcard palettes** — Alpine Dawn, Ocean Post, Tokyo Night, Desert Sun, Forest Walk, Northern Lights, Vintage Rose, Deep Space and Emerald, each with its own artwork, ink, accent and stamp.
 - 🌗 **Light and dark each remember a favourite.** Keep a bright postcard for the day and a moody one for the night; each mode caches its own choice.
 - 🗓️ **Finished weeks archive themselves.** At the start of a new week, the previous week's completed items become a dated postcard in the archive drawer.
 - 🎡 **Seasonal archive drawer.** The postcard plugin on the left rail opens every week in a Settings-style sheet, with entry counts and a per-card summary; click a card to relive the week, click it again to put it away.

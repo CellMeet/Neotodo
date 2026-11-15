@@ -1,10 +1,10 @@
-"""Settings → Stickers keeps one line of copy and the badge names.
+"""Settings → Stickers keeps the badge names and nothing else.
 
-The tab used to explain itself twice more: a "stored in the notebook" label,
-a hint under each badge name ("The trophy that counts finished tasks") and a
-footnote about where the picture lives and when the tomato appears. All of
-that is gone; only the header line, the achievement names and their buttons
-remain.
+The tab used to explain itself: a "stored in the notebook" label, a hint under
+each badge name ("The trophy that counts finished tasks") and a footnote about
+where the picture lives and when the tomato appears. All of that is gone, and
+so is the header line — the page name now sits in the top row beside the close
+button. Only the achievement names and their buttons remain.
 
 Two rules follow the same idea: a plugin achievement (the Pomodoro tomato)
 only lists while its plugin owns a header slot, and every preview is painted
@@ -25,11 +25,12 @@ class StickerSettingsTests(unittest.TestCase):
         cls.stickers_body = cls.app_js.split("function stickersSettings()", 1)[1].split("function soundSettings()", 1)[0]
         cls.css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
 
-    def test_header_keeps_the_single_explaining_line(self) -> None:
-        self.assertIn(
+    def test_explaining_header_line_is_gone(self) -> None:
+        self.assertNotIn(
             "The picture on each achievement. Pick any image and it sits on that badge.",
             self.stickers_body,
         )
+        self.assertNotIn("settings-head", self.stickers_body)
 
     def test_cards_show_only_the_badge_name(self) -> None:
         self.assertIn("sticker-setting-name", self.stickers_body)

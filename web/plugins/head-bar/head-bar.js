@@ -30,10 +30,10 @@
     id: PLUGIN_ID,
     title: "Head Bar",
     englishTitle: "Dynamic Island",
-    version: "2.1.4",
+    version: "2.3.0",
     author: "NeoTodo",
     category: "Interface",
-    description: "悬停时间数字时，一条短短的、海盐瓶水晶质感的灵动岛从上边框滑出。点击后整个工作区向上收起，只留下原始壁纸，小岛也一起隐藏；把光标移回顶部它会再次出现，点击即可恢复。",
+    description: "悬停时间数字时，一条海盐瓶水晶质感的灵动岛从上边框滑出。点击后工作区可选择推拉收起，或像纸张燃烧一样变黑、卷起、冒烟，最后露出壁纸；恢复时动画倒放，像时间倒流。",
     icon: "/plugins/head-bar/head-bar.svg",
     entry: "/plugins/head-bar/index.html",
     kind: "chrome",
@@ -47,6 +47,17 @@
         options: [
           { value: "blue", label: "海之盐 · 蓝", detail: "Maldives blue bottle" },
           { value: "pink", label: "海之盐 · 粉", detail: "Peach pink bottle" },
+        ],
+      },
+      {
+        id: "effect",
+        type: "choice",
+        label: "Collapse effect",
+        detail: "工作区收起 / 复原的方式",
+        default: "slide",
+        options: [
+          { value: "slide", label: "推拉", detail: "Push and pull" },
+          { value: "burn", label: "火光烧尽", detail: "Char, curl and smoke like burning paper, then reveal the wallpaper" },
         ],
       },
     ],
@@ -64,6 +75,20 @@
 
   function applyBottleStyle(value) {
     body.dataset.headBarStyle = value === "pink" ? "pink" : "blue";
+  }
+
+  function effectStyle() {
+    try {
+      if (typeof pluginState === "function") {
+        const value = pluginState(PLUGIN_ID)?.settings?.effect;
+        if (value === "burn" || value === "slide") return value;
+      }
+    } catch (error) {}
+    return "slide";
+  }
+
+  function applyEffect(value) {
+    body.dataset.headBarEffect = value === "burn" ? "burn" : "slide";
   }
 
   // ------------------------------------------------------------------------
@@ -111,6 +136,26 @@
   island.appendChild(line);
   bar.appendChild(island);
   body.appendChild(bar);
+
+  // Full-viewport layers used only by the burn effect: a firelight wash,
+  // blackened paper patches, and a handful of drifting smoke puffs.
+  const burnChar = document.createElement("div");
+  burnChar.className = "head-bar-burn-char";
+  burnChar.setAttribute("aria-hidden", "true");
+  body.appendChild(burnChar);
+
+  const burnGlow = document.createElement("div");
+  burnGlow.className = "head-bar-burn-glow";
+  burnGlow.setAttribute("aria-hidden", "true");
+  body.appendChild(burnGlow);
+
+  const burnSmoke = document.createElement("div");
+  burnSmoke.className = "head-bar-burn-smoke";
+  burnSmoke.setAttribute("aria-hidden", "true");
+  for (let index = 0; index < 7; index += 1) {
+    burnSmoke.appendChild(document.createElement("i"));
+  }
+  body.appendChild(burnSmoke);
 
   let measureFrame = 0;
   let collapsed = false;
@@ -192,6 +237,8 @@
         window.clearTimeout(restoreTimer);
         window.clearTimeout(revealTimer);
         const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        const burnEffect = body.dataset.headBarEffect === "burn";
+        const restoreDelay = reduced ? 0 : (burnEffect ? 1350 : 560);
         restoreTimer = window.setTimeout(() => {
           restoreTimer = 0;
           body.classList.remove("head-bar-restoring");
@@ -203,7 +250,7 @@
             revealTimer = 0;
             body.classList.remove("head-bar-reveal");
           }, 420);
-        }, reduced ? 0 : 560);
+        }, restoreDelay);
       }
     }
 
@@ -256,15 +303,16 @@
   window.addEventListener("orientationchange", scheduleMeasure);
   document.addEventListener("visibilitychange", scheduleMeasure);
   window.addEventListener("neotodo-plugin-setting-change", (event) => {
-    if (event.detail?.plugin === PLUGIN_ID && event.detail?.key === "bottle") {
-      applyBottleStyle(event.detail.value);
-    }
+    if (event.detail?.plugin !== PLUGIN_ID) return;
+    if (event.detail?.key === "bottle") applyBottleStyle(event.detail.value);
+    if (event.detail?.key === "effect") applyEffect(event.detail.value);
   });
   // The Notebook loads saved settings after this script boots, so the first
   // paint is always the default. Repaint as soon as the real record lands,
-  // which is what keeps the chosen bottle after a restart.
+  // which is what keeps the chosen bottle/effect after a restart.
   window.addEventListener("neotodo-plugin-settings-sync", () => {
     applyBottleStyle(bottleStyle());
+    applyEffect(effectStyle());
   });
 
   if (window.ResizeObserver) {
@@ -300,6 +348,7 @@
 
   registerPlugin();
   applyBottleStyle(bottleStyle());
+  applyEffect(effectStyle());
   scheduleMeasure();
   requestAnimationFrame(() => {
     body.classList.add("head-bar-ready");

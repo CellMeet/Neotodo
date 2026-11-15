@@ -10304,6 +10304,18 @@ html[data-theme="postcard"] .week-count .moon-icon {
   padding: 0 16px;
   border-bottom: 1px solid var(--line);
 }
+.settings-page-title {
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 17px;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .settings-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -10551,6 +10563,48 @@ html[data-theme="postcard"] .postcard-choice.active {
 }
 .font-collapse-row.open .font-collapse-chevron { transform: rotate(180deg); }
 .font-choice-list { margin-top: 9px; }
+
+/* Font tab rows mirror the Theme tab: name menu, size number, colour swatch. */
+.font-settings-row { align-items: center; }
+.font-settings-controls { gap: 8px; }
+.font-menu { flex: 0 1 auto; min-width: 0; }
+.font-menu .theme-menu-trigger { min-width: 112px; max-width: 172px; }
+.font-menu .theme-menu-list { width: 196px; }
+.font-size-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 6px;
+  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.06);
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: text;
+}
+.font-size-input {
+  width: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: right;
+  outline: none;
+}
+.font-size-input::-webkit-inner-spin-button,
+.font-size-input::-webkit-outer-spin-button { opacity: 0.45; }
+.font-color-input { flex: 0 0 auto; }
+
+/* The note size only rescales the notebook; every note font-size rule already
+   reads --user-scale. */
+html[data-theme] body .page-body .notes-half.floating-notes {
+  --user-scale: var(--note-user-scale, 1);
+}
 
 /* Archive postcard list: framed scroll area with faded contents near the border. */
 .drawer-frame {
@@ -12612,7 +12666,9 @@ html[data-postcard-dark="true"] .agent-terminal {
    It sits two fingers below the top edge, centred over the notebook. */
 .page-copy-flash {
   position: fixed;
-  z-index: 10000;
+  /* Above a plugin's glass stage (10060), so an in-theme sheet's copy answer
+     still reaches the notebook's top edge. */
+  z-index: 10080;
   top: 56px;
   left: 50%;
   transform: translateX(-50%);
@@ -13549,7 +13605,7 @@ body.notes-hidden .notes-handle-bottom:not(.handle-vanish) {
 }
 .agent-terminal.sheet-opening,
 .notes-half.floating-notes.sheet-opening {
-  animation: agent-sheet-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: agent-sheet-up 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden) {
@@ -13785,11 +13841,11 @@ body.agent-terminal-open:not(.notes-hidden) .notes-handle-bottom:not(.handle-van
 }
 .agent-terminal.sheet-opening,
 .notes-half.floating-notes.sheet-opening {
-  animation: agent-sheet-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: agent-sheet-up 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .agent-terminal.sheet-closing,
 .notes-half.floating-notes.sheet-closing {
-  animation: agent-sheet-down 0.26s cubic-bezier(0.4, 0, 0.6, 1) forwards !important;
+  animation: agent-sheet-down 0.12s cubic-bezier(0.4, 0, 0.7, 1) forwards !important;
 }
 
 /* Vertical AI card: use the computed pane box, never the old full-height hack. */
@@ -14330,11 +14386,11 @@ body.panel-drag-mode .notes-half.panel-shrinking {
 }
 .agent-terminal.sheet-opening,
 .notes-half.floating-notes.sheet-opening {
-  animation-duration: 0.18s !important;
+  animation-duration: 0.1s !important;
 }
 .agent-terminal.sheet-closing,
 .notes-half.floating-notes.sheet-closing {
-  animation-duration: 0.16s !important;
+  animation-duration: 0.1s !important;
 }
 
 /* Door lines must ride the pane edges, never animate their own 'top' behind
@@ -15921,6 +15977,19 @@ html[data-select] .note-material-current {
   height: 100%;
   display: block;
 }
+/* Settings → Wallpaper → Manage → Blur. The veil is a second pane inside the
+   room layer: it frosts the picture and adds a light paper tint, so the page's
+   ink and icons are printed on glass instead of directly on the photo. The
+   radius and tint come from app.js (--wallpaper-veil-blur / -alpha). */
+html[data-wallpaper-blur] .wallpaper-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(var(--pc-paper-rgb, 247, 239, 227), var(--wallpaper-veil-alpha, 0.14));
+  -webkit-backdrop-filter: blur(var(--wallpaper-veil-blur, 12px)) saturate(1.04);
+  backdrop-filter: blur(var(--wallpaper-veil-blur, 12px)) saturate(1.04);
+}
 html[data-wallpaper],
 html[data-wallpaper] body { background: #0b0812; }
 
@@ -15987,6 +16056,47 @@ html[data-wallpaper] .doing-peek::before { opacity: 0.50; }
   vertical-align: middle;
 }
 .wallpaper-menu .theme-menu-list { width: 240px; }
+
+/* Wallpaper → Manage: three option boxes (Back / Blur / Wallpaper theme) fold
+   out under the row. Blur then grows its 0..100 amount to the right of the
+   boxes, on a second line. */
+.wallpaper-manage-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -12px;
+}
+.wallpaper-manage-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.wallpaper-manage-options .theme-chip-button {
+  min-width: 64px;
+  justify-content: center;
+}
+.wallpaper-blur-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.wallpaper-blur-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 260px;
+  accent-color: var(--pc-accent, #b8872f);
+}
+.wallpaper-blur-value {
+  flex: 0 0 32px;
+  text-align: right;
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--mono, monospace);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
 
 /* ==========================================================================
    SETTINGS → PLUGINS

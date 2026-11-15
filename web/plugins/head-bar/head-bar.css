@@ -228,16 +228,211 @@ body.head-bar-ready .app-shell > .notebook {
   will-change: transform, opacity;
 }
 
-body.head-bar-collapsed .app-shell > .notebook-head {
+body.head-bar-collapsed:not([data-head-bar-effect="burn"]) .app-shell > .notebook-head {
   transform: translateY(-110%) !important;
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
-body.head-bar-collapsed .app-shell > .notebook {
+body.head-bar-collapsed:not([data-head-bar-effect="burn"]) .app-shell > .notebook {
   transform: translateY(-115%) !important;
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Burn effect: the page lights up like charred paper, blackened patches curl,
+   smoke drifts up, and the ink burns away to reveal the wallpaper. Restoring
+   runs the same keyframes backwards for a time-reversal feel.
+   -------------------------------------------------------------------------- */
+
+.head-bar-burn-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 148;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 62%, rgba(255, 198, 96, 0.60) 0%, rgba(255, 112, 24, 0.30) 38%, rgba(255, 82, 10, 0) 74%),
+    linear-gradient(180deg, rgba(255, 128, 26, 0) 0%, rgba(255, 128, 26, 0.05) 55%, rgba(255, 82, 10, 0.20) 100%);
+  mix-blend-mode: screen;
+  will-change: opacity;
+}
+
+.head-bar-burn-char {
+  position: fixed;
+  inset: 0;
+  z-index: 146;
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: 50% 100%;
+  background:
+    radial-gradient(ellipse 18% 11% at 22% 28%, rgba(28, 17, 10, 0.80) 0%, rgba(64, 35, 16, 0.42) 45%, transparent 74%),
+    radial-gradient(ellipse 14% 9% at 78% 67%, rgba(25, 15, 8, 0.76) 0%, rgba(58, 31, 14, 0.38) 45%, transparent 73%),
+    radial-gradient(ellipse 11% 7% at 52% 44%, rgba(34, 20, 12, 0.62) 0%, transparent 72%),
+    radial-gradient(ellipse 20% 12% at 62% 21%, rgba(38, 22, 12, 0.55) 0%, transparent 72%),
+    radial-gradient(ellipse 15% 10% at 30% 79%, rgba(28, 17, 10, 0.64) 0%, transparent 73%);
+  filter: blur(0.4px);
+  mix-blend-mode: multiply;
+  will-change: opacity, transform;
+}
+
+.head-bar-burn-smoke {
+  position: fixed;
+  inset: 0;
+  z-index: 149;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.head-bar-burn-smoke i {
+  position: absolute;
+  display: block;
+  width: var(--s, 90px);
+  height: var(--s, 90px);
+  left: var(--x, 50%);
+  top: var(--y, 65%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(198, 190, 180, 0.58) 0%, rgba(138, 130, 122, 0.30) 44%, transparent 72%);
+  filter: blur(var(--b, 11px));
+  opacity: 0;
+  transform: translateY(18px) scale(0.6);
+  will-change: opacity, transform;
+}
+
+.head-bar-burn-smoke i:nth-child(1) { --x: 15%; --y: 68%; --s: 105px; --b: 13px; --d: 0s; }
+.head-bar-burn-smoke i:nth-child(2) { --x: 31%; --y: 58%; --s: 80px; --b: 11px; --d: 0.03s; }
+.head-bar-burn-smoke i:nth-child(3) { --x: 47%; --y: 72%; --s: 120px; --b: 15px; --d: 0.01s; }
+.head-bar-burn-smoke i:nth-child(4) { --x: 63%; --y: 61%; --s: 92px; --b: 12px; --d: 0.05s; }
+.head-bar-burn-smoke i:nth-child(5) { --x: 78%; --y: 70%; --s: 110px; --b: 14px; --d: 0.02s; }
+.head-bar-burn-smoke i:nth-child(6) { --x: 88%; --y: 55%; --s: 70px; --b: 10px; --d: 0.06s; }
+.head-bar-burn-smoke i:nth-child(7) { --x: 40%; --y: 48%; --s: 72px; --b: 10px; --d: 0.04s; }
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-glow {
+  animation: head-bar-burn-glow 1.25s ease-out both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-glow {
+  animation: head-bar-burn-glow 1.25s ease-out reverse both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-char {
+  animation: head-bar-char-curl 1.25s ease-out both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-char {
+  animation: head-bar-char-curl 1.25s ease-out reverse both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-smoke {
+  animation: head-bar-smoke-wrap 1.25s ease-out both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-smoke {
+  animation: head-bar-smoke-wrap 1.25s ease-out reverse both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-smoke i {
+  animation: head-bar-smoke-puff 1.25s ease-out both;
+  animation-delay: var(--d, 0s);
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-smoke i {
+  animation: head-bar-smoke-puff 1.25s ease-out reverse both;
+  animation-delay: var(--d, 0s);
+}
+
+body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook-head,
+body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook {
+  transform: none !important;
+  transform-origin: 50% 100%;
+  pointer-events: none !important;
+  animation: head-bar-burn-away 1.25s cubic-bezier(0.4, 0.05, 0.6, 0.95) both !important;
+  transition: none !important;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook-head,
+body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook {
+  transform: none !important;
+  transform-origin: 50% 100%;
+  animation: head-bar-burn-away 1.25s cubic-bezier(0.4, 0.05, 0.6, 0.95) reverse both !important;
+  transition: none !important;
+}
+
+@keyframes head-bar-burn-away {
+  0% {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  16% {
+    opacity: 1;
+    filter: brightness(1.35) sepia(0.35) saturate(1.5) drop-shadow(0 0 10px rgba(255, 150, 40, 0.35));
+  }
+  44% {
+    opacity: 0.97;
+    filter: brightness(1.8) sepia(0.8) saturate(2.3) hue-rotate(-12deg) drop-shadow(0 0 16px rgba(255, 140, 30, 0.55));
+  }
+  68% {
+    opacity: 0.48;
+    filter: brightness(1.25) sepia(0.95) saturate(1.6) blur(0.3px);
+    transform: perspective(900px) rotateX(-2deg) translateY(-4px) scale(0.995);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(0.42) sepia(1) blur(2px);
+    transform: perspective(900px) rotateX(-7deg) translateY(-18px) scale(0.965);
+  }
+}
+
+@keyframes head-bar-char-curl {
+  0% {
+    opacity: 0;
+    transform: scale(1) translateY(0);
+  }
+  32% {
+    opacity: 0.58;
+    transform: scale(1.004) translateY(-1px);
+  }
+  66% {
+    opacity: 0.82;
+    transform: scale(1.012) translateY(-4px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.025) translateY(-10px);
+  }
+}
+
+@keyframes head-bar-burn-glow {
+  0% { opacity: 0; }
+  18% { opacity: 0.9; }
+  55% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+@keyframes head-bar-smoke-wrap {
+  0%, 100% { opacity: 0; }
+  14% { opacity: 1; }
+  72% { opacity: 0.9; }
+}
+
+@keyframes head-bar-smoke-puff {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.55);
+  }
+  22% {
+    opacity: 0.85;
+  }
+  68% {
+    opacity: 0.55;
+    transform: translateY(-42px) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-96px) scale(1.65);
+  }
 }
 
 /* Only the room's wallpaper remains behind the blue island. */
@@ -436,6 +631,14 @@ body.head-bar-reveal #doing-peek.open {
   background: linear-gradient(180deg, #ffe4ed, #f792b2 70%, #df6b93);
   border-color: rgba(190, 92, 126, 0.55);
 }
+.plugin-choice-swatch[data-swatch="slide"] {
+  background: linear-gradient(180deg, #edf6ff, #b9d7f1 48%, #7fa8cf);
+  border-color: rgba(90, 138, 180, 0.55);
+}
+.plugin-choice-swatch[data-swatch="burn"] {
+  background: radial-gradient(circle at 30% 62%, #ffe18a 0%, #ff9f0a 35%, #ef5a1a 72%, #6d210c 100%);
+  border-color: rgba(190, 92, 38, 0.55);
+}
 .plugin-choice-copy { display: grid; gap: 2px; min-width: 0; }
 .plugin-choice-copy strong { font-size: 11.5px; font-weight: 650; line-height: 1.25; }
 .plugin-choice-copy small { color: var(--pc-muted, var(--muted)); font-size: 10px; line-height: 1.3; }
@@ -445,11 +648,26 @@ body.head-bar-reveal #doing-peek.open {
 }
 
 @media (prefers-reduced-motion: reduce) {
-.head-bar,
-.head-bar-island,
-body.head-bar-ready .app-shell > .notebook-head,
-body.head-bar-ready .app-shell > .notebook {
+  .head-bar,
+  .head-bar-island,
+  body.head-bar-ready .app-shell > .notebook-head,
+  body.head-bar-ready .app-shell > .notebook {
     transition: none !important;
+  }
+  body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook-head,
+  body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+  body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook-head,
+  body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook {
+    animation: none !important;
+  }
+  .head-bar-burn-glow,
+  .head-bar-burn-char,
+  .head-bar-burn-smoke {
+    animation: none !important;
+    opacity: 0 !important;
   }
   .plugin-choice { transition: none; }
 }

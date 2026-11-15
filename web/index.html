@@ -62,7 +62,11 @@
       const root = document.documentElement;
       root.dataset.theme = "postcard";
       root.dataset.font = s.font || "serif";
-      root.style.setProperty("--user-scale", String(s.scale || 1));
+      root.dataset.noteFont = s.note_font || "pen";
+      const bodySize = Number(s.body_font_size) || (Number(s.scale) || 1) * 16;
+      const noteSize = Number(s.note_font_size) || 14;
+      root.style.setProperty("--user-scale", String(Math.min(1.25, Math.max(0.875, bodySize / 16))));
+      root.style.setProperty("--note-user-scale", String(Math.min(2, Math.max(0.7, noteSize / 14))));
     } catch (error) {}
   </script>
 </head>

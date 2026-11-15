@@ -219,8 +219,13 @@ html[data-theme="postcard"] .context-menu.context-note,
 .context-menu.context-note .context-sep { background: var(--note-rule, rgba(43, 43, 46, 0.14)); }
 .context-menu.context-note .context-danger { color: var(--note-accent-2, #8a8a92) !important; }
 
+/* The notebook must rise bottom-to-top as fast as the eye can follow. The
+   0.34s exponential ease this used to carry spent most of its curve in the
+   last few pixels, so the sheet looked like it was still moving after the
+   click. A tenth of a second with a hard-out curve reads as instant while
+   still showing the sheet's own edge travel up from the door line. */
 .notes-half.floating-notes.sheet-opening {
-  animation: notes-sheet-up 0.34s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation: notes-sheet-up 0.1s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 @keyframes notes-sheet-up {
   from { transform: translateY(100%); opacity: 1; }
