@@ -14,11 +14,17 @@ plugins/
     pindou.js          plugin logic
     pindou.svg         pink perler-bead flower rail icon
   palette/
-    manifest.json      plugin metadata (interface / chrome)
+    manifest.json      plugin metadata (interface / chrome, intheme)
     index.html         Settings-style page sheet (line, highlight, rows)
     plugin.css         page-only rail mark and nav foot
     plugin.js          talks to window.NeoTodoPalette in the host notebook
     palette.svg        paint-palette rail icon (user-provided)
+  postcard/
+    manifest.json      plugin metadata (interface / chrome, intheme)
+    index.html         Settings-style weekly postcard archive
+    plugin.css         page-only rail mark, year jumps and preview spacing
+    plugin.js          talks to window.NeoTodoPostcards in the host notebook
+    postcard.svg       picture/postcard rail icon (user-provided)
   subtask-search/
     manifest.json      plugin metadata (interface / chrome)
     index.html         plugin control page
@@ -90,6 +96,10 @@ themselves in `PLUGIN_REGISTRY`; effect CSS should be scoped to a class that
 the plugin toggles so the switch can remove it cleanly. A manifest tagged
 `"achievement"` (or `"成就"`) claims a slot in the top-right header: the
 headphone is the built-in default, and each new tagged plugin slides it left.
+A manifest tagged `"intheme"` (or `"in-theme"`) says its page is not a mini-app
+but the notebook's own Settings sheet: the host keeps the live wallpaper behind
+its transparent stage and folds Settings / Community away when it opens. The
+Palette and Postcards pages are the two bundled examples.
 
 ## Add a plugin
 
@@ -126,7 +136,13 @@ the same plugin ids. `python3 tools/validate_community.py` checks them.
   page-line.json and baseline-rule.json remain the only sources the page paints
   from. The sheet loads `style.css`, `page-line.css` and `baseline-rules.css`
   and copies the postcard variables, so it wears the current theme instead of a
-  private palette.
+  private palette. It is tagged `intheme`.
+- `postcard` — 明信片 / Postcards. The picture rail icon opens the weekly
+  archive as the same Settings-style sheet. The iframe only lists years,
+  months and weeks; `window.NeoTodoPostcards` supplies the week rows, the
+  existing postcard article and the large viewer, so the notebook keeps a
+  single archive and app startup never loads a second copy of the themes.
+  Tagged `intheme`.
 - `subtask-search` — 子任务搜索 / Subtask Search
 - `forktree` — 分支地图 / Forktree. Clicking a card posts
   `{ type: "neotodo-forktree-open", target }`; the host closes the plugin and

@@ -1,15 +1,17 @@
 """The live subtask lane is a card of its own.
 
-Unfinished rows are printed on a sheet that is exactly seven unit rows tall,
-so its bottom edge lands on the page baseline. The sheet is open on the left:
-there is no divider between the finished column and this one, and no left
-edge, so the two read as one page; only the right side closes with a rounded
-edge. The purple handle line rides the sheet's bottom edge — folded, the sheet
-is a short tab whose line sits right under the block's top line.
+Unfinished rows are printed on a card: a sheet that appears on top of the page,
+with one stroke on all four sides and one corner. It is exactly seven unit rows
+tall, so its bottom edge lands on the page baseline.
 
-These checks guard the pieces that make that true: the markup, the stretch
-control, the page rule that keeps the rows ruled inside the card, and the
-surface that makes the finished tray read as a panel inside the card.
+The purple handle line is the card's bottom edge. Stretched up, the card folds
+away completely — no face, no stroke — and the page underneath is its plain
+ruled self again, the rows of the page line running straight across the block.
+
+These checks guard the pieces that make that true: the markup (a `card` marker,
+no printed label), the four-sided surface, the stretch control, the page rule
+that keeps the rows ruled inside the card, and the ruled page that the fold
+reveals.
 """
 from __future__ import annotations
 
@@ -39,15 +41,17 @@ class PendingSubtaskCardTests(unittest.TestCase):
         cls.page_line_css = (ROOT / "web" / "page-line.css").read_text(encoding="utf-8")
         cls.card_stack_css = (ROOT / "web" / "card-stack.css").read_text(encoding="utf-8")
 
-    def test_lane_is_printed_as_a_card_with_its_label(self):
+    def test_lane_is_printed_as_a_card(self):
         card = block_after(
             self.app_js,
             "const pendingCard = (lanes) => `",
             "`;\n",
         )
-        self.assertIn('class="pending-subtask-card', card)
-        self.assertIn('class="pending-subtask-label"', card)
-        self.assertIn(">卡片</span>", card)
+        # `card` is a marker class, not a printed label: the card carries no
+        # text of its own. The old "卡片" tag is gone for good.
+        self.assertIn('class="pending-subtask-card card', card)
+        self.assertNotIn("pending-subtask-label", card)
+        self.assertNotIn("卡片", card)
         self.assertIn("${lanes}", card)
         # The handle rides the card's bottom edge, so it lives inside the sheet
         # right after the rows it folds.
@@ -60,26 +64,44 @@ class PendingSubtaskCardTests(unittest.TestCase):
         drawer = block_after(self.app_js, "const drawerMarkup = completedDrawerOn", "metaHtml =")
         self.assertEqual(drawer.count("pendingCard(`"), 2)
 
-    def test_card_is_open_on_the_left(self):
+    def test_card_is_closed_on_all_four_sides(self):
         card = css_block(self.split_css, ".pending-subtask-card {")
         # Seven unit rows: the card never grows past the page's task sheet.
         self.assertIn("height: 100%;", card)
         self.assertIn("max-height: var(--page-task-h", card)
-        # No left corner: the sheet runs into the finished column.
-        self.assertIn("border-radius: 0 var(--overlay-radius", card)
+        # One corner, all the way round.
+        self.assertIn("border-radius: var(--overlay-radius", card)
 
         edge = css_block(self.split_css, ".pending-subtask-card::after {")
-        self.assertIn("border-left: 0;", edge)
+        self.assertIn("border: 1px solid var(--subcard-outline", edge)
+        self.assertNotIn("border-left: 0", edge)
 
-        # The column divider is the same line the card's left edge used to sit
-        # on; both are gone.
-        divider = css_block(
-            self.split_css,
-            'html[data-theme="postcard"] .page-body > .todos-section > .current-half::before {',
+    def test_folded_card_leaves_no_border_behind(self):
+        folded = css_block(self.split_css, ".pending-subtask-card.collapsed {")
+        self.assertIn("max-height: var(--pending-card-fold", folded)
+        # The face goes with the stroke: no paper block is left behind.
+        self.assertIn("background-color: transparent;", folded)
+        self.assertIn("box-shadow: none;", folded)
+
+        hidden_edge = css_block(self.split_css, ".pending-subtask-card.collapsed::after {")
+        self.assertIn("opacity: 0;", hidden_edge)
+
+    def test_fold_reveals_the_pages_own_ruling(self):
+        # The ruled grid of the task block is painted by the page itself, so a
+        # folded card exposes continuous lines instead of a blank block. The
+        # live column must be on the same grid as the finished column.
+        grid = block_after(
+            self.page_line_css,
+            "/* One gradient, painted by the sheet itself.",
+            "}",
         )
-        self.assertIn("display: none !important;", divider)
+        self.assertIn(
+            "html[data-theme=\"postcard\"] .page-body > .todos-section > .current-half,",
+            grid,
+        )
+        self.assertIn("repeating-linear-gradient", grid)
 
-    def test_handle_rides_the_bottom_edge_and_folds_to_a_tab(self):
+    def test_handle_rides_the_bottom_edge(self):
         toggle = css_block(self.split_css, ".pending-subtask-toggle {")
         # Centred on the card, lying on its bottom edge.
         self.assertIn("left: 50%;", toggle)
@@ -89,11 +111,6 @@ class PendingSubtaskCardTests(unittest.TestCase):
         self.assertIn("background: #C8B9FC;", line)
         # Above - not on - the bottom line, like the finished-tray handle.
         self.assertRegex(line, r"bottom: \d+px;")
-
-        # Folded, the card is a short tab: the line ends up right under the
-        # block's top line because the edge it rides has travelled up.
-        folded = css_block(self.split_css, ".pending-subtask-card.collapsed {")
-        self.assertIn("max-height: var(--pending-card-fold", folded)
         self.assertIn("transition: max-height", self.split_css)
 
     def test_stretching_the_handle_opens_and_folds_the_card(self):
@@ -131,8 +148,8 @@ class PendingSubtaskCardTests(unittest.TestCase):
         )
         self.assertGreater(self.card_stack_css.index(inset), wallpaper_lift)
 
-        # The tray closes when the card folds to its tab: a folded card has no
-        # room for the panel, and two handles would sit in the same band.
+        # The tray closes when the card folds: a folded card has no room for the
+        # panel, and two handles would sit in the same band.
         fold = block_after(self.app_js, "function setPendingSubtasksCollapsed(", "\n}\n")
         self.assertIn("setCompletedSubtasksOpen(false)", fold)
         self.assertIn(

@@ -98,7 +98,6 @@ html[data-postcard-dark="true"] {
 }
 
 #doing-peek .doing-kicker,
-#doing-peek .doing-count,
 #doing-peek .doing-empty {
   color: var(--overlay-muted) !important;
 }

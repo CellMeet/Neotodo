@@ -19,6 +19,11 @@ Add Linux-first changes that still need a Windows/Android pass here.
   `web/app.js`, the rail button in `web/index.html`, and the page controls that
   moved out of Settings → Theme (selection highlight, page line, layout,
   finished rows). The note surface stays under Settings → Theme → Note theme.
+- Postcard plugin: `web/plugins/postcard/`, its `PLUGIN_REGISTRY` entry,
+  `window.NeoTodoPostcards` host bridge and the `open-postcard` action in
+  `web/app.js`, the rail button in `web/index.html`, the shared `intheme` tag
+  handling in `openPluginPanel`, and the top-right button that changed from the
+  archive picture to `/robot-agent.svg` + `open-ai-settings`.
 
 ## How to sync
 

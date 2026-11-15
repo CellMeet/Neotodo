@@ -54,14 +54,17 @@
 
 /* ------------------------------------------------------------ the grid --- */
 
-/* One gradient, painted by the sheet itself. The header, the history lane and
-   the empty desk share it, including over a wallpaper. The live subtask lane
-   is deliberately absent: its lines belong to the rows (see below).
+/* One gradient, painted by the sheet itself. The header, both task columns and
+   the empty desk share it, including over a wallpaper. The live subtask rows
+   keep their own lines (see below) so a row's rule travels with its name; the
+   gradient underneath is what the reader sees whenever the card that carries
+   those rows is folded away.
    `!important` is deliberate: older theme rules still set a per-column rule
    colour, and the wallpaper layer removes every background image from the
    bare surface. */
 html[data-theme="postcard"] .page-head,
 html[data-theme="postcard"] .page-body > .todos-section > .history-half,
+html[data-theme="postcard"] .page-body > .todos-section > .current-half,
 html[data-theme="postcard"] body .page-body::after {
   background-image: repeating-linear-gradient(
     to bottom,
@@ -140,12 +143,11 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half > .curre
 }
 
 /* A finished row flies to the tray on a ghost pinned to the page, outside the
-   lane. It is still the same row, so it keeps the live lane's rule instead of
-   falling back to the detached `.current-subtask` hairline in style.css. The
-   landing row in the drawer reads the same paint and weight, so the line is
-   never reprinted when the ghost hands the row over. */
+   lane. The rule is not part of that trip: the tray prints its own rule when
+   the row lands, so carrying one across the page was the only animated line in
+   the completion. The ghost is plain paper and the rule arrives with the row. */
 html[data-theme="postcard"] .subtask-flight {
-  border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;
+  border-bottom-color: transparent !important;
   border-image: none !important;
 }
 

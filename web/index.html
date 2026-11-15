@@ -190,6 +190,9 @@
       <symbol id="exit" viewBox="0 0 1024 1024">
         <path d="M883.944448 84.755456 350.54592 84.755456c-16.718848 0-30.257152 13.600768-30.257152 30.132224l0 162.266112 60.327936 41.174016L380.616704 145.020928l387.290112 0-155.963392 88.46336c-9.358336 5.240832-15.222784 15.409152-15.222784 26.326016l0 467.083264L380.61568 726.893568 380.61568 601.747456l-60.327936 41.237504 0 114.040832c0 16.53248 13.538304 30.06976 30.257152 30.06976l246.173696 0 0 114.479104c0 10.91584 5.677056 20.711424 14.972928 26.32704 4.742144 2.681856 9.919488 4.178944 15.159296 4.178944 5.178368 0 10.294272-1.497088 14.912512-4.178944l251.039744-142.303232c12.351488-3.743744 21.33504-15.035392 21.33504-28.572672L914.138112 114.88768C914.138112 98.356224 900.663296 84.755456 883.944448 84.755456zM496.902144 474.730496c4.742144-3.369984 7.487488-9.046016 7.487488-14.661632 0-5.677056-2.745344-11.290624-7.487488-14.723072L330.33216 324.56704c-5.489664-4.117504-12.78976-4.553728-18.840576-1.497088-6.114304 2.994176-9.920512 8.982528-9.920512 16.157696l0 78.6688L140.055552 417.896448c-23.2704 0-42.17344 18.840576-42.17344 42.172416 0 23.332864 18.90304 42.17344 42.17344 42.17344l161.51552 0 0 78.980096c0 6.800384 3.806208 12.852224 9.920512 15.8464 2.557952 1.497088 5.36576 2.246656 8.235008 2.246656 3.74272 0 7.486464-1.125376 10.605568-3.743744L496.902144 474.730496z" fill="currentColor"/>
       </symbol>
+      <symbol id="robot-agent" viewBox="0 0 1024 1024">
+        <path d="M752 848a16 16 0 0 1 16 16v64a16 16 0 0 1-16 16H288a16 16 0 0 1-16-16v-64a16 16 0 0 1 16-16h464zM896 96a64 64 0 0 1 63.936 60.8L960 160V704a64 64 0 0 1-60.8 63.936L896 768H144a64 64 0 0 1-63.936-60.8L80 704V160a64 64 0 0 1 60.8-63.936l3.2-0.064H896zM864 192H176v480H864V192zM448 320v240H352V320H448z m240 0v240h-96V320h96z" fill="currentColor"/>
+      </symbol>
       <symbol id="notebook" viewBox="0 0 24 24">
         <rect x="5.2" y="1.8" width="16" height="20.4" rx="2.2" fill="#90e6f6" stroke="#5a3a2a" stroke-width="1.5"/>
         <rect x="5.8" y="2.4" width="2.2" height="19.2" rx="0.8" fill="#bdf4fc" stroke="#5a3a2a" stroke-width="1.1"/>
@@ -835,8 +838,8 @@
     <button id="sound-toggle" class="sound-toggle" type="button" aria-label="Toggle sounds">
       <svg class="sound-icon" aria-hidden="true"><use href="#music"></use></svg>
     </button>
-    <button id="archive-button" class="archive-button" type="button" data-action="open-archive" aria-label="Archive">
-      <svg class="windmill-icon" aria-hidden="true"><use href="#archive-image"></use></svg>
+    <button id="agent-settings-button" class="agent-settings-button" type="button" data-action="open-ai-settings" aria-label="AI 与 Agent 设置" title="AI / Agent">
+      <svg class="agent-settings-glyph" aria-hidden="true"><use href="#robot-agent"></use></svg>
     </button>
     <button id="settings-button" class="settings-button" type="button" data-action="open-settings" aria-label="Settings">
       <svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg>
@@ -859,6 +862,9 @@
     </button>
     <button class="tool-button palette-button" type="button" data-action="open-palette" data-plugin="palette" aria-label="调色板">
       <img class="palette-glyph" src="/plugins/palette/palette.svg" alt="">
+    </button>
+    <button class="tool-button postcard-button" type="button" data-action="open-postcard" data-plugin="postcard" aria-label="明信片">
+      <img class="postcard-glyph" src="/plugins/postcard/postcard.svg" alt="">
     </button>
     <button class="tool-button forktree-button" type="button" data-action="open-forktree" data-plugin="forktree" aria-label="Forktree 分支地图">
       <img class="forktree-glyph" src="/plugins/forktree/forktree.svg" alt="">
@@ -903,7 +909,6 @@
   <div class="archive-backdrop" id="archive-backdrop"></div>
 
   <aside class="trash-drawer" id="trash-drawer" data-subcard="trash" aria-hidden="true">
-    <span class="trash-label" aria-hidden="true">卡片</span>
     <div class="trash-head">
       <button class="trash-clear" type="button" data-action="clear-trash" aria-label="Clear deleted subtasks">
         <svg class="trash-clear-glyph" viewBox="0 0 1024 1024" aria-hidden="true"><use href="#clear-trash"></use></svg>

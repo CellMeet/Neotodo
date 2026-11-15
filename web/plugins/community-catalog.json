@@ -2,7 +2,7 @@
   "schema": 1,
   "name": "NeoTodo Plugin Community",
   "homepage": "https://github.com/CellMeet/Neotodo/tree/main/community",
-  "updated": "2026-11-14",
+  "updated": "2026-11-16",
   "plugins": [
     {
       "id": "pindou",
@@ -27,7 +27,21 @@
       "author": "NeoTodo",
       "category": "Interface",
       "icon": "palette.svg",
-      "tags": ["theme", "palette", "line", "page"],
+      "tags": ["intheme", "theme", "palette", "line", "page"],
+      "bundled": true,
+      "official": true,
+      "featured": true
+    },
+    {
+      "id": "postcard",
+      "name": "明信片",
+      "englishName": "Postcards",
+      "version": "1.0.0",
+      "description": "每一周完成的事情都印成一张明信片。点击左栏的图片图标，和 Settings 一样在应用内打开档案：按年份和月份翻看，点一张卡片就能在原来的位置展开。",
+      "author": "NeoTodo",
+      "category": "Interface",
+      "icon": "postcard.svg",
+      "tags": ["intheme", "postcard", "archive", "weekly"],
       "bundled": true,
       "official": true,
       "featured": true

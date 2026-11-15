@@ -42,6 +42,13 @@ html.firelight-on .doing-fan.has-unseen > svg {
   animation: firelight-icon-glow 3s ease-in-out infinite;
 }
 
+/* Live Doing fans stack two absolutely positioned SVGs inside .fan-stack.
+   Animate each layer in place so the glow follows the whole fan without
+   overriding the stack's inset layout (or its one-shot pop animation). */
+html.firelight-on .doing-fan.has-unseen .fan-stack > svg {
+  animation: firelight-icon-glow 3s ease-in-out infinite;
+}
+
 @keyframes firelight-icon-glow {
   0%, 100% {
     filter: brightness(1.12) saturate(1.12)
@@ -126,7 +133,8 @@ html.firelight-on[data-postcard-dark="true"] .doing-fan.has-unseen::after {
    -------------------------------------------------------------------------- */
 
 html.firelight-on[data-postcard-dark="false"] .doing-mark.has-unseen > svg,
-html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
+html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg,
+html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen .fan-stack > svg {
   animation: firelight-ember-glow 2.6s ease-in-out infinite;
 }
 
@@ -159,7 +167,8 @@ html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   html.firelight-on .doing-mark.has-unseen > svg,
-  html.firelight-on .doing-fan.has-unseen > svg {
+  html.firelight-on .doing-fan.has-unseen > svg,
+  html.firelight-on .doing-fan.has-unseen .fan-stack > svg {
     animation: none;
     filter: brightness(1.16) saturate(1.14)
       drop-shadow(0 0 4px rgba(255, 245, 200, 0.9))
@@ -173,7 +182,8 @@ html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
     opacity: 0.82;
   }
   html.firelight-on[data-postcard-dark="false"] .doing-mark.has-unseen > svg,
-  html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
+  html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg,
+  html.firelight-on[data-postcard-dark="false"] .doing-fan.has-unseen .fan-stack > svg {
     animation: none;
     filter: brightness(1.22) saturate(1.24)
       drop-shadow(0 0 1px rgba(255, 255, 240, 0.95))

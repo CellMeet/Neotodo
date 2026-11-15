@@ -66,6 +66,21 @@ def main() -> int:
     )[1].split("\n}", 1)[0]
     assert "height: calc(100% - var(--ss-open-h, 48px));" in push
     assert "transform: translate3d(0, var(--ss-open-h, 48px), 0);" in push
+    # The pane and the whole column pop on one short beat: the same duration
+    # and curve on both, so the search field can never lead or lag the rows
+    # under it while the drawer opens.
+    assert "--ss-pop-ms: 100ms;" in css
+    assert "--ss-pop-ease: cubic-bezier(0.33, 1, 0.68, 1);" in css
+    inner = css.split(
+        "body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {",
+        1,
+    )[1].split("\n}", 1)[0]
+    assert "transition:" in inner
+    assert "transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease" in inner
+    assert "height var(--ss-pop-ms, 100ms) var(--ss-pop-ease" in inner
+    open_drawer = css.split(".subtask-search-drawer.open {", 1)[1].split("\n}", 1)[0]
+    assert "transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease" in open_drawer
+    assert "0.5s" not in open_drawer and "0.46s" not in open_drawer
     assert "function publishPaneHeight()" in plugin
     assert "function schedulePaneHeight()" in plugin
     assert "panel.offsetHeight" in plugin

@@ -99,7 +99,6 @@ html[data-theme] body .page-body .notes-half.floating-notes .notes-head {
 }
 
 html[data-theme] body .page-body .notes-half.floating-notes .notes-icon,
-html[data-theme] body .page-body .notes-half.floating-notes .notes-quill,
 html[data-theme] body .page-body .notes-half.floating-notes .note-link {
   color: var(--note-accent) !important;
 }

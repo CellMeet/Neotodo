@@ -228,29 +228,27 @@ def main() -> int:
     assert "linear-gradient" not in ring, "the card is washed again"
     assert "64%, transparent" not in layers_css, "the card is washed grey again"
 
-    # The pile: the living card CSS owns the two depth levels and out-ranks the
-    # wallpaper's "one shadow below the card" fallback, so the stack is visible
-    # with or without a wallpaper.
+    # The pile: one shared overlap configuration drives every task card and
+    # out-ranks the wallpaper's "one shadow below the card" fallback, so the
+    # stack is visible with or without a wallpaper.
     stack_css = (ROOT / "web" / "card-stack.css").read_text(encoding="utf-8")
     assert '/card-stack.css' in index_html, "the card pile stylesheet is not loaded"
-    assert "--card-lift-page:" in stack_css, "the finished card has no depth on the page"
-    assert "--card-lift-card:" in stack_css, "the Doing card has no depth on the finished card"
-    assert "box-shadow: var(--card-lift-page) !important;" in stack_css, (
-        "the finished card does not rest on the task page"
+    assert "--card-overlap-shadow:" in stack_css, "the cards have no shared overlap shadow"
+    assert "--card-overlap-shadow-left:" in stack_css, "the left dock has no mirrored shadow"
+    assert stack_css.count("box-shadow: var(--card-overlap-shadow) !important;") >= 4, (
+        "not every task card uses the shared overlap shadow"
     )
-    assert "box-shadow: var(--card-lift-card) !important;" in stack_css, (
-        "the Doing card does not rest on the finished card"
-    )
+    # The plugin bridge still receives the old name, now an alias of the one
+    # unified configuration.
+    assert "--card-lift-page: var(--card-overlap-shadow);" in stack_css
     # The shadow is thrown down-left, the way paper casts onto the sheet below;
     # there is no coloured edge or second line around the card.
-    upper_lift = stack_css.split("--card-lift-card:", 1)[1].split(";", 1)[0]
-    assert "-7px 14px" in upper_lift and "-20px 38px" in upper_lift, (
-        "the upper card throws no shadow onto the lower sheet"
-    )
     assert "sakura" not in stack_css, "a coloured paper edge is back on the card"
     assert "0 2px 0 -1px" not in stack_css and "0 3px 0 -1px" not in stack_css, (
         "the card still paints an edge line under its bottom border"
     )
+    assert "--card-pile" not in stack_css, "the extra deck sheets are back"
+    assert "color-mix(" not in stack_css, "a coloured under-sheet is back"
     # The two cards share the desk without shoving each other aside: opening
     # the Doing card must never move the finished-subtasks card off its column.
     press_aside = [

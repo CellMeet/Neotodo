@@ -287,9 +287,13 @@
     cancelScheduledClear();
     panelOpen = true;
     startClock();
+    // Empty the rows and measure the field-only pane before the open class is
+    // painted: the column and the pane then leave on the same frame at the
+    // same height, with no extra measuring frame tugging the rows afterwards.
+    renderResults();
+    publishPaneHeight();
     paintOpenState();
     refreshLaneScrollers();
-    renderResults();
     const input = currentInput();
     if (input) {
       requestAnimationFrame(() => {

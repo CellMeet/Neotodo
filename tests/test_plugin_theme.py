@@ -8,8 +8,8 @@ through the `neotodo-theme` message; the stylesheet maps them onto each
 plugin's private variables.
 
 The magic-hat drawer is checked here too: it is now the same card as the live
-subtask sheet — a `卡片` tag, the shared ink-green stroke and page_line row
-rules.
+subtask sheet — the shared ink-green stroke, page_line row rules and the shared
+card overlap, without a printed card tag.
 """
 from __future__ import annotations
 
@@ -21,8 +21,9 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 PLUGINS = WEB / "plugins"
 
-# Every bundled plugin control page. Palette is absent on purpose: it opens the
-# notebook's own Settings sheet and applies the palette snapshot itself.
+# Every bundled plugin control page. Palette and Postcards are absent on
+# purpose: they open the notebook's own Settings sheet (manifest tag
+# "intheme") and copy the palette snapshot / load style.css themselves.
 CONTROL_PAGES = (
     "completed-drawer",
     "fireflies",
@@ -110,12 +111,15 @@ class PluginThemeBridgeTests(unittest.TestCase):
 
 
 class TrashCardTests(unittest.TestCase):
-    def test_drawer_is_marked_as_a_card_with_its_tag(self) -> None:
+    def test_drawer_is_marked_as_a_card_without_a_printed_tag(self) -> None:
         index = read(WEB / "index.html")
         drawer = index.split('<aside class="trash-drawer"', 1)[1].split(">", 1)[0]
         self.assertIn('data-subcard="trash"', drawer)
-        self.assertIn('<span class="trash-label" aria-hidden="true">卡片</span>', index)
-        self.assertIn('class="trash-label"', index)
+        # The hat card is already marked by data-subcard; the old printed
+        # "卡片" tag is gone.
+        self.assertNotIn("trash-label", index)
+        drawer_body = index.split('<aside class="trash-drawer"', 1)[1].split("</aside>", 1)[0]
+        self.assertNotIn("卡片", drawer_body)
 
     def test_drawer_uses_the_card_border_and_page_line(self) -> None:
         style = read(WEB / "style.css")
@@ -134,11 +138,15 @@ class TrashCardTests(unittest.TestCase):
 
         layers = read(WEB / "wallpaper-layers.css")
         self.assertIn("html[data-wallpaper] .trash-drawer", layers)
-        self.assertIn("html[data-wallpaper] [data-subcard] > .trash-label", layers)
+        self.assertNotIn("trash-label", layers)
 
         stack = read(WEB / "card-stack.css")
         self.assertIn("body .trash-drawer", stack)
         self.assertIn("html[data-wallpaper] body .trash-drawer", stack)
+        # The hat card opens over the categories spine: its paper and coating
+        # are one card layer above that spine.
+        self.assertIn("z-index: 155;", stack)
+        self.assertIn("isolation: isolate;", stack)
 
     def test_drawer_manifest_is_not_a_plugin(self) -> None:
         # The magic hat is built into the notebook: no manifest, no rail button

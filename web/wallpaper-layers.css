@@ -254,12 +254,6 @@ html[data-wallpaper] [data-wallpaper-surface] > :not(.card-wallpaper) {
   z-index: 1;
 }
 
-/* The drawer's corner tag is absolutely placed on the card, so it must keep
-   its own positioning instead of joining the content flow above the pane. */
-html[data-wallpaper] [data-subcard] > .trash-label {
-  position: absolute;
-}
-
 /* The top hidden box: the room's picture behind the tools, and nothing else.
    It is not a card, so it gets no card stroke, no card radius and no card
    shadow — only its own bar edge and drop shadow stay, exactly as without a
@@ -275,9 +269,10 @@ html[data-wallpaper] #top-tools {
    plugins/subtask-search/subtask-search.css, so it keeps one material with or
    without a wallpaper. */
 
-/* Settings and the achievement sheets are the strongest layers: their text
-   must stay readable, so they keep more paper in the mix. */
+/* Settings, Community and the achievement sheets are the strongest layers:
+   their text must stay readable, so they keep more paper in the mix. */
 html[data-wallpaper] .settings-panel,
+html[data-wallpaper] .community-panel,
 html[data-wallpaper] .completed-sheet {
   border-color: var(--wallpaper-glass-edge) !important;
   background-color: var(--wallpaper-glass-strong) !important;
@@ -298,6 +293,7 @@ html[data-wallpaper] .settings-nav {
   html[data-wallpaper] .completed-subtask-drawer,
   html[data-wallpaper] .trash-drawer,
   html[data-wallpaper] .settings-panel,
+  html[data-wallpaper] .community-panel,
   html[data-wallpaper] .completed-sheet {
     background-color: color-mix(in srgb, var(--pc-paper, #f7efe3) 82%, transparent) !important;
   }

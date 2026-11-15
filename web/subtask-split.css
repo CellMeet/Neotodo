@@ -98,16 +98,16 @@
 /* --------------------------------------------------------------------------
    The live subtask card
    --------------------------------------------------------------------------
-   The unfinished rows are printed on their own sheet. The sheet is open on
-   the left — there is no divider between the finished column and this one, so
-   the two read as one page — and closes with a rounded right edge. It is
+   The unfinished rows are printed on a card. A card is a sheet that appears
+   on top of the page: paper, one stroke on all four sides, one corner. It is
    exactly seven unit rows tall, so its bottom edge lands on the page baseline
    and the rows never leave the page's ruled grid.
 
-   The purple handle line is the sheet's bottom edge. Stretch it up and the
-   card folds to a short tab whose line sits right under the block's top line;
-   stretch it down and the seven rows come back. The button rides the edge, so
-   the control is always exactly where the sheet ends.
+   The purple handle line is the card's bottom edge. Stretch it up and the card
+   folds away — face, stroke and corner all go — until only the line is left
+   right under the block's top line and the page's own ruling shows through.
+   Stretch it down and the card comes back. The button rides the edge, so the
+   control is always exactly where the sheet ends.
    -------------------------------------------------------------------------- */
 
 .pending-subtask-card {
@@ -121,17 +121,16 @@
   height: 100%;
   max-height: var(--page-task-h, 280px);
   overflow: hidden;
-  /* No left edge and no left corner: the column divider is gone and the sheet
-     runs straight into the finished column. */
-  border-radius: 0 var(--overlay-radius, 10px) var(--overlay-radius, 10px) 0;
+  border-radius: var(--overlay-radius, 10px);
   background-color: var(--overlay-paper, var(--paper));
   background-image: none;
   /* The stretch is the control: the bottom edge travels, the top stays. */
-  transition: max-height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: max-height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 0.18s ease;
 }
 
-/* The edge is painted inside the box (a 1px border would push every row off
-   the page's 40px pitch) and only on three sides: top, right, bottom. */
+/* The stroke is painted inside the box (a 1px border would push every row off
+   the page's 40px pitch) and on all four sides: a card is closed. */
 .pending-subtask-card::after {
   content: "";
   position: absolute;
@@ -139,14 +138,21 @@
   z-index: 11;
   pointer-events: none;
   border: 1px solid var(--subcard-outline, #2f5d4e);
-  border-left: 0;
   border-radius: inherit;
+  transition: opacity 0.18s ease;
 }
 
-/* Folded away the sheet is a short tab: the rows fade under the shrinking
-   edge and only the handle line is left, right under the block's top line. */
+/* Folded away the card is gone: no face, no stroke, no corner. Only the handle
+   line is left, and the page underneath is its plain ruled self again — the
+   rows of the page line run straight across the block. */
 .pending-subtask-card.collapsed {
   max-height: var(--pending-card-fold, 28px);
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.pending-subtask-card.collapsed::after {
+  opacity: 0;
 }
 
 .pending-subtask-card .subtask-lanes {
@@ -156,32 +162,6 @@
 .pending-subtask-card.collapsed .subtask-lanes {
   opacity: 0;
   pointer-events: none;
-}
-
-.pending-subtask-card .pending-subtask-label {
-  transition: opacity 0.16s ease;
-}
-
-.pending-subtask-card.collapsed .pending-subtask-label {
-  opacity: 0;
-}
-
-/* The card's tag, printed in the quiet top-right corner of the first row. */
-.pending-subtask-label {
-  position: absolute;
-  top: 9px;
-  right: 16px;
-  z-index: 10;
-  color: var(--pc-muted, var(--muted, #887d6c));
-  font-family: var(--display, "P052", serif);
-  font-size: 12px;
-  font-style: italic;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  opacity: 0.75;
-  pointer-events: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 /* One 30px strip lying on the card's bottom edge, holding the purple pill. */
@@ -416,6 +396,13 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   margin: 0 !important;
   pointer-events: none;
   will-change: transform, opacity;
+}
+
+/* The new finished row's rule arrives first; its fan, name and check land with
+   the flight. Keeping the row itself visible lets the rule push the finished
+   rows below it down, instead of opening an empty hole above them. */
+.current-subtask.subtask-slot-arriving > * {
+  visibility: hidden;
 }
 
 /* What travels is the row's paper: its bottom line, its fan and its name. The

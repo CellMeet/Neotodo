@@ -721,6 +721,10 @@ details[open] > summary .chev { transform: rotate(90deg); }
   border-bottom: 1px dotted var(--line);
   color: var(--gold);
   font-size: 12px;
+  /* A long chronicle only paints the rows inside its scrollport, so opening
+     the sheet stays quick however many years it holds. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 36px;
 }
 .log-line .log-trophy { font-size: 11px; }
 .log-line .log-category {
@@ -6362,20 +6366,7 @@ html[data-theme] .page-body .notes-half.floating-notes .note-block-placeholder{ 
 html[data-theme] .page-body .notes-half.floating-notes .note-hide { color: #7d5937; }
 html[data-theme] .page-body .notes-half.floating-notes .note-hide:hover { color: #2f1d0e; }
 
-/* The quill resting on the parchment. */
-.notes-quill {
-  position: absolute;
-  right: 24px;
-  top: 18px;
-  z-index: 0;
-  width: 140px;
-  height: 220px;
-  color: #6b4a2b;
-  opacity: 0.12;
-  pointer-events: none;
-  transform: rotate(14deg);
-}
-.notes-quill svg { width: 100%; height: 100%; display: block; }
+/* The note sheet sits under the head and body only. */
 .notes-half.floating-notes .notes-head,
 .notes-half.floating-notes .notes-body,
 .notes-half.floating-notes .notes-empty{ position: relative; z-index: 1; }
@@ -6410,16 +6401,6 @@ html[data-theme] .page-body .notes-half.floating-notes .note-hide:hover { color:
 
 html[data-font="pen"] { --display: "Z003", "HYYeYXSJ", "P052", "URW Bookman", serif; }
 html[data-note-font="pen"] { --note-font: "Z003", "HYYeYXSJ", "P052", "URW Bookman", serif; }
-
-html[data-theme] .notes-half.floating-notes .notes-quill {
-  position: absolute;
-  right: 24px;
-  top: 18px;
-  width: 140px;
-  height: 220px;
-  z-index: 0;
-  pointer-events: none;
-}
 
 /* Right header marks: larger and shifted inward. */
 .head-right { gap: 24px; margin-right: 28px; }
@@ -6903,12 +6884,10 @@ body.focus-running .focus-timer,
 }
 .focus-name::before { content: ""; }
 
-/* Adjustable task title position and icon size. */
-.page-head > .banner-title,
-.page-head > .page-head-title{ transform: translateX(var(--title-offset, 0px)); }
+/* Header icon size. */
 .banner-icon {
-  width: var(--title-icon-size, 48px);
-  height: var(--title-icon-size, 48px);
+  width: 62px;
+  height: 62px;
   flex: 0 0 auto;
   aspect-ratio: 1;
   overflow: visible;
@@ -6965,7 +6944,7 @@ textarea { -webkit-user-select: text; user-select: text; }
 button, .current-action, .sub-complete, .tool-button, .settings-button { -webkit-user-select: none; user-select: none; }
 .page-head-title { flex: 0 1 auto; max-width: calc(100% - 70px); }
 
-/* Task title sits one finger in from the left, adjustable from Settings. */
+/* Task title sits one finger in from the left. */
 .page-head { justify-content: flex-start; padding-left: 28px; }
 .head-title-inner .current-actions { gap: 1px; }
 .action-slash {
@@ -7101,6 +7080,9 @@ html[data-theme="postcard"] .current-subtask.selected {
   height: 42px;
   border-bottom: 1px dotted var(--line);
   color: var(--ink);
+  /* Same lazy painting as the chronicle, for long focus histories. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 42px;
 }
 .focus-line .focus-tomato {
   width: 26px;
@@ -7313,6 +7295,31 @@ html[data-theme="postcard"] .search-field { border-bottom-color: var(--pc-line);
 html[data-theme="postcard"] .top-tools .archive-button { color: var(--pc-accent); }
 html[data-theme="postcard"] .top-tools .archive-button:hover { color: var(--pc-ink); }
 
+/* The freed archive slot now opens AI / Agent management. */
+.top-tools .agent-settings-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  opacity: .85;
+}
+.top-tools .agent-settings-glyph {
+  width: 27px;
+  height: 27px;
+  display: block;
+  object-fit: contain;
+  fill: currentColor;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+.top-tools .agent-settings-button:hover { opacity: 1; color: var(--ink); }
+.top-tools .agent-settings-button:hover .agent-settings-glyph { transform: translateY(-1px) scale(1.06); }
+.top-tools .agent-settings-button:active .agent-settings-glyph { transform: scale(0.95); }
+
 /* Note drawer handle: a short phone-style bar above the bottom frame. */
 .notes-handle {
   position: fixed;
@@ -7341,26 +7348,8 @@ html[data-theme="postcard"] .top-tools .archive-button:hover { color: var(--pc-i
 html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle::before { background: rgba(0, 0, 0, 0.28); }
 html[data-theme="postcard"]:not([data-postcard-dark="true"]) .notes-handle:hover::before { background: rgba(0, 0, 0, 0.5); }
 
-/* Artistic subtitle in the lower-right corner. */
-.notes-half.floating-notes > .brand-subtitle {
-  position: absolute;
-  right: 26px;
-  bottom: 10px;
-  z-index: 3;
-  color: var(--note-muted, var(--muted));
-  font-family: "Z003", "Caveat", "URW Bookman", serif;
-  font-style: italic;
-  font-size: 19px;
-  letter-spacing: .015em;
-  opacity: .8;
-  pointer-events: none;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.22);
-  transition: opacity .16s ease, visibility .16s ease;
-}
-
-/* The motto belongs to the open note only. */
-body.notes-hidden .brand-subtitle { opacity: 0; visibility: hidden; }
-html[data-theme="postcard"] .brand-subtitle { color: var(--pc-muted); }
+/* The motto belonged to the lower-right corner; the note sheet now ends with
+   its own text. The sheet keeps the extra bottom padding as writing space. */
 .notes-half.floating-notes { padding-bottom: 34px; }
 
 /* Timer: name drops to the next blank line, with a rounder tomato. */
@@ -7861,8 +7850,7 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
 /* Keep the tavern/app shell invisible until final settings are applied. */
 .app-shell { visibility: hidden; }
 body.app-ready .app-shell { visibility: visible; }
-.booting .notes-handle-bottom,
-.booting .brand-subtitle{ visibility: hidden; }
+.booting .notes-handle-bottom{ visibility: hidden; }
 
 /* Faster category spine motion, less visual fatigue. */
 .index { transition: flex-basis .18s ease, width .18s ease, padding .18s ease, opacity .12s ease; }
@@ -8905,13 +8893,6 @@ body.doing-dragging { cursor: grabbing; user-select: none; }
   line-height: 1;
   color: var(--pc-ink, var(--ink, #2c261d));
 }
-.doing-count {
-  flex: 0 0 auto;
-  letter-spacing: 0.06em;
-  font-size: 10px;
-  color: var(--pc-muted, var(--muted, #8b7a5f));
-}
-
 .doing-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -9193,9 +9174,21 @@ html[data-theme="postcard"] .head-title-inner .current-actions {
   font-size: calc(38px * var(--user-scale, 1));
 }
 
-/* The tissue icon is bottom-aligned and sized so its red centre lands on the
-   header's upper rule; no extra downward nudge is needed. */
-html[data-theme="postcard"] .banner-icon {
+/* The tissue icon rides the page grid: it is one and a half ruled rows tall,
+   and the wrapper (not the icon, so the tap-pop keeps its own transform) is
+   shifted until the red centre sits exactly on the header's upper rule. This
+   holds for every row pitch and line weight the reader picks, and the extra
+   room under the drawing lets the icon grow without spilling past the rule. */
+html[data-theme="postcard"] .page-head .banner-title {
+  --banner-icon-size: clamp(62px, calc(var(--page-line-row) * 1.5), 84px);
+  top: calc(
+    0.6481 * var(--banner-icon-size) - var(--page-line-row) -
+      var(--page-line-thickness) / 2
+  );
+}
+html[data-theme="postcard"] .banner-title .banner-icon {
+  width: var(--banner-icon-size);
+  height: var(--banner-icon-size);
   transform: none;
 }
 
@@ -9853,23 +9846,6 @@ html[data-theme="postcard"] .current-subtask { padding-left: 29px; }
   transform: translateX(-16px);
   transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.22, 0.8, 0.24, 1);
 }
-/* The card's tag, printed in the quiet top-right corner beside the close mark. */
-.trash-label {
-  position: absolute;
-  top: 14px;
-  right: 48px;
-  z-index: 10;
-  color: var(--pc-muted, var(--muted, #887d6c));
-  font-family: var(--display, "P052", serif);
-  font-size: 11px;
-  font-style: italic;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  opacity: 0.62;
-  pointer-events: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
 .trash-drawer.open {
   opacity: 1;
   pointer-events: auto;
@@ -10127,13 +10103,9 @@ html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-link
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-link:hover{
   color: #ffffff !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-quill,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-icon {
   color: rgba(235, 245, 255, 0.72) !important;
   opacity: 0.7;
-}
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .brand-subtitle {
-  color: rgba(231, 241, 250, 0.46) !important;
 }
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-drag-handle span,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-resize-handle {
@@ -10426,13 +10398,6 @@ html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-link
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-icon {
   color: #11110e !important;
   opacity: 1 !important;
-}
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-quill {
-  color: #1a1a16 !important;
-  opacity: 0.26 !important;
-}
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .brand-subtitle {
-  color: rgba(30, 30, 25, 0.45) !important;
 }
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-drag-handle span {
   background: rgba(30, 30, 25, 0.35) !important;
@@ -10828,11 +10793,12 @@ html[data-theme="postcard"] .settings-close::before{
   gap: 6px;
   flex-wrap: wrap;
 }
-/* The current-time on/off switch reuses the sound panel switch, but leaves a
-   finger-width gap to the right edge so it never touches the panel border. */
-.theme-settings-controls .theme-clock-switch {
+/* The time-cost and current-time on/off switches reuse the sound panel
+   switch. Each one leaves a finger's width plus one more finger clear of the
+   right edge, so the thumb never sits against the panel border. */
+.theme-settings-controls .theme-setting-switch {
   flex: 0 0 auto;
-  margin-inline-end: 18px;
+  margin-inline-end: 36px;
 }
 .theme-chip,
 .theme-chip-button {
@@ -11423,16 +11389,23 @@ html[data-theme="postcard"] .category-item.selected {
   text-shadow: none !important;
 }
 
-/* Settings and achievement sheets open in place without dimming or blurring the app. */
+/* Settings, Community and achievement sheets open in place without dimming or
+   blurring the app. */
 .settings-stage,
 .completed-stage,
+.community-stage,
 html[data-theme="lavender"] .settings-stage,
 html[data-theme="lavender"] .completed-stage,
+html[data-theme="lavender"] .community-stage,
 html[data-theme="postcard"] .settings-stage,
-html[data-theme="postcard"] .completed-stage {
+html[data-theme="postcard"] .completed-stage,
+html[data-theme="postcard"] .community-stage {
   background: transparent !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+  /* The achievement sheet used to fade in over 160ms, which made a click feel
+     sluggish; it is painted on the next frame now. */
+  animation: none !important;
 }
 
 /* Match the achievement and pomodoro sheets to the Settings width. */
@@ -11524,7 +11497,7 @@ html[data-theme="postcard"] .modal-actions .btn.primary.to-do {
 
 /* Move the todo title block nearer the banner icon. */
 html[data-theme="postcard"] .page-head > .page-head-title {
-  transform: translateX(calc(var(--title-offset, 0px) - 8px));
+  transform: translateX(-8px);
 }
 
 /* Empty "Nothing to do..." line: larger, lifted so the N crosses the rule. */
@@ -12598,7 +12571,7 @@ html[data-postcard-dark="true"] .agent-terminal {
 
 /* OpenCode-style copy toast: it rises above the copied line, holds for a
    moment, then simply vanishes. A slim cyan block sits on each side as the
-   accent; the card itself has no outline. */
+   accent; the card itself has no outline and keeps square corners. */
 .agent-copy-flash {
   position: fixed;
   z-index: 9999;
@@ -12606,7 +12579,7 @@ html[data-postcard-dark="true"] .agent-terminal {
   align-items: center;
   padding: 6px 15px;
   border: 0;
-  border-radius: 3px;
+  border-radius: 0;
   background: var(--oc-soft, #f4f4f5);
   color: var(--oc-ink, #171718);
   font-family: var(--oc-mono, ui-monospace, monospace);
@@ -12631,6 +12604,50 @@ html[data-postcard-dark="true"] .agent-terminal {
 }
 .agent-copy-flash::before { left: 0; }
 .agent-copy-flash::after { right: 0; }
+
+/* Notes and every other NeoTodo page copy text the same way the console does.
+   One upright "Copied to clipboard" badge, squared off, with a theme-coloured
+   block on each side. It wears the notebook's own paper, ink and accent rather
+   than the console palette, so the page answer never looks like an AI message.
+   It sits two fingers below the top edge, centred over the notebook. */
+.page-copy-flash {
+  position: fixed;
+  z-index: 10000;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 20px 5px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pc-paper, var(--paper, #f3efe2));
+  color: var(--pc-ink, var(--ink, #342315));
+  box-shadow: 0 10px 26px rgba(60, 40, 20, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  font-family: var(--display, "Noto Serif", serif);
+  font-style: normal;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  opacity: 1;
+  overflow: hidden;
+}
+.page-copy-flash::before,
+.page-copy-flash::after{
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--pc-accent, var(--gold, #a8781f));
+}
+.page-copy-flash::before { left: 0; }
+.page-copy-flash::after { right: 0; }
 
 /* Every written line in the console can be selected and copied: replies,
    the thinking process, tool noise and notices alike. Only the head chrome
@@ -14613,14 +14630,19 @@ html[data-theme="postcard"] .doing-peek.open {
    (100vh - its height) / 2. The sheets start one ruled notebook row above that
    line, and app.js (applyOverlayTop) then snaps that edge onto the page's own
    ruled line so the frame's top border covers the rule instead of leaving it
-   floating beside the sheet. The row pitch is --page-line-row, so changing the
-   row height in Settings moves the sheets with the grid. This block is the
-   no-JS fallback with the same expression.
+   floating beside the sheet. From there they drop by --overlay-finger, roughly
+   one finger, so the frame clears the header. The row pitch is
+   --page-line-row, so changing the row height in Settings moves the sheets with
+   the grid. This block is the no-JS fallback with the same expression.
    -------------------------------------------------------------------------- */
 :root {
+  /* One finger-width drop below the rule the sheets used to start on, so the
+     Settings, achievement and postcard/archive frames clear the header while
+     the postcard frame itself stays put. */
+  --overlay-finger: 30px;
   --overlay-top: max(
     0px,
-    calc((100vh - var(--postcard-height)) / 2 - var(--page-line-row, 40px))
+    calc((100vh - var(--postcard-height)) / 2 - var(--page-line-row, 40px) + var(--overlay-finger))
   );
 }
 .settings-stage,
@@ -14634,8 +14656,9 @@ html[data-theme="postcard"] .doing-peek.open {
 .completed-sheet {
   max-height: min(86vh, calc(100vh - var(--overlay-top) - 12px));
 }
-/* The postcard stays the frame: its height comes from --postcard-height and its
-   top edge is the line the sheets start on, with no extra transform or cap. */
+/* The postcard stays the frame: its height comes from --postcard-height and
+   the sheets line up with its top edge (one row above, then the finger drop),
+   with no extra transform or cap. */
 .postcard { transform: none !important; }
 
 /* Postcard viewer controls follow the active postcard theme. */
@@ -14985,38 +15008,38 @@ html[data-theme="postcard"] .head-right .trophy-glyph {
 .head-right .tomato-counter.ach-click-spin .ach-sticker{ animation: none; }
 }
 
-/* Settings → Stickers: one card per achievement. The picture is the whole
-   setting, so the card shows the sticker big, says which badge it decorates,
-   and keeps the choices to Replace / Default. */
+/* Settings → Stickers: one card per header achievement. The preview is a copy
+   of the real badge at the same size, so the crop reads exactly as it will on
+   the header; the choices stay Replace / Default. */
 .sticker-settings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 14px;
   margin-top: 4px;
 }
 .sticker-setting-card {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
   padding: 12px;
   border: 1px solid var(--pc-border, rgba(104, 76, 38, 0.22));
   border-radius: 12px;
   background: var(--pc-paper-soft, rgba(255, 255, 255, 0.28));
 }
-.sticker-setting-card.is-missing {
-  border-style: dashed;
-  opacity: 0.62;
-}
+/* Fallback box; the inline width/height copies the header badge exactly. */
 .sticker-setting-preview {
   display: block;
-  width: 100%;
-  height: 118px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 109px;
+  height: 56px;
   overflow: hidden;
-  border: 3px solid #fffdf8;
-  border-radius: 14px;
+  border: 2px solid #fffdf8;
+  border-radius: 17px;
   outline: 1px solid rgba(30, 40, 50, 0.28);
   background: #fffdf8;
-  box-shadow: 0 4px 12px rgba(60, 40, 20, 0.16);
+  box-shadow: 0 3px 9px rgba(60, 40, 20, 0.16);
 }
 .sticker-setting-preview img {
   width: 100%;
@@ -15037,28 +15060,11 @@ html[data-theme="postcard"] .head-right .trophy-glyph {
   font-size: 14px;
   color: var(--pc-ink, var(--ink));
 }
-.sticker-setting-hint {
-  font-family: var(--display);
-  font-size: 10.5px;
-  line-height: 1.4;
-  color: var(--pc-muted, var(--muted));
-}
 .sticker-setting-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 6px;
-}
-.sticker-setting-actions .btn[disabled] {
-  cursor: default;
-  opacity: 0.55;
-}
-.sticker-footnote {
-  margin: 12px 0 0;
-  color: var(--pc-muted, var(--muted));
-  font-family: var(--display);
-  font-size: 10.5px;
-  line-height: 1.5;
 }
 html[data-theme="postcard"] .sticker-setting-card { background: rgba(255, 255, 255, 0.26); }
 
@@ -16902,9 +16908,15 @@ html[data-wallpaper] .doing-peek::before { opacity: 0.50; }
 /* ==========================================================================
    COMMUNITY WINDOW
    --------------------------------------------------------------------------
-   Community used to be a tab inside Settings. Plugins are moving to a remote
-   catalog, so it now opens as its own sheet: Settings stays for local
-   preferences, Community browses what the community server offers.
+   Community is an in-app sheet, printed on the same page as Settings: no
+   dimming veil, no frosted backdrop and no entry fade, so the notebook stays
+   crisp behind it and the shelf is readable on the first frame.
+   Its paper is one finger wider than the Settings sheet on every side — the
+   top edge rises one finger (onto the page's first ruled line, where Settings
+   used to start before it dropped for the header), and the left, right and
+   foot each gain the same --overlay-finger of paper. Keep the two sheets
+   derived from one set of numbers so changing the finger or the Settings size
+   moves both together.
    ========================================================================== */
 .community-stage {
   position: fixed;
@@ -16915,17 +16927,26 @@ html[data-wallpaper] .doing-peek::before { opacity: 0.50; }
   justify-content: center;
   padding: 24px;
   padding-top: var(--overlay-top, 24px);
-  background: rgba(18, 11, 6, 0.56);
-  backdrop-filter: blur(5px);
-  animation: community-stage-in 0.18s ease-out both;
-}
-@keyframes community-stage-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
 }
 .community-panel {
-  width: min(880px, 94vw);
-  height: min(680px, calc(100vh - var(--overlay-top, 24px) - 26px));
+  /* One finger of extra paper on every side of the Settings sheet. The rise
+     is clamped so a very short window never lifts the sheet off the top. */
+  --community-finger: var(--overlay-finger, 30px);
+  --community-rise: min(var(--community-finger), var(--overlay-top, 24px));
+  position: relative;
+  top: calc(-1 * var(--community-rise));
+  width: min(
+    calc(min(780px, 94vw) + var(--community-finger) * 2),
+    calc(100vw - 24px)
+  );
+  height: min(
+    calc(min(620px, 86vh) + var(--community-finger) * 2),
+    calc(100vh - var(--overlay-top, 24px) - 12px + var(--community-rise))
+  );
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -16934,11 +16955,7 @@ html[data-wallpaper] .doing-peek::before { opacity: 0.50; }
   background: var(--paper);
   color: var(--ink);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.2);
-  animation: community-panel-in 0.2s cubic-bezier(0.2, 0.8, 0.3, 1) both;
-}
-@keyframes community-panel-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.995); }
-  to { opacity: 1; transform: none; }
+  animation: none;
 }
 .community-topbar {
   flex: 0 0 auto;
@@ -17079,21 +17096,23 @@ html[data-wallpaper] .doing-peek::before { opacity: 0.50; }
 @media (max-width: 760px) {
   .community-stage { padding: 10px; padding-top: var(--overlay-top, 12px); }
   .community-panel {
+    --community-finger: var(--overlay-finger, 30px);
+    --community-rise: min(var(--community-finger), var(--overlay-top, 12px));
     width: 100%;
-    height: calc(100vh - var(--overlay-top, 12px) - 12px);
+    /* The top still rises one finger; the extra paper goes below the fold. */
+    height: calc(100vh - var(--overlay-top, 12px) - 12px + var(--community-rise));
   }
   .community-brand-copy small { display: none; }
   .community-foot span:first-child { display: none; }
   .community-foot { justify-content: flex-end; }
 }
 
-/* Community window follows the same paper as the theme it opens on. */
-html[data-theme="lavender"] .community-stage { background: rgba(80, 55, 105, 0.3); }
+/* Community window follows the same paper as the theme it opens on, and its
+   stage stays clear on every theme: it is a sheet on the page, not a veil. */
 html[data-theme="lavender"] .community-panel {
   background: var(--paper);
   box-shadow: 0 22px 65px rgba(80, 50, 110, 0.24), 0 0 0 1px rgba(180, 150, 210, 0.28);
 }
-html[data-theme="postcard"] .community-stage { background: rgba(20, 12, 6, 0.42); }
 html[data-theme="postcard"] .community-panel {
   background: var(--pc-paper);
   border-color: var(--pc-border);
@@ -17231,3 +17250,8 @@ html[data-theme="postcard"] .community-brand-copy strong { color: var(--pc-ink);
 }
 .theme-unit-row.active .choice-check { opacity: 1; }
 
+
+/* AI settings: its own sheet behind the robot icon. It reuses the Settings
+   stage and panel, but sheds the nav column and keeps its width a little
+   tighter than the full Settings window. */
+.ai-settings-panel { width: min(760px, 94vw); }

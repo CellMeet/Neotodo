@@ -86,7 +86,7 @@ my-plugin/
 | `author` | Your name or team. |
 | `category` | `interface`, `play`, `productivity`, `utility`, `ai`… |
 | `license` | Optional, but strongly recommended. |
-| `tags` | Up to 6 short words for search. Include `achievement` (or `成就`) to claim a top-right header slot next to the headphone achievement. |
+| `tags` | Up to 6 short words for search. Include `achievement` (or `成就`) to claim a top-right header slot next to the headphone achievement. Include `intheme` when the page is the notebook's own Settings-style sheet instead of a mini-app. |
 | `settings` | Only `toggle` settings are rendered by the host today. |
 
 ### The host contract

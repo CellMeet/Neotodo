@@ -63,6 +63,35 @@ html[data-postcard-dark="true"] .palette-glyph {
   filter: drop-shadow(0 0 6px rgba(236, 102, 70, 0.3));
 }
 
+/* Postcards keep the reader's picture mark in the rail. */
+.postcard-button { overflow: visible; }
+
+.postcard-glyph {
+  width: 32px;
+  height: 32px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(90, 42, 20, 0.16));
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.postcard-button:hover .postcard-glyph {
+  transform: translateY(-1px) rotate(-3deg) scale(1.08);
+}
+
+.postcard-button:active .postcard-glyph {
+  transform: scale(0.95);
+}
+
+.postcard-button:focus,
+.postcard-button:focus-visible {
+  outline: none !important;
+}
+
+html[data-postcard-dark="true"] .postcard-glyph {
+  filter: drop-shadow(0 0 6px rgba(255, 200, 36, 0.3));
+}
+
 /* Forktree keeps the user's blue mind-map mark in the rail. */
 .forktree-button { overflow: visible; }
 
@@ -108,8 +137,10 @@ html[data-postcard-dark="true"] .forktree-glyph {
   pointer-events: auto;
 }
 
-/* Palette is a Settings sheet, not a mini-app: keep the live notebook and its
-   wallpaper visible around the floating panel. */
+/* An "intheme" plugin is a Settings sheet, not a mini-app: keep the live
+   notebook and its wallpaper visible around the floating panel. The host also
+   keeps this class until the closing fade ends — dropping it first paints the
+   paper fallback over the notebook, which readers see as a page refresh. */
 .plugin-root.plugin-glass {
   background: transparent;
 }
@@ -130,5 +161,6 @@ body.plugin-open {
 @media (prefers-reduced-motion: reduce) {
   .pindou-glyph,
   .palette-glyph,
+  .postcard-glyph,
   .plugin-root { transition: none; }
 }

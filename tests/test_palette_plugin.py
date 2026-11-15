@@ -56,6 +56,10 @@ def main() -> int:
     theme_body = app_js.split("function themeSettings()", 1)[1].split("function fontSettings()", 1)[0]
     for moved in ("Selection highlight", "Page line layout", "Finished rows"):
         assert moved not in theme_body, moved
+    # The Palette plugin lives on the tool rail; Settings does not offer an
+    # "Open palette" row or a second switch for it.
+    assert "Open palette" not in theme_body
+    assert 'data-action="open-palette"' not in theme_body
     # The note surface belongs to the note palette, not to the page palette.
     assert "Note surface" in theme_body
     assert "data-note-surface-file" in theme_body

@@ -1,0 +1,159 @@
+/* ==========================================================================
+   POSTCARD PLUGIN PAGE
+   --------------------------------------------------------------------------
+   The page is the notebook's own Settings sheet: style.css supplies the stage,
+   panel, nav, rows, the archive week list and the postcard itself. This file
+   only carries the pieces the sheet does not have: the rail mark, the year
+   jump list and the inline preview spacing.
+   ========================================================================== */
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+}
+
+body {
+  overflow: hidden;
+}
+
+.postcard-brand-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex: 0 0 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(90, 42, 20, 0.14));
+}
+
+/* Year jumps are a compact version of the Settings nav. */
+.pc-nav-years {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.pc-nav-years::-webkit-scrollbar {
+  display: none;
+}
+
+.pc-nav-years .settings-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.pc-nav-count {
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.pc-nav-foot {
+  margin: auto 8px 0;
+  overflow: hidden;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pc-archive {
+  min-width: 0;
+}
+
+.pc-archive .year-group + .year-group {
+  margin-top: 12px;
+}
+
+.pc-archive .week-line {
+  grid-template-columns: 5px 42px 92px minmax(0, 1fr) auto 12px;
+  gap: 9px;
+}
+
+.pc-archive .week-theme {
+  letter-spacing: 0.06em;
+}
+
+.pc-archive .archive-postcard {
+  width: 100%;
+}
+
+.pc-archive .archive-postcard[hidden] {
+  display: none !important;
+}
+
+.pc-archive .archive-postcard .postcard {
+  width: 100%;
+}
+
+.pc-archive .pc-empty {
+  padding: 30px 2px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display);
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.pc-archive .pc-empty strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--pc-ink, var(--ink));
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* The archive rows already carry the weekly art; the sheet only needs to keep
+   the winter/light pages readable where the tint is strongest. */
+.pc-archive .week-line::before {
+  background: linear-gradient(90deg, rgba(247, 241, 228, 0.72), rgba(247, 241, 228, 0.24) 78%);
+}
+
+html[data-postcard-dark="true"] .pc-archive .week-line::before {
+  background: linear-gradient(90deg, rgba(18, 13, 8, 0.72), rgba(18, 13, 8, 0.24) 78%);
+}
+
+@media (max-width: 760px) {
+  .settings-nav {
+    display: none;
+  }
+
+  .settings-panel {
+    width: min(720px, 96vw);
+    height: min(640px, 92vh);
+  }
+
+  .pc-archive .week-line {
+    grid-template-columns: 5px 36px 78px minmax(0, 1fr) auto 12px;
+    gap: 7px;
+  }
+}
+
+@media (max-width: 560px) {
+  .pc-archive .week-theme {
+    display: none;
+  }
+
+  .pc-archive .week-line {
+    grid-template-columns: 5px 36px minmax(0, 1fr) auto 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-nav-item {
+    transition: none;
+  }
+}

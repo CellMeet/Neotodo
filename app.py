@@ -2622,9 +2622,6 @@ def default_data() -> dict:
             "show_time_cost": False,
             "focus_count": 0,
             "focus_log": [],
-            "title_offset": 0,
-            "title_icon_size": 62,
-            "title_icon_size_v2": True,
             "caret_blink": False,
             "caret_shape": "line",
             "caret_color": "#1b1b1b",
@@ -2747,22 +2744,6 @@ def load_data(path: Path | None = None) -> dict:
             settings.setdefault("note_font", "pen")
             settings.setdefault("scale", 1)
             settings.setdefault("show_time_cost", False)
-            try:
-                settings["title_offset"] = max(-500, min(500, int(settings.get("title_offset", 0))))
-            except (TypeError, ValueError):
-                settings["title_offset"] = 0
-            try:
-                settings["title_icon_size"] = max(24, min(96, int(settings.get("title_icon_size", 62))))
-            except (TypeError, ValueError):
-                settings["title_icon_size"] = 62
-            # Older builds shipped a 48px header icon whose red centre sat
-            # below the header's upper rule. Lift that default once, so an
-            # existing notebook gets the larger tissue icon while later
-            # choices from the settings slider are kept.
-            if not settings.get("title_icon_size_v2"):
-                if settings["title_icon_size"] <= 48:
-                    settings["title_icon_size"] = 62
-                settings["title_icon_size_v2"] = True
             try:
                 settings["focus_count"] = max(0, int(settings.get("focus_count", 0)))
             except (TypeError, ValueError):
@@ -3683,14 +3664,6 @@ class Store:
                         pass
                     if isinstance(incoming.get("focus_log"), list):
                         current["focus_log"] = incoming["focus_log"][-200:]
-                    try:
-                        current["title_offset"] = max(-500, min(500, int(incoming.get("title_offset", 0))))
-                    except (TypeError, ValueError):
-                        pass
-                    try:
-                        current["title_icon_size"] = max(24, min(96, int(incoming.get("title_icon_size", 62))))
-                    except (TypeError, ValueError):
-                        pass
                     if isinstance(incoming.get("caret_blink"), bool):
                         current["caret_blink"] = incoming["caret_blink"]
                     if incoming.get("caret_shape") in ("line", "block"):

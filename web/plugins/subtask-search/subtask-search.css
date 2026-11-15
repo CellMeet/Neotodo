@@ -48,16 +48,26 @@ body.subtask-search-on .current-half {
   overflow: hidden;
 }
 
+/* The pop is one short beat shared by the pane and the column (see below). */
+body.subtask-search-on {
+  --ss-pop-ms: 100ms;
+  --ss-pop-ease: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
 /* Opening the field makes room for it: the whole subtask column (rows, the
    Doing card, the finished-task handle and the completed card) is pushed down
    by exactly the drawer's own height, which the script measures into
    --ss-open-h on .current-half. Nothing from the task block can ever sit under
    the pane, so the search box never overlaps a card and is never covered by
-   one. The column keeps 100% of its height minus that measured strip. */
+   one. The column keeps 100% of its height minus that measured strip.
+
+   One beat for the whole drawer: the column and the pane share the exact same
+   duration and curve (--ss-pop-* below), so the field can never lead or lag
+   the rows under it while the box pops out. */
 body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {
   transition:
-    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1),
-    height 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
+    height var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1));
   will-change: transform;
 }
 
@@ -120,19 +130,22 @@ body.subtask-search-open .page-body > .todos-section > .current-half > .current-
   transform: translate3d(0, -102%, 0);
   will-change: transform;
   transition:
-    transform 0.46s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.26s ease,
-    visibility 0s linear 0.46s;
+    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
+    opacity 80ms ease,
+    visibility 0s linear var(--ss-pop-ms, 100ms);
 }
 
+/* The open state is painted on the same frame as the column shift, with the
+   same duration and curve, so the box arrives together with its gap: no
+   stagger, no half-open pause, and the field is usable the moment it lands. */
 .subtask-search-drawer.open {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transform: translate3d(0, 0, 0);
   transition:
-    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.18s ease,
+    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
+    opacity 50ms ease,
     visibility 0s linear 0s;
 }
 

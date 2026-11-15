@@ -91,6 +91,26 @@ class EffectPluginWiringTests(unittest.TestCase):
             ids = {entry.get("id") for entry in catalog["plugins"]}
             self.assertLessEqual(set(EFFECTS), ids, catalog_path)
 
+    def test_firelight_is_scoped_to_the_doing_card(self) -> None:
+        """Finished subtasks light the Doing card, never the subtask column.
+
+        The live Doing fan nests its art in .fan-stack, so matching only a
+        direct <svg> child (the preview page's shape) left the real fan dark.
+        The task rows beside the notes are a separate surface and stay unlit.
+        """
+        css = read(PLUGINS / "firelight" / "firelight.css")
+        self.assertIn(".doing-fan.has-unseen .fan-stack > svg", css)
+        self.assertNotIn(".sub-fan", css)
+        self.assertNotIn(".h-sub-fan", css)
+        app = read(WEB / "app.js")
+        # A finished subtask keeps its unseen marker, so the Doing mark lights
+        # until the reader opens that subtask's note.
+        self.assertIn("return (todo?.subtasks || []).some((subtask) => unseenAgentSubtasks.has(subtask.id));", app)
+        self.assertNotIn("!subtask.done && unseenAgentSubtasks.has(subtask.id)", app)
+        # The subtask column and history keep their quiet fans.
+        self.assertNotIn('sub-fan done ${unseen', app)
+        self.assertNotIn('sub-fan sub-fan-action ${unseen', app)
+
 
 if __name__ == "__main__":
     unittest.main()

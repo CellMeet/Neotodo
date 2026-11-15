@@ -9,6 +9,7 @@
   "author": "NeoTodo",
   "category": "interface",
   "kind": "chrome",
+  "tags": ["intheme", "theme", "palette", "line", "page"],
   "colors": {
     "accent": "#EC6646",
     "paper": "#f7efe3"

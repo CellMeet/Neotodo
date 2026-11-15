@@ -2023,7 +2023,7 @@ const AudioFX = (() => {
 // Images and films share the same option now; there is no separate
 // static/dynamic switch.
 const WALLPAPER_RECENT_LIMIT = 12;
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], title_offset: 0, title_icon_size: 62, caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], plugins: {}, sound_overrides: {} };
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], plugins: {}, sound_overrides: {} };
 // The page baseline is saved in its own baseline-color.json file, outside the
 // theme and outside the notebook settings. This is only the first-paint
 // fallback until /api/state answers with the stored colour.
@@ -2042,15 +2042,15 @@ const BASELINE_ROW_DEFAULT = {
 // each get one picture; a plugin without the "achievement" tag never appears
 // here, because it has no header slot to decorate.
 const STICKER_TARGETS = [
-  { id: "completed", name: "Completed trophy", hint: "The trophy that counts finished tasks", selector: ".head-right .trophy-button .ach-sticker img", fallback: "/stickers/yuji-battle.jpg" },
-  { id: "focus", name: "Pomodoro tomato", hint: "The tomato that counts focus rounds", plugin: "pomodoro", selector: ".head-right .tomato-counter .ach-sticker img", fallback: "/stickers/gojo-battle.jpg" },
+  { id: "completed", name: "Completed trophy", selector: ".head-right .trophy-button .ach-sticker img", fallback: "/stickers/yuji-battle.jpg" },
+  { id: "focus", name: "Pomodoro tomato", plugin: "pomodoro", selector: ".head-right .tomato-counter .ach-sticker img", fallback: "/stickers/gojo-battle.jpg" },
 ];
 
-/** A target is available when it is built in or its plugin is achievement-tagged. */
+/** A target is available when it is built in or its plugin is on and achievement-tagged. */
 function stickerTargetAvailable(target) {
   if (!target) return false;
   if (!target.plugin) return true;
-  return pluginHasAchievementTag(target.plugin);
+  return pluginHasAchievementTag(target.plugin) && pluginEnabled(target.plugin);
 }
 
 function availableStickerTargets() {
@@ -2297,6 +2297,10 @@ let archiveOpen = false;
 let trashOpen = false;
 let openPluginId = null;
 let pluginThemeObserver = null;
+// In-theme sheets fade over the live notebook. Their stage is kept transparent
+// until the fade ends, so the opaque paper fallback never flashes across the
+// page (which reads as the notebook refreshing) while the panel closes.
+let pluginCloseTimer = 0;
 // Theme packs are installed into the user's data folder. They extend THEMES
 // with a palette, and may also carry a wallpaper, foley samples and stickers.
 let themePacks = [];
@@ -2349,7 +2353,22 @@ const PLUGIN_REGISTRY = {
     description: "把页面横线、选区高亮和完成行收进一块调色板。打开后和 Settings 一样调节细节，改完立刻回到页面。",
     icon: "/plugins/palette/palette.svg",
     entry: "/plugins/palette/index.html",
-    tags: ["theme", "palette", "line", "page"],
+    tags: ["intheme", "theme", "palette", "line", "page"],
+  },
+  // The weekly postcard archive is its own Settings-style sheet now. The host
+  // keeps the archive and the big postcard viewer; this page only lists the
+  // weeks and asks the host for a card when one is opened.
+  postcard: {
+    id: "postcard",
+    title: "明信片",
+    englishTitle: "Postcards",
+    version: "1.0.0",
+    author: "NeoTodo",
+    category: "Interface",
+    description: "每一周完成的事情都印成一张明信片。点击左栏的图片图标，和 Settings 一样在应用内打开档案：按年份和月份翻看，点一张卡片就能在原来的位置展开。",
+    icon: "/plugins/postcard/postcard.svg",
+    entry: "/plugins/postcard/index.html",
+    tags: ["intheme", "postcard", "archive", "weekly"],
   },
   "completed-drawer": {
     id: "completed-drawer",
@@ -2445,7 +2464,13 @@ let suppressPendingSubtaskToggleUntil = 0;
 // row has landed the card lingers for a beat, then tucks itself away again.
 let completedSubtasksAutoCloseTimer = null;
 const COMPLETED_DRAWER_DWELL_MS = 300;
-const COMPLETED_ROW_FLIGHT_MS = 440;
+const COMPLETED_ROW_FLIGHT_MS = 340;
+// The tray opens with the new rule already printed, and the rows below are
+// pushed down in one composited move. The finished row crosses the page while
+// that short push finishes, so its line is always waiting when it lands.
+const COMPLETED_DRAWER_OPEN_MS = 40;
+const COMPLETED_DRAWER_DROP_MS = 120;
+const COMPLETED_ROWS_PUSH_MS = 160;
 // While a finished row is in the air, its flight owns the frame budget: heavy
 // card work (baking wallpaper panes, rebuilding the Doing card) waits for the
 // landing instead of stealing the animation's first frames.
@@ -2683,8 +2708,10 @@ function pruneUnseenAgentSubtasks() {
     for (const todo of category.todos || []) {
       if (todo.done) continue;
       validTodos.add(String(todo.id));
+      // A finished subtask keeps its unseen marker so the Doing card stays
+      // lit until the reader opens that subtask's note.
       for (const subtask of todo.subtasks || []) {
-        if (!subtask.done) valid.add(subtask.id);
+        valid.add(subtask.id);
       }
     }
   }
@@ -2715,7 +2742,9 @@ function pruneUnseenAgentSubtasks() {
 }
 
 function todoHasUnseenAgentSubtasks(todo) {
-  return (todo?.subtasks || []).some((subtask) => !subtask.done && unseenAgentSubtasks.has(subtask.id));
+  // Finished subtasks count too, so their agent's light stays on the Doing
+  // card until the subtask's note is opened.
+  return (todo?.subtasks || []).some((subtask) => unseenAgentSubtasks.has(subtask.id));
 }
 
 /** Pull AI completion markers written by a detached AI window. */
@@ -3560,13 +3589,17 @@ function overlayTop() {
   const page = document.querySelector("#stage") || document.querySelector(".page");
   const pageTop = page ? page.getBoundingClientRect().top : 0;
   if (pageTop <= 0) return 0;
+  // One finger below the rule, matching --overlay-finger in style.css.
+  const finger = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--overlay-finger")
+  ) || 30;
   // Keep in step with the postcard viewer's frame (style.css --postcard-height).
   let cardHeight = Math.min(560, viewport * 0.8);
   if (window.innerWidth <= 980) cardHeight = Math.min(540, viewport * 0.82);
   if (viewport <= 720) cardHeight = viewport * 0.96 - 30;
   const ideal = (viewport - cardHeight) / 2 - row;
   const snapped = pageTop + Math.floor((ideal - pageTop) / row) * row;
-  return Math.max(0, Math.round(Math.max(pageTop, snapped)));
+  return Math.max(0, Math.round(Math.max(pageTop, snapped) + finger));
 }
 
 /** Publish the snapped top edge; re-run on resize so the grid stays aligned. */
@@ -5102,19 +5135,18 @@ function activateNoteBlock(index, anchorEvent = null, caretOverride = null) {
 }
 
 function notesHtml() {
-  const noteSubtitle = '<div class="brand-subtitle" aria-hidden="true">— to do, to remember.</div>';
   const category = selectedCategory();
   const active = activeNoteTarget();
   const notesIconSvg = `<svg class="notes-icon" aria-hidden="true"><use href="#${themeSymbol("notes")}"></use></svg>`;
   const notesIcon = `<button class="notes-icon-button" type="button" data-action="reveal-project-folder" aria-label="Open working folder in your file manager">${notesIconSvg}</button>`;
-  // The note header carries only the pen and the current todo/subtask name.
-  // Folder details live on the page-header napkin, not beside the title.
-  const quill = '<div class="notes-quill" aria-hidden="true"><svg><use href="#feather"></use></svg></div>';
+  // The note header carries only the current todo/subtask name. Folder details
+  // live on the page-header napkin, not beside the title, and the sheet has no
+  // ornament drawn on it.
   const topHandle = '<button class="notes-handle notes-handle-top" data-action="notes-button" type="button" aria-label="Hide note"></button>';
   if (!active) {
     const message = category ? "Add a todo to start a note..." : "Create a category to begin...";
-    return `${topHandle}${quill}<div class="notes-head"><div class="notes-title">${notesIcon}<span>No note</span></div></div>
-      <div class="notes-empty">${message}</div>${noteSubtitle}`;
+    return `${topHandle}<div class="notes-head"><div class="notes-title">${notesIcon}<span>No note</span></div></div>
+      <div class="notes-empty">${message}</div>`;
   }
   const { todo, subtask, kind, completed } = active;
   const noteTitle = kind === "subtask" ? subtask.name : todo.name;
@@ -5132,8 +5164,8 @@ function notesHtml() {
   const notePlaceholder = noteBlocks.length === 1 && !String(noteBlocks[0]?.raw || "").trim()
     ? '<span class="note-empty-placeholder" aria-hidden="true">Write something ...</span>'
     : "";
-  return `${topHandle}${quill}<div class="notes-head"><div class="notes-title">${notesIcon}<span>${esc(noteTitle)}</span></div></div>
-    <div class="notes-body"><div class="note-live" id="note-live">${notePlaceholder}${blocks}</div></div>${noteSubtitle}`;
+  return `${topHandle}<div class="notes-head"><div class="notes-title">${notesIcon}<span>${esc(noteTitle)}</span></div></div>
+    <div class="notes-body"><div class="note-live" id="note-live">${notePlaceholder}${blocks}</div></div>`;
 }
 
 function renderNotesPanel() {
@@ -6377,6 +6409,92 @@ function flashAgentCopy(rect) {
   node.style.top = `${top}px`;
   // Show, hold, then drop it: no fade in either direction.
   setTimeout(() => node.remove(), 1000);
+}
+
+/* Notes and the other notebook pages copy themselves the same way the
+   console does: select written text and it lands on the clipboard. One
+   "Copied to clipboard" badge answers from the top centre, squared off with a
+   theme accent block on each side. Symbols, icons, shapes and rules are not
+   text, so a selection made of them is left alone. */
+let lastPageCopiedText = "";
+
+function flashPageCopy() {
+  // One badge at a time, like the console toast.
+  document.querySelectorAll(".page-copy-flash").forEach((old) => old.remove());
+  const node = document.createElement("span");
+  node.className = "page-copy-flash";
+  node.textContent = "Copied to clipboard";
+  // The stylesheet owns the look: notebook paper and ink with a theme accent
+  // on each side, deliberately distinct from the console's copy toast.
+  document.body.appendChild(node);
+  // Show, hold, then drop it: no fade in either direction.
+  setTimeout(() => node.remove(), 1100);
+}
+
+// The page text a selection covers, or "" when the selection is not written
+// text: a caret, a lone dash, an icon, a rule, a button label or the console.
+function pageCopiedText() {
+  const active = document.activeElement;
+  const field = active?.matches?.("textarea.note-block-editor, #notes-half textarea") ? active : null;
+  if (field) {
+    const start = field.selectionStart;
+    const end = field.selectionEnd;
+    if (start == null || end == null || end <= start) return "";
+    const text = field.value.slice(start, end).trim();
+    return /[\p{L}\p{N}]/u.test(text) ? text : "";
+  }
+  const selection = window.getSelection?.();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return "";
+  const text = selection.toString().trim();
+  if (!text || !/[\p{L}\p{N}]/u.test(text)) return "";
+  const range = selection.getRangeAt(0);
+  let node = range.commonAncestorContainer;
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+  if (!node?.closest) return "";
+  // Only the notebook pages and their sheets own this effect; the console
+  // has its own toast beside the copied line.
+  if (!node.closest("#stage, #notes-half, #category-list, #archive-drawer, #trash-drawer")) return "";
+  if (node.closest("#agent-terminal, .context-menu, .page-copy-flash")) return "";
+  if (node.closest("input, textarea, select, button, svg, [contenteditable='true'], [aria-hidden='true']")) return "";
+  return text;
+}
+
+function bindPageCopy() {
+  if (document.body.dataset.pageCopyBound === "1") return;
+  document.body.dataset.pageCopyBound = "1";
+
+  const copySelection = () => {
+    const text = pageCopiedText();
+    if (!text) {
+      lastPageCopiedText = "";
+      return;
+    }
+    if (text === lastPageCopiedText) return;
+    copyToClipboard(text).then((ok) => {
+      if (!ok) return;
+      lastPageCopiedText = text;
+      flashPageCopy();
+    });
+  };
+
+  // A fresh selection gesture may pick the very same words again, so forget
+  // the previous hit when the drag starts.
+  document.addEventListener("pointerdown", () => {
+    lastPageCopiedText = "";
+  });
+  document.addEventListener("pointerup", () => setTimeout(copySelection, 0));
+  document.addEventListener("keyup", (event) => {
+    if (event.key === "Shift" || event.key.startsWith("Arrow") || (event.key === "a" && (event.ctrlKey || event.metaKey))) {
+      setTimeout(copySelection, 0);
+    }
+  });
+  // A Ctrl+C, a native menu copy or the note's own menu copy still answers
+  // with the same badge, even when the text was already on the clipboard.
+  document.addEventListener("copy", () => {
+    setTimeout(() => {
+      if (pageCopiedText()) flashPageCopy();
+    }, 0);
+  });
 }
 
 let lastAutoCopiedText = "";
@@ -8095,7 +8213,7 @@ function restoreAgentScroll(snapshot) {
 // while the row's leading edge closes the empty slot. Keeping the slot closed
 // on the ghost means the row lands with the tray's own content offsets, so
 // nothing shifts back to the left at the end of the trip.
-function flyModelMarkAway(ghost, duration) {
+function flyModelMarkAway(ghost, duration, delay = 0) {
   const badge = ghost.querySelector(".sub-agent-model img")?.closest(".sub-agent-model");
   if (!badge) return;
   // A badge that just popped in is mid-transform; measure the resting box.
@@ -8125,7 +8243,7 @@ function flyModelMarkAway(ghost, duration) {
         { transform: "translateY(0) scale(1)", opacity: 1 },
         { transform: "translateY(18px) scale(0.68)", opacity: 0 },
       ],
-      { duration: Math.min(260, duration), easing: "cubic-bezier(.4,0,.7,1)", fill: "forwards" }
+      { duration: Math.min(260, duration), delay, easing: "cubic-bezier(.4,0,.7,1)", fill: "forwards" }
     );
     drop.onfinish = () => mark.remove();
     drop.oncancel = () => mark.remove();
@@ -8136,7 +8254,7 @@ function flyModelMarkAway(ghost, duration) {
   try {
     ghost.animate(
       [{ paddingLeft: `${basePad + slot}px` }, { paddingLeft: `${basePad}px` }],
-      { duration: Math.min(260, duration), easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" }
+      { duration: Math.min(260, duration), delay, easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" }
     );
   } catch (error) {
     ghost.style.paddingLeft = `${basePad}px`;
@@ -8153,8 +8271,13 @@ function flyModelMarkAway(ghost, duration) {
 // landing box is reached by clipping its right edge. Animating `width` (the
 // old flight) forced a layout of the row on every frame, which is what made
 // the trip stutter on a busy page; a transform plus an inset clip only paints.
-function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null) {
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null, delay = 0) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    // The slot's row was already held back for a flight that is not going to
+    // happen.
+    row.classList.remove("subtask-slot-arriving");
+    return;
+  }
   const ghost = (sourceRow || row).cloneNode(true);
   ghost.classList.add("subtask-flight");
   // The press feedback belongs to the click, not to the trip: the flying card
@@ -8170,7 +8293,16 @@ function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null
   ghost.style.width = `${originRect.width}px`;
   ghost.style.height = `${originRect.height}px`;
   ghost.style.zIndex = "240";
-  row.style.visibility = "hidden";
+  // The page rule belongs to the row's lane, and the finished card prints its
+  // own rule when the row lands. A line travelling through the air was the one
+  // part of the flight that read as an animated rule, so the ghost is plain
+  // paper: nothing under it moves.
+  ghost.style.setProperty("border-bottom-color", "transparent", "important");
+  ghost.style.setProperty("border-image", "none", "important");
+  // The arriving line is already in the tray; only the row's content is held
+  // back for the flight. This keeps the new rule under the row that is being
+  // pushed down, instead of leaving a blank gap in the finished card.
+  row.classList.add("subtask-slot-arriving");
   document.body.appendChild(ghost);
   // The provider mark belongs to the AI run, not to the finished paper. It
   // must not ride into the tray: the completed row has no badge, so carrying
@@ -8178,7 +8310,7 @@ function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null
   // snap back left when the mark was cleared. Drop the mark where the row was
   // clicked instead, and close its slot while the row travels so the landing
   // layout is exactly the tray row's layout — the trip ends in place.
-  flyModelMarkAway(ghost, duration);
+  flyModelMarkAway(ghost, duration, delay);
   const dx = landedRect.left - originRect.left;
   const dy = landedRect.top - originRect.top;
   const clipRight = Math.max(0, originRect.width - landedRect.width);
@@ -8190,7 +8322,7 @@ function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null
     ghost.remove();
     // A repaint may have replaced the row while it was in the air.
     if (!row.isConnected) return;
-    row.style.visibility = "";
+    row.classList.remove("subtask-slot-arriving");
     // The row travels with the paper it had as a pending row. Landing is where
     // it becomes finished: the check is written in, and the row presses into
     // the tray instead of simply appearing there.
@@ -8215,12 +8347,63 @@ function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null
           clipPath: `inset(0 ${clipRight}px ${clipBottom}px 0)`,
         },
       ],
-      { duration, easing: "cubic-bezier(.22,.68,.16,1)" }
+      { duration, delay, easing: "cubic-bezier(.22,.68,.16,1)" }
     );
     flight.onfinish = settle;
     flight.oncancel = settle;
   } catch (error) {
     settle();
+  }
+}
+
+// A completion opens the finished tray from the top. The new row's rule is
+// already printed at the card's edge; the rows below are pushed down in one
+// composited move, and the arriving row's content waits for the flight. No
+// height is animated: a row that grows frame by frame repaints every hairline
+// at fractional offsets, which is what read as a burst of extra lines.
+function openCompletedDrawerForRow(drawer, row, animateEntrance) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+  if (!drawer) return;
+  if (animateEntrance) {
+    try {
+      drawer.animate(
+        [
+          { transform: "translateY(-10px) scale(0.995)" },
+          { transform: "none" },
+        ],
+        { duration: COMPLETED_DRAWER_DROP_MS, easing: "cubic-bezier(.2,.8,.2,1)" }
+      );
+    } catch (error) {}
+  }
+  if (!row) return;
+  row.classList.add("subtask-slot-arriving");
+  const list = row.parentElement;
+  const lane = row.closest(".subtask-lane");
+  if (!list || !lane) return;
+  const rowH = row.offsetHeight || 40;
+  // Start with the whole block one row higher: the new rule sits under the
+  // card's top edge, where the old first row used to be, and both slide home
+  // together. Only a transform is animated, so the rules move as one layer
+  // instead of being re-laid out and re-antialiased on every frame.
+  list.style.transform = `translateY(-${rowH}px)`;
+  list.style.willChange = "transform";
+  try {
+    const push = list.animate(
+      [
+        { transform: `translateY(-${rowH}px)` },
+        { transform: "translateY(0)" },
+      ],
+      { duration: COMPLETED_ROWS_PUSH_MS, easing: "cubic-bezier(.2,.8,.2,1)" }
+    );
+    const clear = () => {
+      list.style.transform = "";
+      list.style.willChange = "";
+    };
+    push.onfinish = clear;
+    push.oncancel = clear;
+  } catch (error) {
+    list.style.transform = "";
+    list.style.willChange = "";
   }
 }
 
@@ -8286,6 +8469,7 @@ function renderStage() {
 
   // The completed-subtask card belongs to the task that was on screen when it
   // was opened. A different task always starts with the card tucked away.
+  const completedWasOpen = completedSubtasksOpen;
   if (!current) {
     completedSubtasksOpen = false;
     completedSubtasksTodoId = null;
@@ -8303,6 +8487,12 @@ function renderStage() {
   // This also covers a completion that was still in flight when the new row was
   // saved: the drawer must never open on top of a just-added subtask.
   if (newSubtaskView) completedSubtasksOpen = false;
+  // A finished row only travels after its card has dropped into view and the
+  // new top slot has unfolded. When the card was already open there is no
+  // entrance to wait for, but the slot still opens under the row in flight.
+  const completedDrawerOpening = Boolean(risingSubtaskId && completedSubtasksOpen && !completedWasOpen);
+  const reduceMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+  const completionDelayMs = completedDrawerOpening && !reduceMotion ? COMPLETED_DRAWER_OPEN_MS : 0;
   // A folded card has no visible rows: a completion that has to fly into the
   // finished tray, or an inline row that has to be typed into, always hands
   // the card back first.
@@ -8415,13 +8605,14 @@ function renderStage() {
     // compact finished-tasks card on the right. Plugin off: every subtask,
     // finished or not, shares a single lane in the same recency order.
     //
-    // In both cases the unfinished lane is printed on its own sheet. The sheet
-    // is open on the left — the finished column flows into it — and closes with
-    // a rounded right edge. Its purple handle line rides the sheet's bottom
-    // edge: pulled up it stretches the card until the line sits under the
-    // top line of the block, pulled down it hands the seven rows back.
-    const pendingCard = (lanes) => `<div class="pending-subtask-card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
-        <span class="pending-subtask-label" aria-hidden="true">卡片</span>
+    // In both cases the unfinished lane is printed on its own card. `card` is
+    // only a marker: it says this sheet uses the card surface, it prints no
+    // text. The sheet is exactly seven unit rows tall, with a stroke on all
+    // four sides and one corner, like every other card in the room. Its purple
+    // handle line rides the sheet's bottom edge: pulled up it stretches the
+    // card away until the line sits under the top line of the block and the
+    // page's own ruling shows through, pulled down it hands the rows back.
+    const pendingCard = (lanes) => `<div class="pending-subtask-card card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
         ${lanes}
         <button class="pending-subtask-toggle ${pendingSubtasksCollapsed ? "collapsed" : ""}" type="button" data-action="toggle-pending-subtasks" aria-expanded="${pendingSubtasksCollapsed ? "false" : "true"}" aria-controls="pending-subtask-card" aria-label="${pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks"}">
           <span class="pending-subtask-line" aria-hidden="true"></span>
@@ -8438,7 +8629,7 @@ function renderStage() {
       <button class="completed-subtask-toggle ${completedSubtasksOpen ? "open" : ""}" type="button" data-action="toggle-completed-subtasks" aria-expanded="${completedSubtasksOpen ? "true" : "false"}" aria-controls="completed-subtask-drawer" aria-label="${completedSubtasksOpen ? "Hide completed subtasks" : "Show completed subtasks"}">
         <span class="completed-subtask-line" aria-hidden="true"></span>
       </button>
-      <div class="completed-subtask-drawer ${completedSubtasksOpen ? "open" : ""}" id="completed-subtask-drawer" data-subcard="completed" role="region" aria-label="Completed subtasks" aria-hidden="${completedSubtasksOpen ? "false" : "true"}">
+      <div class="completed-subtask-drawer card ${completedSubtasksOpen ? "open" : ""}" id="completed-subtask-drawer" data-subcard="completed" role="region" aria-label="Completed subtasks" aria-hidden="${completedSubtasksOpen ? "false" : "true"}">
         <div class="completed-subtask-sheet">
           <div class="subtask-lane-column completed-column" aria-label="Completed subtasks">
             <div class="subtask-lane" data-lane="done">
@@ -8494,7 +8685,7 @@ function renderStage() {
   if (risingSubtaskId && !agentTerminalOpen) {
     setTimeout(() => {
       if (stage.isConnected) renderAgentTerminal();
-    }, COMPLETED_ROW_FLIGHT_MS + 120);
+    }, completionDelayMs + COMPLETED_ROW_FLIGHT_MS + 120);
   } else {
     renderAgentTerminal();
   }
@@ -8527,34 +8718,44 @@ function renderStage() {
     // was in the pending lane, then let the other rows close the gap.
     const flipped = stage.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(risingSubtaskId)}"]`);
     const originRect = previousSubtaskRects.get(risingSubtaskId);
-    // The tray always shows a new completion at its top, and the card is held
-    // still while the row travels, so the box measured here is the real landing
-    // box instead of a spot the opening card is still sliding through.
+    // The tray always shows a new completion at its top. The landing box is
+    // measured before the card starts moving, while the new slot is still at
+    // its final size and the card is at its final transform.
     const doneLane = flipped?.closest(".completed-subtask-drawer .subtask-lane");
     if (doneLane) doneLane.scrollTop = 0;
     const drawer = flipped?.closest(".completed-subtask-drawer");
-    const holdDrawer = Boolean(drawer?.classList.contains("open"));
-    if (holdDrawer) drawer.classList.add("flight-target");
+    const drawerOpen = Boolean(drawer?.classList.contains("open"));
     const landedRect = flipped?.getBoundingClientRect();
+    let flightDelay = 0;
     if (flipped && originRect && landedRect && landedRect.width > 1
       && (Math.abs(originRect.left - landedRect.left) > 2 || Math.abs(originRect.top - landedRect.top) > 2)) {
-      completionFlightMs = COMPLETED_ROW_FLIGHT_MS;
+      // The card opens and its new top slot unfolds first; the finished row
+      // waits over its old place, then crosses into the made room. The line
+      // under the row is not part of the trip: the tray prints it on landing.
+      flightDelay = completionDelayMs;
+      completionFlightMs = flightDelay + COMPLETED_ROW_FLIGHT_MS;
       completionFlightUntil = performance.now() + completionFlightMs + 60;
-      flyCompletedRow(flipped, originRect, landedRect, completionFlightMs, risingSubtaskPaper);
+      openCompletedDrawerForRow(drawer, flipped, completedDrawerOpening);
+      flyCompletedRow(
+        flipped, originRect, landedRect, COMPLETED_ROW_FLIGHT_MS,
+        risingSubtaskPaper, flightDelay
+      );
     }
-    if (holdDrawer) {
-      const release = () => drawer.classList.remove("flight-target");
-      if (completionFlightMs) setTimeout(release, completionFlightMs + 60);
-      else release();
+    // The card must not slide again while its row is in the air.
+    if (drawerOpen && completionFlightMs) {
+      const pin = () => drawer.classList.add("flight-target");
+      if (flightDelay) setTimeout(pin, flightDelay);
+      else pin();
+      setTimeout(() => drawer.classList.remove("flight-target"), completionFlightMs + 60);
     }
     // The row has landed in the card: let it sit for 0.3s, then retract the
     // card instead of waiting for the user to click the handle line.
     if (completedSubtasksOpen) {
       scheduleCompletedSubtasksAutoClose(completionFlightMs + COMPLETED_DRAWER_DWELL_MS);
     }
-    // Close the gap the finished row left behind in the same beat as the
-    // flight. Starting this a frame later made the two motions drift apart,
-    // which is what read as a stutter.
+    // Close the gap the finished row left behind when the row leaves, not
+    // while the tray is still opening. `backwards` keeps the rows where they
+    // were for the wait, so the space stays open under the waiting row.
     if (previousSubtaskRects.size) {
       stage.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
         if (row.dataset.subtaskId === risingSubtaskId) return;
@@ -8566,7 +8767,12 @@ function renderStage() {
         try {
           row.animate(
             [{ transform: `translateY(${delta}px)` }, { transform: "none" }],
-            { duration: 320, easing: "cubic-bezier(.2,.8,.2,1)" }
+            {
+              duration: 320,
+              delay: flightDelay,
+              fill: "backwards",
+              easing: "cubic-bezier(.2,.8,.2,1)",
+            }
           );
         } catch (error) {}
       });
@@ -9179,13 +9385,26 @@ function syncPluginSettings() {
   } catch (error) {}
 }
 
+// A manifest can tag itself "intheme" (or "in-theme") when its page is not a
+// mini-app but the notebook's own Settings sheet. Those pages get the glass
+// stage and close any Settings/Community sheet behind them, exactly like the
+// Palette plugin.
+const IN_THEME_TAGS = new Set(["intheme", "in-theme"]);
+
+function pluginUsesInTheme(pluginId) {
+  const plugin = PLUGIN_REGISTRY[pluginId];
+  const tags = Array.isArray(plugin?.tags) ? plugin.tags : [];
+  return tags.some((tag) => IN_THEME_TAGS.has(String(tag).toLowerCase()));
+}
+
 function openPluginPanel(id, options = {}) {
   const plugin = PLUGIN_REGISTRY[id];
   const root = $("#plugin-root");
   if (!plugin || !root) return;
-  // Palette is a Settings sheet of its own: never leave the Settings or
-  // Community sheet visible behind its transparent stage.
-  if (id === "palette") {
+  // In-theme pages are Settings sheets of their own: never leave the Settings
+  // or Community sheet visible behind their transparent stage.
+  const inTheme = pluginUsesInTheme(id);
+  if (inTheme) {
     closeSettings();
     closeCommunity();
   }
@@ -9207,9 +9426,9 @@ function openPluginPanel(id, options = {}) {
     : plugin.entry;
   root.innerHTML = `<iframe class="plugin-frame" title="${esc(plugin.title)}" src="${esc(entry)}" allow="autoplay"></iframe>`;
   root.setAttribute("aria-hidden", "false");
-  // The Palette page is a Settings sheet, not a mini-app: let the live
+  // An in-theme page is a Settings sheet, not a mini-app: let the live
   // notebook and its wallpaper stay visible behind the floating panel.
-  root.classList.toggle("plugin-glass", id === "palette");
+  root.classList.toggle("plugin-glass", inTheme);
   root.classList.add("open");
   document.body.classList.add("plugin-open");
   const frame = root.querySelector(".plugin-frame");
@@ -9233,12 +9452,30 @@ function closePluginPanel() {
   pluginThemeObserver?.disconnect();
   pluginThemeObserver = null;
   const root = $("#plugin-root");
+  const inTheme = Boolean(root?.classList.contains("plugin-glass"));
   root?.classList.remove("open");
-  root?.classList.remove("plugin-glass");
   root?.setAttribute("aria-hidden", "true");
   document.body.classList.remove("plugin-open");
-  if (root) root.innerHTML = "";
   AudioFX.drawer(false);
+  if (!root) return;
+  if (pluginCloseTimer) {
+    clearTimeout(pluginCloseTimer);
+    pluginCloseTimer = 0;
+  }
+  if (!inTheme) {
+    root.classList.remove("plugin-glass");
+    root.innerHTML = "";
+    return;
+  }
+  // Keep the glass stage and its sheet for the length of the fade. Removing
+  // the class now would drop the opaque paper background over the notebook for
+  // one frame, and readers see that full-page wash as a refresh.
+  pluginCloseTimer = setTimeout(() => {
+    pluginCloseTimer = 0;
+    if (openPluginId) return; // another plugin has taken over the stage
+    root.innerHTML = "";
+    root.classList.remove("plugin-glass");
+  }, 220);
 }
 
 function pluginSettingDefault(item) {
@@ -9666,6 +9903,80 @@ window.NeoTodoPalette = {
     saveSettings();
     applyHighlight();
     return paletteSnapshot();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Postcard plugin host bridge.
+//
+// The archive and the large postcard viewer stay in the notebook. The plugin
+// page under /plugins/postcard only prints the week list and asks for the card
+// markup the notebook already owns, so there is one archive and the app's
+// startup never has to load a second copy of the postcard themes.
+// ---------------------------------------------------------------------------
+function postcardBridgeList() {
+  const cards = [...(state.data?.archive || [])]
+    .sort((a, b) => String(b.week_start).localeCompare(String(a.week_start)));
+  let entries = 0;
+  const rows = cards.map((card) => {
+    const theme = themeOf(card);
+    const count = Array.isArray(card.items) ? card.items.length : 0;
+    entries += count;
+    const start = parseDate(card.week_start);
+    const year = card.year || start?.getFullYear() || 0;
+    const month = card.month || ((start?.getMonth() ?? 0) + 1);
+    return {
+      id: card.id,
+      year,
+      month,
+      monthLabel: `${String(month).padStart(2, "0")}月 · ${MONTH_NAMES[month - 1] || ""}`,
+      weekLabel: `W${String(card.week || 0).padStart(2, "0")}`,
+      dates: `${fmtNumeric(card.week_start)} — ${fmtNumeric(card.week_end)}`,
+      count,
+      sample: Boolean(card.sample),
+      seen: Boolean(card.seen),
+      themeName: theme.name || "",
+      accent: theme.accent || "",
+      accentRgb: hexToRgb(theme.accent || "#888888"),
+      art: typeof theme.art === "function" ? theme.art(theme) : "",
+    };
+  });
+  const theme = THEMES[currentPostcardId()] || THEMES.light;
+  return { cards: rows, entries, themeName: theme.name || "" };
+}
+
+function postcardBridgeCard(cardId) {
+  const id = String(cardId || "");
+  return (state.data?.archive || []).find((card) => card.id === id) || null;
+}
+
+window.NeoTodoPostcards = {
+  list() {
+    return postcardBridgeList();
+  },
+  article(cardId) {
+    const card = postcardBridgeCard(cardId);
+    if (!card) return "";
+    // The iframe carries the sheet, not the notebook's symbol sprite, so the
+    // per-item trophy becomes a quiet star inside the preview.
+    return postcardArticleHtml(card, '<span class="pc-star" aria-hidden="true">✦</span>');
+  },
+  open(cardId) {
+    const card = postcardBridgeCard(cardId);
+    if (!card) return false;
+    // The plugin iframe sits above the notebook's modal layer: fold it first,
+    // then let the real postcard viewer open behind it.
+    closePluginPanel();
+    setTimeout(() => openPostcard(card.id), 30);
+    return true;
+  },
+  markSeen(cardId) {
+    const card = postcardBridgeCard(cardId);
+    if (!card) return false;
+    silentAction("mark_seen", { card_id: card.id }).then((result) => {
+      if (result?.state) state.data = result.state;
+    }).catch(() => {});
+    return true;
   },
 };
 
@@ -10157,7 +10468,7 @@ function openCompletedLog() {
       <div class="completed-bar">
         <label class="search-field">
           <svg class="search-field-icon" aria-hidden="true"><use href="#search-icon"></use></svg>
-          <input id="completed-search" class="log-search" type="search" placeholder="Search the chronicle…" autocomplete="off">
+          <input id="completed-search" class="log-search" type="search" autocomplete="off">
         </label>
         <button class="plain-x" data-action="close-completed">×</button>
       </div>
@@ -10240,7 +10551,7 @@ function openFocusAchievements() {
     });
     setTimeout(() => input.focus(), 30);
   }
-  AudioFX.paper();
+  afterNextPaint(() => AudioFX.paper());
 }
 
 function renderCompletedLogContent() {
@@ -10313,7 +10624,9 @@ function renderCompletedLogContent() {
 
   list.innerHTML = filtered.length
     ? filtered.map(row).join("")
-    : `<div class="log-empty">${query ? "No matching completed todos." : "No completed todos yet."}</div>`;
+    : query
+      ? `<div class="log-empty">No matching completed todos.</div>`
+      : "";
 }
 
 function closeCompletedLog() {
@@ -10640,11 +10953,11 @@ function selectSubtaskNote(todoId, subtaskId) {
 
 async function copyPlainText(text) {
   const value = String(text || "");
-  if (!value) return;
+  if (!value) return false;
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(value);
-      return;
+      return true;
     } catch (error) {}
   }
   try {
@@ -10653,9 +10966,12 @@ async function copyPlainText(text) {
     helper.style.cssText = "position:fixed;left:-9999px;top:0";
     document.body.appendChild(helper);
     helper.select();
-    document.execCommand("copy");
+    const ok = document.execCommand("copy");
     helper.remove();
-  } catch (error) {}
+    return Boolean(ok);
+  } catch (error) {
+    return false;
+  }
 }
 
 // The one subtask menu: Fork on top, then the clipboard trio. Whether the
@@ -10708,7 +11024,7 @@ function showCurrentSubtaskMenu(x, y, subtaskId, editable = null) {
   const copy = async () => {
     const text = selection || subtask.name;
     if (!text) return;
-    await copyToClipboard(text);
+    if (await copyToClipboard(text)) flashPageCopy();
   };
 
   const cut = async () => {
@@ -10751,7 +11067,7 @@ function showHistoryMenu(x, y, index) {
   const todo = doneTodos(selectedCategory())[Number(index)];
   if (!todo) return;
   openContextMenu(x, y, [
-    { label: "Copy name", run: () => copyPlainText(todo.name) },
+    { label: "Copy name", run: async () => { if (await copyPlainText(todo.name)) flashPageCopy(); } },
     { label: "Edit note", run: () => editHistoryNote(todo.id) },
     { label: "Completed · name locked", disabled: true },
   ]);
@@ -10765,7 +11081,7 @@ function showHistorySubtaskMenu(x, y, todoId, subtaskId) {
     ...(pluginEnabled("forktree")
       ? [{ label: "Fork", icon: FORK_ICON, run: () => forkSubtask(todo, subtask) }]
       : []),
-    { label: "Copy name", run: () => copyPlainText(subtask.name) },
+    { label: "Copy name", run: async () => { if (await copyPlainText(subtask.name)) flashPageCopy(); } },
     { label: "Edit note", run: () => selectHistorySubtaskNote(todoId, subtaskId) },
   ]);
 }
@@ -11131,7 +11447,6 @@ function doingSubtaskHtml(entry, subtask) {
 
 function doingTodoHtml(entry) {
   const { category, todo } = entry;
-  const subs = todo.subtasks || [];
   const pending = orderedSubtasks(todo).filter((subtask) => !subtask.done);
   const expanded = doingExpandedTodoIds.has(todo.id);
   const active = category.id === state.selectedCategoryId;
@@ -11143,7 +11458,6 @@ function doingTodoHtml(entry) {
         <svg viewBox="0 0 1024 1024" aria-hidden="true"><use href="#doing-mark"></use></svg>
       </button>
       <button class="doing-name" type="button" data-doing-jump="${esc(todo.id)}" data-category-id="${esc(category.id)}">${esc(todo.name)}</button>
-      <span class="doing-count">${pending.length}/${subs.length}</span>
     </div>
     ${expanded && pending.length ? `<div class="doing-subs">${pending.map((subtask) => doingSubtaskHtml(entry, subtask)).join("")}</div>` : ""}
   </div>`;
@@ -12051,7 +12365,13 @@ async function handleAction(actionName, element) {
     } catch (error) {}
     return;
   }
-  if (actionName === "show-completed") { spinAchievementCounter(element); AudioFX.bassFade(); openCompletedLog(); return; }
+  if (actionName === "show-completed") {
+    spinAchievementCounter(element);
+    openCompletedLog();
+    // Paint the sheet first; the bass swell must never hold the click up.
+    afterNextPaint(() => AudioFX.bassFade());
+    return;
+  }
   if (actionName === "toggle-completed-subtasks") {
     if (performance.now() < suppressCompletedSubtaskToggleUntil) return;
     toggleCompletedSubtasks();
@@ -12073,6 +12393,8 @@ async function handleAction(actionName, element) {
   if (actionName === "close-archive") { AudioFX.categoryTap(); closeArchive(); return; }
   if (actionName === "open-pindou") { openPluginPanel("pindou"); return; }
   if (actionName === "open-palette") { openPluginPanel("palette"); return; }
+  if (actionName === "open-postcard") { openPluginPanel("postcard"); return; }
+  if (actionName === "open-ai-settings") { openAiSettings(); return; }
   if (actionName === "open-forktree") { openPluginPanel("forktree"); return; }
   if (actionName === "toggle-plugin") {
     const pluginId = element?.dataset.pluginId || "";
@@ -12189,6 +12511,7 @@ async function handleAction(actionName, element) {
   if (actionName === "close-terminal") { closeAgentTerminal(); return; }
   if (actionName === "clear-agent") { clearAgent(); return; }
   if (actionName === "open-settings") { openSettings(); return; }
+  if (actionName === "close-ai-settings") { closeAiSettings(); return; }
   if (actionName === "reveal-project-folder") { revealProjectFolder(); return; }
   if (actionName === "manage-project-folder") { openProjectFolderCard(); return; }
   if (actionName === "choose-project-folder") { revealProjectFolder(); return; }
@@ -12386,8 +12709,8 @@ async function handleAction(actionName, element) {
   if (actionName === "open-timer-achievement") {
     if (!achievementSlotVisible("pomodoro")) return;
     spinAchievementCounter(element);
-    AudioFX.guitarPluck();
     openFocusAchievements();
+    afterNextPaint(() => AudioFX.guitarPluck());
     return;
   }
   if (actionName === "close-timer") { closeFocusTimer(); return; }
@@ -12609,7 +12932,7 @@ function closePostcard() {
   $("#modal-root").innerHTML = "";
 }
 
-function postcardArticleHtml(card) {
+function postcardArticleHtml(card, doneIcon = completedIcon()) {
   const theme = themeOf(card);
   const items = card.items || [];
   const startDate = parseDate(card.week_start);
@@ -12620,7 +12943,7 @@ function postcardArticleHtml(card) {
   const count = items.length;
   const variables = `--paper:${theme.paper};--paper2:${theme.paper2};--ink:${theme.ink};--muted:${theme.muted};--accent:${theme.accent};--accent2:${theme.accent2};--border:${theme.border};--stamp:${theme.stamp};--glow:${theme.glow};--display:${theme.display};--body:${theme.body};`;
   const itemRows = items.length
-    ? items.map((item) => `<li class="pc-item"><span class="pc-trophy">${completedIcon()}</span><span class="pc-cat" style="--cat:${esc(item.color || theme.accent)};--cat-bg:${colorTint(item.color || theme.accent)}"><span class="pc-cat-dot"></span>${esc(item.category || "Untitled")}</span><span class="pc-name">${esc(item.name)}</span></li>`).join("")
+    ? items.map((item) => `<li class="pc-item"><span class="pc-trophy">${doneIcon}</span><span class="pc-cat" style="--cat:${esc(item.color || theme.accent)};--cat-bg:${colorTint(item.color || theme.accent)}"><span class="pc-cat-dot"></span>${esc(item.category || "Untitled")}</span><span class="pc-name">${esc(item.name)}</span></li>`).join("")
     : "";
   const empty = items.length ? "" : `<div class="pc-empty">A quiet week — nothing checked off.</div>`;
   return `<article class="postcard simple ${theme.airmail ? "airmail" : ""}" style="${variables}">
@@ -12749,15 +13072,6 @@ function loadSettings() {
   settings.show_time_cost = settings.show_time_cost === true;
   settings.show_clock = settings.show_clock !== false;
   settings.focus_count = Math.max(0, Math.floor(Number(settings.focus_count) || 0));
-  settings.title_offset = Math.max(-500, Math.min(500, Math.round(Number(settings.title_offset) || 0)));
-  settings.title_icon_size = Math.max(24, Math.min(96, Math.round(Number(settings.title_icon_size) || 62)));
-  // One-time lift of the old 48px tissue icon: it was too small and its red
-  // centre sat below the header's upper rule. Keep any later slider choice.
-  if (!settings.title_icon_size_v2) {
-    if (settings.title_icon_size <= 48) settings.title_icon_size = 62;
-    settings.title_icon_size_v2 = true;
-    if (state.data) saveSettings();
-  }
   if (!Array.isArray(settings.focus_log)) settings.focus_log = [];
   if (!FONT_OPTIONS.some((font) => font.id === settings.font)) settings.font = "serif";
   if (!FONT_OPTIONS.some((font) => font.id === settings.note_font)) settings.note_font = "serif";
@@ -13955,6 +14269,11 @@ function spinAchievementCounter(element) {
   counter._achSpinTimer = setTimeout(() => counter.classList.remove("ach-click-spin"), 400);
 }
 
+/** Run once the browser has painted a frame, so sheets open before any sound work. */
+function afterNextPaint(callback) {
+  requestAnimationFrame(() => requestAnimationFrame(callback));
+}
+
 function updateArchiveIcon() {
   const use = $("#archive-icon-use");
   if (use) use.setAttribute("href", `#${themeSymbol("archive")}`);
@@ -14927,8 +15246,6 @@ function applySettings() {
   root.dataset.font = settings.font;
   root.dataset.noteFont = settings.note_font;
   root.style.setProperty("--user-scale", String(settings.scale));
-  root.style.setProperty("--title-offset", `${settings.title_offset}px`);
-  root.style.setProperty("--title-icon-size", `${settings.title_icon_size}px`);
   document.body.classList.toggle("clock-hidden", !settings.show_clock);
   document.body.classList.add("custom-caret");
   AudioFX.setSampleOverrides(settings.sound_overrides);
@@ -14997,7 +15314,14 @@ function applySettings() {
 }
 
 function openSettings(tab = "theme") {
-  // Community is a separate window now: the nav item closes Settings and opens it.
+  // The AI sheet moved to its own window behind the robot icon in the top
+  // rail. Older links and shortcuts still ask Settings for it.
+  if (tab === "ai") {
+    openAiSettings();
+    return;
+  }
+  // Community is its own in-app sheet now: the nav item closes Settings and
+  // opens it, so the two never share the stage.
   if (tab === "community" || tab === "themes") {
     openCommunity(tab === "community" ? communitySection : "themes");
     return;
@@ -15037,7 +15361,63 @@ function openSettings(tab = "theme") {
     // dropped in while the settings sheet was closed.
     loadThemePacks().then(() => { if (settingsTab === "theme") renderSettings(); });
   }
-  if (settingsTab === "ai" && !aiConfig) loadAiConfig().then(() => { if (settingsTab === "ai") renderSettings(); });
+}
+
+/**
+ * The AI sheet is its own window now, reached from the robot icon in the top
+ * rail. It borrows the Settings stage and panel so both sheets open, dim and
+ * close the same way, but it carries no Settings nav: the AI tabs are the only
+ * navigation inside it.
+ */
+function aiSettingsModalOpen() {
+  return Boolean($(".ai-settings-panel"));
+}
+
+function openAiSettings() {
+  if (aiSettingsModalOpen()) return;
+  // Flush any half-typed Settings value before its stage is replaced.
+  if ($(".settings-panel")) closeSettings();
+  closeCommunity();
+  pluginDetailId = null;
+  pluginPendingUninstallId = null;
+  AudioFX.paper();
+  $("#modal-root").innerHTML = `<div class="settings-stage ai-settings-stage">
+    <div class="settings-panel ai-settings-panel" role="dialog" aria-modal="true" aria-label="AI settings">
+      <section class="settings-main">
+        <div class="settings-topbar"><button class="settings-close" type="button" data-action="close-ai-settings" aria-label="Close AI settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
+        <div class="settings-scroll"><div class="settings-view" data-ai-settings-view></div></div>
+      </section>
+    </div>
+  </div>`;
+  const stage = $(".ai-settings-stage");
+  if (stage) {
+    stage.addEventListener("mousedown", (event) => {
+      if (event.target === stage) closeAiSettings();
+    });
+  }
+  renderAiSettingsModal();
+  if (!aiConfig) loadAiConfig().then(() => { if (aiSettingsModalOpen()) renderAiSettingsModal(); });
+}
+
+function renderAiSettingsModal() {
+  const view = $("[data-ai-settings-view]");
+  if (!view) return;
+  const scroll = $(".ai-settings-panel .settings-scroll");
+  const previousScroll = scroll?.scrollTop || 0;
+  view.innerHTML = aiSettings();
+  if (scroll && previousScroll) scroll.scrollTop = previousScroll;
+}
+
+function closeAiSettings() {
+  // A quick instruction edit should still reach disk when the sheet closes.
+  const instructions = document.querySelector("[data-ai-instructions]");
+  if (instructions && aiConfig && instructions.value !== aiConfig.custom_instructions) {
+    clearTimeout(aiInstructionsTimer);
+    aiSaveConfig({ custom_instructions: instructions.value }, { rerender: false });
+  }
+  pluginDetailId = null;
+  pluginPendingUninstallId = null;
+  $("#modal-root").innerHTML = "";
 }
 
 function closeSettings() {
@@ -15306,29 +15686,17 @@ function themeSettings() {
     ${glassBackgroundRow}` : ""}
     ${fieldMode === "app" ? managePanel : ""}
     ${wallpaperSettingsSection()}
+    ${caretRow}
     <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Palette</div>
+      <div class="theme-settings-title">Time cost</div>
       <div class="theme-settings-controls">
-        <button class="theme-chip-button" type="button" data-action="open-palette">Open palette</button>
+        <button class="sound-switch theme-setting-switch ${settings.show_time_cost ? "on" : "off"}" type="button" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}" aria-label="${settings.show_time_cost ? "Turn time cost off" : "Turn time cost on"}"><span class="sound-switch-knob"></span></button>
       </div>
     </div>
-    ${caretRow}
     <div class="settings-section theme-settings-row">
       <div class="theme-settings-title">Current time</div>
       <div class="theme-settings-controls">
-        <button class="theme-chip ${settings.show_time_cost ? "active" : ""}" type="button" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}">Time cost</button>
-        <button class="sound-switch theme-clock-switch ${settings.show_clock ? "on" : "off"}" type="button" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}" aria-label="${settings.show_clock ? "Turn current time off" : "Turn current time on"}"><span class="sound-switch-knob"></span></button>
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Task title</div>
-      <div class="theme-settings-controls">
-        <span class="theme-value">Position</span>
-        <input id="title-offset-range" class="theme-range" type="range" min="-320" max="320" step="8" value="${settings.title_offset}" aria-label="Title position">
-        <span id="title-offset-value" class="theme-value">${settings.title_offset} px</span>
-        <span class="theme-value">Icon</span>
-        <input id="title-icon-range" class="theme-range" type="range" min="24" max="96" step="2" value="${settings.title_icon_size}" aria-label="Header icon size">
-        <span id="title-icon-value" class="theme-value">${settings.title_icon_size} px</span>
+        <button class="sound-switch theme-setting-switch ${settings.show_clock ? "on" : "off"}" type="button" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}" aria-label="${settings.show_clock ? "Turn current time off" : "Turn current time on"}"><span class="sound-switch-knob"></span></button>
       </div>
     </div>`;
 }
@@ -15534,24 +15902,39 @@ function wallpaperSettingsSection() {
    STICKERS
    ---------------------------------------------------------------------------
    Stickers are the little pictures on the achievements in the head bar: the
-   trophy that counts finished tasks and the tomato that counts focus rounds.
+   built-in trophy, plus each achievement-tagged plugin that is currently on
+   (the Pomodoro tomato, once its plugin has been switched on).
    Unlike a wallpaper these are stored inside the notebook, so a sticker is
    part of NeoTodo rather than a link to a file.
    ------------------------------------------------------------------------- */
 
+/**
+ * The real header sticker's layout box. Settings paints its preview at the
+ * same size, so the reader judges the crop on the badge it will actually sit
+ * on instead of on a blown-up card. offsetWidth/offsetHeight ignore the tilt
+ * and hover scale, and return 0 while the plugin slot is hidden.
+ */
+function headerStickerBox(target) {
+  const sticker = document.querySelector(target.selector)?.closest(".ach-sticker");
+  if (!sticker?.offsetWidth || !sticker?.offsetHeight) return null;
+  return { width: sticker.offsetWidth, height: sticker.offsetHeight };
+}
+
 function stickersSettings() {
-  const targets = STICKER_TARGETS;
+  // Achievement plugins appear only while they own a header slot. The Pomodoro
+  // tomato, for example, joins the list once its plugin is turned on.
+  const targets = availableStickerTargets();
   const cards = targets.map((target) => {
-    const available = stickerTargetAvailable(target);
     const config = stickerSettingsFor(target.id);
     const preview = config?.image || target.fallback;
-    return `<div class="sticker-setting-card ${available ? "" : "is-missing"}" data-sticker-card="${target.id}">
-      <span class="sticker-setting-preview"><img src="${esc(preview)}" alt="" style="${stickerImageStyle(config)}"></span>
+    const box = headerStickerBox(target);
+    const previewSize = box ? ` style="width:${box.width}px;height:${box.height}px"` : "";
+    return `<div class="sticker-setting-card" data-sticker-card="${target.id}">
+      <span class="sticker-setting-preview"${previewSize}><img src="${esc(preview)}" alt="" style="${stickerImageStyle(config)}"></span>
       <div class="sticker-setting-body">
         <strong class="sticker-setting-name">${esc(target.name)}</strong>
-        <small class="sticker-setting-hint">${esc(target.hint || "")}</small>
         <div class="sticker-setting-actions">
-          <button class="btn small" type="button" data-action="choose-sticker-image" data-sticker-id="${target.id}" ${available ? "" : "disabled"}>${available ? (config?.image ? "Replace" : "Choose picture") : "Plugin off"}</button>
+          <button class="btn small" type="button" data-action="choose-sticker-image" data-sticker-id="${target.id}">${config?.image ? "Replace" : "Choose picture"}</button>
           ${config?.image ? `<button class="btn small" type="button" data-action="reset-sticker-image" data-sticker-id="${target.id}">Default</button>` : ""}
         </div>
       </div>
@@ -15560,9 +15943,7 @@ function stickersSettings() {
   }).join("");
   return `<div class="settings-head"><h2>Stickers</h2><p>The picture on each achievement. Pick any image and it sits on that badge.</p></div>
     <div class="settings-section">
-      <div class="settings-label">Achievement stickers <span>stored in the notebook</span></div>
       <div class="sticker-settings-grid">${cards}</div>
-      <p class="sticker-footnote">A sticker is saved inside NeoTodo, so it stays with the notebook even if the original picture moves. The tomato needs the Pomodoro plugin switched on.</p>
     </div>`;
 }
 
@@ -16202,7 +16583,8 @@ async function aiDeleteCommand(id) {
 function aiInsertCommand(id) {
   const command = (aiConfig?.commands || []).find((item) => item.id === id);
   if (!command) return;
-  closeSettings();
+  if (aiSettingsModalOpen()) closeAiSettings();
+  else closeSettings();
   if (!agentTerminalOpen) openAgentTerminal(true);
   setTimeout(() => {
     const input = $("#agent-input");
@@ -16598,7 +16980,7 @@ function aiAdvancedSettings() {
 
 function aiSettings() {
   if (!aiConfig && !aiConfigLoaded) {
-    loadAiConfig().then(() => { if (settingsTab === "ai") renderSettings(); });
+    loadAiConfig().then(() => { if (aiSettingsModalOpen()) renderAiSettingsModal(); });
   }
   const tabs = [
     ["basic", "Basic"],
@@ -16633,6 +17015,9 @@ function renderSettings() {
   // Every plugin action funnels through here; while the Community sheet is up,
   // refresh that sheet instead of the settings page behind it.
   if (communityModalOpen) { renderCommunity(); return; }
+  // While the standalone AI sheet is up, every AI action funnels its rerender
+  // through here; keep that sheet fresh instead of looking for Settings.
+  if (aiSettingsModalOpen()) { renderAiSettingsModal(); return; }
   const panel = $(".settings-panel");
   if (!panel) return;
   // Old links and shortcuts may still ask for the former tabs.
@@ -16652,7 +17037,6 @@ function renderSettings() {
     : settingsTab === "stickers" ? stickersSettings()
     : settingsTab === "plugins" ? pluginsSettings()
     : settingsTab === "sound" ? soundSettings()
-    : settingsTab === "ai" ? aiSettings()
     : settingsTab === "about" ? aboutSettings()
     : themeSettings();
   panel.innerHTML = `<aside class="settings-nav">
@@ -16660,7 +17044,6 @@ function renderSettings() {
       <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Theme</button>
       <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
       <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
-      <button class="settings-nav-item ${settingsTab === "ai" ? "active" : ""}" data-settings-tab="ai">AI</button>
       <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
       <button class="settings-nav-item settings-nav-community" data-action="open-community" aria-label="Open the Community window">Community <svg class="settings-nav-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 15.5 12 9 18.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Sound</button>
@@ -17251,7 +17634,6 @@ function bindEvents() {
       pluginDetailId = null;
       pluginPendingUninstallId = null;
       renderSettings();
-      if (settingsTab === "ai") loadAiConfig().then(() => { if (settingsTab === "ai") renderSettings(); });
       const settingsScroll = $(".settings-scroll");
       if (settingsScroll) settingsScroll.scrollTop = 0;
       return;
@@ -17497,22 +17879,6 @@ function bindEvents() {
     if (event.target.matches("[data-plugin-search]")) {
       pluginCommunityQuery = event.target.value;
       updatePluginCommunityResults();
-      return;
-    }
-    if (event.target.id === "title-offset-range") {
-      settings.title_offset = Math.max(-320, Math.min(320, Number(event.target.value)));
-      saveSettings();
-      applySettings();
-      const label = $("#title-offset-value");
-      if (label) label.textContent = `${settings.title_offset} px`;
-      return;
-    }
-    if (event.target.id === "title-icon-range") {
-      settings.title_icon_size = Math.max(24, Math.min(96, Number(event.target.value)));
-      saveSettings();
-      applySettings();
-      const label = $("#title-icon-value");
-      if (label) label.textContent = `${settings.title_icon_size} px`;
       return;
     }
     if (event.target.id === "font-size-range") {
@@ -18040,7 +18406,9 @@ function bindEvents() {
             if (!(await copyText(selectionText()))) return;
             // The console answers every copy with the same toast, so a copy
             // taken from the composer's menu reads like one taken from a reply.
+            // The note answers with the big page badge instead.
             if (editable.closest("#agent-terminal")) flashAgentCopy(editable.getBoundingClientRect());
+            else if (editable.closest("#notes-half")) flashPageCopy();
           },
         },
         { label: "Paste", run: paste },
@@ -18487,6 +18855,11 @@ function bindEvents() {
     if (event.key === "Escape" && $(".community-stage")) {
       event.preventDefault();
       closeCommunity();
+      return;
+    }
+    if (event.key === "Escape" && $(".ai-settings-stage")) {
+      event.preventDefault();
+      closeAiSettings();
       return;
     }
     if (event.key === "Escape" && $(".settings-stage")) {
@@ -19089,6 +19462,7 @@ async function init() {
   loadSettings();
   applySettings();
   bindEvents();
+  bindPageCopy();
   updateSoundToggle();
   loadAiConfig();
   state.data = window.__SNAPSHOT_STATE__ || await requestState();
