@@ -3,24 +3,26 @@
    --------------------------------------------------------------------------
    The wallpaper is the room. Only two levels may sit on it:
 
-     1. The working surface — the header, the task block, the live subtask
-        lane and the completed-history lane — is ink and rules printed
-        straight on the wallpaper. It must never paint a paper plate, a
-        gradient wash or a backdrop blur of its own, otherwise the subtasks
-        look like they live in a second window inside the room.
+     1. The working surface — the header, the live subtask rows and the
+        completed-history lane — is ink and rules printed straight on the
+        wallpaper. It must never paint a paper plate, a gradient wash or a
+        backdrop blur of its own, otherwise the rows look like they live in a
+        second window inside the room.
 
-     2. Sub-cards — the finished-subtasks card and the right-edge Doing card
-        carry the marker and are made out of the wallpaper itself: each one
-        carries a picture baked once from the wallpaper right where it sits
-        (never from the whole background), so the card is already finished
-        before it opens. A film is baked from its paused middle frame, so its
-        card is a still of the same scene. The cards show that picture edge to
-        edge — one complete card with one fixed outline — and only a shadow
-        below lifts it off the room. The top hidden box is not a card: it
-        borrows the same wallpaper picture as its background
-        (`data-wallpaper-surface`) but keeps its own bar edge and shadow, with
-        no card outline. The remaining floating controls are frosted panes, so
-        their text always stays readable.
+     2. Sub-cards — the live subtask card, the finished-subtasks card and the
+        right-edge Doing card — carry the marker and are made out of the
+        wallpaper itself: each one carries a picture baked once from the
+        wallpaper around its own box (never from the whole background), so the
+        card is already finished before it opens. The picture is taken from
+        140% of the card's box, so the card is a sheet of the room rather than
+        an exactly aligned, see-through hole in it. A film is baked from its
+        paused middle frame, so its card is a still of the same scene. The
+        cards show that picture edge to edge — one complete card with one fixed
+        outline — and only a shadow below lifts it off the room. The top hidden
+        box is not a card: it borrows the same wallpaper picture as its
+        background (`data-wallpaper-surface`) but keeps its own bar edge and
+        shadow, with no card outline. The remaining floating controls are
+        frosted panes, so their text always stays readable.
 
    Everything here is scoped to an active wallpaper, so the plain paper
    themes keep their existing notebook look untouched.
@@ -163,6 +165,7 @@ html[data-wallpaper-blur] .card-wallpaper::before {
    and a white line on the other, and the card would read as two pieces instead
    of one. The rounded clip and the card's own drop shadow lift it off the
    room. */
+html[data-wallpaper] #pending-subtask-card > .card-wallpaper[data-fit="patch"] > .wallpaper-media,
 html[data-wallpaper] #doing-peek > .card-wallpaper[data-fit="patch"] > .wallpaper-media,
 html[data-wallpaper] .completed-subtask-drawer > .card-wallpaper[data-fit="patch"] > .wallpaper-media,
 html[data-wallpaper] .trash-drawer > .card-wallpaper[data-fit="patch"] > .wallpaper-media {
@@ -174,10 +177,10 @@ html[data-wallpaper] .trash-drawer > .card-wallpaper[data-fit="patch"] > .wallpa
 }
 
 /* One fixed stroke for every sub-card: 墨绿 (ink green). It is deliberately not
-   a theme colour, so every marked surface — the Doing card, the finished
-   subtasks and anything added later — has the same outline whatever the
-   wallpaper or theme is. The categories spine is not a card and therefore
-   carries no outline. */
+   a theme colour, so every marked surface — the live subtask card, the Doing
+   card, the finished subtasks and anything added later — has the same outline
+   whatever the wallpaper or theme is. The categories spine is not a card and
+   therefore carries no outline. */
 :root {
   --subcard-outline: #2f5d4e;
 }
@@ -193,6 +196,7 @@ html[data-wallpaper] [data-subcard] > .card-wallpaper::after {
 
 /* The card's ink sits on a picture now, so it gets a paper halo instead of a
    grey film: the words still read, and the picture keeps its colour. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,
 html[data-wallpaper][data-wallpaper-cards] #doing-peek,
 html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
 html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
@@ -211,6 +215,7 @@ html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
    so it can be opened without tucking the finished card away. Keep this
    declaration as the fallback, but do not raise its specificity above the
    pile. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,
 html[data-wallpaper][data-wallpaper-cards] #doing-peek,
 html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
 html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
@@ -225,6 +230,29 @@ html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
   box-shadow:
     0 22px 30px -24px rgba(0, 0, 0, 0.55),
     0 8px 14px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* The live subtask card already paints its own 1px stroke through
+   `.pending-subtask-card::after`. The pane carries the same ink-green ring, so
+   the element's stroke steps aside and the card keeps exactly one outline. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card::after {
+  opacity: 0 !important;
+}
+
+/* The live subtask card's handle button is a direct child of the card, so the
+   shared "content above the pane" rule must not turn it into a static box. It
+   stays pinned to the card's bottom edge, above the picture. */
+html[data-wallpaper] #pending-subtask-card > .pending-subtask-toggle {
+  position: absolute;
+  z-index: 12;
+}
+
+/* Folded down to its handle the card is gone, so its picture goes with it:
+   only the purple line is left on the page's plain ruling. The pane stays
+   mounted, so unfolding reveals the same baked picture at once. */
+html[data-wallpaper] #pending-subtask-card.collapsed > .card-wallpaper {
+  opacity: 0;
+  transition: opacity 0.18s ease;
 }
 
 /* The old paper veil would gray the pane out; the pane's own scrim replaces
@@ -303,6 +331,7 @@ html[data-wallpaper] .settings-nav {
 
 /* Older engines without backdrop blur still get a layer, just a denser one. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,
   html[data-wallpaper][data-wallpaper-cards] #doing-peek,
   html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
   html[data-wallpaper][data-wallpaper-cards] .trash-drawer,

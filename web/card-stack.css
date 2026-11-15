@@ -43,6 +43,36 @@
     22px 44px 64px -32px rgba(18, 10, 4, 0.54),
     42px 84px 120px -70px rgba(18, 10, 4, 0.42);
 
+  /* On the wallpaper theme a card is made of the room's own picture, so its
+     face would otherwise be identical to the page behind it. A small paper
+     wash marks the card as a separate sheet, and the wash gets lighter as the
+     card sits higher in the pile. This is a surface step, not another card:
+     no coloured edge or under-sheet is painted. */
+  --card-face-sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12),
+    transparent 22%,
+    transparent 74%,
+    rgba(0, 0, 0, 0.11)
+  );
+  --card-face-wash: color-mix(
+    in srgb,
+    var(--overlay-paper, #f7efe3) 18%,
+    transparent
+  );
+  --card-face-wash-raised: color-mix(
+    in srgb,
+    var(--overlay-paper, #f7efe3) 30%,
+    transparent
+  );
+  --card-face-wash-top: color-mix(
+    in srgb,
+    var(--overlay-paper, #f7efe3) 44%,
+    transparent
+  );
+  --card-edge-light: inset 0 2px 0 rgba(255, 255, 255, 0.48);
+  --card-edge-shade: inset 0 -2px 0 rgba(0, 0, 0, 0.10);
+
   /* Compatibility aliases for the plugin theme bridge and older card rules.
      They all resolve to the one overlap configuration above. */
   --card-lift-page: var(--card-overlap-shadow);
@@ -92,6 +122,21 @@ body .trash-drawer {
     var(--card-overlap-shadow) !important;
 }
 
+/* The live subtask card is the bottom sheet: it lies on the task page with the
+   same ink-green stroke and the shared contact shadow, with or without a
+   wallpaper. With a wallpaper its picture pane supplies the face; this rule
+   out-ranks the wallpaper fallback lift so the pile keeps one shadow. */
+html[data-wallpaper][data-wallpaper-cards] body #pending-subtask-card {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-overlap-shadow) !important;
+}
+
+/* Folded down to its handle the card is gone; the page shows through, so no
+   shadow may be left behind the tab. */
+html[data-wallpaper][data-wallpaper-cards] body #pending-subtask-card.collapsed {
+  box-shadow: none !important;
+}
+
 /* With a wallpaper the picture pane supplies the face edge to edge. The
    element's own 1px border is painted the same ink green as the pane's inset
    stroke, so the two read as one border: a transparent border here would let
@@ -107,6 +152,44 @@ html[data-wallpaper] body #doing-peek {
 html[data-wallpaper] body .completed-subtask-drawer {
   border-color: var(--subcard-outline, #2f5d4e) !important;
   box-shadow: var(--card-overlap-shadow) !important;
+}
+
+/* Wallpaper-theme card faces: one paper wash per level, a light top bevel and
+   a shaded bottom edge. The live card is the least washed sheet, the finished
+   card one step lighter, and the Doing card the lightest — the same order as
+   the pile, so the room behind them no longer makes all three look like one
+   page. The wash lives on the wallpaper pane, under the card's text, and adds
+   no separate sheet or coloured border. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card > .card-wallpaper::after {
+  background: var(--card-face-sheen), var(--card-face-wash);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
+}
+
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer > .card-wallpaper::after {
+  background: var(--card-face-sheen), var(--card-face-wash-raised);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
+}
+
+html[data-wallpaper][data-wallpaper-cards] #doing-peek > .card-wallpaper::after {
+  background: var(--card-face-sheen), var(--card-face-wash-top);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
+}
+
+html[data-wallpaper][data-wallpaper-cards] .trash-drawer > .card-wallpaper::after {
+  background: var(--card-face-sheen), var(--card-face-wash-top);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
 }
 
 /* The finished sheet still carries one faint inner light along its top. It is

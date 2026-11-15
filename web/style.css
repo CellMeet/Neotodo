@@ -571,9 +571,10 @@ details[open] > summary .chev { transform: rotate(90deg); }
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(70, 58, 40, 0.3);
-  backdrop-filter: blur(2px);
-  animation: fade-in 0.16s ease both;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
 }
 .modal {
   width: min(430px, 92vw);
@@ -2439,10 +2440,11 @@ body { color: var(--ink); }
 }
 .log-empty { font-family: var(--display); font-size: 15px; font-style: italic; color: #8d7550; }
 
-/* RPG confirmation scroll */
+/* RPG confirmation scroll: opens in place over the notebook, like Settings. */
 .modal-backdrop {
-  background: radial-gradient(ellipse at center, rgba(30, 18, 8, 0.56), rgba(8, 5, 2, 0.86));
-  backdrop-filter: blur(5px);
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 .modal {
   position: relative;
@@ -8296,10 +8298,14 @@ html[data-theme="postcard"] .subtask-name-input { color: var(--ink-soft); }
 
 /* Inline rename field for a current subtask, same type as the name.
    No underline: the dashed rule showed up as a stray white line under the
-   text while editing, so the field sits bare on the row's own ruled line. */
+   text while editing, so the field sits bare on the row's own ruled line.
+   The field only ever takes the name's place: growing it to the row's free
+   space pushed the fork flame (and the done check) all the way to the right
+   edge, so the row's controls moved the moment a subtask was opened. */
 .sub-name-input {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   height: 24px;
   padding: 0;
   border: 0;
@@ -10316,6 +10322,17 @@ html[data-theme="postcard"] .week-count .moon-icon {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* Appearance, Sound and Stickers sign their name in the brand's calligraphic
+   face. The top row keeps its height but the hairline under the lettering
+   disappears, so the script can sit on bare paper. */
+.settings-page-title-art {
+  font-family: var(--script);
+  font-size: 23px;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1;
+}
+.settings-topbar-art { border-bottom-color: transparent; }
 .settings-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -10570,35 +10587,41 @@ html[data-theme="postcard"] .postcard-choice.active {
 .font-menu { flex: 0 1 auto; min-width: 0; }
 .font-menu .theme-menu-trigger { min-width: 112px; max-width: 172px; }
 .font-menu .theme-menu-list { width: 196px; }
-.font-size-field {
-  display: inline-flex;
+.font-manage-panel { margin-top: 8px; }
+.font-manage-line {
+  display: flex;
   align-items: center;
-  gap: 5px;
-  height: 30px;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 10px;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 6px;
+  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.04);
+}
+.font-manage-label {
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.font-manage-size {
+  width: 52px;
+  height: 28px;
   padding: 0 7px;
   border: 1px solid var(--pc-line, var(--line));
   border-radius: 6px;
   background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.06);
-  color: var(--pc-muted, var(--muted));
-  font-family: var(--mono);
-  font-size: 10px;
-  white-space: nowrap;
-  cursor: text;
-}
-.font-size-input {
-  width: 40px;
-  padding: 0;
-  border: 0;
-  background: transparent;
   color: var(--pc-ink, var(--ink));
   font-family: var(--mono);
   font-size: 11px;
-  text-align: right;
+  text-align: center;
   outline: none;
 }
-.font-size-input::-webkit-inner-spin-button,
-.font-size-input::-webkit-outer-spin-button { opacity: 0.45; }
+.font-manage-size::-webkit-inner-spin-button,
+.font-manage-size::-webkit-outer-spin-button { opacity: 0.45; }
 .font-color-input { flex: 0 0 auto; }
+.font-hex-input { width: 84px; }
 
 /* The note size only rescales the notebook; every note font-size rule already
    reads --user-scale. */
@@ -11002,6 +11025,16 @@ html[data-theme="postcard"] .settings-close::before{
   gap: 8px;
 }
 .theme-manage-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+/* Theme → Manage folds out tight under its own row and closes with a
+   hairline, so the pack actions read as the tail of Theme instead of
+   crowding the Wallpaper row below. */
+.theme-settings-row.theme-manage-open { margin-bottom: 0; }
+.theme-settings-row.theme-manage-open + .theme-manage-panel {
+  margin-top: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--pc-line, var(--line));
+  margin-bottom: 24px;
+}
 .theme-manage-panel .custom-theme-editor { margin-top: 4px; margin-bottom: 0; }
 
 .custom-theme-panel {
@@ -11444,16 +11477,20 @@ html[data-theme="postcard"] .category-item.selected {
 }
 
 /* Settings, Community and achievement sheets open in place without dimming or
-   blurring the app. */
+   blurring the app. Dialogs follow the same rule: their backdrop stays clear so
+   the notebook behind them does not change when one pops up. */
 .settings-stage,
 .completed-stage,
 .community-stage,
+.modal-backdrop,
 html[data-theme="lavender"] .settings-stage,
 html[data-theme="lavender"] .completed-stage,
 html[data-theme="lavender"] .community-stage,
+html[data-theme="lavender"] .modal-backdrop,
 html[data-theme="postcard"] .settings-stage,
 html[data-theme="postcard"] .completed-stage,
-html[data-theme="postcard"] .community-stage {
+html[data-theme="postcard"] .community-stage,
+html[data-theme="postcard"] .modal-backdrop {
   background: transparent !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;

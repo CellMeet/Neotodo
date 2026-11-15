@@ -25,6 +25,12 @@ plugins/
     plugin.css         page-only rail mark, year jumps and preview spacing
     plugin.js          talks to window.NeoTodoPostcards in the host notebook
     postcard.svg       picture/postcard rail icon (user-provided)
+  community/
+    manifest.json      opt-in community shop metadata (interface / chrome, intheme)
+    index.html         Settings-style shop sheet: plugins, games, themes
+    community.css      transparent iframe, shop cards and theme swatches
+    community.js       catalogs + window.NeoTodoCommunity install/apply bridge
+    community.svg      hammer rail icon (user-provided)
   subtask-search/
     manifest.json      plugin metadata (interface / chrome)
     index.html         plugin control page
@@ -99,7 +105,7 @@ headphone is the built-in default, and each new tagged plugin slides it left.
 A manifest tagged `"intheme"` (or `"in-theme"`) says its page is not a mini-app
 but the notebook's own Settings sheet: the host keeps the live wallpaper behind
 its transparent stage and folds Settings / Community away when it opens. The
-Palette and Postcards pages are the two bundled examples.
+Palette, Postcards and Community pages are the bundled examples.
 
 ## Add a plugin
 
@@ -143,6 +149,14 @@ the same plugin ids. `python3 tools/validate_community.py` checks them.
   existing postcard article and the large viewer, so the notebook keeps a
   single archive and app startup never loads a second copy of the themes.
   Tagged `intheme`.
+- `community` — 社区 / Community. The hammer rail icon opens the shop formerly
+  hidden behind Settings → Community. It browses plugins, games and themes,
+  installs / enables / removes plugins and applies themes through
+  `window.NeoTodoCommunity`, so the notebook keeps ownership of plugin files,
+  saved switches and theme packs. The page loads `style.css` and is tagged
+  `intheme`, so it wears the current theme. Settings no longer carries a
+  Community item; bundled plugins are added from Settings → Plugins →
+  Available.
 - `subtask-search` — 子任务搜索 / Subtask Search
 - `forktree` — 分支地图 / Forktree. Clicking a card posts
   `{ type: "neotodo-forktree-open", target }`; the host closes the plugin and

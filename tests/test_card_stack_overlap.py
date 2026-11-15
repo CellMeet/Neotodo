@@ -47,7 +47,21 @@ def main() -> int:
     # No deck: the card above rests directly on the card below.
     assert "--card-pile" not in stack_css, "the extra deck sheets are back"
     assert "--card-under-paper" not in stack_css, "a coloured under-sheet is back"
-    assert "color-mix(" not in stack_css, "a second paper tone is still painted under the cards"
+    # The wallpaper faces get a paper wash so they do not merge with the page,
+    # but it is a surface step on the card itself, never a second sheet.
+    assert "--card-face-wash:" in stack_css
+    assert "--card-face-wash-raised:" in stack_css
+    assert "--card-face-wash-top:" in stack_css
+    assert "var(--card-face-sheen), var(--card-face-wash)" in stack_css
+    assert "var(--card-face-wash-raised)" in stack_css
+    assert "var(--card-face-wash-top)" in stack_css
+    for selector in (
+        "#pending-subtask-card > .card-wallpaper::after",
+        ".completed-subtask-drawer > .card-wallpaper::after",
+        "#doing-peek > .card-wallpaper::after",
+        ".trash-drawer > .card-wallpaper::after",
+    ):
+        assert selector in stack_css, f"the wallpaper face step is missing: {selector}"
 
     # --- every card uses the same configuration ------------------------------
     live = css_block(stack_css, "body #pending-subtask-card {")

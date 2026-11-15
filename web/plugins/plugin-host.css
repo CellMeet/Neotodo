@@ -92,6 +92,36 @@ html[data-postcard-dark="true"] .postcard-glyph {
   filter: drop-shadow(0 0 6px rgba(255, 200, 36, 0.3));
 }
 
+/* Community keeps the user's hammer mark in the rail. */
+.community-button { overflow: visible; }
+
+.community-glyph {
+  width: 31px;
+  height: 31px;
+  display: block;
+  object-fit: contain;
+  border-radius: 50%;
+  filter: drop-shadow(0 1px 1px rgba(36, 28, 58, 0.22));
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.community-button:hover .community-glyph {
+  transform: translateY(-1px) rotate(-4deg) scale(1.08);
+}
+
+.community-button:active .community-glyph {
+  transform: rotate(2deg) scale(0.95);
+}
+
+.community-button:focus,
+.community-button:focus-visible {
+  outline: none !important;
+}
+
+html[data-postcard-dark="true"] .community-glyph {
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.22));
+}
+
 /* Forktree keeps the user's blue mind-map mark in the rail. */
 .forktree-button { overflow: visible; }
 

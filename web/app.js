@@ -2093,6 +2093,8 @@ const CARET_UNITS = [
 let themeFieldMode = "app";
 // `caretFieldMode` is the caret unit currently shown in the row.
 let caretFieldMode = "app";
+// Font → Manage folds size and colour out under each font row.
+const fontManageOpen = { body: false, note: false };
 
 function randomPostcardId(exclude = null) {
   const pool = POSTCARD_IDS.filter((id) => id !== exclude);
@@ -2324,6 +2326,22 @@ const PLUGIN_REGISTRY = {
     icon: "/plugins/postcard/postcard.svg",
     entry: "/plugins/postcard/index.html",
     tags: ["intheme", "postcard", "archive", "weekly"],
+  },
+  // The community shop is its own plugin now. It is a Settings-style sheet
+  // (intheme), installed from the Available list, and owns the browser that
+  // used to live behind Settings → Community.
+  community: {
+    id: "community",
+    title: "社区",
+    englishTitle: "Community",
+    version: "1.0.0",
+    author: "NeoTodo",
+    category: "Interface",
+    description: "把 Settings 里的社区商店搬进插件：浏览插件、游戏和主题，安装后直接在这里打开，不用再回 Settings。打开时沿用当前应用主题。",
+    icon: "/plugins/community/community.svg",
+    entry: "/plugins/community/index.html",
+    tags: ["intheme", "community", "plugins", "themes", "社区"],
+    defaultInstalled: false,
   },
   "completed-drawer": {
     id: "completed-drawer",
@@ -8680,7 +8698,7 @@ function renderStage() {
     // handle line rides the sheet's bottom edge: pulled up it stretches the
     // card away until the line sits under the top line of the block and the
     // page's own ruling shows through, pulled down it hands the rows back.
-    const pendingCard = (lanes) => `<div class="pending-subtask-card card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
+    const pendingCard = (lanes) => `<div class="pending-subtask-card card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" data-subcard="pending" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
         ${lanes}
         <button class="pending-subtask-toggle ${pendingSubtasksCollapsed ? "collapsed" : ""}" type="button" data-action="toggle-pending-subtasks" aria-expanded="${pendingSubtasksCollapsed ? "false" : "true"}" aria-controls="pending-subtask-card" aria-label="${pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks"}">
           <span class="pending-subtask-line" aria-hidden="true"></span>
@@ -10052,6 +10070,206 @@ window.NeoTodoPostcards = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Community plugin host bridge.
+//
+// The Community shop used to be a modal owned by app.js. It now lives in the
+// "community" plugin, but plugin and theme installation still has to update
+// the notebook's registry, rail and saved switches. The same-origin iframe
+// calls these methods; the notebook stays the single owner of that state.
+// ---------------------------------------------------------------------------
+window.NeoTodoCommunity = {
+  read() {
+    const plugins = {};
+    for (const plugin of Object.values(PLUGIN_REGISTRY)) {
+      const pluginRecord = pluginState(plugin.id);
+      plugins[plugin.id] = {
+        id: plugin.id,
+        title: plugin.title,
+        version: plugin.version,
+        icon: plugin.icon || "",
+        source: plugin.source || "bundled",
+        installed: Boolean(pluginRecord?.installed),
+        enabled: Boolean(pluginRecord?.enabled),
+      };
+    }
+    const themes = (Array.isArray(themePacks) ? themePacks : []).map((pack) => ({
+      id: pack.id,
+      name: pack.name || pack.id,
+      englishName: pack.englishName || "",
+      version: pack.version || "1.0.0",
+      description: pack.description || "",
+      author: pack.author || "NeoTodo",
+      palette: pack.palette && typeof pack.palette === "object" ? pack.palette : {},
+      chrome: Boolean(pack.chrome),
+      note: Boolean(pack.note),
+      ai: Boolean(pack.ai),
+      source: pack.source || "user",
+      bundled: pack.source === "bundled",
+      applied: settings.resolved_postcard === pack.id,
+    }));
+    return {
+      plugins,
+      themes,
+      theme: {
+        id: currentPostcardId(),
+        name: postcardName(currentPostcardId()),
+      },
+      themeBusy: themePackBusy || "",
+      installing: [...pluginInstalling],
+    };
+  },
+
+  async load(force = false) {
+    await Promise.allSettled([
+      loadPluginCatalog(Boolean(force)),
+      loadThemeCatalog(Boolean(force)),
+      loadInstalledPlugins(),
+      loadThemePacks(),
+    ]);
+    return this.read();
+  },
+
+  async installPlugin(pluginEntry) {
+    const entry = typeof pluginEntry === "string"
+      ? pluginCatalogEntries().find((item) => item.id === pluginEntry) || null
+      : pluginEntry;
+    const id = String(entry?.id || pluginEntry || "");
+    if (!id) return this.read();
+    const plugin = PLUGIN_REGISTRY[id];
+    if (entry?.bundled && plugin) {
+      installPlugin(id);
+      await loadInstalledPlugins();
+      return this.read();
+    }
+    if (entry?.download) {
+      pluginInstalling.add(id);
+      try {
+        const response = await fetch("/api/plugins/install", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: entry.download, id, sha256: entry.sha256 || "" }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result?.ok) throw new Error(result?.error || "The plugin could not be installed");
+        mergePluginManifests(result.plugins || (result.plugin ? [result.plugin] : []));
+        const pluginStateRecord = pluginState(id);
+        const wasInstalled = Boolean(pluginStateRecord?.installed);
+        if (pluginStateRecord) {
+          pluginStateRecord.installed = true;
+          if (!wasInstalled) pluginStateRecord.enabled = true;
+        }
+        saveSettings();
+        applyPluginState(true);
+        renderPluginRail();
+        AudioFX.ding();
+        toast(`${entry.name || id} installed`);
+      } catch (error) {
+        toast(error?.message || "The plugin could not be installed", true);
+        throw error;
+      } finally {
+        pluginInstalling.delete(id);
+      }
+      await loadInstalledPlugins();
+      return this.read();
+    }
+    if (!pluginCatalog) await loadPluginCatalog(false);
+    await installCommunityPlugin(id);
+    await loadInstalledPlugins();
+    return this.read();
+  },
+
+  async removePlugin(pluginId) {
+    await confirmPluginUninstall(String(pluginId || ""));
+    await loadInstalledPlugins();
+    return this.read();
+  },
+
+  setPluginEnabled(pluginId, enabled) {
+    window.setPluginEnabled(String(pluginId || ""), Boolean(enabled));
+    return this.read();
+  },
+
+  openPlugin(pluginId) {
+    const id = String(pluginId || "");
+    if (!pluginEnabled(id)) {
+      toast(`${PLUGIN_REGISTRY[id]?.title || id} is turned off`, true);
+      return false;
+    }
+    closePluginPanel();
+    openPluginPanel(id);
+    return true;
+  },
+
+  managePlugin(pluginId) {
+    pluginDetailId = String(pluginId || "");
+    pluginPendingUninstallId = null;
+    closePluginPanel();
+    openSettings("plugins");
+  },
+
+  managePlugins() {
+    pluginDetailId = null;
+    pluginPendingUninstallId = null;
+    closePluginPanel();
+    openSettings("plugins");
+  },
+
+  async installTheme(entry) {
+    const id = String(entry?.id || "");
+    if (!id) return this.read();
+    themePackBusy = id;
+    try {
+      const payload = entry.download
+        ? { id, url: entry.download, sha256: entry.sha256 || "" }
+        : { id, bundled: true };
+      const result = await themeCommunityPost("/api/themes/install", payload);
+      if (!result?.ok) throw new Error(result?.error || "Could not install that theme");
+      themePacks = result.packs || themePacks;
+      registerThemePacks(themePacks);
+      toast(`${entry.name || id} installed`);
+    } catch (error) {
+      toast(error?.message || "Could not install that theme", true);
+      throw error;
+    } finally {
+      themePackBusy = "";
+      await loadThemePacks();
+      applyPaneThemes();
+      if (settingsTab === "theme") renderSettings();
+    }
+    return this.read();
+  },
+
+  async removeTheme(themeId) {
+    const id = String(themeId || "");
+    if (!themePacks.length) await loadThemePacks();
+    await removeThemePackById(id, { skipConfirm: true });
+    return this.read();
+  },
+
+  async applyTheme(themeId) {
+    const id = String(themeId || "");
+    if (!themePacks.length) await loadThemePacks();
+    await applyThemePackById(id);
+    return this.read();
+  },
+
+  openThemeSettings() {
+    closePluginPanel();
+    openSettings("theme");
+  },
+
+  openPluginsFolder() {
+    silentAction("open_plugins_folder");
+  },
+
+  async installPluginArchive(data, filename) {
+    await uploadPluginArchive(String(data || ""), String(filename || "plugin.zip"));
+    await loadInstalledPlugins();
+    return this.read();
+  },
+};
+
 function installPlugin(pluginId) {
   const plugin = PLUGIN_REGISTRY[pluginId];
   const state = pluginState(pluginId);
@@ -10075,9 +10293,9 @@ function pluginSurfaceScroll() {
 
 function requestPluginUninstall(pluginId) {
   if (!PLUGIN_REGISTRY[pluginId]) return;
-  if (!$(".settings-panel") && !communityModalOpen) {
-    openCommunity(pluginEntryIsGame(PLUGIN_REGISTRY[pluginId]) ? "games" : "plugins");
-  } else if ($(".settings-panel")) {
+  if (!$(".settings-panel")) {
+    openSettings("plugins");
+  } else {
     settingsTab = "plugins";
   }
   pluginPendingUninstallId = pluginId;
@@ -10129,10 +10347,10 @@ async function confirmPluginUninstall(pluginId) {
 
 function openPluginSettingsPage(pluginId) {
   if (!PLUGIN_REGISTRY[pluginId]) return;
-  if ($(".settings-panel")) {
+  if (!$(".settings-panel")) {
+    openSettings("plugins");
+  } else {
     settingsTab = "plugins";
-  } else if (!communityModalOpen) {
-    openCommunity(pluginEntryIsGame(PLUGIN_REGISTRY[pluginId]) ? "games" : "plugins");
   }
   pluginDetailId = pluginId;
   pluginPendingUninstallId = null;
@@ -12466,6 +12684,7 @@ async function handleAction(actionName, element) {
   if (actionName === "open-pindou") { openPluginPanel("pindou"); return; }
   if (actionName === "open-palette") { openPluginPanel("palette"); return; }
   if (actionName === "open-postcard") { openPluginPanel("postcard"); return; }
+  if (actionName === "open-community-shop") { openCommunityPlugin("plugins"); return; }
   if (actionName === "open-ai-settings") { openAiSettings(); return; }
   if (actionName === "open-forktree") { openPluginPanel("forktree"); return; }
   if (actionName === "toggle-plugin") {
@@ -12501,7 +12720,7 @@ async function handleAction(actionName, element) {
   if (actionName === "cancel-plugin-uninstall") { pluginPendingUninstallId = null; renderSettings(); return; }
   if (actionName === "open-plugin") { openPluginFromSettings(element?.dataset.pluginId || ""); return; }
   if (actionName === "open-community") {
-    openCommunity(communitySection);
+    openCommunityPlugin("plugins");
     return;
   }
   if (actionName === "close-community") { AudioFX.categoryTap(); closeCommunity(); return; }
@@ -12512,15 +12731,15 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "open-plugin-community") {
-    openCommunity("plugins");
+    openCommunityPlugin("plugins");
     return;
   }
   if (actionName === "open-plugin-list") {
-    openCommunity("plugins");
+    openCommunityPlugin("plugins");
     return;
   }
   if (actionName === "open-community-themes") {
-    openCommunity("themes");
+    openCommunityPlugin("themes");
     return;
   }
   if (actionName === "open-theme-settings") {
@@ -12691,6 +12910,12 @@ async function handleAction(actionName, element) {
       customThemeEditorOpen = false;
       customThemeDraft = null;
     }
+    renderSettings();
+    return;
+  }
+  if (actionName === "toggle-font-manage") {
+    const kind = element?.dataset?.fontManage === "note" ? "note" : "body";
+    fontManageOpen[kind] = !fontManageOpen[kind];
     renderSettings();
     return;
   }
@@ -14800,10 +15025,10 @@ function wallpaperSurfaceHost(host) {
   return Boolean(host?.dataset?.subcard || host?.dataset?.wallpaperSurface);
 }
 
-/* The two sheets that float over the room. With a film they keep a still card
+/* The sheets that float over the room. With a film they keep a still card
    (its middle frame); the categories spine and the top box are the room itself,
    so a film stays live behind them instead of freezing those areas. */
-const SUBCARD_FLOATING = new Set(["doing", "completed", "trash"]);
+const SUBCARD_FLOATING = new Set(["pending", "doing", "completed", "trash"]);
 
 function subcardIsFloating(host) {
   return SUBCARD_FLOATING.has(subcardName(host));
@@ -14813,16 +15038,30 @@ function cardIsLive(host) {
   return Boolean(host?.classList.contains("open"));
 }
 
+/* The last open box of each sub-card. The live subtask card folds down to its
+   handle, but it must keep baking the picture of the sheet it unfolds into. */
+const subcardOpenBoxes = new WeakMap();
+
 /** The box a sub-card occupies once it is open.
     A closed sheet only changes transform/opacity, so inverting its transform
     gives the expanded box straight away — no waiting for the slide, and no
     style write that a `!important` rule could ignore. */
 function subcardBox(host) {
   if (!host) return null;
+  // The live subtask card folds down to its handle, but the picture it shows
+  // when it unfolds is the full sheet: keep the last open box for the bake
+  // instead of baking a 28px strip.
+  if (host.id === "pending-subtask-card" && host.classList.contains("collapsed")) {
+    const kept = subcardOpenBoxes.get(host);
+    if (kept) return kept;
+  }
   const rect = host.getBoundingClientRect();
   const computed = getComputedStyle(host);
   const transform = computed.transform;
-  if (!transform || transform === "none") return rect;
+  if (!transform || transform === "none") {
+    subcardOpenBoxes.set(host, rect);
+    return rect;
+  }
   const match = /^matrix\(([^)]+)\)$/.exec(transform);
   if (!match) return rect;
   const [a, b, c, d, e, f] = match[1].split(",").map((value) => Number(value));
@@ -14835,7 +15074,9 @@ function subcardBox(host) {
   const originY = Number.isFinite(origin[1]) ? origin[1] : height / 2;
   const left = rect.left - originX * (1 - a) - e;
   const top = rect.top - originY * (1 - d) - f;
-  return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top };
+  const box = { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top };
+  subcardOpenBoxes.set(host, box);
+  return box;
 }
 
 function subcardViewport() {
@@ -14857,6 +15098,14 @@ function subcardPaperKey(host, wallpaper, box) {
   ].join("|");
 }
 
+/* A sub-card is a sheet of the room, not a hole cut into it. Its picture is
+   taken from a region larger than the card's own footprint — 140% of the box,
+   kept centred — so the card carries its own photograph of the wallpaper
+   instead of being an exactly aligned, see-through copy of the area behind it.
+   The sampled region is drawn back onto the card at full size, which is what
+   gives every card its own crop. */
+const SUBCARD_PAPER_REGION = 1.4;
+
 /** The wallpaper pixels under a viewport box (the room uses object-fit: cover). */
 function subcardCropSource(image, box) {
   const view = subcardViewport();
@@ -14865,11 +15114,20 @@ function subcardCropSource(image, box) {
   const scale = Math.max(view.width / imageWidth, view.height / imageHeight);
   const offsetX = (view.width - imageWidth * scale) / 2;
   const offsetY = (view.height - imageHeight * scale) / 2;
+  const region = SUBCARD_PAPER_REGION;
+  const left = box.left - (box.width * region - box.width) / 2;
+  const top = box.top - (box.height * region - box.height) / 2;
+  const width = Math.max(1, (box.width * region) / scale);
+  const height = Math.max(1, (box.height * region) / scale);
+  const x = (left - offsetX) / scale;
+  const y = (top - offsetY) / scale;
+  // Keep the sample inside the picture: a card near an edge must not bake a
+  // transparent strip where the 140% crop runs past the wallpaper.
   return {
-    x: (box.left - offsetX) / scale,
-    y: (box.top - offsetY) / scale,
-    width: Math.max(1, box.width / scale),
-    height: Math.max(1, box.height / scale),
+    x: Math.min(Math.max(0, x), Math.max(0, imageWidth - width)),
+    y: Math.min(Math.max(0, y), Math.max(0, imageHeight - height)),
+    width: Math.min(width, imageWidth),
+    height: Math.min(height, imageHeight),
   };
 }
 
@@ -15500,10 +15758,9 @@ function openSettings(tab = "theme") {
     openAiSettings();
     return;
   }
-  // Community is its own in-app sheet now: the nav item closes Settings and
-  // opens it, so the two never share the stage.
+  // Community is a plugin now: old links still land on its shop page.
   if (tab === "community" || tab === "themes") {
-    openCommunity(tab === "community" ? communitySection : "themes");
+    openCommunityPlugin(tab === "themes" ? "themes" : "plugins");
     return;
   }
   // Older links and shortcuts still say "appearance"; Theme is the tab now.
@@ -15524,6 +15781,8 @@ function openSettings(tab = "theme") {
   // menu itself switches it to the note or AI palette without leaving the row.
   themeFieldMode = "app";
   caretFieldMode = "app";
+  fontManageOpen.body = false;
+  fontManageOpen.note = false;
   customThemeEditorOpen = false;
   customThemeDraft = null;
   customThemeBusy = false;
@@ -15837,7 +16096,6 @@ function themeSettings() {
   </div>` : "";
   const managePanel = themeManageOpen ? `<div class="theme-manage-panel">
     <div class="theme-manage-actions">
-      <button class="theme-chip-button" type="button" data-action="open-community-themes">Browse community</button>
       <button class="theme-chip-button" type="button" data-action="import-theme-pack" ${themePackBusy === "import" ? "disabled" : ""}>${themePackBusy === "import" ? "Importing…" : "Import .zip"}</button>
       <button class="theme-chip-button" type="button" data-action="open-theme-packs-folder">Open folder</button>
       <button class="theme-chip-button" type="button" data-action="new-custom-theme">+ New theme</button>
@@ -15848,7 +16106,7 @@ function themeSettings() {
   // The Theme row itself is the selector. Its menu can switch between the app
   // palette, the notebook palette and the console palette; the row title and
   // value follow that choice, and every list uses the same menu layout.
-  const themeRow = `<div class="settings-section theme-settings-row theme-main-row" data-theme-field-row>
+  const themeRow = `<div class="settings-section theme-settings-row theme-main-row ${fieldMode === "app" && themeManageOpen ? "theme-manage-open" : ""}" data-theme-field-row>
     ${themeUnitMenu}
     <div class="theme-settings-controls">
       ${themeFieldMenu}
@@ -15913,27 +16171,33 @@ function fontSettings() {
       </div>
     </details>`;
   };
-  const sizeField = (kind, value) => `<label class="font-size-field" title="${kind === "note" ? "Note" : "Body"} font size">
-      <span class="font-size-label">size</span>
-      <input class="font-size-input" type="number" min="${kind === "note" ? 10 : 14}" max="${kind === "note" ? 28 : 20}" step="1" value="${value}" data-font-size="${kind}" aria-label="${kind === "note" ? "Note" : "Body"} font size">
-    </label>`;
-  const colorField = (kind, value) => `<input class="theme-color-input font-color-input" type="color" value="${value}" data-font-color="${kind}" aria-label="${kind === "note" ? "Note" : "Body"} font colour" title="${kind === "note" ? "Note" : "Body"} font colour">`;
-  return `<div class="settings-section theme-settings-row font-settings-row">
-      <div class="theme-settings-title">Body font</div>
-      <div class="theme-settings-controls font-settings-controls">
-        ${fontMenu("body", settings.font, "Body font")}
-        ${sizeField("body", bodySize)}
-        ${colorField("body", bodyInk)}
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row font-settings-row">
-      <div class="theme-settings-title">Note font</div>
-      <div class="theme-settings-controls font-settings-controls">
-        ${fontMenu("note", settings.note_font, "Note font")}
-        ${sizeField("note", noteSize)}
-        ${colorField("note", noteInk)}
+  const manageButton = (kind) => `<button class="theme-chip-button ${fontManageOpen[kind] ? "active" : ""}" type="button" data-action="toggle-font-manage" data-font-manage="${kind}" aria-expanded="${fontManageOpen[kind] ? "true" : "false"}">Manage</button>`;
+  // Size and colour fold out under the row, like Theme → Manage. The size is
+  // the bare number, then the swatch, then the same colour as a hex code.
+  const managePanel = (kind) => {
+    const note = kind === "note";
+    const value = note ? noteSize : bodySize;
+    const color = note ? noteInk : bodyInk;
+    return `<div class="theme-manage-panel font-manage-panel">
+      <div class="font-manage-line">
+        <span class="font-manage-label">size:</span>
+        <input class="font-manage-size" type="number" min="${note ? 10 : 14}" max="${note ? 28 : 20}" step="1" value="${value}" data-font-size="${kind}" aria-label="${note ? "Note" : "Body"} font size">
+        <input class="theme-color-input font-color-input" type="color" value="${color}" data-font-color="${kind}" aria-label="${note ? "Note" : "Body"} font colour" title="${note ? "Note" : "Body"} font colour">
+        <input class="theme-hex-input font-hex-input" type="text" maxlength="7" spellcheck="false" value="${color}" data-font-color-hex="${kind}" aria-label="${note ? "Note" : "Body"} font colour hex">
       </div>
     </div>`;
+  };
+  const row = (kind, title, currentId) => `<div class="settings-section theme-settings-row font-settings-row">
+      <div class="theme-settings-title">${title}</div>
+      <div class="theme-settings-controls font-settings-controls">
+        ${fontMenu(kind, currentId, title)}
+        ${manageButton(kind)}
+      </div>
+    </div>`;
+  return `${row("body", "Body font", settings.font)}
+    ${fontManageOpen.body ? managePanel("body") : ""}
+    ${row("note", "Note font", settings.note_font)}
+    ${fontManageOpen.note ? managePanel("note") : ""}`;
 }
 
 async function loadNoteMaterialFiles() {
@@ -16424,6 +16688,29 @@ function closeCommunity() {
   if (root?.querySelector(".community-stage")) root.innerHTML = "";
 }
 
+/**
+ * The shop is the "community" plugin now. Old links (Settings → Community,
+ * Theme → Browse community) still call this helper, so they land in the same
+ * plugin page instead of reopening the retired modal.
+ */
+function openCommunityPlugin(section = "plugins") {
+  const target = ["plugins", "games", "themes"].includes(section) ? section : "plugins";
+  if (!pluginEnabled("community")) {
+    if ($(".settings-panel")) {
+      settingsTab = "plugins";
+      renderSettings();
+    } else {
+      openSettings("plugins");
+    }
+    toast("Install the Community plugin from the Available list", true);
+    return false;
+  }
+  closeSettings();
+  closeCommunity();
+  openPluginPanel("community", { query: `section=${encodeURIComponent(target)}` });
+  return true;
+}
+
 function pluginDetailSettings(pluginId) {
   const plugin = PLUGIN_REGISTRY[pluginId];
   const state = pluginState(pluginId);
@@ -16503,12 +16790,28 @@ function pluginsSettings() {
         </div>`).join("")}
       </div>
     </div>` : "";
+  // Bundled plugins stay on disk, but the Community shop is a plugin now. The
+  // Available list is the one place to add a built-in plugin (including the
+  // Community shop itself) without opening a modal first.
+  const available = Object.values(PLUGIN_REGISTRY)
+    .filter((plugin) => plugin.source !== "user" && !pluginState(plugin.id)?.installed)
+    .sort((left, right) => String(left.title || left.id).localeCompare(String(right.title || right.id)));
+  const availableSection = available.length ? `<div class="settings-section">
+      <div class="settings-label">Available <span>${available.length}</span></div>
+      <div class="plugin-list">
+        ${available.map((plugin) => `<div class="plugin-row">
+          <span class="plugin-row-name">${esc(plugin.title)}</span>
+          <button class="btn small" type="button" data-action="install-plugin" data-plugin-id="${esc(plugin.id)}">Install</button>
+        </div>`).join("")}
+      </div>
+    </div>` : "";
   return `${pluginUninstallConfirmMarkup(pending)}
     <div class="settings-section">
       ${installed.length
         ? `<div class="plugin-list">${installed.map(pluginRowMarkup).join("")}</div>`
-        : `<div class="plugin-empty">No plugins installed yet. Open the Community to add your first one.</div>`}
+        : `<div class="plugin-empty">No plugins installed yet. Add one from Available below.</div>`}
     </div>
+    ${availableSection}
     ${updateSection}`;
 }
 
@@ -17248,7 +17551,9 @@ function renderSettings() {
     : settingsTab === "about" ? aboutSettings()
     : themeSettings();
   // Each page carries its name in the top row beside the close button, in the
-  // same quiet italic face the old in-page heading used.
+  // same quiet italic face the old in-page heading used. Appearance, Sound and
+  // Stickers wear the calligraphic brand face instead, and drop the hairline
+  // under the title so the lettering stands on its own.
   const detailPlugin = settingsTab === "plugins" && pluginDetailId ? PLUGIN_REGISTRY[pluginDetailId] : null;
   const pageTitle = detailPlugin ? detailPlugin.title
     : settingsTab === "font" ? "Font"
@@ -17257,18 +17562,18 @@ function renderSettings() {
     : settingsTab === "sound" ? "Sound"
     : settingsTab === "about" ? "About"
     : "Appearance";
+  const artTitle = settingsTab === "theme" || settingsTab === "sound" || settingsTab === "stickers";
   panel.innerHTML = `<aside class="settings-nav">
       <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
       <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Appearance</button>
       <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
       <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
       <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
-      <button class="settings-nav-item settings-nav-community" data-action="open-community" aria-label="Open the Community window">Community <svg class="settings-nav-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 15.5 12 9 18.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Sound</button>
       <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
     </aside>
     <section class="settings-main">
-      <div class="settings-topbar"><span class="settings-page-title">${esc(pageTitle)}</span><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
+      <div class="settings-topbar ${artTitle ? "settings-topbar-art" : ""}"><span class="settings-page-title ${artTitle ? "settings-page-title-art" : ""}">${esc(pageTitle)}</span><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
       <div class="settings-scroll"><div class="settings-view">${view}</div></div>
     </section>`;
   if (settingsTab === "theme") syncPageLineControls();
@@ -18090,6 +18395,8 @@ function bindEvents() {
       // (which would steal focus from the open colour dialog).
       if (note) applyNoteTheme();
       else applyFontSettings();
+      const hex = document.querySelector(`[data-font-color-hex="${note ? "note" : "body"}"]`);
+      if (hex) hex.value = value;
       return;
     }
     if (event.target.id === "note-blur-range") {
@@ -18327,6 +18634,26 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    if (event.target.matches("[data-font-color-hex]")) {
+      const note = event.target.dataset.fontColorHex === "note";
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) {
+        // Leave the stored/theme colour in place instead of pretending the
+        // half-typed hex was saved.
+        event.target.value = note
+          ? fontHexColor(settings.note_font_color) || selectedNoteTheme()?.palette?.ink || "#2b2b2e"
+          : fontHexColor(settings.body_font_color) || THEMES[currentPostcardId()]?.ink || "#332b2d";
+        return;
+      }
+      settings[note ? "note_font_color" : "body_font_color"] = color;
+      saveSettings();
+      if (note) applyNoteTheme();
+      else applyFontSettings();
+      event.target.value = color;
+      const picker = document.querySelector(`[data-font-color="${note ? "note" : "body"}"]`);
+      if (picker) picker.value = color;
+      return;
+    }
     if (event.target.matches("[data-font-size]")) {
       const note = event.target.dataset.fontSize === "note";
       const raw = Math.round(Number(event.target.value));

@@ -197,6 +197,20 @@
       "featured": true,
       "bundled": false,
       "official": true
+    },
+    {
+      "id": "community",
+      "name": "社区",
+      "englishName": "Community",
+      "version": "1.0.0",
+      "description": "把 Settings 里的社区商店搬进插件：浏览插件、游戏和主题，安装后直接在这里打开，不用再回 Settings。打开时沿用当前应用主题。",
+      "author": "NeoTodo",
+      "category": "Interface",
+      "icon": "community.svg",
+      "tags": ["community", "plugins", "themes", "intheme", "社区"],
+      "bundled": true,
+      "official": true,
+      "featured": true
     }
   ]
 }

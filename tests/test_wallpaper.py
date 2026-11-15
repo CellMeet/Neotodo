@@ -163,6 +163,7 @@ def main() -> int:
     )
     assert '.dataset.subcard = "doing"' in app_js, "the Doing card is not a sub-card"
     assert 'data-subcard="completed"' in app_js, "the finished-subtasks card is not a sub-card"
+    assert 'data-subcard="pending"' in app_js, "the live subtask card is not a sub-card"
     assert 'SUBCARD_SELECTOR = "[data-subcard], [data-wallpaper-surface]"' in app_js, (
         "the wallpaper surfaces are not mounted by the pane engine"
     )
@@ -172,6 +173,7 @@ def main() -> int:
     assert "function subcardCropSource(" in app_js, "the local wallpaper crop is missing"
     assert "function subcardBox(" in app_js, "a sub-card cannot find its open box"
     assert "function bakeSubcardPaper(" in app_js, "a sub-card picture is never baked"
+    assert "SUBCARD_PAPER_REGION = 1.4" in app_js, "a sub-card is baked from exactly its 100% box"
     assert "schedulePrimeSubcardPapers(0)" in app_js, "the picture is not baked ahead of opening"
     assert "subcardPaperCache" in app_js, "a baked picture is not kept"
 
@@ -248,7 +250,10 @@ def main() -> int:
         "the card still paints an edge line under its bottom border"
     )
     assert "--card-pile" not in stack_css, "the extra deck sheets are back"
-    assert "color-mix(" not in stack_css, "a coloured under-sheet is back"
+    assert "--card-under-paper" not in stack_css, "a coloured under-sheet is back"
+    assert "--card-face-wash:" in stack_css, "the wallpaper card face has no surface step"
+    assert "var(--card-face-wash-raised)" in stack_css
+    assert "var(--card-face-wash-top)" in stack_css
     # The two cards share the desk without shoving each other aside: opening
     # the Doing card must never move the finished-subtasks card off its column.
     press_aside = [

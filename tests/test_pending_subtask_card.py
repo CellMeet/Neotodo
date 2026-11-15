@@ -40,6 +40,7 @@ class PendingSubtaskCardTests(unittest.TestCase):
         cls.split_css = (ROOT / "web" / "subtask-split.css").read_text(encoding="utf-8")
         cls.page_line_css = (ROOT / "web" / "page-line.css").read_text(encoding="utf-8")
         cls.card_stack_css = (ROOT / "web" / "card-stack.css").read_text(encoding="utf-8")
+        cls.layers_css = (ROOT / "web" / "wallpaper-layers.css").read_text(encoding="utf-8")
 
     def test_lane_is_printed_as_a_card(self):
         card = block_after(
@@ -169,6 +170,53 @@ class PendingSubtaskCardTests(unittest.TestCase):
             ".current-subtasks > .current-subtask:last-child,",
             self.page_line_css,
         )
+
+    def test_card_wears_the_wallpaper_like_every_other_sheet(self):
+        # The live subtask card carries the same marker as the finished tray and
+        # the Doing card, so the wallpaper pane engine bakes a face for it too.
+        self.assertIn('data-subcard="pending"', self.app_js)
+        self.assertIn(
+            'SUBCARD_FLOATING = new Set(["pending", "doing", "completed", "trash"])',
+            self.app_js,
+        )
+        # The card face is taken from 140% of its own box, not exactly the 100%
+        # element, so it reads as its own photograph of the room.
+        self.assertIn("SUBCARD_PAPER_REGION = 1.4", self.app_js)
+        crop = block_after(self.app_js, "function subcardCropSource(", "\n}\n")
+        self.assertIn("box.width * region", crop)
+        self.assertIn("box.height * region", crop)
+
+        # On a wallpaper the pane is the card's whole face: no paper, no second
+        # edge, and the pile keeps the one shared lift.
+        self.assertIn(
+            "html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,",
+            self.layers_css,
+        )
+        self.assertIn(
+            'html[data-wallpaper] #pending-subtask-card > .card-wallpaper[data-fit="patch"] '
+            "> .wallpaper-media,",
+            self.layers_css,
+        )
+        self.assertIn(
+            "html[data-wallpaper][data-wallpaper-cards] body #pending-subtask-card {",
+            self.card_stack_css,
+        )
+
+        # The handle stays pinned to the card's bottom edge, above the picture,
+        # and a folded card hides its pane together with its face.
+        toggle = block_after(
+            self.layers_css,
+            "html[data-wallpaper] #pending-subtask-card > .pending-subtask-toggle {",
+            "\n}\n",
+        )
+        self.assertIn("position: absolute;", toggle)
+        self.assertIn("z-index: 12;", toggle)
+        folded = block_after(
+            self.layers_css,
+            "html[data-wallpaper] #pending-subtask-card.collapsed > .card-wallpaper {",
+            "\n}\n",
+        )
+        self.assertIn("opacity: 0;", folded)
 
 
 if __name__ == "__main__":
