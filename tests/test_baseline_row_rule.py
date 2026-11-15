@@ -83,7 +83,10 @@ def main() -> int:
         assert '/baseline-rules.css"' in index
         app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         assert "save_baseline_rule" in app_js
-        assert "baseline-rows-gradient" in app_js
+        palette_html = (ROOT / "web" / "plugins" / "palette" / "index.html").read_text(encoding="utf-8")
+        assert 'data-pl-baseline-mode="gradient"' in palette_html
+        assert 'data-pl-baseline-mode="height"' in palette_html
+        assert 'actionName.startsWith("baseline-rows-")' in app_js
         assert "root.dataset.baselineRows = rule.mode;" in app_js
     finally:
         import shutil

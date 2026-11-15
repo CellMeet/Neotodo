@@ -112,7 +112,9 @@ def main() -> int:
         assert "html[data-theme=\"postcard\"] .index-head" in css
         assert "html[data-theme=\"postcard\"] .category-item" in css
         assert "height: var(--page-line-row)" in css
-        assert "html[data-theme=\"postcard\"] .category-list::after" in css
+        # Every category row is ruled, but the empty spine below the last
+        # category is left blank — no continuation rules are painted there.
+        assert "category-list::after" not in css
         assert "html[data-theme=\"postcard\"] .index-foot" in css
         assert "#doing-peek .doing-item" in css
         assert "#doing-peek .doing-head" in css
@@ -121,9 +123,8 @@ def main() -> int:
         assert "transparent 0 var(--page-line-gap)" in css
         # No region keeps a private fixed pitch.
         assert "39px 40px" not in css
-        # The categories spine stays on the page grid on a wallpaper too: its
-        # filler is never switched off, and its foot is the page's foot.
-        assert "html[data-wallpaper][data-theme=\"postcard\"] .category-list::after" not in css
+        # The spine keeps the page grid for its rows, and its foot is the page's
+        # foot; a wallpaper never re-adds a filler in the empty room below.
         spine_rule = css.split('html[data-theme="postcard"] .index {', 1)[1].split("}", 1)[0]
         assert "padding-bottom: 0 !important" in spine_rule
         # A collapsed storage box is zero height, not a 2px frame that pushes
@@ -145,8 +146,9 @@ def main() -> int:
 
         app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         assert '"save_page_line"' in app_js
+        palette_html = (ROOT / "web" / "plugins" / "palette" / "index.html").read_text(encoding="utf-8")
         for control in ("page-line-color", "page-line-opacity", "page-line-row", "page-line-thickness"):
-            assert f'id="{control}"' in app_js, control
+            assert f'id="{control}"' in palette_html, control
         assert 'setProperty("--page-line-paint"' in app_js
         assert 'setProperty("--page-task-h"' in app_js
     finally:

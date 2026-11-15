@@ -857,6 +857,9 @@
     <button class="tool-button pindou-button" type="button" data-action="open-pindou" data-plugin="pindou" aria-label="拼豆工坊">
       <img class="pindou-glyph" src="/plugins/pindou/pindou.svg" alt="">
     </button>
+    <button class="tool-button palette-button" type="button" data-action="open-palette" data-plugin="palette" aria-label="调色板">
+      <img class="palette-glyph" src="/plugins/palette/palette.svg" alt="">
+    </button>
     <button class="tool-button forktree-button" type="button" data-action="open-forktree" data-plugin="forktree" aria-label="Forktree 分支地图">
       <img class="forktree-glyph" src="/plugins/forktree/forktree.svg" alt="">
     </button>
@@ -899,7 +902,8 @@
   <button class="notes-handle notes-handle-bottom" data-action="notes-button" aria-label="Show note"></button>
   <div class="archive-backdrop" id="archive-backdrop"></div>
 
-  <aside class="trash-drawer" id="trash-drawer" aria-hidden="true">
+  <aside class="trash-drawer" id="trash-drawer" data-subcard="trash" aria-hidden="true">
+    <span class="trash-label" aria-hidden="true">卡片</span>
     <div class="trash-head">
       <button class="trash-clear" type="button" data-action="clear-trash" aria-label="Clear deleted subtasks">
         <svg class="trash-clear-glyph" viewBox="0 0 1024 1024" aria-hidden="true"><use href="#clear-trash"></use></svg>

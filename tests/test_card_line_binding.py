@@ -1,8 +1,9 @@
-"""The floating cards share the live subtask lane's hairline colour.
+"""The floating cards share the live subtask lane's hairline.
 
 `page_line` already owns the rule under every live subtask name. The finished
 subtasks drawer and the Doing card are printed on the same sheet, so their row
-rules must read the same paint instead of a private theme or card colour.
+rules must read the same paint and weight instead of a private theme or card
+colour. A row finishing into the drawer must not be seen reprinting its line.
 """
 from pathlib import Path
 
@@ -15,6 +16,9 @@ def main() -> int:
     # The finished-subtasks card paints page_line, whatever stored mode the file
     # still carries.
     assert "--baseline-row-paint: var(--page-line-paint, #333333);" in baseline
+    # A fixed 1px weight here made the landed row thinner than the live lane it
+    # came from whenever Page line was thicker than one pixel.
+    assert "--baseline-row-size: var(--page-line-thickness, 1px);" in baseline
     assert (
         "border-bottom: var(--baseline-row-size) solid var(--baseline-row-paint) !important;"
         in baseline
@@ -31,10 +35,16 @@ def main() -> int:
     # Every Doing row separator follows the page line.
     assert 'html[data-theme="postcard"] #doing-peek .doing-item,' in page
     assert "border-color: var(--page-line-paint) !important;" in page
+    assert "border-width: var(--page-line-thickness) !important;" in page
     # A finished subtask opened in the history lane is the same row.
     assert 'html[data-theme="postcard"] .history-subtask {' in page
+    # The flying row leaves the lane, so it must carry the lane's rule itself;
+    # otherwise it falls back to style.css's detached 1px hairline and the
+    # reader sees the line change before the row lands.
+    flight_rule = page.split('html[data-theme="postcard"] .subtask-flight {', 1)[1].split("}", 1)[0]
+    assert "border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;" in flight_rule
 
-    print("finished and Doing card rows share the page_line paint")
+    print("finished and Doing card rows share the page_line paint and weight")
     return 0
 
 

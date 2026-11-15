@@ -13,6 +13,12 @@ plugins/
     pindou.css         plugin styles
     pindou.js          plugin logic
     pindou.svg         pink perler-bead flower rail icon
+  palette/
+    manifest.json      plugin metadata (interface / chrome)
+    index.html         Settings-style page sheet (line, highlight, rows)
+    plugin.css         page-only rail mark and nav foot
+    plugin.js          talks to window.NeoTodoPalette in the host notebook
+    palette.svg        paint-palette rail icon (user-provided)
   subtask-search/
     manifest.json      plugin metadata (interface / chrome)
     index.html         plugin control page
@@ -112,6 +118,15 @@ the same plugin ids. `python3 tools/validate_community.py` checks them.
 ## Installed plugins
 
 - `pindou` — 拼豆工坊 / Perler Bead Studio
+- `palette` — 调色板 / Palette. The paint-palette rail icon opens the same
+  Settings sheet inside the plugin iframe and owns the page controls that used
+  to sit in Settings → Theme: selection highlight, page line colour / weight,
+  page line opacity / row pitch and finished rows. The note surface stays in
+  Settings → Theme → Note theme. It writes through `window.NeoTodoPalette`, so
+  page-line.json and baseline-rule.json remain the only sources the page paints
+  from. The sheet loads `style.css`, `page-line.css` and `baseline-rules.css`
+  and copies the postcard variables, so it wears the current theme instead of a
+  private palette.
 - `subtask-search` — 子任务搜索 / Subtask Search
 - `forktree` — 分支地图 / Forktree. Clicking a card posts
   `{ type: "neotodo-forktree-open", target }`; the host closes the plugin and

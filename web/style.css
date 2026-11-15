@@ -8852,6 +8852,11 @@ html[data-theme="postcard"] .history-row > .h-date {
 .doing-peek.doing-dragging.open {
   transition: none !important;
   transform: none !important;
+  /* The pull moves the card with its own composited translate. `left` is
+     committed once, on release, so no frame relayouts the page under the
+     pointer or repaints the card's shadows. */
+  translate: var(--doing-drag-x, 0px) 0px;
+  will-change: transform;
   cursor: grabbing;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
@@ -8861,12 +8866,15 @@ html[data-theme="postcard"] .history-row > .h-date {
 .doing-peek.doing-dragging .doing-kicker { cursor: grabbing; }
 /* While pulled, the drawer floats above every sheet it crosses. */
 #doing-peek.doing-dragging { z-index: 140 !important; }
-/* A dropped card glides straight to the border it was released on. */
+/* A dropped card glides straight to the border it was released on. The glide is
+   a composited translate, not a `left` animation: the landing box is committed
+   first, and only the offset back to the pointer's drop point moves. */
 .doing-peek.doing-snapping,
 .doing-peek.doing-snapping.open {
+  translate: var(--doing-drag-x, 0px) 0px;
+  will-change: transform;
   transition:
-    left 0.3s cubic-bezier(0.22, 0.8, 0.24, 1),
-    transform 0.3s cubic-bezier(0.22, 0.8, 0.24, 1),
+    translate 0.3s cubic-bezier(0.22, 0.8, 0.24, 1),
     opacity 0.26s ease !important;
 }
 body.doing-dragging { cursor: grabbing; user-select: none; }
@@ -9809,7 +9817,10 @@ html[data-theme="postcard"] .current-subtask { padding-left: 29px; }
   display: block;
 }
 
-/* The magic hat drawer of deleted subtasks. */
+/* The magic hat drawer of deleted subtasks. It is the same card as the live
+   subtask sheet: the theme's paper, the shared ink-green card stroke and the
+   card lift. Its row hairlines follow page_line below, so a deleted subtask
+   keeps the line it had in the live lane. */
 .trash-backdrop {
   position: fixed;
   inset: 0;
@@ -9830,18 +9841,34 @@ html[data-theme="postcard"] .current-subtask { padding-left: 29px; }
   width: min(400px, calc(100vw - 100px));
   max-height: min(64vh, 580px);
   padding: 14px 16px 12px;
-  border: 1.5px solid #8a6542;
-  border-radius: 13px;
-  background: var(--pc-paper, var(--paper, #f3efe2));
+  border: 0;
+  border-radius: var(--overlay-radius, 10px);
+  background-color: var(--overlay-paper, var(--paper, #f3efe2));
   color: var(--pc-ink, var(--ink, #342315));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 18px 44px rgba(54, 34, 14, 0.25),
-    0 3px 8px rgba(54, 34, 14, 0.12);
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-lift-page, 0 18px 44px rgba(54, 34, 14, 0.25));
   opacity: 0;
   pointer-events: none;
   transform: translateX(-16px);
   transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+/* The card's tag, printed in the quiet top-right corner beside the close mark. */
+.trash-label {
+  position: absolute;
+  top: 14px;
+  right: 48px;
+  z-index: 10;
+  color: var(--pc-muted, var(--muted, #887d6c));
+  font-family: var(--display, "P052", serif);
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  opacity: 0.62;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .trash-drawer.open {
   opacity: 1;
@@ -9853,7 +9880,7 @@ html[data-theme="postcard"] .current-subtask { padding-left: 29px; }
   align-items: center;
   gap: 10px;
   padding-bottom: 9px;
-  border-bottom: 1px solid var(--pc-line, var(--line));
+  border-bottom: 1px solid var(--page-line-paint, var(--pc-line, var(--line)));
 }
 .trash-clear {
   width: 36px;
@@ -9909,7 +9936,7 @@ html[data-postcard-dark="true"] .trash-clear:hover { background: rgba(255, 255, 
   min-height: 46px;
   max-height: 84px;
   padding: 6px 4px;
-  border-bottom: 1px solid var(--pc-line, var(--line));
+  border-bottom: 1px solid var(--page-line-paint, var(--pc-line, var(--line)));
   overflow: hidden;
   transition:
     max-height 0.28s cubic-bezier(0.22, 0.8, 0.24, 1),
@@ -9967,7 +9994,7 @@ html[data-postcard-dark="true"] .trash-clear:hover { background: rgba(255, 255, 
 }
 .trash-foot {
   padding-top: 8px;
-  border-top: 1px solid var(--pc-line, var(--line));
+  border-top: 1px solid var(--page-line-paint, var(--pc-line, var(--line)));
   color: var(--pc-muted, var(--muted));
   font-family: var(--mono);
   font-size: 10px;
@@ -10800,6 +10827,12 @@ html[data-theme="postcard"] .settings-close::before{
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
+}
+/* The current-time on/off switch reuses the sound panel switch, but leaves a
+   finger-width gap to the right edge so it never touches the panel border. */
+.theme-settings-controls .theme-clock-switch {
+  flex: 0 0 auto;
+  margin-inline-end: 18px;
 }
 .theme-chip,
 .theme-chip-button {

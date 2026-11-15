@@ -14,6 +14,11 @@ Add Linux-first changes that still need a Windows/Android pass here.
 - Storage box plugin: `web/plugins/storage-box/`, its `PLUGIN_REGISTRY` entry and
   `visibleCategories()` hook in `web/app.js`, and the rail button in
   `web/index.html`.
+- Palette plugin: `web/plugins/palette/`, its `PLUGIN_REGISTRY` entry,
+  `window.NeoTodoPalette` host bridge and the `open-palette` action in
+  `web/app.js`, the rail button in `web/index.html`, and the page controls that
+  moved out of Settings → Theme (selection highlight, page line, layout,
+  finished rows). The note surface stays under Settings → Theme → Note theme.
 
 ## How to sync
 

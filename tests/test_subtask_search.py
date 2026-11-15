@@ -40,8 +40,9 @@ def main() -> int:
     css = (ROOT / "web" / "plugins" / "subtask-search" / "subtask-search.css").read_text(encoding="utf-8")
 
     # The pane is FocusWriter's recipe: one flat wash over a real blur, no
-    # gloss, no dots, and exactly one subtask row — no border or shadow that
-    # could paint over the rule below it.
+    # gloss and no dots. It is a solid, square-cornered box with one hairline
+    # edge, and it spans the full width of the subtask rows instead of
+    # shrink-wrapping to the field's content.
     drawer = css.split(".subtask-search-drawer {", 1)[1].split("\n}", 1)[0]
     assert "backdrop-filter: var(--ss-glass-blur)" in drawer
     assert "blur(var(--ss-search-blur, 26px))" in drawer
@@ -49,12 +50,30 @@ def main() -> int:
     assert "--ss-glass-speckle" not in css
     assert "--ss-glass-noise" not in css
     assert "background-image: none;" in drawer
-    assert "border: 0;" in drawer and "box-shadow: none;" in drawer
+    assert "border: 1px solid var(--ss-glass-edge);" in drawer
+    assert "box-shadow: none;" in drawer
     assert "border-radius: 0;" in drawer
+    assert "overflow: hidden;" in drawer
     assert "right: 0;" in drawer and "left: 0;" in drawer
-    # The bar is exactly one 40px row; its hairline is inside that height.
+    assert "min-width: 100%;" in drawer
+    # The open pane owns a real strip: the script measures its height into
+    # --ss-open-h and the whole subtask column (rows, Doing card, completed
+    # card) is pushed down by exactly that much. Nothing overlaps the pane and
+    # nothing in the column can paint over its bottom edge.
+    push = css.split(
+        "body.subtask-search-open .page-body > .todos-section > .current-half > .current-inner {",
+        1,
+    )[1].split("\n}", 1)[0]
+    assert "height: calc(100% - var(--ss-open-h, 48px));" in push
+    assert "transform: translate3d(0, var(--ss-open-h, 48px), 0);" in push
+    assert "function publishPaneHeight()" in plugin
+    assert "function schedulePaneHeight()" in plugin
+    assert "panel.offsetHeight" in plugin
+    assert 'half.style.setProperty("--ss-open-h"' in plugin
+    # The bar is a full row — a little taller than the 40px task row, so it
+    # never reads as a clipped slot — and its hairline is inside that height.
     bar = css.split(".subtask-search-bar {", 1)[1].split("\n}", 1)[0]
-    assert "height: 40px;" in bar
+    assert "height: var(--ss-field-h, 46px);" in bar
     assert "border-bottom: 1px solid var(--ss-glass-line);" in bar
     assert "box-sizing: border-box;" in bar
     # The focused field is a flat tint, not a gloss.

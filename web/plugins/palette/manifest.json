@@ -1,0 +1,16 @@
+{
+  "id": "palette",
+  "name": "调色板",
+  "englishName": "Palette",
+  "version": "1.0.0",
+  "description": "把页面横线、选区高亮和完成行收进一块调色板。打开后和 Settings 一样调节细节，改完立刻回到页面。",
+  "icon": "palette.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#EC6646",
+    "paper": "#f7efe3"
+  }
+}

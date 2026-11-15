@@ -51,6 +51,8 @@ DATA_DIR = app_data_dir()
 DATA_FILE = DATA_DIR / "NeoTodo.json"
 LEGACY_FILE = DATA_DIR / "data.json"
 AGENT_FILE = DATA_DIR / "agents.json"
+# Legacy journal from the old resume-after-restart behavior. It is deleted at
+# startup so an existing install cannot replay a cut-off instruction.
 AGENT_RUNS_FILE = DATA_DIR / "agent-runs.json"
 AGENT_FILES_DIR = DATA_DIR / "agent-files"
 # AI settings live beside the conversations. `ai-opencode.json` is generated
@@ -94,12 +96,17 @@ NOTE_MATERIALS_DIR = DATA_DIR / "note-materials"
 PICTURES_DIR = DATA_DIR / "pictures"
 MUSIC_DIR = DATA_DIR / "music"
 DETACH_PREVIEW_FILE = DATA_DIR / "detach-preview.png"
-# Fork windows are independent NeoTodo instances. Each one owns a data file and
-# an ephemeral port, so finishing its fake todo never touches this notebook's
-# achievements or history.
+# Fork windows are separate NeoTodo instances owned by this notebook. Each one
+# owns a data file and an ephemeral port, so finishing its fake todo never
+# touches this notebook's achievements or history. They run as child processes
+# (never detached), so quitting the notebook ends every fork and the agents it
+# started instead of leaving an orphan test process behind.
 FORK_DIR = DATA_DIR / "forks"
 FORK_SERVERS: dict[str, dict] = {}
 FORK_SERVERS_LOCK = threading.Lock()
+FORK_PROCS: dict[str, subprocess.Popen] = {}
+FORK_PROCS_LOCK = threading.Lock()
+FORK_ID_RE = re.compile(r"[0-9a-f]{8,64}")
 PLUGINS_DIR = DATA_DIR / "plugins"
 PLUGIN_CATALOG_CACHE = DATA_DIR / "plugin-catalog.json"
 # The community index lives in the repository so a pull request is the only
@@ -4004,6 +4011,10 @@ def ai_log_activity(config: dict, entry: dict) -> None:
         pass
 
 
+class _AgentStopped(Exception):
+    """Raised when a run is cancelled before it can start its process."""
+
+
 class AgentStore:
     """Per-agent OpenCode sessions for the AI terminal.
 
@@ -4013,7 +4024,7 @@ class AgentStore:
     time. Requests wait for the lock instead of being rejected.
     """
 
-    def __init__(self, path: Path, resume: bool = True):
+    def __init__(self, path: Path, settle_pending: bool = True):
         self.path = path
         self.lock = threading.Lock()
         # Build agents run in parallel. Only agents whose instructions name a
@@ -4039,38 +4050,21 @@ class AgentStore:
             self.build_max = max(1, min(32, int(read_ai_config().get("max_parallel") or self.build_max)))
         except Exception:
             pass
-        # Runs are journaled on disk so closing the app no longer cancels the
-        # work: the next launch picks the same instruction up again.
-        self.runs_path = AGENT_RUNS_FILE
-        self.runs_lock = threading.Lock()
-        # Set while the app is closing: workers must leave their journal and
-        # pending turn in place so the next launch continues them.
+        # Closing the app ends every agent turn; reopening it never restarts
+        # an old instruction. The user writes a new one to start again.
         self.stopping = threading.Event()
-        # A previous process may have died mid-run. Runs that were cut off by
-        # closing the app are resumed below; anything else is settled so no
-        # streaming placeholder stays pending forever.
-        resumable = self._resumable_runs() if resume else {}
-        if resume:
+        if settle_pending:
+            # A previous process may have died mid-run. No turn survives an
+            # app close, so every streaming placeholder is settled as
+            # interrupted. Fork windows share this file but must not touch a
+            # run the notebook is still working on, so only the notebook (or
+            # a headless server) passes settle_pending=True.
+            self._settle_all_pending()
+            # Drop the legacy run journal so an old install cannot resume a turn.
             try:
-                with self.lock:
-                    data = self._load()
-                    changed = False
-                    for agent_id, stored in data.get("agents", {}).items():
-                        if not isinstance(stored, dict):
-                            continue
-                        if agent_id in resumable:
-                            continue
-                        messages = stored.get("messages")
-                        if isinstance(messages, list):
-                            settled = self._settle_pending(messages)
-                            if settled != messages:
-                                stored["messages"] = settled
-                                changed = True
-                    if changed:
-                        self._save(data)
+                AGENT_RUNS_FILE.unlink(missing_ok=True)
             except Exception:
                 pass
-        self._schedule_resume(resumable)
 
     @staticmethod
     def _settle_pending(messages: list) -> list:
@@ -4082,6 +4076,9 @@ class AgentStore:
                 text = str(item.get("content") or "").strip()
                 item.pop("pending", None)
                 item["content"] = (text + "\n\n（已中断）").strip() if text else "已中断。"
+                # The board must read this as a stopped run, not a finished
+                # one, so it never plays the completion ceremony for it.
+                item["interrupted"] = True
                 settled.append(item)
             else:
                 settled.append(message)
@@ -4096,6 +4093,27 @@ class AgentStore:
         except Exception:
             pass
         return {"agents": {}}
+
+    def _settle_all_pending(self) -> None:
+        """Settle every streaming reply left over by a killed app process."""
+        try:
+            with self.lock:
+                data = self._load()
+                changed = False
+                for stored in data.get("agents", {}).values():
+                    if not isinstance(stored, dict):
+                        continue
+                    messages = stored.get("messages")
+                    if not isinstance(messages, list):
+                        continue
+                    settled = self._settle_pending(messages)
+                    if settled != messages:
+                        stored["messages"] = settled
+                        changed = True
+                if changed:
+                    self._save(data)
+        except Exception:
+            pass
 
     def _save(self, data: dict) -> None:
         try:
@@ -4140,156 +4158,15 @@ class AgentStore:
             self._save(data)
             return True
 
-    # ------------------------------------------------------- run journal ---
-    # A run record says "this agent still owes an answer". It is written when
-    # a run starts and removed when the run settles, so a record found at
-    # startup always means the previous app process closed mid-run.
-
-    def _load_runs(self) -> dict:
+    @staticmethod
+    def _kill_group(process_group: int, force: bool = True) -> None:
+        """Kill a whole agent session, including the tools it spawned."""
+        if os.name != "posix" or not process_group:
+            return
         try:
-            data = json.loads(self.runs_path.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
+            os.killpg(int(process_group), signal.SIGKILL if force else signal.SIGTERM)
         except Exception:
             pass
-        return {}
-
-    def _save_runs(self, runs: dict) -> None:
-        try:
-            self.runs_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self.runs_path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(runs, ensure_ascii=False, indent=2), encoding="utf-8")
-            tmp.replace(self.runs_path)
-        except Exception:
-            pass
-
-    def _set_run(self, agent_id: str, record: dict) -> None:
-        with self.runs_lock:
-            runs = self._load_runs()
-            runs[agent_id] = record
-            self._save_runs(runs)
-
-    def _drop_run(self, agent_id: str) -> None:
-        with self.runs_lock:
-            runs = self._load_runs()
-            if agent_id in runs:
-                runs.pop(agent_id, None)
-                self._save_runs(runs)
-
-    def _resumable_runs(self) -> dict:
-        """Return the run records whose conversation still waits for an answer."""
-        runs = self._load_runs()
-        if not runs:
-            return {}
-        try:
-            with self.lock:
-                agents = self._load().get("agents", {})
-        except Exception:
-            agents = {}
-        keep = {}
-        for agent_id, record in runs.items():
-            if not isinstance(record, dict):
-                continue
-            stored = agents.get(agent_id) or {}
-            messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
-            last = messages[-1] if messages else {}
-            if not (isinstance(last, dict) and last.get("role") == "assistant" and last.get("pending")):
-                continue
-            if int(record.get("resumes") or 0) >= 2:
-                # Give up after two launches; the conversation settles below.
-                continue
-            keep[agent_id] = record
-        if len(keep) != len(runs):
-            with self.runs_lock:
-                self._save_runs(keep)
-        return keep
-
-    def _schedule_resume(self, runs: dict) -> None:
-        for agent_id, record in runs.items():
-            model = str(record.get("model") or "")
-            mode = str(record.get("mode") or "build")
-            with self.live_lock:
-                self.live[agent_id] = {
-                    "process": "",
-                    "text": "",
-                    "usage": {"tokens": 0, "cost": 0.0, "context": 0},
-                    "started": time.time(),
-                    "model": model,
-                    "mode": mode,
-                }
-            with self.procs_lock:
-                self.running_agents.add(agent_id)
-            threading.Thread(
-                target=self._resume_run,
-                args=(agent_id, record),
-                daemon=True,
-            ).start()
-
-    def _settle_stored(self, agent_id: str) -> None:
-        """Mark any abandoned streaming reply as finished for one agent."""
-        try:
-            with self.lock:
-                data = self._load()
-                stored = data.get("agents", {}).get(agent_id)
-                if not isinstance(stored, dict):
-                    return
-                messages = stored.get("messages")
-                if not isinstance(messages, list):
-                    return
-                settled = self._settle_pending(messages)
-                if settled != messages:
-                    stored["messages"] = settled
-                    self._save(data)
-        except Exception:
-            pass
-
-    def _resume_run(self, agent_id: str, record: dict) -> None:
-        """Continue a run that the previous app process could not finish."""
-        # Wait for the HTTP server and the first page to settle.
-        time.sleep(2.0)
-        try:
-            with self.lock:
-                stored = (self._load().get("agents", {}) or {}).get(agent_id)
-            if not isinstance(stored, dict):
-                self._drop_run(agent_id)
-                return
-            messages = [m for m in (stored.get("messages") or []) if isinstance(m, dict)]
-            last = messages[-1] if messages else {}
-            if not (last.get("role") == "assistant" and last.get("pending")):
-                self._drop_run(agent_id)
-                return
-            if len(messages) >= 2 and messages[-2].get("role") == "user":
-                history = self._settle_pending(messages[:-2])
-                message = str(messages[-2].get("content") or record.get("message") or "")
-            else:
-                history = self._settle_pending(messages[:-1])
-                message = str(record.get("message") or "")
-            scope = record.get("scope") if isinstance(record.get("scope"), dict) else {}
-            title = str(record.get("title") or stored.get("title") or "Agent")[:120]
-            model = str(record.get("model") or stored.get("model") or self._default_model(str(scope.get("kind") or "")))
-            mode = self._normalize_mode(record.get("mode") or stored.get("mode"), scope.get("kind"))
-            file_args, _files = self._agent_file_args(agent_id, stored)
-            resumed = dict(record)
-            resumed["resumes"] = int(record.get("resumes") or 0) + 1
-            resumed["resumed_at"] = datetime.now().isoformat(timespec="seconds")
-            self._set_run(agent_id, resumed)
-            self._spawn_run(
-                agent_id=agent_id,
-                title=title,
-                scope=scope,
-                message=message or "继续执行上一条指令。",
-                model=model,
-                mode=mode,
-                file_args=file_args,
-                history=history,
-                resume=True,
-            )
-        except Exception:
-            self._drop_run(agent_id)
-            self._settle_stored(agent_id)
-            self._clear_live(agent_id)
-            with self.procs_lock:
-                self.running_agents.discard(agent_id)
 
     @staticmethod
     def _stop_process(process, force: bool = False) -> None:
@@ -4302,6 +4179,10 @@ class AgentStore:
             return
         try:
             if process.poll() is not None:
+                if force:
+                    # The leader is gone but a background tool may still hold
+                    # the session; sweep the group as well.
+                    AgentStore._kill_group(process.pid, force=True)
                 return
         except Exception:
             pass
@@ -4322,21 +4203,74 @@ class AgentStore:
             except Exception:
                 pass
 
+    def _settle_stored(self, agent_id: str) -> None:
+        """Mark any abandoned streaming reply as interrupted for one agent."""
+        try:
+            with self.lock:
+                data = self._load()
+                stored = data.get("agents", {}).get(agent_id)
+                if not isinstance(stored, dict):
+                    return
+                messages = stored.get("messages")
+                if not isinstance(messages, list):
+                    return
+                settled = self._settle_pending(messages)
+                if settled != messages:
+                    stored["messages"] = settled
+                    self._save(data)
+        except Exception:
+            pass
+
     def shutdown(self) -> None:
-        """Stop the child processes but keep their run records for the resume."""
+        """Closing the app interrupts every agent; nothing resumes on restart."""
         self.stopping.set()
         with self.procs_lock:
             procs = list(self.procs.values())
+            active = sorted(self.running_agents)
+            # Workers treat this like a manual pause, so the reply they leave
+            # behind is marked interrupted instead of finished.
+            self.interrupts.update(active)
+        # Queued build agents must not get a slot and start OpenCode while the
+        # window is closing.
+        with self.build_cond:
+            for agent_id in list(self.build_waiting):
+                self.interrupts.add(agent_id)
+            self.build_waiting.clear()
+            self.build_cond.notify_all()
         for process in procs:
             self._stop_process(process)
-        # Give OpenCode a moment to release its session so the next launch can
-        # continue the same conversation without a lock fight.
+        # Give OpenCode a moment to exit; anything still alive is forced down
+        # so the window does not hang on a stuck child.
         deadline = time.time() + 2.0
         for process in procs:
             try:
                 process.wait(timeout=max(0.05, deadline - time.time()))
             except Exception:
-                pass
+                self._stop_process(process, force=True)
+        # A worker that was between Popen and registration may have published
+        # its process after the snapshot above: sweep until the table is quiet.
+        while time.time() < deadline:
+            with self.procs_lock:
+                late = [p for p in self.procs.values() if p.poll() is None]
+            if not late:
+                break
+            for process in late:
+                self._stop_process(process, force=True)
+            time.sleep(0.05)
+        # A worker that was mid-turn may not get to write once the window is
+        # gone, so settle those streaming turns here as well.
+        drain = time.time() + 1.5
+        while active and time.time() < drain:
+            with self.procs_lock:
+                if not (self.running_agents & set(active)):
+                    break
+            time.sleep(0.05)
+        for agent_id in active:
+            self._settle_stored(agent_id)
+        try:
+            AGENT_RUNS_FILE.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     def _config(self) -> dict:
         with self.config_lock:
@@ -4938,6 +4872,9 @@ class AgentStore:
     def _save_partial(self, agent_id: str, title: str, model: str, mode: str,
                       reply_text: str, process_text: str) -> None:
         """Persist an in-flight answer so a renderer/app crash cannot lose it."""
+        if self.stopping.is_set():
+            # Closing: the shutdown pass settles this turn as interrupted.
+            return
         entry = {
             "role": "assistant",
             "content": str(reply_text or "")[-12_000:],
@@ -5020,7 +4957,7 @@ class AgentStore:
                     # Cancelled while queued (Esc).
                     self.interrupts.discard(agent_id)
                     return False
-                if agent_id in self.interrupts:
+                if self.stopping.is_set() or agent_id in self.interrupts:
                     self.build_waiting.pop(agent_id, None)
                     self.interrupts.discard(agent_id)
                     self.build_cond.notify_all()
@@ -5106,7 +5043,7 @@ class AgentStore:
     def _run_opencode(self, agent_id: str, agent: dict, title: str, scope: dict,
                       message: str, model: str, mode: str,
                       file_args: list | None = None,
-                      partial_cb=None, resume: bool = False) -> tuple[str, str, str, dict, bool]:
+                      partial_cb=None) -> tuple[str, str, str, dict, bool]:
         opencode = shutil.which("opencode")
         if not opencode:
             raise RuntimeError(
@@ -5150,15 +5087,6 @@ class AgentStore:
                 + extra_instructions[:20000]
             )
         session_id = str(agent.get("opencode_session") or "")
-        continue_session = bool(resume and session_id)
-        if continue_session:
-            # The session already holds the user's instruction. Ask the same
-            # thread to carry on instead of starting a fresh conversation.
-            prompt = (
-                "NeoTodo 应用刚刚被关闭，这次运行在中途停止。请从断点继续完成上一条用户指令："
-                "先检查工作目录里已经完成的部分，只补做剩余的工作，不要重复已经完成的修改；"
-                "如果全部工作其实已经完成，直接说明结果即可。"
-            )
         command = [
             opencode, "run", "--standalone", "--format", "json",
             "--title", f"NeoTodo · {title}",
@@ -5195,6 +5123,13 @@ class AgentStore:
         process = None
         last_partial_save = 0.0
         try:
+            # A run may have been paused (or the app may be closing) while
+            # this thread waited for a build slot. Never start OpenCode then.
+            with self.procs_lock:
+                cancelled = self.stopping.is_set() or agent_id in self.interrupts
+                self.interrupts.discard(agent_id)
+            if cancelled:
+                raise _AgentStopped()
             process = subprocess.Popen(
                 command,
                 cwd=str(cwd),
@@ -5206,10 +5141,14 @@ class AgentStore:
                 env=ai_opencode_env(ai_config),
             )
             with self.procs_lock:
-                if agent_id in self.interrupts:
-                    self.interrupts.discard(agent_id)
-                    raise RuntimeError("已打断")
                 self.procs[agent_id] = process
+                # Closing the app or pausing during Popen must not leave a
+                # fresh OpenCode process running behind us.
+                cancelled = self.stopping.is_set() or agent_id in self.interrupts
+                self.interrupts.discard(agent_id)
+            if cancelled:
+                self._stop_process(process, force=True)
+                raise _AgentStopped()
             deadline = time.time() + max(60, int(ai_config.get("timeout_minutes") or 15) * 60)
             assert process.stdout is not None
             for line in process.stdout:
@@ -5302,6 +5241,10 @@ class AgentStore:
                 self.procs.pop(agent_id, None)
                 interrupted = agent_id in self.interrupts
                 self.interrupts.discard(agent_id)
+            # Even a finished agent must not leave a background tool behind:
+            # every child/grandchild lives in this run's session group.
+            if process is not None and os.name == "posix":
+                self._kill_group(process.pid, force=True)
             reply = "\n\n".join(texts[-6:]).strip()
             if interrupted:
                 reply = (reply + "\n\n(已打断)").strip() if reply else "已打断。"
@@ -5319,9 +5262,8 @@ class AgentStore:
         return reply[-20000:], new_session, "\n".join(process_lines)[-12000:], usage, interrupted
 
     def _spawn_run(self, agent_id: str, title: str, scope: dict, message: str,
-                   model: str, mode: str, file_args: list | None, history: list,
-                   resume: bool = False) -> None:
-        """Run one agent turn in a worker thread (fresh message or a resume)."""
+                   model: str, mode: str, file_args: list | None, history: list) -> None:
+        """Run one agent turn in a worker thread."""
         def save_partial(reply_text, process_text):
             self._save_partial(agent_id, title, model, mode, reply_text, process_text)
 
@@ -5342,6 +5284,8 @@ class AgentStore:
                 conflicts = set()
                 interrupted = False
                 try:
+                    if self.stopping.is_set():
+                        raise _AgentStopped()
                     if mode == "build":
                         project_key = self._project_key(scope)
                         intended = self._intended_paths(f"{title}\n{message}")
@@ -5353,22 +5297,24 @@ class AgentStore:
                             try:
                                 reply, opencode_session, process_text, usage, interrupted = self._run_opencode(
                                     agent_id, agent_state, title, scope, message, model, mode,
-                                    file_args, save_partial, resume,
+                                    file_args, save_partial,
                                 )
                             finally:
                                 conflicts = self._release_build_slot(agent_id)
                     else:
                         reply, opencode_session, process_text, usage, interrupted = self._run_opencode(
                             agent_id, agent_state, title, scope, message, model, mode,
-                            file_args, save_partial, resume,
+                            file_args, save_partial,
                         )
                     if conflicts:
                         reply = (reply + "\n\n(注意：以下文件与并行 agent 同时修改，请检查是否冲突："
                                  + ", ".join(sorted(conflicts)) + "）").strip()
                     if self.stopping.is_set():
-                        # The app is closing: keep the journal and the pending
-                        # turn so the next launch resumes this instruction.
-                        return
+                        # Closing the app ends this turn. Keep what the agent
+                        # already said, but mark it interrupted so the board
+                        # never treats it as a finished run.
+                        reply = (reply + "\n\n（已中断）").strip() if reply else "已中断。"
+                        interrupted = True
                     assistant = {
                         "role": "assistant",
                         "content": reply,
@@ -5386,8 +5332,30 @@ class AgentStore:
                         assistant["interrupted"] = True
                     user_entry = {"role": "user", "content": message}
                     updated = (history + [user_entry, assistant])[-40:]
+                except _AgentStopped:
+                    # Paused (or closing) before OpenCode could start: the
+                    # turn still gets an interrupted answer, no error and no
+                    # restart of the old instruction.
+                    reply, opencode_session, process_text = (
+                        "已中断。" if self.stopping.is_set() else "已打断。"
+                    ), "", ""
+                    usage = {"tokens": 0, "cost": 0.0, "context": 0}
+                    interrupted = True
+                    assistant = {
+                        "role": "assistant",
+                        "content": reply,
+                        "process": process_text,
+                        "model": model,
+                        "usage": dict(usage),
+                        "interrupted": True,
+                    }
+                    user_entry = {"role": "user", "content": message}
+                    updated = (history + [user_entry, assistant])[-40:]
                 except Exception as error:
-                    if not self.stopping.is_set():
+                    if self.stopping.is_set():
+                        # Closing: never leave a streaming turn behind.
+                        self._settle_stored(agent_id)
+                    else:
                         self._finish_agent_error(agent_id, title, model, mode, str(error))
                     ai_log_activity(self._config(), {
                         "event": "error",
@@ -5440,17 +5408,23 @@ class AgentStore:
                         "cost": round(float(usage.get("cost") or 0), 6),
                     })
             finally:
-                # The answer is on disk: this run never needs resuming again.
-                # While the app closes, the journal stays so it can resume.
-                if not self.stopping.is_set():
-                    self._drop_run(agent_id)
+                # No run survives the window: no journal, no restart, and no
+                # stale pause flag that could cancel the next instruction.
                 with self.procs_lock:
                     self.running_agents.discard(agent_id)
+                    self.interrupts.discard(agent_id)
                 with self.live_lock:
                     self.live.pop(agent_id, None)
 
         with self.procs_lock:
-            self.running_agents.add(agent_id)
+            starting = not self.stopping.is_set()
+            if starting:
+                self.running_agents.add(agent_id)
+        if not starting:
+            # Shutdown won the race: settle the placeholder instead of
+            # leaving a pending turn or starting a worker.
+            self._settle_stored(agent_id)
+            return
         threading.Thread(target=worker, daemon=True).start()
 
     def action(self, payload: dict) -> dict:
@@ -5800,15 +5774,14 @@ class AgentStore:
             agent_id = str(payload.get("agent_id") or "")
             if not agent_id:
                 return {"ok": False, "error": "Missing agent"}
-            self._drop_run(agent_id)
             with self.lock:
                 data = self._load()
                 data.get("agents", {}).pop(agent_id, None)
                 self._save(data)
             return {"ok": True, "agents": data.get("agents", {})}
         if name == "running":
-            # The visible fans follow the backend, not only the local stamps:
-            # a resumed run keeps spinning after the app restarts.
+            # The visible fans follow the backend, not only the local stamps,
+            # so a run queued in another window still shows up here.
             with self.procs_lock:
                 active = sorted(self.running_agents)
             with self.build_cond:
@@ -5818,25 +5791,27 @@ class AgentStore:
             agent_id = str(payload.get("agent_id") or "").strip()
             if not agent_id:
                 return {"ok": False, "error": "Missing agent"}
-            # A deliberate stop is not a crash: drop the journal entry first so
-            # the next launch never resumes it.
-            self._drop_run(agent_id)
             with self.procs_lock:
                 process = self.procs.get(agent_id)
-                if process is not None and process.poll() is None:
-                    self.interrupts.add(agent_id)
-                else:
+                if process is not None and process.poll() is not None:
                     process = None
+                running = agent_id in self.running_agents
+                # Mark before looking for the process: a worker that has not
+                # published its OpenCode process yet must still see the pause.
+                if process is not None or running:
+                    self.interrupts.add(agent_id)
             if process is None:
                 # The agent may still be waiting in the FIFO queue.
                 with self.build_cond:
                     queued = self.build_waiting.pop(agent_id, None)
-                    if queued is not None or agent_id in self.build_active:
+                    active = agent_id in self.build_active
+                    if queued is not None or active or running:
                         self.interrupts.add(agent_id)
                     self.build_cond.notify_all()
-                if queued is None:
+                if not (running or queued is not None or active):
+                    self.interrupts.discard(agent_id)
                     return {"ok": True, "interrupted": False}
-                return {"ok": True, "interrupted": True, "queued": True}
+                return {"ok": True, "interrupted": True, "queued": queued is not None}
             try:
                 self._stop_process(process)
             except Exception:
@@ -5852,6 +5827,9 @@ class AgentStore:
             return {"ok": False, "error": "Missing agent"}
         if not message:
             return {"ok": False, "error": "Write a message first"}
+        if self.stopping.is_set():
+            # The window is closing: never start a fresh agent behind it.
+            return {"ok": False, "error": "NeoTodo is closing. Send the instruction again after reopening."}
         kind = str(scope.get("kind") or "")
         with self.lock:
             data = self._load()
@@ -5882,17 +5860,6 @@ class AgentStore:
             stored["model"] = model
             self._save(data)
 
-        # Journal the run before the worker starts so a crash or a closed app
-        # can pick the same instruction up again on the next launch.
-        self._set_run(agent_id, {
-            "title": title,
-            "scope": scope,
-            "message": message,
-            "model": model,
-            "mode": mode,
-            "resumes": 0,
-            "started": datetime.now().isoformat(timespec="seconds"),
-        })
         self._spawn_run(
             agent_id=agent_id,
             title=title,
@@ -6365,14 +6332,48 @@ def fork_server_record_path(fork_id: str) -> Path:
     return FORK_DIR / f"{fork_id}.server.json"
 
 
+def pid_is_alive(pid: int) -> bool:
+    """True when the recorded process still exists (fork/parent liveness)."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if os.name != "posix":
+        # Windows has no portable signal-0 probe, so a dead fork is detected
+        # through its port instead.
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
 def read_fork_server_record(fork_id: str) -> dict | None:
     try:
         data = json.loads(fork_server_record_path(fork_id).read_text(encoding="utf-8"))
+        pid = int(data.get("pid") or 0)
+        parent_pid = int(data.get("parent_pid") or 0)
         port = int(data.get("port") or 0)
         if port <= 0:
             return None
+        if pid and not pid_is_alive(pid):
+            clear_fork_server_record(fork_id)
+            return None
+        if parent_pid and not pid_is_alive(parent_pid):
+            # The notebook that owned this fork is gone. It is not a live
+            # window any more, even if its old port has been reused.
+            clear_fork_server_record(fork_id)
+            return None
         return {
-            "pid": int(data.get("pid") or 0),
+            "pid": pid,
+            "parent_pid": parent_pid,
             "port": port,
             "started_at": str(data.get("started_at") or ""),
         }
@@ -6387,6 +6388,7 @@ def write_fork_server_record(fork_id: str, port: int) -> None:
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps({
             "pid": os.getpid(),
+            "parent_pid": os.getppid() if os.name == "posix" else 0,
             "port": int(port),
             "started_at": datetime.now().isoformat(timespec="seconds"),
         }), encoding="utf-8")
@@ -6400,6 +6402,26 @@ def clear_fork_server_record(fork_id: str) -> None:
         fork_server_record_path(fork_id).unlink(missing_ok=True)
     except Exception:
         pass
+
+
+def cleanup_stale_fork_records() -> None:
+    """Drop fork records whose process died with an earlier notebook."""
+    try:
+        paths = list(FORK_DIR.glob("*.server.json"))
+    except Exception:
+        return
+    for path in paths:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+        pid = int(data.get("pid") or 0) if isinstance(data, dict) else 0
+        parent_pid = int(data.get("parent_pid") or 0) if isinstance(data, dict) else 0
+        if (pid and not pid_is_alive(pid)) or (parent_pid and not pid_is_alive(parent_pid)):
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 def port_is_live(port: int) -> bool:
@@ -6424,8 +6446,92 @@ def focus_fork_window(port: int) -> bool:
         return False
 
 
-def launch_fork_process(args: list[str]) -> subprocess.Popen:
-    """Start a detached NeoTodo process that owns its own window + server."""
+def _register_fork_process(fork_id: str, process: subprocess.Popen) -> None:
+    with FORK_PROCS_LOCK:
+        FORK_PROCS[str(fork_id or "")] = process
+
+
+def _unregister_fork_process(process: subprocess.Popen) -> None:
+    with FORK_PROCS_LOCK:
+        for key, tracked in list(FORK_PROCS.items()):
+            if tracked is process:
+                FORK_PROCS.pop(key, None)
+
+
+def _stop_fork_process(process: subprocess.Popen, force: bool = False) -> None:
+    """Stop one fork child without touching the notebook's process group."""
+    try:
+        if process.poll() is not None:
+            return
+    except Exception:
+        pass
+    try:
+        if force:
+            process.kill()
+        else:
+            process.terminate()
+    except Exception:
+        try:
+            process.kill()
+        except Exception:
+            pass
+
+
+def stop_fork_processes(timeout: float = 3.0) -> None:
+    """End every forked window and the agents running inside it.
+
+    A fork is a child of this notebook, so quitting really closes it. SIGTERM
+    first gives each fork the chance to interrupt its own agents before the
+    hard kill.
+    """
+    with FORK_PROCS_LOCK:
+        entries = list(FORK_PROCS.items())
+        FORK_PROCS.clear()
+    if not entries:
+        return
+    for fork_id, _process in entries:
+        if FORK_ID_RE.fullmatch(str(fork_id or "")):
+            clear_fork_server_record(fork_id)
+    for _fork_id, process in entries:
+        _stop_fork_process(process)
+    deadline = time.monotonic() + max(0.2, float(timeout))
+    for _fork_id, process in entries:
+        try:
+            process.wait(timeout=max(0.05, deadline - time.monotonic()))
+        except Exception:
+            pass
+    for _fork_id, process in entries:
+        if process.poll() is None:
+            _stop_fork_process(process, force=True)
+
+
+def stop_fork_servers() -> None:
+    """Stop fork servers that a fallback platform kept in this process."""
+    with FORK_SERVERS_LOCK:
+        entries = list(FORK_SERVERS.items())
+        FORK_SERVERS.clear()
+    for _key, entry in entries:
+        server = entry.get("server") if isinstance(entry, dict) else None
+        try:
+            if server is not None:
+                server.shutdown()
+        except Exception:
+            pass
+
+
+def shutdown_forks() -> None:
+    """End everything this notebook forked: child windows, servers, records."""
+    stop_fork_processes()
+    stop_fork_servers()
+
+
+def launch_fork_process(args: list[str], fork_id: str = "") -> subprocess.Popen:
+    """Start a fork window as a child of this notebook.
+
+    It is deliberately not detached and not moved to a new session: the fork
+    belongs to this process tree, so a quit closes the fork and its agents
+    instead of leaving an independent NeoTodo behind.
+    """
     command = [sys.executable]
     if not getattr(sys, "frozen", False):
         command.append(str(Path(__file__).resolve()))
@@ -6436,14 +6542,16 @@ def launch_fork_process(args: list[str]) -> subprocess.Popen:
         "stderr": subprocess.DEVNULL,
         "close_fds": True,
         "cwd": str(APP_DIR),
+        "env": {**os.environ, "NEOTODO_PARENT_PID": str(os.getpid())},
     }
     if os.name == "posix":
-        kwargs["start_new_session"] = True
-    else:
-        kwargs["creationflags"] = (
-            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-        )
-    return subprocess.Popen(command, **kwargs)
+        # Keep the child in this session so the notebook owns it. The child
+        # also watches its parent, so even a crash cannot orphan it.
+        kwargs["start_new_session"] = False
+    process = subprocess.Popen(command, **kwargs)
+    if fork_id:
+        _register_fork_process(fork_id, process)
+    return process
 
 
 def spawn_fork_app_process(path: Path) -> dict | None:
@@ -6457,7 +6565,9 @@ def spawn_fork_app_process(path: Path) -> dict | None:
     except Exception:
         port = 0
     try:
-        proc = launch_fork_process(["--fork-app", str(path), "--port", str(port)])
+        proc = launch_fork_process(
+            ["--fork-app", str(path), "--port", str(port)], fork_id=fork_id,
+        )
     except Exception:
         return None
     deadline = time.monotonic() + 8
@@ -6469,6 +6579,7 @@ def spawn_fork_app_process(path: Path) -> dict | None:
             record["child_pid"] = proc.pid
             return record
         time.sleep(0.08)
+    _unregister_fork_process(proc)
     try:
         proc.terminate()
     except Exception:
@@ -6478,8 +6589,11 @@ def spawn_fork_app_process(path: Path) -> dict | None:
 
 def spawn_fork_window_process(url: str, title: str) -> bool:
     try:
-        launch_fork_process(["--fork-window", str(url), "--title", str(title or "")])
-        return True
+        proc = launch_fork_process(
+            ["--fork-window", str(url), "--title", str(title or "")],
+            fork_id=f"window:{url}",
+        )
+        return proc.poll() is None
     except Exception:
         return False
 
@@ -6520,7 +6634,7 @@ def start_fork_server(fork_store: Store, agent_store) -> tuple[ThreadingHTTPServ
 
 
 def open_fork_instance(agent_store, fork_id: str) -> dict:
-    """Open a persisted fork in its own independent window/process."""
+    """Open a persisted fork in its own child window/process."""
     key = str(fork_id or "").strip()
     if not re.fullmatch(r"[0-9a-f]{8,64}", key):
         return {"ok": False, "error": "Invalid fork"}
@@ -6803,11 +6917,11 @@ def start_server(store: Store):
         primary = True
     except OSError:
         server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
-        # A second copy of the app must not resume runs that the first copy
-        # is still working on.
+        # A second copy shares the data files with the first copy: it must
+        # not settle (or interrupt) the runs that copy is working on.
         primary = False
     ApiHandler.store = store
-    ApiHandler.agent_store = AgentStore(AGENT_FILE, resume=primary)
+    ApiHandler.agent_store = AgentStore(AGENT_FILE, settle_pending=primary)
     # Warm the capability check in the main thread. Fork windows are separate
     # GTK processes; the HTTP request thread only reads this cached flag.
     try:
@@ -6842,6 +6956,12 @@ def run_gtk() -> None:
     except Exception:
         pass
     store = Store(DATA_FILE)
+    # A fork from an earlier run can only be alive if its window survived a
+    # crash; its record must never point at a reused port.
+    try:
+        cleanup_stale_fork_records()
+    except Exception:
+        pass
     try:
         # The window never paints a colour of its own. While the live page is
         # being prepared the window is transparent, so a frame that escapes the
@@ -7341,8 +7461,15 @@ def run_gtk() -> None:
             view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
 
         def _shutdown(self):
-            # Keep the run journal: the child process stops with the app, but
-            # the next launch resumes the instruction where it left off.
+            # Forks are child processes of this notebook. Tell them to leave
+            # first, so every fork window and the agents inside it stop while
+            # this notebook interrupts its own agents.
+            try:
+                shutdown_forks()
+            except Exception:
+                pass
+            # Closing the notebook interrupts every agent and ends every fork
+            # child; nothing continues after the window is gone.
             try:
                 if ApiHandler.agent_store is not None:
                     ApiHandler.agent_store.shutdown()
@@ -7371,6 +7498,20 @@ def run_gtk() -> None:
     app = NeoTodoApp()
     global QUIT_CALLBACK
     QUIT_CALLBACK = lambda: GLib.idle_add(app.quit_now)
+
+    # A window-manager quit is the normal path, but a SIGTERM from the
+    # launcher must also interrupt the agents and close every fork child.
+    def signal_quit(*_args):
+        GLib.idle_add(app.quit_now)
+
+    for signal_name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        sig = getattr(signal, signal_name, None)
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, signal_quit)
+        except Exception:
+            pass
     app.run(None)
 
 
@@ -7466,8 +7607,41 @@ def run_fork_gtk_window(url: str, title: str, on_close=None, on_ready=None) -> N
     application.run([])
 
 
+def _watch_fork_parent(on_orphan=None) -> None:
+    """A fork is a child of the notebook: leave when the notebook leaves."""
+    try:
+        parent = int(os.environ.get("NEOTODO_PARENT_PID") or 0)
+    except (TypeError, ValueError):
+        parent = 0
+    # A launch wrapper may sit between the notebook and the fork, so prefer
+    # the pid the notebook published. Without one, the direct parent is the
+    # notebook and a changed ppid means it is gone.
+    watch_ppid = parent <= 0
+    if watch_ppid:
+        parent = os.getppid()
+
+    def watch() -> None:
+        while True:
+            time.sleep(1.5)
+            if watch_ppid:
+                orphan = os.getppid() != parent
+            else:
+                orphan = not pid_is_alive(parent)
+            if not orphan:
+                continue
+            try:
+                if on_orphan is not None:
+                    on_orphan()
+            except Exception:
+                pass
+            finally:
+                os._exit(0)
+
+    threading.Thread(target=watch, daemon=True, name="fork-parent-watch").start()
+
+
 def run_fork_app_process() -> None:
-    """Serve one fork and own its window; this process outlives the notebook."""
+    """Serve one fork and own its window as a child of the notebook."""
     raw_path = _fork_arg("--fork-app")
     path = Path(raw_path).expanduser()
     if not path.is_file():
@@ -7480,8 +7654,9 @@ def run_fork_app_process() -> None:
     class ForkApiHandler(ApiHandler):
         pass
 
+    agent_store = AgentStore(AGENT_FILE, settle_pending=False)
     ForkApiHandler.store = store
-    ForkApiHandler.agent_store = AgentStore(AGENT_FILE, resume=False)
+    ForkApiHandler.agent_store = agent_store
     try:
         server = ThreadingHTTPServer(("127.0.0.1", requested_port), ForkApiHandler)
     except OSError:
@@ -7506,9 +7681,21 @@ def run_fork_app_process() -> None:
     ForkApiHandler.focus_callback = focus_window
 
     def stop() -> None:
+        # Closing this window ends its agents first: OpenCode runs in its own
+        # session, so letting the fork process exit alone would orphan it.
+        try:
+            agent_store.shutdown()
+        except Exception:
+            pass
         clear_fork_server_record(fork_id)
         try:
             server.shutdown()
+        except Exception:
+            pass
+        # A fork can fork its own subtasks, and those are children of this
+        # fork: closing this window closes them as well.
+        try:
+            shutdown_forks()
         except Exception:
             pass
         app = holder.get("app")
@@ -7520,6 +7707,34 @@ def run_fork_app_process() -> None:
                 pass
 
     store.quit_callback = stop
+
+    def terminate(*_args) -> None:
+        """Leave no agent behind when the notebook closes this fork."""
+        try:
+            agent_store.shutdown()
+        except Exception:
+            pass
+        try:
+            stop()
+        except Exception:
+            pass
+        clear_fork_server_record(fork_id)
+        try:
+            server.shutdown()
+        except Exception:
+            pass
+        os._exit(0)
+
+    for signal_name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        sig = getattr(signal, signal_name, None)
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, terminate)
+        except Exception:
+            pass
+    _watch_fork_parent(terminate)
+
     title = ""
     try:
         category = (store.data.get("categories") or [{}])[0]
@@ -7539,6 +7754,10 @@ def run_fork_app_process() -> None:
             pass
         finally:
             clear_fork_server_record(fork_id)
+            try:
+                agent_store.shutdown()
+            except Exception:
+                pass
             try:
                 server.shutdown()
             except Exception:
@@ -7561,6 +7780,11 @@ def run_fork_app_process() -> None:
         )
     finally:
         clear_fork_server_record(fork_id)
+        # The window loop returned: no agent may keep running without it.
+        try:
+            agent_store.shutdown()
+        except Exception:
+            pass
         try:
             server.shutdown()
         except Exception:
@@ -7571,20 +7795,44 @@ def run_fork_window_process() -> None:
     url = _fork_arg("--fork-window")
     if not url:
         return
+
+    def terminate(*_args) -> None:
+        os._exit(0)
+
+    for signal_name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        sig = getattr(signal, signal_name, None)
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, terminate)
+        except Exception:
+            pass
+    _watch_fork_parent(terminate)
     run_fork_gtk_window(url, _fork_arg("--title", "NeoTodo"))
 
 
 def run_server() -> None:
     store = Store(DATA_FILE)
+    agent_store = AgentStore(AGENT_FILE)
     server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
     ApiHandler.store = store
-    ApiHandler.agent_store = AgentStore(AGENT_FILE)
+    ApiHandler.agent_store = agent_store
     port = server.server_address[1]
     print(f"NeoTodo preview: http://127.0.0.1:{port}/", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        # A headless run still owns everything it forked.
+        try:
+            agent_store.shutdown()
+        except Exception:
+            pass
+        try:
+            shutdown_forks()
+        except Exception:
+            pass
 
 
 def main() -> None:

@@ -169,6 +169,37 @@
   }
 
   // ------------------------------------------------------------------------
+  // How much room the open drawer takes in the task block. The script writes
+  // the measured height into --ss-open-h on .current-half; the stylesheet
+  // pushes the whole subtask column down by that exact strip and shortens it
+  // the same amount. Because the gap and the pane are always the same size,
+  // the search box never overlaps a card in the column, and no card can cover
+  // the bottom of the pane. The field-only state is one full row; the results
+  // make the strip taller, up to the column height (the list then scrolls).
+  // ------------------------------------------------------------------------
+  let paneMetricFrame = 0;
+
+  function publishPaneHeight() {
+    const half = document.querySelector(".current-half");
+    const panel = currentPanel();
+    if (!half || !panel) return;
+    const height = Math.max(0, Math.round(panel.offsetHeight));
+    if (!height) return;
+    const next = `${height}px`;
+    if (half.style.getPropertyValue("--ss-open-h") !== next) {
+      half.style.setProperty("--ss-open-h", next);
+    }
+  }
+
+  function schedulePaneHeight() {
+    if (paneMetricFrame) return;
+    paneMetricFrame = requestAnimationFrame(() => {
+      paneMetricFrame = 0;
+      publishPaneHeight();
+    });
+  }
+
+  // ------------------------------------------------------------------------
   // The search drawer. The field intentionally has no placeholder: the bar is
   // just the bracket and the caret. Results are built below it.
   // ------------------------------------------------------------------------
@@ -248,6 +279,7 @@
     railButton.classList.toggle("is-open", panelOpen);
     railButton.setAttribute("aria-expanded", panelOpen ? "true" : "false");
     railButton.setAttribute("aria-label", panelOpen ? "关闭子任务搜索" : "打开子任务搜索");
+    schedulePaneHeight();
   }
 
   function openPanel() {
@@ -407,6 +439,7 @@
       resultToken += 1;
       list.replaceChildren();
       panel.classList.remove("has-results", "no-results");
+      schedulePaneHeight();
       return;
     }
 
@@ -415,6 +448,7 @@
       resultToken += 1;
       list.replaceChildren();
       panel.classList.remove("has-results", "no-results");
+      schedulePaneHeight();
       return;
     }
 
@@ -463,6 +497,7 @@
     list.replaceChildren(fragment);
     panel.classList.toggle("has-results", matches.length > 0);
     panel.classList.toggle("no-results", matches.length === 0);
+    schedulePaneHeight();
   }
 
   // ------------------------------------------------------------------------
@@ -519,8 +554,15 @@
 
     // Centre the row in its own lane. This is measured inside the frame because
     // opening the finished-task drawer resets its lane scroll in its own
-    // frame; measuring now would aim at the old scroll position.
+    // frame; measuring now would aim at the old scroll position. The lane also
+    // grows back once the result rows are cleared, so the height it will have
+    // when the drawer has shrunk to the field alone is what the row is centred
+    // against — otherwise a full-height result list would aim at a 0px lane.
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const openPanelNode = currentPanel();
+    const currentPane = openPanelNode ? Math.round(openPanelNode.offsetHeight) : 0;
+    const barNode = openPanelNode?.querySelector(".subtask-search-bar");
+    const fieldPane = barNode ? Math.round(barNode.getBoundingClientRect().height) + 2 : 0;
     requestAnimationFrame(() => {
       const row = rowFor(subtaskId) || picked;
       if (!row.isConnected) return;
@@ -529,11 +571,12 @@
       const rowRect = row.getBoundingClientRect();
       const laneRect = lane.getBoundingClientRect();
       const rowTop = rowRect.top - laneRect.top + lane.scrollTop;
+      const laneHeight = lane.clientHeight + Math.max(0, currentPane - fieldPane);
       const target = Math.max(
         0,
         Math.min(
-          rowTop - (lane.clientHeight - row.offsetHeight) / 2,
-          Math.max(0, lane.scrollHeight - lane.clientHeight)
+          rowTop - (laneHeight - row.offsetHeight) / 2,
+          Math.max(0, lane.scrollHeight - laneHeight)
         )
       );
       try {
@@ -563,6 +606,8 @@
     query = "";
     activeTodoId = "";
     body.classList.remove("subtask-search-on", "subtask-search-open");
+    const half = document.querySelector(".current-half");
+    if (half) half.style.removeProperty("--ss-open-h");
     railButton.classList.remove("is-open");
     railButton.setAttribute("aria-expanded", "false");
     railButton.setAttribute("aria-label", "打开子任务搜索");
@@ -598,6 +643,7 @@
       panelOpen = false;
       stopClock();
       query = "";
+      half.style.removeProperty("--ss-open-h");
       body.classList.remove("subtask-search-open");
     }
 
@@ -614,6 +660,7 @@
     const input = panel.querySelector(".subtask-search-input");
     if (input && input.value !== query) input.value = query;
     renderResults();
+    schedulePaneHeight();
 
     requestAnimationFrame(() => {
       if (!inner.isConnected) return;

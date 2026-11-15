@@ -67,11 +67,13 @@ def main() -> int:
         assert "--page-baseline-color: var(--line" not in page_layout
 
         # The legacy colour file still exists and stays independent, but the
-        # page's dividers moved to the single page_line object. Settings now
-        # edits page-line.json, so both old picker ids are gone.
+        # page's dividers moved to the single page_line object. The Palette
+        # plugin now owns the picker, so the old settings ids are gone.
         app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        palette_html = (ROOT / "web" / "plugins" / "palette" / "index.html").read_text(encoding="utf-8")
         assert 'id="baseline-color"' not in app_js
-        assert 'id="page-line-color"' in app_js
+        assert 'id="baseline-color"' not in palette_html
+        assert 'id="page-line-color"' in palette_html
         assert '"save_page_line"' in app_js
         page_line_css = (ROOT / "web" / "page-line.css").read_text(encoding="utf-8")
         assert "--page-line-paint" in page_line_css

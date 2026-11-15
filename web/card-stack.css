@@ -55,6 +55,16 @@ body .completed-subtask-drawer {
   box-shadow: var(--card-lift-page) !important;
 }
 
+/* The magic-hat drawer is the same sheet: it lies straight on the task page,
+   carries the shared ink-green stroke and the page-level lift. The inset ring
+   draws the stroke because the drawer has no real border. */
+body .trash-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-lift-page) !important;
+}
+
 /* With a wallpaper the picture pane supplies the face edge to edge. The
    element's own 1px border is painted the same ink green as the pane's inset
    stroke, so the two read as one border: a transparent border here would let
@@ -68,6 +78,24 @@ html[data-wallpaper] body #doing-peek {
 }
 
 html[data-wallpaper] body .completed-subtask-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-lift-page) !important;
+}
+
+/* The tray opens INSIDE the live subtask card, so it is not a sheet lying on
+   the page any more: nothing is lifted, and no shadow is thrown onto the
+   card's paper. One hairline edge and a faint inner light along its top make
+   it read as a panel set into the card it belongs to. Kept after the wallpaper
+   rule on purpose: with a wallpaper the pane still supplies the face and the
+   stroke, but the lift stays off. */
+body .completed-subtask-drawer,
+html[data-wallpaper] body .completed-subtask-drawer {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+/* On a wallpaper the pane supplies the card face and its inset stroke, so the
+   drawer drops its own ring and keeps only the lift. */
+html[data-wallpaper] body .trash-drawer {
   border-color: var(--subcard-outline, #2f5d4e) !important;
   box-shadow: var(--card-lift-page) !important;
 }

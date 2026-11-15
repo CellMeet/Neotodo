@@ -26,7 +26,7 @@ class AiConfigTests(unittest.TestCase):
         app.AI_OPENCODE_CONFIG = root / "ai-opencode.json"
         app.AI_ACTIVITY_FILE = root / "agent-activity.log"
         app.DATA_DIR = root
-        self.store = app.AgentStore(root / "agents.json", resume=False)
+        self.store = app.AgentStore(root / "agents.json")
         self.store._available_models = lambda: ["opencode/beam-free", "deepseek/test-model"]
 
     def tearDown(self) -> None:

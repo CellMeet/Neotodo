@@ -3,33 +3,23 @@
    --------------------------------------------------------------------------
    The ruled paper continues past the last written row.
 
-   The Doing card and the category spine used to stop their hairlines at the
-   last piece of content: below it the sheet went blank, so the card and the
-   spine looked half-printed whenever there were only a few rows.
+   The Doing card used to stop its hairlines at the last piece of content:
+   below it the sheet went blank, so the card looked half-printed whenever
+   there were only a few rows.
 
-   Both lists are scrolling flex columns, so an empty ::after child can take
-   the leftover height. Painting the paper's rule rhythm into that child gives
-   the blank area the same hairline as the rows above. It only grows while the
-   content is shorter than the sheet; once the list scrolls it collapses to
+   The list is a scrolling flex column, so an empty ::after child can take the
+   leftover height. Painting the paper's rule rhythm into that child gives the
+   blank area the same hairline as the rows above. It only grows while the
+   content is shorter than the card; once the list scrolls it collapses to
    zero, so no extra scroll space is invented.
 
-   Row heights: a category row is 36px and a Doing row is 40px. The rule sits
-   in the last pixel of each row, exactly where the row's own border sits, so
-   the first filler line continues the same rhythm.
-   ========================================================================== */
+   The categories spine is deliberately not filled: below the last category the
+   column stays blank instead of continuing the ruled grid into empty space.
 
-/* Category spine — the quiet baselines continue down to the foot. */
-.category-list::after {
-  content: "";
-  flex: 1 1 auto;
-  min-height: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0 35px,
-    var(--pc-line, var(--line, rgba(70, 58, 40, 0.16))) 35px 36px
-  );
-}
+   Row height: a Doing row is 40px. The rule sits in the last pixel of each
+   row, exactly where the row's own border sits, so the first filler line
+   continues the same rhythm.
+   ========================================================================== */
 
 /* Doing card — the card's own row rules continue below the last todo. The
    card borrows its hairline from overlay-paper.css, so the filler does too. */

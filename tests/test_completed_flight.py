@@ -55,6 +55,24 @@ def main() -> int:
     assert "width: `${landedRect.width}px`" not in fly, (
         "the flight still animates width, which lays the row out every frame"
     )
+    # The provider mark belongs to the run, not to the finished row: it drops
+    # away where the click happened instead of riding into the tray. Carrying
+    # it made the landing row one badge-width too wide (fan/name shifted right
+    # in the air, then snapped back left once the mark was cleared).
+    assert "flyModelMarkAway(ghost, duration);" in fly, (
+        "the AI provider mark still flies with the finished row"
+    )
+    mark = block_after(app_js, "function flyModelMarkAway(", "\nfunction flyCompletedRow(")
+    assert 'ghost.querySelector(".sub-agent-model img")' in mark
+    assert "badge.remove();" in mark, "the mark is still part of the flying row's layout"
+    assert "mark.classList.add(\"subtask-flight-mark\");" in mark
+    assert "document.body.appendChild(mark);" in mark
+    assert "translateY(18px) scale(0.68)" in mark, "the mark does not slide down out of the row"
+    assert "[{ paddingLeft:" in mark, (
+        "the row does not close the mark's empty slot, so the landing shifts left"
+    )
+    assert ".subtask-flight-mark {" in split_css
+    assert "position: fixed;" in block_after(split_css, ".subtask-flight-mark {", "}")
     assert "flight.onfinish = settle;" in fly and "flight.oncancel = settle;" in fly
     assert 'row.style.visibility = "";' in fly and "row.isConnected" in fly
     assert 'check.classList.add("check-in");' in fly, (

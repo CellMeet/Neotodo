@@ -93,8 +93,11 @@ def main() -> int:
     assert "NOTE_BG_PRESETS = {" in app_js
     # No hidden forest default: the focus frost works on the real backdrop.
     assert 'settings.note_material === "focus") noteBg' not in app_js
+    # The surface picker lives in Settings → Theme → Note theme, not in the
+    # page-wide Palette plugin.
     assert 'const focusSurface = settings.note_material === "focus";' in app_js
     assert '${focusSurface ? "Frost blur" : "Glass background"}' in app_js
+    assert "data-note-surface-file=" in app_js
     assert 'noteMaterialFiles = ["paper.css", "glass.css", "focus.css"]' in app_js
 
     index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

@@ -19,6 +19,20 @@
       "featured": true
     },
     {
+      "id": "palette",
+      "name": "调色板",
+      "englishName": "Palette",
+      "version": "1.0.0",
+      "description": "把页面横线、选区高亮和完成行收进一块调色板。点击轨道上的油漆调色板图标，打开和 Settings 一样的页面调节细节，改完立刻回到页面。",
+      "author": "NeoTodo",
+      "category": "Interface",
+      "icon": "palette.svg",
+      "tags": ["theme", "palette", "line", "page"],
+      "bundled": true,
+      "official": true,
+      "featured": true
+    },
+    {
       "id": "subtask-search",
       "name": "子任务搜索",
       "englishName": "Subtask Search",

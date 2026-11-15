@@ -273,9 +273,17 @@ def main() -> int:
         "the categories spine can still look like a card"
     )
 
+    # The magic-hat drawer is a card of the same pile: theme paper, the shared
+    # ink-green stroke, the shared corner and the page-level lift. Its row
+    # hairlines follow page_line in page-line.css.
     trash = (ROOT / "web" / "style.css").read_text(encoding="utf-8").split(".trash-drawer {", 1)[1]
     trash = trash.split("}", 1)[0]
-    assert "#8a6542" in trash, "the magic hat drawer's own border colour changed"
+    assert "var(--overlay-paper" in trash, "the magic hat drawer left the theme paper"
+    assert "var(--overlay-radius" in trash, "the magic hat drawer lost the shared corner"
+    assert "var(--subcard-outline, #2f5d4e)" in trash, (
+        "the magic hat drawer lost the shared ink-green card stroke"
+    )
+    assert "var(--card-lift-page" in trash, "the magic hat drawer left the card pile"
     print("wallpaper choice and the sub-card standard passed")
     return 0
 

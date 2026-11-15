@@ -44,11 +44,13 @@ def main() -> int:
         store.action({"action": "save_settings", "settings": {"highlight": "pink"}})
         assert "highlight" not in store.state()["settings"]
 
-        # Settings → Theme owns the picker, the hex field and the Auto reset.
+        # The Palette plugin owns the picker, the hex field and the Auto reset.
         app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
-        assert 'id="highlight-color"' in app_js
-        assert 'id="highlight-color-hex"' in app_js
-        assert 'data-action="reset-highlight-color"' in app_js
+        palette_html = (ROOT / "web" / "plugins" / "palette" / "index.html").read_text(encoding="utf-8")
+        assert 'id="highlight-color"' in palette_html
+        assert 'id="highlight-color-hex"' in palette_html
+        assert "data-pl-highlight-auto" in palette_html
+        assert "resetHighlight()" in app_js
         assert 'setProperty("--select-wash-rgb"' in app_js
         assert 'root.dataset.select' in app_js
 

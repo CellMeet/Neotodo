@@ -2119,14 +2119,24 @@ let pendingCustomThemeDeleteId = null;
 // Settings → Theme uses one row with two selectors: the left "Theme" label
 // switches the unit (the NeoTodo theme, the notebook palette, the AI console
 // palette) and the right pill picks the theme inside that unit. New units can
-// be appended here and inherit the same label, dot and current-theme summary.
+// be appended here and inherit the same label and current-theme summary.
 const THEME_UNITS = [
   { id: "app", label: "Theme" },
   { id: "note", label: "Note theme" },
   { id: "ai", label: "AI theme" },
 ];
+// Caret uses the same row pattern as Theme: the left label switches between
+// the shared caret, the notebook caret and the AI console caret; the right
+// box opens one menu with Blink / Line / Block.
+const CARET_UNITS = [
+  { id: "app", label: "Caret" },
+  { id: "note", label: "Note caret" },
+  { id: "ai", label: "AI caret" },
+];
 // `themeFieldMode` is the unit currently shown in the row.
 let themeFieldMode = "app";
+// `caretFieldMode` is the caret unit currently shown in the row.
+let caretFieldMode = "app";
 const fontPanelsOpen = { body: false, note: false };
 
 function randomPostcardId(exclude = null) {
@@ -2329,6 +2339,18 @@ const PLUGIN_REGISTRY = {
       { id: "sound", label: "Sound", detail: "Little bead clicks and a chime when a picture is finished.", type: "toggle", default: true },
     ],
   },
+  palette: {
+    id: "palette",
+    title: "调色板",
+    englishTitle: "Palette",
+    version: "1.0.0",
+    author: "NeoTodo",
+    category: "Interface",
+    description: "把页面横线、选区高亮和完成行收进一块调色板。打开后和 Settings 一样调节细节，改完立刻回到页面。",
+    icon: "/plugins/palette/palette.svg",
+    entry: "/plugins/palette/index.html",
+    tags: ["theme", "palette", "line", "page"],
+  },
   "completed-drawer": {
     id: "completed-drawer",
     title: "完成抽屉",
@@ -2410,6 +2432,15 @@ let completedExpanded = new Set();
 let completedSubtasksOpen = false;
 let completedSubtasksTodoId = null;
 let suppressCompletedSubtaskToggleUntil = 0;
+// The live rows are a card of their own. Its purple handle line lies on the
+// card's bottom edge; a click folds the whole card away and the same line
+// brings it back. The fold belongs to the task on screen, so switching tasks
+// always starts with the rows showing.
+let pendingSubtasksCollapsed = false;
+let pendingSubtasksTodoId = null;
+// A stretched edge is a drag, not a click; the click that follows must not
+// flip the card a second time.
+let suppressPendingSubtaskToggleUntil = 0;
 // Finishing a subtask pops the card open so the row can fly into it. Once the
 // row has landed the card lingers for a beat, then tucks itself away again.
 let completedSubtasksAutoCloseTimer = null;
@@ -2486,6 +2517,8 @@ let doingDrag = null;
 let doingPress = null;
 let doingDragClickUntil = 0;
 let doingPointerFrame = 0;
+let doingDragX = 0;
+let doingDragFrame = 0;
 let agentTerminalOpen = false;
 let panelPreview = null;
 let singleDock = null;
@@ -2773,9 +2806,10 @@ function syncRunningAgentMemory() {
   return true;
 }
 
-// Runs that survive an app restart live only on the backend until the page
-// asks for them. Ask on boot and whenever the window wakes up, so a resumed
-// agent's fan spins (and can be paused) exactly like a run started here.
+// Runs started in another window (a fork or the main notebook) live only on
+// the backend until this page asks for them. Ask on boot and whenever the
+// window wakes up, so such an agent's fan spins (and can be paused) exactly
+// like a run started here.
 let agentRunningSyncAt = 0;
 let agentRunningSyncBusy = false;
 async function syncBackendRunningAgents(force = false) {
@@ -2806,7 +2840,7 @@ async function syncBackendRunningAgents(force = false) {
     }
     if (!changed) return false;
     saveRunningAgentStamps();
-    // The visible rows follow the stamps: a resumed run's fan starts or stops
+    // The visible rows follow the stamps: another window's run starts or stops
     // here, without waiting for the next full render.
     document.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
       const subtaskId = row.dataset.subtaskId;
@@ -2818,8 +2852,9 @@ async function syncBackendRunningAgents(force = false) {
     syncAgentFanSpins();
     reorderCurrentSubtaskRows();
     if (doingPeekOpen) updateDoingPeek(true);
-    // A resumed run can finish while its conversation is closed. Read the
-    // settled turn once so the board still lights its finished-work hint.
+    // A run started in another window can finish while its conversation is
+    // closed. Read the settled turn once so the board still lights its
+    // finished-work hint.
     for (const id of lost) {
       if (id.startsWith("subtask:") && !agentPausedIds.has(id)) {
         noteBackendRunFinished(id.slice(8));
@@ -7178,7 +7213,7 @@ async function loadAgentSession(agentId) {
       if (Array.isArray(data.files)) agentAttachments[agentId] = data.files;
       agentLoadedIds.add(agentId);
       if (data.live?.started) {
-        // A run that survived an app restart is already working; the panel
+        // A run started in another window is already working; the panel
         // follows it like any run started from this window.
         if (!agentBusyIds.has(agentId)) {
           agentBusyIds.add(agentId);
@@ -8053,6 +8088,61 @@ function restoreAgentScroll(snapshot) {
   }
 }
 
+// The finished card never shows the provider mark: that mark answers "who
+// worked on this row", and the row is leaving the run behind. During the
+// flight it would otherwise be cloned along with the row and hand a stray
+// badge to the tray. Let it slide down and fade where the click happened,
+// while the row's leading edge closes the empty slot. Keeping the slot closed
+// on the ghost means the row lands with the tray's own content offsets, so
+// nothing shifts back to the left at the end of the trip.
+function flyModelMarkAway(ghost, duration) {
+  const badge = ghost.querySelector(".sub-agent-model img")?.closest(".sub-agent-model");
+  if (!badge) return;
+  // A badge that just popped in is mid-transform; measure the resting box.
+  badge.classList.remove("pop");
+  const badgeRect = badge.getBoundingClientRect();
+  const ghostRect = ghost.getBoundingClientRect();
+  const name = ghost.querySelector(".sub-name");
+  const offsetWithMark = name ? name.getBoundingClientRect().left - ghostRect.left : 0;
+  const mark = badge.cloneNode(true);
+  mark.classList.remove("pop");
+  mark.classList.add("subtask-flight-mark");
+  mark.setAttribute("aria-hidden", "true");
+  mark.style.left = `${badgeRect.left}px`;
+  mark.style.top = `${badgeRect.top}px`;
+  mark.style.width = `${badgeRect.width}px`;
+  mark.style.height = `${badgeRect.height}px`;
+  badge.remove();
+  // How much room the mark (and its flex gap) took from the row's content.
+  const basePad = parseFloat(getComputedStyle(ghost).paddingLeft) || 0;
+  const offsetWithoutMark = name ? name.getBoundingClientRect().left - ghostRect.left : 0;
+  const slot = Math.max(0, Math.round(offsetWithMark - offsetWithoutMark));
+  ghost.style.paddingLeft = `${basePad + slot}px`;
+  document.body.appendChild(mark);
+  try {
+    const drop = mark.animate(
+      [
+        { transform: "translateY(0) scale(1)", opacity: 1 },
+        { transform: "translateY(18px) scale(0.68)", opacity: 0 },
+      ],
+      { duration: Math.min(260, duration), easing: "cubic-bezier(.4,0,.7,1)", fill: "forwards" }
+    );
+    drop.onfinish = () => mark.remove();
+    drop.oncancel = () => mark.remove();
+  } catch (error) {
+    mark.remove();
+  }
+  if (!slot) return;
+  try {
+    ghost.animate(
+      [{ paddingLeft: `${basePad + slot}px` }, { paddingLeft: `${basePad}px` }],
+      { duration: Math.min(260, duration), easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" }
+    );
+  } catch (error) {
+    ghost.style.paddingLeft = `${basePad}px`;
+  }
+}
+
 // The finished row leaves a card that clips its own children: the drawer and
 // the lane inside it cut the path off at the card edge, so a transform on the
 // real row is invisible for most of the trip and the row merely seems to
@@ -8082,6 +8172,13 @@ function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null
   ghost.style.zIndex = "240";
   row.style.visibility = "hidden";
   document.body.appendChild(ghost);
+  // The provider mark belongs to the AI run, not to the finished paper. It
+  // must not ride into the tray: the completed row has no badge, so carrying
+  // one made the fan and name arrive one badge-width too far right and then
+  // snap back left when the mark was cleared. Drop the mark where the row was
+  // clicked instead, and close its slot while the row travels so the landing
+  // layout is exactly the tray row's layout — the trip ends in place.
+  flyModelMarkAway(ghost, duration);
   const dx = landedRect.left - originRect.left;
   const dy = landedRect.top - originRect.top;
   const clipRight = Math.max(0, originRect.width - landedRect.width);
@@ -8169,6 +8266,8 @@ function renderStage() {
     lastAddedSubtaskId = null;
     completedSubtasksOpen = false;
     completedSubtasksTodoId = null;
+    pendingSubtasksCollapsed = false;
+    pendingSubtasksTodoId = null;
     return;
   }
   stage.style.setProperty("--c", category.color);
@@ -8204,9 +8303,20 @@ function renderStage() {
   // This also covers a completion that was still in flight when the new row was
   // saved: the drawer must never open on top of a just-added subtask.
   if (newSubtaskView) completedSubtasksOpen = false;
+  // A folded card has no visible rows: a completion that has to fly into the
+  // finished tray, or an inline row that has to be typed into, always hands
+  // the card back first.
+  if (risingSubtaskId || newSubtaskView) pendingSubtasksCollapsed = false;
   // The finished tray and the Doing drawer are independent sheets. Both may
   // rest on the column's right border at once; the Doing drawer is the upper
   // card, so opening or closing the tray never takes the drawer away.
+
+  // The live card's fold is a view state of this task, not of the notebook: a
+  // different task always opens with its rows unfolded.
+  if (pendingSubtasksTodoId !== (current?.id || "")) {
+    pendingSubtasksTodoId = current?.id || "";
+    pendingSubtasksCollapsed = false;
+  }
 
   if (lastCategoryId !== category.id) {
     lastCategoryId = category.id;
@@ -8304,17 +8414,30 @@ function renderStage() {
     // Plugin on: unfinished work keeps one lane and a short handle line drops a
     // compact finished-tasks card on the right. Plugin off: every subtask,
     // finished or not, shares a single lane in the same recency order.
+    //
+    // In both cases the unfinished lane is printed on its own sheet. The sheet
+    // is open on the left — the finished column flows into it — and closes with
+    // a rounded right edge. Its purple handle line rides the sheet's bottom
+    // edge: pulled up it stretches the card until the line sits under the
+    // top line of the block, pulled down it hands the seven rows back.
+    const pendingCard = (lanes) => `<div class="pending-subtask-card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
+        <span class="pending-subtask-label" aria-hidden="true">卡片</span>
+        ${lanes}
+        <button class="pending-subtask-toggle ${pendingSubtasksCollapsed ? "collapsed" : ""}" type="button" data-action="toggle-pending-subtasks" aria-expanded="${pendingSubtasksCollapsed ? "false" : "true"}" aria-controls="pending-subtask-card" aria-label="${pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks"}">
+          <span class="pending-subtask-line" aria-hidden="true"></span>
+        </button>
+      </div>`;
     const drawerMarkup = completedDrawerOn
-      ? `<button class="completed-subtask-toggle ${completedSubtasksOpen ? "open" : ""}" type="button" data-action="toggle-completed-subtasks" aria-expanded="${completedSubtasksOpen ? "true" : "false"}" aria-controls="completed-subtask-drawer" aria-label="${completedSubtasksOpen ? "Hide completed subtasks" : "Show completed subtasks"}">
-        <span class="completed-subtask-line" aria-hidden="true"></span>
-      </button>
-      <div class="subtask-lanes">
+      ? `${pendingCard(`<div class="subtask-lanes">
         <div class="subtask-lane-column pending-column">
           <div class="subtask-lane" data-lane="pending">
             <div class="current-subtasks" data-subtask-list="pending">${addSubtaskRow}${pendingList.map(subtaskRow).join("")}${pendingFillers}</div>
           </div>
         </div>
-      </div>
+      </div>`)}
+      <button class="completed-subtask-toggle ${completedSubtasksOpen ? "open" : ""}" type="button" data-action="toggle-completed-subtasks" aria-expanded="${completedSubtasksOpen ? "true" : "false"}" aria-controls="completed-subtask-drawer" aria-label="${completedSubtasksOpen ? "Hide completed subtasks" : "Show completed subtasks"}">
+        <span class="completed-subtask-line" aria-hidden="true"></span>
+      </button>
       <div class="completed-subtask-drawer ${completedSubtasksOpen ? "open" : ""}" id="completed-subtask-drawer" data-subcard="completed" role="region" aria-label="Completed subtasks" aria-hidden="${completedSubtasksOpen ? "false" : "true"}">
         <div class="completed-subtask-sheet">
           <div class="subtask-lane-column completed-column" aria-label="Completed subtasks">
@@ -8324,13 +8447,13 @@ function renderStage() {
           </div>
         </div>
       </div>`
-      : `<div class="subtask-lanes">
+      : pendingCard(`<div class="subtask-lanes">
         <div class="subtask-lane-column pending-column combined-column">
           <div class="subtask-lane" data-lane="all">
             <div class="current-subtasks" data-subtask-list="all">${addSubtaskRow}${subList.map(subtaskRow).join("")}${combinedFillers}</div>
           </div>
         </div>
-      </div>`;
+      </div>`);
     metaHtml = `<div class="current-inner" data-current-todo="${esc(current.id)}">${drawerMarkup}</div>`;
     headTitle = `<div class="page-head-title current-head-title" data-current-line data-current-todo="${esc(current.id)}">
       <div class="head-title-inner">
@@ -8381,6 +8504,7 @@ function renderStage() {
   // that the stage HTML has been replaced.
   applyBaselineRowHeights(stage);
   bindCompletedSubtasksBar();
+  bindPendingSubtaskToggle();
   // Put the reader's scroll back before anything is measured. The rebuilt lane
   // starts at the top; restoring it a frame later moved every row a second
   // time, after the gap had already begun to close, which read as a stutter.
@@ -8616,6 +8740,101 @@ function toggleCompletedSubtasks(force) {
   if (willOpen === completedSubtasksOpen) return;
   setCompletedSubtasksOpen(willOpen);
   AudioFX.drawer(willOpen);
+}
+
+/** Apply the live card's fold to the current DOM. */
+function setPendingSubtasksCollapsed(collapsed) {
+  pendingSubtasksCollapsed = Boolean(collapsed);
+  const card = $("#pending-subtask-card");
+  const bar = $(".pending-subtask-toggle");
+  if (card) {
+    card.classList.toggle("collapsed", pendingSubtasksCollapsed);
+    card.setAttribute("aria-hidden", pendingSubtasksCollapsed ? "true" : "false");
+  }
+  // The finished tray lives inside this card. A card folded down to its handle
+  // has no room for it, so the tray closes with the sheet it belongs to.
+  if (pendingSubtasksCollapsed && completedSubtasksOpen) setCompletedSubtasksOpen(false);
+  if (!bar) return;
+  bar.classList.toggle("collapsed", pendingSubtasksCollapsed);
+  bar.setAttribute("aria-expanded", pendingSubtasksCollapsed ? "false" : "true");
+  bar.setAttribute("aria-label", pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks");
+}
+
+/** The purple line on the card's bottom edge folds the live rows away. */
+function togglePendingSubtasks(force) {
+  if (performance.now() < suppressPendingSubtaskToggleUntil) return;
+  const willCollapse = typeof force === "boolean" ? force : !pendingSubtasksCollapsed;
+  if (willCollapse === pendingSubtasksCollapsed) return;
+  setPendingSubtasksCollapsed(willCollapse);
+  AudioFX.drawer(!willCollapse);
+}
+
+/** The handle is the card's bottom edge: hold it and the sheet stretches.
+    Pulling it up folds the rows away a row at a time, pulling it down hands
+    them back; the released edge snaps to the nearer end. A plain click still
+    flips the card in one motion. */
+function bindPendingSubtaskToggle() {
+  const bar = $(".pending-subtask-toggle");
+  const card = $("#pending-subtask-card");
+  if (!bar || !card || bar.dataset.stretchBound === "1") return;
+  bar.dataset.stretchBound = "1";
+  let pointerId = null;
+  let startY = 0;
+  let startHeight = 0;
+  let limit = 0;
+  let foldHeight = 28;
+  let stretching = false;
+
+  const readFold = () => {
+    const value = parseFloat(getComputedStyle(card).getPropertyValue("--pending-card-fold"));
+    return Number.isFinite(value) && value > 0 ? value : 28;
+  };
+
+  bar.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    foldHeight = readFold();
+    startHeight = card.getBoundingClientRect().height;
+    const host = card.parentElement?.getBoundingClientRect();
+    limit = Math.max(foldHeight, host ? host.height : startHeight);
+    startY = event.clientY;
+    pointerId = event.pointerId;
+    stretching = false;
+    try { bar.setPointerCapture(pointerId); } catch (error) {}
+  });
+
+  bar.addEventListener("pointermove", (event) => {
+    if (pointerId === null || event.pointerId !== pointerId) return;
+    const dy = event.clientY - startY;
+    if (!stretching) {
+      if (Math.abs(dy) < 4) return;
+      stretching = true;
+      // The gesture owns the height: no transition, no rebuild mid-drag.
+      card.style.transition = "none";
+      bar.classList.add("stretching");
+    }
+    const height = Math.max(foldHeight, Math.min(limit, startHeight + dy));
+    card.style.maxHeight = `${height}px`;
+  });
+
+  const endStretch = (event) => {
+    if (pointerId === null || event.pointerId !== pointerId) return;
+    pointerId = null;
+    if (!stretching) return;
+    stretching = false;
+    bar.classList.remove("stretching");
+    const height = card.getBoundingClientRect().height;
+    card.style.maxHeight = "";
+    card.style.transition = "";
+    // A stretched edge is a drag, not a click: the click that follows the
+    // pointerup must not flip the card a second time.
+    suppressPendingSubtaskToggleUntil = performance.now() + 320;
+    const folded = height < (foldHeight + limit) / 2;
+    if (folded === pendingSubtasksCollapsed) return;
+    setPendingSubtasksCollapsed(folded);
+    AudioFX.drawer(!folded);
+  };
+  bar.addEventListener("pointerup", endStretch);
+  bar.addEventListener("pointercancel", endStretch);
 }
 
 /** A downward pull opens the drawer; an upward pull closes it. A tap stays a
@@ -8878,6 +9097,10 @@ function openTrashDrawer() {
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
   document.body.classList.add("trash-open");
+  // The drawer is a card made of the wallpaper. Its pane is baked while the
+  // card is still closed; a film that has no still yet mounts its live window
+  // here, exactly like the finished-subtasks card.
+  syncCardWallpaper(drawer);
   AudioFX.drawer(true);
 }
 
@@ -8891,10 +9114,47 @@ function closeTrashDrawer() {
   AudioFX.drawer(false);
 }
 
+// Every plugin page loads the shared theme bridge in plugins/plugin-theme.js.
+// The host sends the live notebook variables with each theme message: the
+// postcard palette first, then the page line, the shared card outline/radius
+// and lift, and the reader's font stacks. Palette uses the same payload; the
+// other control pages map it through plugins/plugin-theme.css.
+const PALETTE_THEME_VARS = [
+  "--pc-paper", "--pc-paper2", "--pc-ink", "--pc-muted",
+  "--pc-accent", "--pc-accent-2", "--pc-accent2",
+  "--pc-accent-rgb", "--pc-accent2-rgb", "--pc-border",
+  "--pc-line", "--pc-rule", "--pc-paper-rgb", "--pc-paper2-rgb",
+  "--pc-glow", "--pc-stamp", "--pc-paper-soft",
+  "--pc-mask-soft", "--pc-mask-mid", "--pc-mask-strong",
+  "--display", "--mono", "--script", "--note-font", "--overlay-top",
+  // The single horizontal divider every page region is printed with.
+  "--page-line-paint", "--page-line-thickness", "--page-line-row",
+  "--page-task-h",
+  // The floating-card recipe: one ink-green stroke, one corner, one lift.
+  "--subcard-outline", "--overlay-paper", "--overlay-radius",
+  "--card-lift-page", "--card-lift-card",
+  // Legacy aliases kept for plugin pages that read the notebook's base names.
+  "--paper", "--ink", "--muted", "--line",
+];
+
+function paletteThemeVars() {
+  const styles = getComputedStyle(document.documentElement);
+  const vars = {};
+  for (const name of PALETTE_THEME_VARS) {
+    const value = styles.getPropertyValue(name).trim();
+    if (value) vars[name] = value;
+  }
+  return vars;
+}
+
 function pluginThemeMessage() {
   return {
     type: "neotodo-theme",
-    dark: document.documentElement.dataset.postcardDark === "true"
+    dark: document.documentElement.dataset.postcardDark === "true",
+    // Every plugin page paints with the notebook's own palette and line
+    // recipe. Palette reads the first group; the shared bridge in
+    // plugins/plugin-theme.js maps the rest onto each control page.
+    vars: paletteThemeVars(),
   };
 }
 
@@ -8923,6 +9183,12 @@ function openPluginPanel(id, options = {}) {
   const plugin = PLUGIN_REGISTRY[id];
   const root = $("#plugin-root");
   if (!plugin || !root) return;
+  // Palette is a Settings sheet of its own: never leave the Settings or
+  // Community sheet visible behind its transparent stage.
+  if (id === "palette") {
+    closeSettings();
+    closeCommunity();
+  }
   const query = String(options?.query || "").replace(/^\?/, "");
   // No query: a second click on the same rail icon keeps the panel as it is.
   // With a query (a fork id) the iframe restarts so the plugin can boot
@@ -8941,6 +9207,9 @@ function openPluginPanel(id, options = {}) {
     : plugin.entry;
   root.innerHTML = `<iframe class="plugin-frame" title="${esc(plugin.title)}" src="${esc(entry)}" allow="autoplay"></iframe>`;
   root.setAttribute("aria-hidden", "false");
+  // The Palette page is a Settings sheet, not a mini-app: let the live
+  // notebook and its wallpaper stay visible behind the floating panel.
+  root.classList.toggle("plugin-glass", id === "palette");
   root.classList.add("open");
   document.body.classList.add("plugin-open");
   const frame = root.querySelector(".plugin-frame");
@@ -8949,9 +9218,12 @@ function openPluginPanel(id, options = {}) {
     syncPluginSettings();
   });
   pluginThemeObserver = new MutationObserver(syncPluginTheme);
+  // A new theme pack rewrites the palette variables on :root and the page line
+  // lives in its own variables, so the theme message must follow every one of
+  // them, not only the light/dark switch.
   pluginThemeObserver.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-postcard-dark"]
+    attributeFilter: ["data-postcard-dark", "data-postcard", "data-theme", "data-font", "data-note-font", "style"]
   });
 }
 
@@ -8962,6 +9234,7 @@ function closePluginPanel() {
   pluginThemeObserver = null;
   const root = $("#plugin-root");
   root?.classList.remove("open");
+  root?.classList.remove("plugin-glass");
   root?.setAttribute("aria-hidden", "true");
   document.body.classList.remove("plugin-open");
   if (root) root.innerHTML = "";
@@ -9336,6 +9609,65 @@ function setPluginEnabled(pluginId, enabled) {
 // flip their own switch without reloading the notebook.
 window.pluginEnabled = pluginEnabled;
 window.setPluginEnabled = setPluginEnabled;
+
+// ---------------------------------------------------------------------------
+// Palette plugin host bridge.
+//
+// Settings → Theme keeps the theme selector, the wallpaper and the note
+// surface (under Note theme). The page-line, selection-highlight and
+// finished-row controls are owned by /plugins/palette, which runs inside the
+// plugin iframe. It writes through this bridge so the notebook still paints
+// from page-line.json, baseline-rule.json and the normal saved settings — the
+// plugin is a second door to the same files, never a private palette.
+// ---------------------------------------------------------------------------
+function paletteSnapshot() {
+  const theme = THEMES[currentPostcardId()] || THEMES.light;
+  const line = pageLine();
+  const rule = baselineRowRule();
+  return {
+    highlight: highlightColor(),
+    highlightFallback: readableAccent(theme, theme.accent) || "#8d63b8",
+    pageLine: line,
+    pageLinePaint: pageLinePaint(line),
+    baselineRule: rule,
+    theme: {
+      id: currentPostcardId(),
+      name: theme.name || currentPostcardId(),
+      dark: document.documentElement.dataset.postcardDark === "true",
+      vars: paletteThemeVars(),
+    },
+  };
+}
+
+window.NeoTodoPalette = {
+  read() {
+    return paletteSnapshot();
+  },
+  setPageLine(patch) {
+    savePageLine(patch || {});
+    return paletteSnapshot();
+  },
+  setBaselineRule(patch) {
+    saveBaselineRowRule(patch || {});
+    return paletteSnapshot();
+  },
+  setHighlight(value) {
+    const raw = String(value ?? "").trim();
+    if (!raw) return this.resetHighlight();
+    const color = normalizeHighlightColorInput(raw);
+    if (!color) return paletteSnapshot();
+    settings.highlight = color;
+    saveSettings();
+    applyHighlight();
+    return paletteSnapshot();
+  },
+  resetHighlight() {
+    settings.highlight = "";
+    saveSettings();
+    applyHighlight();
+    return paletteSnapshot();
+  },
+};
 
 function installPlugin(pluginId) {
   const plugin = PLUGIN_REGISTRY[pluginId];
@@ -10096,7 +10428,7 @@ async function forkSubtask(todo, subtask) {
     toast("Turn on the Forktree plugin to fork", true);
     return;
   }
-  // Fork immediately: no confirmation dialog. The backend starts a detached
+  // Fork immediately: no confirmation dialog. The backend starts a child
   // app process and its own window; the row gets a flame link below.
   const category = (state.data?.categories || []).find(
     (item) => (item.todos || []).some((entry) => entry.id === todo.id)
@@ -10141,9 +10473,10 @@ async function forkSubtask(todo, subtask) {
   // Re-render the row so the flame link appears immediately.
   render();
   toast(`Forked “${subtask.name}”`);
-  // On the desktop the backend starts a detached process that owns its own
-  // window, so the fork survives the notebook. Only the fallback platforms
-  // open the URL from this process.
+  // On the desktop the backend starts a child process that owns its own
+  // window. The fork closes together with the notebook (and its agents), so
+  // it is a branch of this app rather than an unrelated test process. Only
+  // the fallback platforms open the URL from this process.
   if (!result.window_opened) openNeoTodoWindow(result.url);
 }
 
@@ -10970,16 +11303,25 @@ function beginDoingDrag(press, event) {
   if (!doingHome) refreshDoingZone();
   if (!doingHome) return;
   const rect = panel.getBoundingClientRect();
+  const startLeft = Math.round(rect.left);
+  // Grabbing a card that is still gliding home freezes it where the pointer
+  // caught it: the visual box becomes the laid-out `left`, so the pull's offset
+  // is measured from the same box the compositor is about to move.
+  panel.classList.remove("doing-snapping");
+  panel.style.left = `${startLeft}px`;
+  panel.style.right = "auto";
+  panel.style.setProperty("--doing-drag-x", "0px");
   doingDrag = {
     pointerId: event.pointerId,
     startX: press.startX,
-    startLeft: rect.left,
-    left: rect.left,
+    startLeft,
+    left: startLeft,
     width: rect.width,
     top: rect.top,
     height: rect.height,
     moved: false,
   };
+  doingDragX = 0;
   panel.classList.add("doing-dragging");
   document.body.classList.add("doing-dragging");
   try { panel.setPointerCapture?.(event.pointerId); } catch (error) {}
@@ -10990,25 +11332,55 @@ function beginDoingDrag(press, event) {
   event.preventDefault();
 }
 
+/** Paint the pull's offset on the compositor. Pointer events arrive faster than
+    the screen refreshes, so the card is moved at most once per frame and never
+    through `left` (which would relayout and repaint the page under the pull). */
+function flushDoingDragFrame() {
+  doingDragFrame = 0;
+  if (!doingDrag) return;
+  const panel = $("#doing-peek");
+  if (!panel) return;
+  panel.style.setProperty("--doing-drag-x", `${Math.round(doingDragX)}px`);
+  // A film card is a window onto the room: when the card is pulled across the
+  // desk its copy must slide the other way, or the crop would travel with the
+  // card instead of staying the same piece of the wallpaper.
+  panel.querySelectorAll(":scope > .card-wallpaper").forEach(placeCardWallpaper);
+}
+
+function cancelDoingDragFrame() {
+  if (!doingDragFrame) return;
+  cancelAnimationFrame(doingDragFrame);
+  doingDragFrame = 0;
+}
+
+/** Hand the card back to its laid-out box. A pull owns the offset; when a
+    close/open pass catches the card mid-glide, the offset must not ride along
+    with the slide (the card would leave from the wrong spot). */
+function clearDoingDragOffset(panel) {
+  if (!panel || doingDrag) return;
+  panel.classList.remove("doing-snapping");
+  panel.style.removeProperty("--doing-drag-x");
+}
+
 function moveDoingDrag(event) {
   if (!doingDrag || event.pointerId !== doingDrag.pointerId) return;
   // A release outside the window can lose its pointerup; no buttons held means
   // the pull is over, so drop the card at the spot it reached.
   if (!event.buttons) { endDoingDrag(true); return; }
-  const panel = $("#doing-peek");
-  if (!panel) return;
+  const home = doingHome;
+  if (!home) return;
   event.preventDefault();
   const dx = event.clientX - doingDrag.startX;
   if (Math.abs(dx) > 3) doingDrag.moved = true;
-  const home = doingHome;
-  if (!home) return;
   const width = doingDrag.width;
   const minLeft = home.left - width * 0.5;
   const maxLeft = home.right - width * 0.5;
-  const left = Math.max(minLeft, Math.min(maxLeft, doingDrag.startLeft + dx));
+  const left = Math.round(Math.max(minLeft, Math.min(maxLeft, doingDrag.startLeft + dx)));
   doingDrag.left = left;
-  panel.style.left = `${Math.round(left)}px`;
-  panel.style.right = "auto";
+  // Only the composited offset changes here. `left` is committed once, on
+  // release, so the card follows the pointer without a layout pass per event.
+  doingDragX = left - doingDrag.startLeft;
+  if (!doingDragFrame) doingDragFrame = requestAnimationFrame(flushDoingDragFrame);
   doingPanelRect = {
     left,
     right: left + width,
@@ -11028,38 +11400,68 @@ function endDoingDrag(commit) {
   window.removeEventListener("pointercancel", cancelDoingDrag);
   const panel = $("#doing-peek");
   if (!panel) return;
-  panel.classList.remove("doing-dragging");
-  document.body.classList.remove("doing-dragging");
+  cancelDoingDragFrame();
   try { panel.releasePointerCapture?.(drag.pointerId); } catch (error) {}
   if (drag.moved) {
     // The row under the pointer must not also open: a pull is not a click.
     doingDragClickUntil = performance.now() + 400;
   }
-  if (!commit || !drag.moved) {
-    positionDoingPeek();
-    syncCardWallpaper(panel);
-    if (doingPeekOpen) settleCardWallpaper(panel, 360);
-    return;
-  }
   const home = doingHome;
-  if (!home) {
-    positionDoingPeek();
-    syncCardWallpaper(panel);
-    if (doingPeekOpen) settleCardWallpaper(panel, 360);
+  const snap = commit && drag.moved && home;
+  if (snap) {
+    const center = drag.left + drag.width / 2;
+    // Drop against the subtask column's own left/right borders, not the page's.
+    const mid = (home.left + home.right) / 2;
+    const side = center < mid ? "left" : "right";
+    // positionDoingPeek() below anchors with the column's card width, so the
+    // landing box must use the same number or the glide would start one pixel
+    // off the pointer's drop point.
+    const width = doingCardWidth || drag.width;
+    const targetLeft = Math.round(side === "left" ? home.left : home.right - width);
+    // Zero the composited offset first: the wallpaper pane is matched against
+    // the box the card will actually occupy once it lands. Matching it against
+    // the pointer's drop point would miss the baked pane and mount a
+    // viewport-sized one underneath the glide.
+    const slack = Math.round(drag.left - targetLeft);
+    panel.style.setProperty("--doing-drag-x", "0px");
+    panel.style.right = "auto";
+    panel.style.left = `${targetLeft}px`;
+    void panel.offsetWidth;
+    if (side !== doingDockSide) setDoingDockSide(side);
+    else positionDoingPeek();
+    // Put the card back under the pointer while the dragging rule still
+    // cancels transitions, and commit that offset before the snapping rule is
+    // switched on. Only the composited translate then glides to zero, so the
+    // snap never relayouts the page frame by frame.
+    panel.style.setProperty("--doing-drag-x", `${slack}px`);
+    void panel.offsetWidth;
+    panel.classList.remove("doing-dragging");
+    document.body.classList.remove("doing-dragging");
+    panel.classList.add("doing-snapping");
+    requestAnimationFrame(() => panel.style.setProperty("--doing-drag-x", "0px"));
+    // Keep a film window glued to the room along the whole snap glide.
+    if (doingPeekOpen) settleCardWallpaper(panel, 460);
+    AudioFX.categoryTap();
+    setTimeout(() => {
+      panel.classList.remove("doing-snapping");
+      // A new pull may have started inside the glide: it owns the variable and
+      // the frame budget now.
+      if (doingDrag) return;
+      panel.style.removeProperty("--doing-drag-x");
+      if (doingPeekOpen) settleCardWallpaper(panel, 460);
+    }, 360);
     return;
   }
-  const center = drag.left + drag.width / 2;
-  // Drop against the subtask column's own left/right borders, not the page's.
-  const mid = (home.left + home.right) / 2;
-  const side = center < mid ? "left" : "right";
-  panel.classList.add("doing-snapping");
-  if (side === doingDockSide) positionDoingPeek();
-  else setDoingDockSide(side);
-  AudioFX.categoryTap();
-  setTimeout(() => {
-    panel.classList.remove("doing-snapping");
-    if (doingPeekOpen) settleCardWallpaper(panel, 460);
-  }, 360);
+  // A tap and a cancelled pull leave the card where the laid-out box put it,
+  // exactly as before.
+  panel.style.left = `${Math.round(drag.left)}px`;
+  panel.style.right = "auto";
+  panel.style.removeProperty("--doing-drag-x");
+  panel.classList.remove("doing-dragging");
+  document.body.classList.remove("doing-dragging");
+  positionDoingPeek();
+  syncCardWallpaper(panel);
+  if (doingPeekOpen) settleCardWallpaper(panel, 360);
 }
 
 function finishDoingDrag() { endDoingDrag(true); }
@@ -11068,63 +11470,7 @@ function cancelDoingDrag() { endDoingDrag(false); }
 function bindDoingCard(list) {
   if (!list || list.dataset.cardBound) return;
   list.dataset.cardBound = "1";
-  let active = false;
-  let frame = 0;
-  let stopTimer = 0;
-  let phase = 0;
-  let pointerY = null;
-  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  const rows = () => [...list.querySelectorAll(".doing-head, .doing-sub")];
-  const settle = () => {
-    rows().forEach((row) => {
-      row.style.transition = "transform 0.26s cubic-bezier(0.22, 0.8, 0.24, 1)";
-      row.style.transform = "translateY(0)";
-      clearTimeout(row._pianoReset);
-      row._pianoReset = setTimeout(() => {
-        if (active) return;
-        row.style.transition = "";
-        row.style.transform = "";
-        row._pianoReset = 0;
-      }, 320);
-    });
-  };
-  const step = () => {
-    if (!active) return;
-    phase += 0.16;
-    const listRect = list.getBoundingClientRect();
-    const focus = pointerY === null
-      ? list.scrollTop + list.clientHeight / 2
-      : pointerY;
-    rows().forEach((row, index) => {
-      const center = row.getBoundingClientRect().top - listRect.top + list.scrollTop + row.offsetHeight / 2;
-      const influence = Math.max(0, 1 - Math.abs(center - focus) / 110);
-      const y = Math.sin(phase + index * 0.62) * 5 * Math.pow(influence, 1.4);
-      row.style.transition = "none";
-      row.style.transform = influence > 0.01 ? `translateY(${y.toFixed(2)}px)` : "";
-    });
-    frame = requestAnimationFrame(step);
-  };
-  list.addEventListener("pointermove", (event) => {
-    const rect = list.getBoundingClientRect();
-    pointerY = event.clientY - rect.top + list.scrollTop;
-  }, { passive: true });
-  list.addEventListener("pointerleave", () => { pointerY = null; }, { passive: true });
-  list.addEventListener("scroll", () => {
-    AudioFX.cardWind();
-    if (reduce) return;
-    if (!active) {
-      active = true;
-      phase = list.scrollTop * 0.02;
-      frame = requestAnimationFrame(step);
-    }
-    clearTimeout(stopTimer);
-    stopTimer = setTimeout(() => {
-      active = false;
-      cancelAnimationFrame(frame);
-      frame = 0;
-      settle();
-    }, 140);
-  }, { passive: true });
+  list.addEventListener("scroll", () => AudioFX.cardWind(), { passive: true });
 }
 
 function animateDoingReorder(previousTops, nextList) {
@@ -11156,6 +11502,10 @@ function syncDoingFanSpins(list, active = doingPeekOpen) {
 }
 
 function updateDoingPeek(force = false) {
+  // A pull owns the card: a polling tick that changes the state signature
+  // mid-drag must not rebuild the rows (which relayouts the card under the
+  // pointer). The first pass after the drop catches up.
+  if (doingDrag) return;
   const entries = doingEntries();
   pruneUnseenAgentSubtasks();
   let panel = $("#doing-peek");
@@ -11236,6 +11586,7 @@ function openDoingPeek() {
   doingPeekOpen = true;
   document.body.classList.add("doing-peek-open");
   positionDoingPeek();
+  clearDoingDragOffset(panel);
   panel.classList.add("open");
   syncDoingFanSpins(panel.querySelector(".doing-list"), true);
   // The card borrows the wallpaper, and only this pane is aligned through its
@@ -11706,6 +12057,7 @@ async function handleAction(actionName, element) {
     toggleCompletedSubtasks();
     return;
   }
+  if (actionName === "toggle-pending-subtasks") { togglePendingSubtasks(); return; }
   if (actionName === "close-completed") { closeCompletedLog(); return; }
   if (actionName === "spin-windmill") {
     const symbol = document.querySelector(".archive-symbol");
@@ -11720,6 +12072,7 @@ async function handleAction(actionName, element) {
   }
   if (actionName === "close-archive") { AudioFX.categoryTap(); closeArchive(); return; }
   if (actionName === "open-pindou") { openPluginPanel("pindou"); return; }
+  if (actionName === "open-palette") { openPluginPanel("palette"); return; }
   if (actionName === "open-forktree") { openPluginPanel("forktree"); return; }
   if (actionName === "toggle-plugin") {
     const pluginId = element?.dataset.pluginId || "";
@@ -11994,6 +12347,18 @@ async function handleAction(actionName, element) {
   }
   if (actionName === "toggle-ai-caret-blink") {
     settings.ai_caret_blink = !settings.ai_caret_blink;
+    saveSettings();
+    applySettings();
+    renderSettings();
+    scheduleCustomCaret();
+    return;
+  }
+  if (actionName === "toggle-shared-caret-blink") {
+    // The shared unit shows the note caret's state and turns that state on for
+    // both panes, so one click always flips what the box displays.
+    const next = !settings.caret_blink;
+    settings.caret_blink = next;
+    settings.ai_caret_blink = next;
     saveSettings();
     applySettings();
     renderSettings();
@@ -13992,7 +14357,7 @@ function wallpaperSurfaceHost(host) {
 /* The two sheets that float over the room. With a film they keep a still card
    (its middle frame); the categories spine and the top box are the room itself,
    so a film stays live behind them instead of freezing those areas. */
-const SUBCARD_FLOATING = new Set(["doing", "completed"]);
+const SUBCARD_FLOATING = new Set(["doing", "completed", "trash"]);
 
 function subcardIsFloating(host) {
   return SUBCARD_FLOATING.has(subcardName(host));
@@ -14653,6 +15018,7 @@ function openSettings(tab = "theme") {
   // The Theme row starts on the app palette every time the sheet opens; the
   // menu itself switches it to the note or AI palette without leaving the row.
   themeFieldMode = "app";
+  caretFieldMode = "app";
   customThemeEditorOpen = false;
   customThemeDraft = null;
   customThemeBusy = false;
@@ -14727,8 +15093,6 @@ function restoreThemeFocus(selector) {
 
 function themeSettings() {
   const currentId = currentPostcardId();
-  const currentTheme = THEMES[currentId] || THEMES.light;
-  const rowRule = baselineRowRule();
   const userThemeIds = themePacks.map((pack) => pack.id).filter((id) => THEMES[id]);
   // One flat shelf: the two bases, the built-in palettes and every installed
   // pack. The reader only needs the theme name to switch — no thumbnails.
@@ -14763,9 +15127,8 @@ function themeSettings() {
     </div>`;
   };
   const menuChevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  const menuShell = (name, ariaLabel, items, dot = "") => `<details class="theme-menu" data-theme-menu>
+  const menuShell = (name, ariaLabel, items) => `<details class="theme-menu" data-theme-menu>
     <summary class="theme-menu-trigger" aria-label="${esc(ariaLabel)}: ${esc(name)}">
-      ${dot ? `<i class="theme-menu-dot" style="background:${esc(dot)}"></i>` : ""}
       <span class="theme-menu-name">${esc(name)}</span>
       ${menuChevron}
     </summary>
@@ -14777,13 +15140,6 @@ function themeSettings() {
   const noteCurrent = selectedNoteTheme();
   const aiChoices = aiThemeChoices();
   const aiCurrent = aiChoices.find((choice) => choice.id === settings.ai_theme) || aiChoices[0];
-  const modeAccent = (mode) => mode === "note"
-    ? (noteCurrent.palette.accent || noteCurrent.palette.ink)
-    : mode === "ai"
-      ? ((settings.ai_theme === "auto"
-          ? (postcardIsDark(currentId) ? AI_BUILTIN_PALETTES.dark : AI_BUILTIN_PALETTES.light)
-          : aiCurrent.palette)?.accent || "#8f8f96")
-      : (currentTheme.accent || "#8d63b8");
   const unitThemeName = (mode) => mode === "note"
     ? noteCurrent.name
     : mode === "ai"
@@ -14791,8 +15147,9 @@ function themeSettings() {
       : postcardName(currentId);
   const fieldMode = themeFieldMode === "note" || themeFieldMode === "ai" ? themeFieldMode : "app";
   const fieldTitle = (THEME_UNITS.find((unit) => unit.id === fieldMode) || THEME_UNITS[0]).label;
-  const fieldAccent = modeAccent(fieldMode);
   const fieldName = unitThemeName(fieldMode);
+  // Note surface belongs to the note palette, not to the page-wide Palette
+  // plugin: it only appears while the Theme unit is switched to Note theme.
   const currentSurface = activeNoteSurfaceFile();
   const noteSurfaceRow = noteSurfaceChoices().map((surface) => `<button class="theme-chip ${currentSurface === surface.file ? "active" : ""}" type="button" data-note-surface-file="${esc(surface.file)}" aria-pressed="${currentSurface === surface.file ? "true" : "false"}">${esc(surface.name)}</button>`).join("");
   const focusSurface = settings.note_material === "focus";
@@ -14808,36 +15165,96 @@ function themeSettings() {
         <input type="file" id="note-bg-input" accept="image/*" hidden>
       </div>
     </div>` : "";
+  // One compact name for the style box: "Blink · Line" or "Line". The shared
+  // unit follows the note caret and applies its choice to both panes, so it
+  // always shows a real style instead of a "mixed" placeholder.
+  const caretStyleName = (blink, shape) => {
+    const shapeName = shape === "block" ? "Block" : "Line";
+    return blink === true ? `Blink · ${shapeName}` : shapeName;
+  };
+  const caretUnitShape = (mode) => mode === "note"
+    ? settings.caret_shape
+    : mode === "ai" ? settings.ai_caret_shape : settings.caret_shape;
+  const caretUnitBlink = (mode) => mode === "note"
+    ? settings.caret_blink
+    : mode === "ai" ? settings.ai_caret_blink : settings.caret_blink;
+  const caretMode = CARET_UNITS.some((unit) => unit.id === caretFieldMode) ? caretFieldMode : "app";
+  const caretTitle = (CARET_UNITS.find((unit) => unit.id === caretMode) || CARET_UNITS[0]).label;
+  const caretShapeAttr = caretMode === "app"
+    ? "data-shared-caret-shape"
+    : caretMode === "ai" ? "data-ai-caret-shape" : "data-caret-shape";
+  const caretBlinkAction = caretMode === "app"
+    ? "toggle-shared-caret-blink"
+    : caretMode === "ai" ? "toggle-ai-caret-blink" : "toggle-caret-blink";
   const editorDraft = customThemeDraft || defaultCustomThemeDraft();
   const fieldMenuItems = fieldMode === "note"
-    ? `<div class="theme-menu-label">Note themes</div>${noteChoices.map((choice) => paneMenuItem(choice, "note")).join("")}`
+    ? noteChoices.map((choice) => paneMenuItem(choice, "note")).join("")
     : fieldMode === "ai"
-      ? `<div class="theme-menu-label">AI themes</div>${aiChoices.map((choice) => paneMenuItem(choice, "ai")).join("")}`
-      : `<div class="theme-menu-label">App themes</div>${installedIds.map(installedMenuItem).join("")}`;
-  const themeFieldMenu = menuShell(fieldName, fieldTitle, fieldMenuItems, fieldAccent);
-  // The left label is the unit switch: the three units stack vertically and
-  // show their current theme. The active one keeps the highlight and check.
+      ? aiChoices.map((choice) => paneMenuItem(choice, "ai")).join("")
+      : installedIds.map(installedMenuItem).join("");
+  const themeFieldMenu = menuShell(fieldName, fieldTitle, fieldMenuItems);
+  // The left label is the unit switch: the three units stack vertically.
+  // The active one keeps the highlight and check.
   const themeUnitMenu = `<details class="theme-menu theme-unit-menu" data-theme-menu>
     <summary class="theme-menu-trigger theme-unit-trigger" aria-label="Theme unit: ${esc(fieldTitle)}">
       <span class="theme-menu-name">${esc(fieldTitle)}</span>
       ${menuChevron}
     </summary>
     <div class="theme-menu-list theme-unit-list">
-      <div class="theme-menu-label">Theme units</div>
       <div class="theme-unit-items" role="listbox" aria-label="Theme units">
         ${THEME_UNITS.map((unit) => {
           const active = fieldMode === unit.id;
           return `<button class="theme-unit-row ${active ? "active" : ""}" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-theme-field-mode="${esc(unit.id)}">
-            <i class="theme-menu-dot" style="background:${esc(modeAccent(unit.id))}"></i>
-            <span class="theme-unit-copy"><strong>${esc(unit.label)}</strong><small>${esc(unitThemeName(unit.id))}</small></span>
+            <span class="theme-menu-name">${esc(unit.label)}</span>
             <span class="choice-check" aria-hidden="true">✓</span>
           </button>`;
         }).join("")}
       </div>
     </div>
   </details>`;
-  const highlightCustom = highlightColor();
-  const highlightValue = highlightCustom || currentTheme.accent || "#8d63b8";
+  // Caret follows the Theme row: one unit switch on the left, one box on the
+  // right. The box only shows the current style; opening it lists Blink, Line
+  // and Block, so the three chips no longer eat the row.
+  const caretStyleRow = (label, attrs, active) => `<div class="theme-menu-row ${active ? "active" : ""}">
+    <button class="theme-menu-item" type="button" role="option" aria-selected="${active ? "true" : "false"}" ${attrs}>
+      <span class="theme-menu-name">${esc(label)}</span>
+      <span class="choice-check" aria-hidden="true">✓</span>
+    </button>
+  </div>`;
+  const caretShape = caretUnitShape(caretMode);
+  const caretBlink = caretUnitBlink(caretMode);
+  const caretFieldMenu = menuShell(caretStyleName(caretBlink, caretShape), `${caretTitle} style`, `
+    ${caretStyleRow("Blink", `data-action="${caretBlinkAction}"`, caretBlink === true)}
+    ${caretStyleRow("Line", `${caretShapeAttr}="line"`, caretShape === "line")}
+    ${caretStyleRow("Block", `${caretShapeAttr}="block"`, caretShape === "block")}
+  `);
+  const caretColor = caretMode === "ai" ? aiCaretColor() : settings.caret_color;
+  const caretColorControls = `<input id="caret-color" class="theme-color-input" type="color" value="${caretColor}" aria-label="Caret colour">
+    <input id="caret-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${caretColor}" aria-label="Caret colour hex">`;
+  const caretUnitMenu = `<details class="theme-menu theme-unit-menu" data-theme-menu>
+    <summary class="theme-menu-trigger theme-unit-trigger caret-unit-trigger" aria-label="Caret unit: ${esc(caretTitle)}">
+      <span class="theme-menu-name">${esc(caretTitle)}</span>
+      ${menuChevron}
+    </summary>
+    <div class="theme-menu-list theme-unit-list">
+      <div class="theme-unit-items" role="listbox" aria-label="Caret units">
+        ${CARET_UNITS.map((unit) => {
+          const active = caretMode === unit.id;
+          return `<button class="theme-unit-row ${active ? "active" : ""}" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-caret-field-mode="${esc(unit.id)}">
+            <span class="theme-menu-name">${esc(unit.label)}</span>
+            <span class="choice-check" aria-hidden="true">✓</span>
+          </button>`;
+        }).join("")}
+      </div>
+    </div>
+  </details>`;
+  const caretRow = `<div class="settings-section theme-settings-row theme-main-row" data-caret-field-row>
+    ${caretUnitMenu}
+    <div class="theme-settings-controls">
+      ${caretFieldMenu}
+      ${caretColorControls}
+    </div>
+  </div>`;
   const colorField = (key, label) => `<label class="custom-theme-color">
     <span>${label}</span>
     <input type="color" data-custom-theme-color="${key}" value="${esc(editorDraft[key])}" aria-label="${label}">
@@ -14882,82 +15299,25 @@ function themeSettings() {
     </div>
   </div>`;
   return `${themeRow}
-    ${fieldMode === "app" ? managePanel : ""}
-    ${glassBackgroundRow}
-    ${wallpaperSettingsSection()}
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Selection highlight</div>
-      <div class="theme-settings-controls">
-        <input id="highlight-color" class="theme-color-input" type="color" value="${esc(highlightValue)}" aria-label="Selection highlight colour">
-        <input id="highlight-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${esc(highlightValue)}" aria-label="Selection highlight colour hex">
-        <button class="theme-chip ${highlightCustom ? "" : "active"}" type="button" data-action="reset-highlight-color" ${highlightCustom ? "" : "disabled"}>Auto</button>
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Page line</div>
-      <div class="theme-settings-controls">
-        <span class="page-line-swatch" data-page-line-swatch aria-hidden="true"></span>
-        <input id="page-line-color" class="theme-color-input" type="color" value="${pageLine().color}" aria-label="Page line colour">
-        <input id="page-line-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${pageLine().color}" aria-label="Page line colour hex">
-        <span class="theme-value">Line</span>
-        <input id="page-line-thickness" class="theme-range" type="range" min="1" max="4" step="1" value="${pageLine().thickness}" aria-label="Page line thickness">
-        <span id="page-line-thickness-value" class="theme-value">${pageLine().thickness} px</span>
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Page line layout</div>
-      <div class="theme-settings-controls">
-        <span class="theme-value">Opacity</span>
-        <input id="page-line-opacity" class="theme-range" type="range" min="0" max="1" step="0.05" value="${pageLine().opacity}" aria-label="Page line opacity">
-        <span id="page-line-opacity-value" class="theme-value">${Math.round(pageLine().opacity * 100)}%</span>
-        <span class="theme-value">Row</span>
-        <input id="page-line-row" class="theme-range" type="range" min="32" max="64" step="2" value="${pageLine().row}" aria-label="Page line row pitch">
-        <span id="page-line-row-value" class="theme-value">${pageLine().row} px</span>
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Finished rows</div>
-      <div class="theme-settings-controls">
-        <button class="theme-chip baseline-row-choice ${rowRule.mode === "solid" ? "active" : ""}" type="button" data-action="baseline-rows-solid" aria-pressed="${rowRule.mode === "solid" ? "true" : "false"}">Solid</button>
-        <button class="theme-chip baseline-row-choice ${rowRule.mode === "gradient" ? "active" : ""}" type="button" data-action="baseline-rows-gradient" aria-pressed="${rowRule.mode === "gradient" ? "true" : "false"}">Gradient</button>
-        <button class="theme-chip baseline-row-choice ${rowRule.mode === "height" ? "active" : ""}" type="button" data-action="baseline-rows-height" aria-pressed="${rowRule.mode === "height" ? "true" : "false"}">Height</button>
-        <input id="baseline-row-color" class="theme-color-input" type="color" value="${rowRule.color}" aria-label="Row colour">
-        <input id="baseline-row-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${rowRule.color}" aria-label="Row colour hex">
-        ${rowRule.mode === "solid" ? "" : `<input id="baseline-row-color2" class="theme-color-input" type="color" value="${rowRule.color2}" aria-label="Second row colour">
-        <input id="baseline-row-color2-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${rowRule.color2}" aria-label="Second row colour hex">`}
-        ${rowRule.mode === "gradient" ? `<input id="baseline-row-angle" class="theme-range" type="range" min="0" max="180" step="5" value="${rowRule.angle}" aria-label="Line angle">
-        <span id="baseline-row-angle-value" class="theme-value">${rowRule.angle}°</span>` : ""}
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row">
+    ${fieldMode === "note" ? `<div class="settings-section theme-settings-row">
       <div class="theme-settings-title">Note surface</div>
       <div class="theme-settings-controls">${noteSurfaceRow}</div>
     </div>
+    ${glassBackgroundRow}` : ""}
+    ${fieldMode === "app" ? managePanel : ""}
+    ${wallpaperSettingsSection()}
     <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Note caret</div>
+      <div class="theme-settings-title">Palette</div>
       <div class="theme-settings-controls">
-        <button class="theme-chip ${settings.caret_blink ? "active" : ""}" type="button" data-action="toggle-caret-blink" aria-pressed="${settings.caret_blink ? "true" : "false"}">Blink</button>
-        <button class="theme-chip ${settings.caret_shape !== "block" ? "active" : ""}" type="button" data-caret-shape="line" aria-pressed="${settings.caret_shape !== "block" ? "true" : "false"}">Line</button>
-        <button class="theme-chip ${settings.caret_shape === "block" ? "active" : ""}" type="button" data-caret-shape="block" aria-pressed="${settings.caret_shape === "block" ? "true" : "false"}">Block</button>
-        <input id="caret-color" class="theme-color-input" type="color" value="${settings.caret_color}" aria-label="Caret colour">
-        <input id="caret-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="${settings.caret_color}" aria-label="Caret colour hex">
+        <button class="theme-chip-button" type="button" data-action="open-palette">Open palette</button>
       </div>
     </div>
+    ${caretRow}
     <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">AI caret</div>
-      <div class="theme-settings-controls">
-        <button class="theme-chip ${settings.ai_caret_blink ? "active" : ""}" type="button" data-action="toggle-ai-caret-blink" aria-pressed="${settings.ai_caret_blink ? "true" : "false"}">Blink</button>
-        <button class="theme-chip ${settings.ai_caret_shape !== "block" ? "active" : ""}" type="button" data-ai-caret-shape="line" aria-pressed="${settings.ai_caret_shape !== "block" ? "true" : "false"}">Line</button>
-        <button class="theme-chip ${settings.ai_caret_shape === "block" ? "active" : ""}" type="button" data-ai-caret-shape="block" aria-pressed="${settings.ai_caret_shape === "block" ? "true" : "false"}">Block</button>
-        <input id="ai-caret-dark" class="theme-color-input" type="color" value="${settings.ai_caret_dark}" aria-label="Dark AI theme caret colour" title="Dark AI theme caret colour">
-        <input id="ai-caret-light" class="theme-color-input" type="color" value="${settings.ai_caret_light}" aria-label="Light AI theme caret colour" title="Light AI theme caret colour">
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Task details</div>
+      <div class="theme-settings-title">Current time</div>
       <div class="theme-settings-controls">
         <button class="theme-chip ${settings.show_time_cost ? "active" : ""}" type="button" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}">Time cost</button>
-        <button class="theme-chip ${settings.show_clock ? "active" : ""}" type="button" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}">Clock</button>
+        <button class="sound-switch theme-clock-switch ${settings.show_clock ? "on" : "off"}" type="button" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}" aria-label="${settings.show_clock ? "Turn current time off" : "Turn current time on"}"><span class="sound-switch-knob"></span></button>
       </div>
     </div>
     <div class="settings-section theme-settings-row">
@@ -16743,6 +17103,15 @@ function bindEvents() {
       restoreThemeFocus(".theme-unit-trigger");
       return;
     }
+    const caretFieldModeNode = event.target.closest("[data-caret-field-mode]");
+    if (caretFieldModeNode) {
+      event.preventDefault();
+      const next = caretFieldModeNode.dataset.caretFieldMode;
+      caretFieldMode = next === "note" || next === "ai" ? next : "app";
+      renderSettings();
+      restoreThemeFocus(".caret-unit-trigger");
+      return;
+    }
     const noteSurface = event.target.closest("[data-note-surface-file]");
     if (noteSurface) {
       event.preventDefault();
@@ -16845,6 +17214,18 @@ function bindEvents() {
     if (aiCaretShape) {
       event.preventDefault();
       settings.ai_caret_shape = aiCaretShape.dataset.aiCaretShape === "block" ? "block" : "line";
+      saveSettings();
+      applySettings();
+      renderSettings();
+      scheduleCustomCaret();
+      return;
+    }
+    const sharedCaretShape = event.target.closest("[data-shared-caret-shape]");
+    if (sharedCaretShape) {
+      event.preventDefault();
+      const shape = sharedCaretShape.dataset.sharedCaretShape === "block" ? "block" : "line";
+      settings.caret_shape = shape;
+      settings.ai_caret_shape = shape;
       saveSettings();
       applySettings();
       renderSettings();
@@ -17262,13 +17643,19 @@ function bindEvents() {
       return;
     }
     if (event.target.id === "caret-color") {
-      settings.caret_color = /^#[0-9a-f]{6}$/i.test(event.target.value) ? event.target.value : "#1b1b1b";
+      const color = /^#[0-9a-f]{6}$/i.test(event.target.value) ? event.target.value : "#1b1b1b";
+      if (caretFieldMode === "ai") {
+        settings[aiThemeIsDark() ? "ai_caret_dark" : "ai_caret_light"] = color;
+      } else {
+        settings.caret_color = color;
+      }
       saveSettings();
       applySettings();
       const hex = $("#caret-color-hex");
-      if (hex) hex.value = settings.caret_color;
+      if (hex) hex.value = color;
       const sample = $(".caret-live-sample");
-      if (sample) sample.style.setProperty("--sample", settings.caret_color);
+      if (sample) sample.style.setProperty("--sample", color);
+      scheduleCustomCaret();
       return;
     }
     if (event.target.id === "ai-caret-dark" || event.target.id === "ai-caret-light") {
@@ -17287,11 +17674,17 @@ function bindEvents() {
         : /^#[0-9a-f]{3}$/i.test(value) ? `#${value.slice(1).split("").map((c) => c + c).join("")}`
         : null;
       if (!expanded) return;
-      settings.caret_color = expanded.toLowerCase();
+      const color = expanded.toLowerCase();
+      if (caretFieldMode === "ai") {
+        settings[aiThemeIsDark() ? "ai_caret_dark" : "ai_caret_light"] = color;
+      } else {
+        settings.caret_color = color;
+      }
       saveSettings();
       applySettings();
       const colorInput = $("#caret-color");
-      if (colorInput) colorInput.value = settings.caret_color;
+      if (colorInput) colorInput.value = color;
+      scheduleCustomCaret();
       return;
     }
     if (event.target.matches("[data-note-block-editor]")) {
@@ -17688,6 +18081,9 @@ function bindEvents() {
   let noteSwipeCooldown = 0;
   document.addEventListener("pointermove", (event) => {
     if (notesStretchPress || notesStretchActive) { noteSwipeLastY = event.clientY; return; }
+    // A Doing pull owns the pointer: measuring the swipe line here would force
+    // a layout between the pull's frames, and the note cannot be swiped anyway.
+    if (doingDrag) { noteSwipeLastY = event.clientY; return; }
     // A door-line drag already owns the pointer: letting the swipe rule fire
     // here would close the sheet in the middle of the pull.
     if (deskHandleResizing()) { noteSwipeLastY = event.clientY; return; }
@@ -17742,6 +18138,9 @@ function bindEvents() {
     // Doing zone here (a full rect read every 350ms) would force a layout in
     // the middle of the pull, and a peek cannot open while resizing anyway.
     if (deskHandleResizing()) return;
+    // The card is already open while it is being pulled: measuring its column
+    // again would force that same layout on the drag's frames.
+    if (doingDrag) return;
     // In a detached AI window the scroll rail lives against the same window
     // border the sub-app drawer docks to; hovering the rail must not open the
     // card. The in-page trigger range (the subtask column) is left untouched.
@@ -18229,6 +18628,7 @@ function bindEvents() {
       if ($("#modal-root").innerHTML) { cancelModal(null); return; }
       if (archiveOpen) { closeArchive(); return; }
       if (completedSubtasksOpen && $(".completed-subtask-toggle")) { toggleCompletedSubtasks(false); return; }
+      if (pendingSubtasksCollapsed && $(".pending-subtask-toggle")) { togglePendingSubtasks(false); return; }
     }
     if (postcard) {
       if (event.key === "q") { closePostcard(); return; }
@@ -18825,8 +19225,8 @@ async function init() {
     document.body.appendChild(grabber);
   }
   render();
-  // A run that the last app close cut off is resumed by the backend. Ask for
-  // it now (and once more after the first paint) so its fan spins again.
+  // A run started by another window lives only on the backend. Ask for it
+  // now (and once more after the first paint) so its fan spins here too.
   syncBackendRunningAgents(true).catch(() => {});
   setTimeout(() => syncBackendRunningAgents(true).catch(() => {}), 2600);
   // A board that was not restored (first launch, fork window) still opens with

@@ -55,7 +55,7 @@ def main() -> int:
 
     # The card list is bound as before, and rebuilt rows are rebound.
     assert "function bindDoingCard(list)" in app_js
-    assert 'const rows = () => [...list.querySelectorAll(".doing-head, .doing-sub")];' in app_js
+    assert 'list.addEventListener("scroll"' in app_js
     assert "bindDoingCard(list);" in app_js
 
     # Agent start/stop reaches the card even when the todo's own flag is

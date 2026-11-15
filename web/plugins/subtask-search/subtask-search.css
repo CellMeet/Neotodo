@@ -41,39 +41,49 @@ html[data-note-dark="true"] .subtask-search-rail-icon {
   filter: brightness(0) invert(1) drop-shadow(0 0 5px rgba(255, 255, 255, 0.20));
 }
 
-/* The task column is the drawer's clipping box. The drawer overlays the rows
-   and slides down from the top boundary instead of taking layout height. */
+/* The task column is the drawer's clipping box. The pane slides down from the
+   top boundary and the column gives up exactly the strip it occupies. */
 body.subtask-search-on .current-half {
   position: relative;
   overflow: hidden;
 }
 
 /* Opening the field makes room for it: the whole subtask column (rows, the
-   finished-task handle and the completed card) is pushed down exactly one
-   40px row. The drawer slides into the gap left behind. */
-body.subtask-search-on .current-half > .current-inner {
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+   Doing card, the finished-task handle and the completed card) is pushed down
+   by exactly the drawer's own height, which the script measures into
+   --ss-open-h on .current-half. Nothing from the task block can ever sit under
+   the pane, so the search box never overlaps a card and is never covered by
+   one. The column keeps 100% of its height minus that measured strip. */
+body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {
+  transition:
+    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.34s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
 }
 
-body.subtask-search-open .current-half > .current-inner {
-  height: calc(100% - 40px);
-  transform: translate3d(0, 40px, 0);
+body.subtask-search-open .page-body > .todos-section > .current-half > .current-inner {
+  /* 48px = the 46px field plus the pane's two 1px edges. */
+  height: calc(100% - var(--ss-open-h, 48px));
+  transform: translate3d(0, var(--ss-open-h, 48px), 0);
 }
 
 /* --------------------------------------------------------------------------
    The drawer. Closed: parked just above the top edge and clipped away.
-   Open: slid down onto the first rows. The surface is FocusWriter's recipe,
-   nothing more: blur whatever is behind the row, then lay one flat
-   translucent wash on it. No gloss, no grain, no border, no shadow — the pane
-   is exactly one subtask row wide and tall, so it can never paint over the
-   rule under it. The blur radius is the setting on the plugin page.
+   Open: slid down into the strip the task block gave up for it. The surface is
+   FocusWriter's recipe — blur whatever is behind the row, then lay one flat
+   wash on it — but the wash is dense enough that nothing underneath can be
+   read through it: the pane is one solid, square-cornered sheet, exactly the
+   width of the subtask rows and at least one full row tall, so it can never
+   be mistaken for a slot cut into the card below. The blur radius is the
+   setting on the plugin page.
    -------------------------------------------------------------------------- */
 .subtask-search-drawer {
-  --ss-glass-fill: rgba(240, 244, 246, 0.38);
+  --ss-field-h: 46px;
+  --ss-glass-fill: rgba(246, 248, 249, 0.90);
   --ss-glass-ink: #0b0c0c;
   --ss-glass-muted: rgba(14, 17, 18, 0.60);
   --ss-glass-line: rgba(52, 64, 68, 0.18);
+  --ss-glass-edge: rgba(45, 58, 62, 0.44);
   --ss-glass-hover: linear-gradient(
     90deg,
     rgba(18, 24, 26, 0.07),
@@ -82,16 +92,22 @@ body.subtask-search-open .current-half > .current-inner {
   --ss-glass-blur: blur(var(--ss-search-blur, 26px)) saturate(1.2);
   position: absolute;
   top: 0;
-  /* One row's width: the same span as the subtask rows. */
+  /* One row's width: the same span as the subtask rows. left/right 0 plus the
+     min-width guard keep it from ever shrink-wrapping to the field's content. */
   right: 0;
   left: 0;
-  z-index: 12;
+  width: auto;
+  min-width: 100%;
+  z-index: 14;
   display: flex;
   flex-direction: column;
   max-height: 100%;
   box-sizing: border-box;
-  border: 0;
+  /* Square corners, one hairline edge, and a hard clip for the result rows:
+     the pane is a box of its own, not a glass bubble. */
+  border: 1px solid var(--ss-glass-edge);
   border-radius: 0;
+  overflow: hidden;
   background-color: var(--ss-glass-fill);
   background-image: none;
   -webkit-backdrop-filter: var(--ss-glass-blur);
@@ -132,7 +148,9 @@ body.subtask-search-open .current-half > .current-inner {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  /* One full rule of the page (a subtask row is 40px); the field is a little
+     taller so it reads as a box in its own right, never as a clipped slot. */
+  height: var(--ss-field-h, 46px);
   min-width: 0;
   box-sizing: border-box;
   padding: 0 12px 0 14px;
@@ -323,10 +341,11 @@ body.subtask-search-open .current-half > .current-inner {
   }
 }
 
-/* Night: the room behind the pane is dark, so the mask carries more light.
-   The ink stays black, exactly as on the day theme. */
+/* Night: the room behind the pane is dark, so the sheet carries a touch more
+   light. The ink stays black, exactly as on the day theme. */
 html[data-postcard-dark="true"] .subtask-search-drawer {
-  --ss-glass-fill: rgba(240, 244, 246, 0.60);
+  --ss-glass-fill: rgba(242, 245, 246, 0.92);
+  --ss-glass-edge: rgba(32, 43, 47, 0.58);
   --ss-glass-muted: rgba(12, 15, 16, 0.60);
   --ss-glass-line: rgba(40, 50, 54, 0.22);
   --ss-glass-hover: linear-gradient(
@@ -337,14 +356,14 @@ html[data-postcard-dark="true"] .subtask-search-drawer {
   --ss-glass-blur: blur(var(--ss-search-blur, 26px)) saturate(1.16);
 }
 
-/* No backdrop blur: keep the material, just make the mask denser so the black
-   ink and the hairlines never sit on a half-transparent pane. */
+/* No backdrop blur: keep the material, just make the sheet almost solid so the
+   black ink, the hairlines and the square edge always sit on paper. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .subtask-search-drawer {
-    --ss-glass-fill: rgba(242, 245, 246, 0.94);
+    --ss-glass-fill: rgba(244, 247, 248, 0.97);
   }
   html[data-postcard-dark="true"] .subtask-search-drawer {
-    --ss-glass-fill: rgba(240, 244, 246, 0.96);
+    --ss-glass-fill: rgba(242, 245, 246, 0.98);
   }
 }
 
@@ -382,7 +401,8 @@ html[data-postcard-dark="true"] .subtask-search-drawer {
   .subtask-search-drawer {
     transition: none !important;
   }
-  body.subtask-search-on .current-half > .current-inner {
+  body.subtask-search-on .current-half > .current-inner,
+  body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {
     transition: none !important;
   }
   .current-subtask.subtask-search-hit {

@@ -96,6 +96,179 @@
 }
 
 /* --------------------------------------------------------------------------
+   The live subtask card
+   --------------------------------------------------------------------------
+   The unfinished rows are printed on their own sheet. The sheet is open on
+   the left — there is no divider between the finished column and this one, so
+   the two read as one page — and closes with a rounded right edge. It is
+   exactly seven unit rows tall, so its bottom edge lands on the page baseline
+   and the rows never leave the page's ruled grid.
+
+   The purple handle line is the sheet's bottom edge. Stretch it up and the
+   card folds to a short tab whose line sits right under the block's top line;
+   stretch it down and the seven rows come back. The button rides the edge, so
+   the control is always exactly where the sheet ends.
+   -------------------------------------------------------------------------- */
+
+.pending-subtask-card {
+  --pending-card-fold: 28px;
+  position: relative;
+  box-sizing: border-box;
+  /* The block is the page's fixed seven-row sheet. 100% keeps the card inside
+     the column while the search plugin shortens the block by one row. The
+     stretch animates the cap, not the height: both ends are lengths, so the
+     edge travels at a steady pace in every WebKit build. */
+  height: 100%;
+  max-height: var(--page-task-h, 280px);
+  overflow: hidden;
+  /* No left edge and no left corner: the column divider is gone and the sheet
+     runs straight into the finished column. */
+  border-radius: 0 var(--overlay-radius, 10px) var(--overlay-radius, 10px) 0;
+  background-color: var(--overlay-paper, var(--paper));
+  background-image: none;
+  /* The stretch is the control: the bottom edge travels, the top stays. */
+  transition: max-height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The edge is painted inside the box (a 1px border would push every row off
+   the page's 40px pitch) and only on three sides: top, right, bottom. */
+.pending-subtask-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  border: 1px solid var(--subcard-outline, #2f5d4e);
+  border-left: 0;
+  border-radius: inherit;
+}
+
+/* Folded away the sheet is a short tab: the rows fade under the shrinking
+   edge and only the handle line is left, right under the block's top line. */
+.pending-subtask-card.collapsed {
+  max-height: var(--pending-card-fold, 28px);
+}
+
+.pending-subtask-card .subtask-lanes {
+  transition: opacity 0.16s ease;
+}
+
+.pending-subtask-card.collapsed .subtask-lanes {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pending-subtask-card .pending-subtask-label {
+  transition: opacity 0.16s ease;
+}
+
+.pending-subtask-card.collapsed .pending-subtask-label {
+  opacity: 0;
+}
+
+/* The card's tag, printed in the quiet top-right corner of the first row. */
+.pending-subtask-label {
+  position: absolute;
+  top: 9px;
+  right: 16px;
+  z-index: 10;
+  color: var(--pc-muted, var(--muted, #887d6c));
+  font-family: var(--display, "P052", serif);
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  opacity: 0.75;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* One 30px strip lying on the card's bottom edge, holding the purple pill. */
+.pending-subtask-toggle {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 12;
+  width: 140px;
+  height: 30px;
+  display: block;
+  margin: 0 0 0 -70px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font: inherit;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* While the edge is stretched the card follows the pointer, so the bar must
+   not animate the height it is setting by hand. */
+.pending-subtask-toggle.stretching {
+  cursor: grabbing;
+}
+
+.pending-subtask-line {
+  position: absolute;
+  left: 50%;
+  bottom: 9px;
+  width: 76px;
+  height: 5px;
+  margin-left: -38px;
+  border-radius: 3px;
+  background: #C8B9FC;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
+  opacity: 0.95;
+  transition: width 0.16s ease, margin-left 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.pending-subtask-toggle:hover .pending-subtask-line,
+.pending-subtask-toggle:focus-visible .pending-subtask-line {
+  width: 90px;
+  margin-left: -45px;
+  background: #B29AFC;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.38);
+  opacity: 1;
+}
+
+.pending-subtask-toggle:active .pending-subtask-line {
+  width: 84px;
+  margin-left: -42px;
+}
+
+/* Folded, the line is the whole card: keep it reachable but quieter, so the
+   tab reads as tucked paper rather than live rows. */
+.pending-subtask-toggle.collapsed .pending-subtask-line {
+  opacity: 0.6;
+}
+
+.pending-subtask-toggle.collapsed:hover .pending-subtask-line,
+.pending-subtask-toggle.collapsed:focus-visible .pending-subtask-line {
+  opacity: 1;
+}
+
+/* The finished column and the live card are one sheet: no divider line. */
+html[data-theme="postcard"] .page-body > .todos-section > .current-half::before {
+  display: none !important;
+}
+
+/* Folded, the card is a tab in the top band of the block — the finished tray's
+   own handle lives in that band too, and two purple pills side by side would
+   read as two different folds. The tray belongs to the card, so its handle
+   travels with it: unfold the card and the tray handle is back. */
+.pending-subtask-card.collapsed ~ .completed-subtask-toggle {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
    The short handle line just below the task block's top boundary.
    Same shape and motion as the note/AI door lines, but in the fan's purple
    (#C8B9FC): one 64px pill with a faint light halo, widening on hover. The
@@ -232,6 +405,17 @@
   pointer-events: none;
   will-change: transform, clip-path;
   contain: layout paint;
+}
+
+/* The provider mark leaves the row before the row lands. It is pinned to the
+   spot where the click happened and drops out of sight there; the ghost only
+   closes the empty slot, so no badge is ever carried into the finished tray. */
+.subtask-flight-mark {
+  position: fixed;
+  z-index: 241;
+  margin: 0 !important;
+  pointer-events: none;
+  will-change: transform, opacity;
 }
 
 /* What travels is the row's paper: its bottom line, its fan and its name. The

@@ -12,10 +12,11 @@
    so those regions can never drift away from the page.
 
    The stored solid / gradient / height choice still describes the row
-   treatment, but the colour is no longer private: the finished card is printed
-   on the same sheet as the live subtask lane, so every mode paints the one
-   page_line colour. The card therefore always matches the line under the
-   subtask names and the Doing card, even when the reader changes Page line.
+   treatment, but the rule is no longer private: the finished card is printed
+   on the same sheet as the live subtask lane and the Doing card, so every mode
+   paints the one page_line colour *and weight*. The card therefore always
+   matches the line under the subtask names, even when the reader changes Page
+   line. A finished row can land on its own line without visibly reprinting it.
 
    The rows already paint their own border; this file only replaces its fill.
    ========================================================================== */
@@ -27,7 +28,10 @@
   --baseline-row-color-2: #a8691f;
   --baseline-row-angle: 0deg;
   --baseline-row-image: linear-gradient(90deg, #333333, #a8691f);
-  --baseline-row-size: 1px;
+  /* One weight for the finished card, the live lane and the Doing panel. A
+     fixed 1px here made a finished row change line mid-flight whenever the
+     reader had chosen a thicker page line. */
+  --baseline-row-size: var(--page-line-thickness, 1px);
   /* One colour for the finished card, the live lane and the Doing panel. */
   --baseline-row-paint: var(--page-line-paint, #333333);
 }

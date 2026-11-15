@@ -9,7 +9,7 @@
      .page-head            the two header rows
      .history-half         the seven completed rows (fixed grid)
      .page-body::after     the empty desk under the task block
-     .category-item        one ruled row per category, and the spine filler
+     .category-item        one ruled row per category (the empty spine is blank)
      .doing-list           one ruled row per Doing todo / subtask, and filler
 
    The live subtask lane is intentionally not on that fixed grid: each
@@ -133,7 +133,18 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half > .curre
    are rows too, so the blank part of the lane still reads as ruled paper.
    The drawer is a floating card and is not selected here. */
 html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .subtask-lanes .current-subtask,
+html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .pending-subtask-card > .subtask-lanes .current-subtask,
 html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .current-subtasks > .current-subtask {
+  border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;
+  border-image: none !important;
+}
+
+/* A finished row flies to the tray on a ghost pinned to the page, outside the
+   lane. It is still the same row, so it keeps the live lane's rule instead of
+   falling back to the detached `.current-subtask` hairline in style.css. The
+   landing row in the drawer reads the same paint and weight, so the line is
+   never reprinted when the ghost hands the row over. */
+html[data-theme="postcard"] .subtask-flight {
   border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;
   border-image: none !important;
 }
@@ -165,6 +176,7 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::after {
    line; drop the row border so a translucent page_line is never painted twice
    on the same pixel. */
 html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .subtask-lanes .current-subtasks > .current-subtask:last-child,
+html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .pending-subtask-card > .subtask-lanes .current-subtasks > .current-subtask:last-child,
 html[data-theme="postcard"] .page-body > .todos-section > .current-half > .current-inner > .current-subtasks > .current-subtask:last-child {
   border-bottom-color: transparent !important;
 }
@@ -179,14 +191,15 @@ html[data-theme="postcard"] .notebook-head {
   border-bottom-width: var(--page-line-thickness) !important;
 }
 
-/* The categories spine is the left continuation of the same ruled sheet. Its
-   header takes exactly one page_line row, so the "Categories" rule sits on the
-   page's first line and every category below it lands on the same grid as the
-   task rows. One category occupies exactly one page_line row. */
+/* The categories spine keeps the page's line language: its header takes
+   exactly one page_line row, so the "Categories" rule sits on the page's first
+   line and every category below it lands on the same grid as the task rows.
+   One category occupies exactly one page_line row. The empty room below the
+   last category is left blank on purpose — no filler rules there. */
 html[data-theme="postcard"] .index {
   padding-top: 0 !important;
-  /* The spine reaches the foot of the sheet: with the same bottom edge as the
-     page, its filler's last rule lands on the page's last rule. */
+  /* The spine reaches the foot of the sheet, so its last category row ends on
+     the same edge as the page. */
   padding-bottom: 0 !important;
 }
 
@@ -204,22 +217,6 @@ html[data-theme="postcard"] .category-item {
   height: var(--page-line-row) !important;
   border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;
   border-image: none !important;
-}
-
-/* The empty spine below the last category keeps the same grid instead of going
-   blank. The gradient is the page's own, so the filler line lands exactly where
-   the next category row would have drawn it. It also holds on a wallpaper: the
-   room is the paper, but the rule language stays, so the categories never turn
-   into an unruled panel beside a ruled page. */
-html[data-theme="postcard"] .category-list::after {
-  display: block !important;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0 var(--page-line-gap),
-    var(--page-line-paint) var(--page-line-gap) var(--page-line-row)
-  ) !important;
-  background-position: 0 0 !important;
-  background-size: auto !important;
 }
 
 /* The spine's foot rule closes the same grid. */
@@ -261,14 +258,28 @@ html[data-theme="postcard"] .doing-list::after {
 
 /* The finished-subtasks drawer is a floating card, not the page sheet: the
    live-lane rules above stop at the drawer, so it keeps the rule that
-   baseline-rules.css gives it. That rule now uses the page_line paint too, so
-   a finished subtask never carries a second colour.
+   baseline-rules.css gives it. That rule reads the same page_line paint and
+   weight, so a finished subtask never carries a second colour or a thinner
+   line than the live lane it came from.
 
    A finished subtask opened inside the history lane is the same row: its rule
    takes the live lane's paint as well. */
 html[data-theme="postcard"] .history-subtask {
   border-bottom-color: var(--page-line-paint) !important;
   border-image: none !important;
+}
+
+/* The magic-hat drawer is a card too: its header rule and every deleted row
+   take the live lane's paint and weight, so the line under a deleted subtask
+   is literally the line it wore before the hat kept it. */
+html[data-theme="postcard"] .trash-drawer .trash-head,
+html[data-theme="postcard"] .trash-drawer .trash-row {
+  border-bottom: var(--page-line-thickness) solid var(--page-line-paint) !important;
+  border-image: none !important;
+}
+
+html[data-theme="postcard"] .trash-drawer .trash-row:last-child {
+  border-bottom-color: transparent !important;
 }
 
 /* A docked note or AI card carries the sheet boundary on its rounded top
