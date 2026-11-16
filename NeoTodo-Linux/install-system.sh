@@ -33,6 +33,14 @@ else
     SRC="$HERE"
 fi
 
+# The desktop shortcut belongs to the human running sudo, not to root.
+USER_HOME="${NEOTODO_USER_HOME:-}"
+if [ -z "$USER_HOME" ] && [ -n "${SUDO_USER:-}" ]; then
+    USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6 || true)"
+fi
+[ -n "$USER_HOME" ] || USER_HOME="${HOME:-/root}"
+SHORTCUT="$USER_HOME/Desktop/NeoTodo.desktop"
+
 refresh_caches() {
     command -v update-desktop-database >/dev/null 2>&1 &&
         update-desktop-database "$APPS_DIR" || true
@@ -42,8 +50,9 @@ refresh_caches() {
 
 if [ "${1:-}" = "--uninstall" ]; then
     rm -rf "$PREFIX" "$BIN" "$DESKTOP" "$ICON_SVG" "$ICON_256" "$ICON_128"
+    rm -f "$SHORTCUT"
     refresh_caches
-    echo "Removed $PREFIX, $BIN and the menu entry."
+    echo "Removed $PREFIX, $BIN, the menu entry and the desktop shortcut."
     echo "Tasks and settings are untouched in ~/.local/share/neotodo."
     exit 0
 fi
@@ -108,6 +117,42 @@ cp "$PREFIX/icon-check.svg" "$ICON_SVG"
 cp "$PREFIX/icon.png" "$ICON_256"
 cp "$PREFIX/icon.png" "$ICON_128"
 
+# Desktop shortcut for the user who ran sudo. GNOME only paints desktop icons
+# with an extension (DING / gnome-shell-extension-desktop-icons-ng) enabled;
+# the file is harmless when they are off.
+if [ -d "$USER_HOME/Desktop" ]; then
+    cat > "$SHORTCUT" <<EOF
+[Desktop Entry]
+Type=Application
+Name=NeoTodo
+GenericName=Weekly Postcard Todo
+Comment=A quiet home for weekly focus and postcard memories
+Exec=$BIN
+Icon=$PREFIX/icon-check.svg
+Terminal=false
+Categories=Utility;
+StartupWMClass=io.github.neotodo
+StartupNotify=true
+Actions=NewWindow;
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec=$BIN --new-window
+Icon=$PREFIX/icon-check.svg
+EOF
+    chmod 755 "$SHORTCUT"
+    if [ -n "${SUDO_USER:-}" ]; then
+        chown "$SUDO_USER" "$SHORTCUT" 2>/dev/null || true
+        sudo -u "$SUDO_USER" env HOME="$USER_HOME" \
+            gio set "$SHORTCUT" metadata::trusted true >/dev/null 2>&1 || true
+    else
+        gio set "$SHORTCUT" metadata::trusted true >/dev/null 2>&1 || true
+    fi
+    echo "Desktop shortcut: $SHORTCUT"
+else
+    echo "No $USER_HOME/Desktop folder; skipped the desktop shortcut."
+fi
+
 chmod 755 "$PREFIX/run.sh" "$BIN"
 chmod -R a+rX "$PREFIX"
 refresh_caches
@@ -115,13 +160,20 @@ refresh_caches
 echo "Installed $PREFIX"
 echo "Launcher:  $BIN"
 
-if [ -n "${SUDO_USER:-}" ]; then
-    USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6 || true)"
-    if [ -n "$USER_HOME" ] && [ -e "$USER_HOME/.local/bin/neotodo" ]; then
-        echo
-        echo "Note: $USER_HOME/.local/bin/neotodo still exists and comes earlier" >&2
-        echo "on PATH. Remove it to run this system install:" >&2
-        echo "  rm -f $USER_HOME/.local/bin/neotodo" >&2
-        echo "  rm -rf $USER_HOME/.local/opt/neotodo" >&2
-    fi
+if [ -n "${SUDO_USER:-}" ] && [ -e "$USER_HOME/.local/bin/neotodo" ]; then
+    echo
+    echo "Note: $USER_HOME/.local/bin/neotodo still exists and comes earlier" >&2
+    echo "on PATH. Remove it to run this system install:" >&2
+    echo "  rm -f $USER_HOME/.local/bin/neotodo" >&2
+    echo "  rm -rf $USER_HOME/.local/opt/neotodo" >&2
+fi
+
+if [ -n "${SUDO_USER:-}" ] && command -v gnome-shell >/dev/null 2>&1 &&
+    ! sudo -u "$SUDO_USER" env HOME="$USER_HOME" \
+        gnome-extensions list 2>/dev/null | grep -q 'ding@rastersoft.com'; then
+    echo
+    echo "GNOME does not draw desktop icons without the DING extension. Install it" >&2
+    echo "to make the shortcut appear on the desktop:" >&2
+    echo "  sudo pacman -S gnome-shell-extension-desktop-icons-ng" >&2
+    echo "  gnome-extensions enable ding@rastersoft.com   # then log out and back in" >&2
 fi
