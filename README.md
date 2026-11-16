@@ -41,7 +41,7 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 | 🍎 | **macOS 11+** | Build from source in [`NeoTodo-MacOS/`](NeoTodo-MacOS/README.md) |
 | 📱 | **iOS** | Planned |
 
-- 📦 The Windows installer bundles its own Python runtime and Qt WebEngine.
+- 📦 The Windows installer bundles its own Python runtime and Qt WebEngine, so it installs and runs like any other desktop app — no Python, pip or terminal needed. Double-click the setup, finish the wizard, and launch NeoTodo from the Start Menu or desktop.
 - 🐧 The Linux package is a source package; GTK4, PyGObject and WebKitGTK must already be installed.
 - 🍎 The macOS build is a native PyObjC + WKWebView shell around the same backend; `cd NeoTodo-MacOS && ./run-macos.sh`. App Store and notarization steps are in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
 - 🤖 The Android build embeds the same Python backend and web workspace, so the desktop logic stays the single source of truth.
@@ -155,14 +155,35 @@ python3 app.py --serve
 
 - 📦 Requirements: Python 3, PyGObject (`python-gobject`), WebKitGTK 6 (`webkit2gtk-4.1` / `webkitgtk-6.0`, depending on distribution) and `xdg-open`.
 
-### 🪟 Windows (development)
+### 🪟 Windows
+
+**Install and use (recommended):** download
+[`NeoTodo-0.0.1-Windows-x64-setup.exe`](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64-setup.exe),
+run it, and launch NeoTodo from the Start Menu or the desktop shortcut. The app
+installs per user (no administrator prompt) and needs no Python or terminal.
+
+- 🗂️ Task data, plugins and the WebEngine profile live in `%APPDATA%\NeoTodo`.
+  Uninstalling from Settings → Apps leaves that folder, so your notebook is
+  never removed by accident.
+
+**Build the installer yourself (one command, on Windows):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File windows-build.ps1
+```
+
+It creates a `.venv`, installs PySide6 + PyInstaller, builds `dist\NeoTodo\`
+and, when Inno Setup 6 is installed, `dist\NeoTodo-0.0.1-Windows-x64-setup.exe`.
+
+**Run from source (for development):**
 
 ```powershell
 python -m pip install PySide6
 python windows_app.py
 ```
 
-- 📦 Requirements: Windows 10/11 x64 and PySide6. The release installer bundles both.
+- 📦 Requirements: Windows 10/11 x64 and PySide6 for the source run only; the
+  installer bundles both.
 
 ### 🍎 macOS (development)
 

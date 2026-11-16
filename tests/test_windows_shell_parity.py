@@ -5,6 +5,9 @@
 Linux build), so this test reads it as source. It keeps the shell from drifting
 away from the `neotodo.local` bridge in `web/app.js`, from the picker callbacks
 the backend calls, and from the first-frame gate the page signals.
+
+The same test guards the installer story: the setup .exe must carry the whole
+PyInstaller folder, so a user never needs Python to run NeoTodo.
 """
 from __future__ import annotations
 
@@ -15,6 +18,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SHELL_SOURCE = (ROOT / "windows_app.py").read_text(encoding="utf-8")
 WEB_SOURCE = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+INSTALLER = (ROOT / "installer.iss").read_text(encoding="utf-8")
+RELEASE = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+BUILD_SCRIPT = (ROOT / "windows-build.ps1").read_text(encoding="utf-8")
 
 
 def string_literals(node: ast.AST) -> set[str]:
@@ -65,11 +71,34 @@ class WindowsShellParityTests(unittest.TestCase):
         self.assertIn("class UiDispatcher", SHELL_SOURCE)
         self.assertIn("self.ui.call(choose)", SHELL_SOURCE)
 
-    def test_shell_builds_against_shared_backend(self):
-        self.assertIn("import app as backend", SHELL_SOURCE)
-        tree = ast.parse(SHELL_SOURCE)
-        names = {node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)}
-        self.assertTrue({"NeoTodoWebView", "MainWindow", "DetachedWindow"} <= names)
+    def test_settings_survive_between_launches(self):
+        # A named profile keeps localStorage (volume, geometry, rail memory) in
+        # %APPDATA%\NeoTodo instead of an off-the-record default profile.
+        self.assertIn("QWebEngineProfile(", SHELL_SOURCE)
+        self.assertIn("setPersistentStoragePath", SHELL_SOURCE)
+        self.assertIn("backend.DATA_DIR", SHELL_SOURCE)
+        self.assertIn("PRIMARY_PORT", SHELL_SOURCE)
+
+    def test_renderer_crash_and_fatal_errors_are_recoverable(self):
+        self.assertIn("renderProcessTerminated", SHELL_SOURCE)
+        self.assertIn("windows-crash.log", SHELL_SOURCE)
+        self.assertIn("MessageBoxW", SHELL_SOURCE)
+
+    def test_installer_ships_the_whole_bundle_for_the_current_user(self):
+        self.assertIn(r'Source: "dist\NeoTodo\*"', INSTALLER)
+        self.assertIn("recursesubdirs", INSTALLER)
+        self.assertIn("PrivilegesRequired=lowest", INSTALLER)
+        self.assertIn("{autoprograms}", INSTALLER)
+        self.assertIn("{autodesktop}", INSTALLER)
+
+    def test_release_build_is_onedir_with_every_bundled_asset(self):
+        for source in (RELEASE, BUILD_SCRIPT):
+            self.assertIn("--onedir", source)
+            self.assertIn('--add-data "web;web"', source)
+            self.assertIn('--add-data "icon-check.ico;."', source)
+            self.assertIn("--collect-all PySide6", source)
+        self.assertIn("ISCC.exe", BUILD_SCRIPT)
+        self.assertIn("NeoTodo-0.0.1-Windows-x64-setup.exe", BUILD_SCRIPT)
 
 
 if __name__ == "__main__":

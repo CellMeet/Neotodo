@@ -14,7 +14,12 @@ The shell mirrors the Linux behaviours the page relies on:
   `choose_wallpaper_file`;
 * the `app-painted` reveal gate, so the first visible frame is the finished
   page instead of a blank WebEngine view;
+* a named WebEngine profile under `%APPDATA%\\NeoTodo`, so volume, panel
+  geometry and the plugin rail survive a restart;
 * a clean quit that stops forks and agents before the process exits.
+
+The release build is a PyInstaller bundle wrapped in an Inno Setup installer,
+so the installed app needs neither Python nor PySide6 on the user's machine.
 """
 
 from __future__ import annotations
@@ -22,6 +27,8 @@ from __future__ import annotations
 import os
 import sys
 import threading
+import traceback
+from datetime import datetime
 from urllib.parse import parse_qs
 
 from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
@@ -33,17 +40,79 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+from PySide6.QtWebEngineCore import (
+    QWebEnginePage,
+    QWebEngineProfile,
+    QWebEngineSettings,
+)
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 import app as backend
 
 BRIDGE_HOST = "neotodo.local"
 BACKGROUND = "#120b06"
+# The backend keeps the fixed loopback port for the first copy; a second copy
+# takes a free port and must not share Chrome's profile lock.
+PRIMARY_PORT = 47321
 WALLPAPER_FILTER = (
     "Pictures and films (*.jpg *.jpeg *.png *.webp *.gif *.avif "
     "*.mp4 *.webm *.mov *.m4v *.ogv);;All files (*)"
 )
+
+
+def app_icon() -> QIcon:
+    """The window/taskbar icon from the bundled files (the .ico has all sizes)."""
+    for name in ("icon-check.ico", "icon-check.png"):
+        path = backend.APP_DIR / name
+        try:
+            if path.is_file():
+                return QIcon(str(path))
+        except Exception:
+            continue
+    return QIcon()
+
+
+def make_profile(application: QApplication, port: int) -> QWebEngineProfile:
+    """A named, persistent WebEngine profile stored beside the notebook data.
+
+    Without a named profile the page's localStorage is not guaranteed to
+    survive a restart, so the installed app would forget volume, panel
+    geometry and the plugin rail position every launch. Keeping storage under
+    ``%APPDATA%\\NeoTodo`` also means uninstalling can remove one directory.
+    """
+    primary = port == PRIMARY_PORT
+    folder = "webengine" if primary else f"webengine-{port}"
+    storage = backend.DATA_DIR / folder
+    try:
+        storage.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    profile = QWebEngineProfile("NeoTodo" if primary else f"NeoTodo-{port}", application)
+    try:
+        profile.setPersistentStoragePath(str(storage))
+        profile.setCachePath(str(storage / "cache"))
+        profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.DiskHttpCache)
+        profile.setPersistentCookiesPolicy(
+            QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies
+        )
+    except Exception:
+        pass
+    settings = profile.settings()
+    for name in (
+        "JavascriptEnabled",
+        "LocalStorageEnabled",
+        "JavascriptCanOpenWindows",
+        "JavascriptCanAccessClipboard",
+        "JavascriptCanPaste",
+        "LocalContentCanAccessRemoteUrls",
+        "FullScreenSupportEnabled",
+        "ScrollAnimatorEnabled",
+    ):
+        _enable(settings, name, True)
+    # The notebook is driven with the mouse wheel and the speakers are part of
+    # the design, so let audio start without a click.
+    _enable(settings, "PlaybackRequiresUserGesture", False)
+    return profile
 
 
 def _enable(settings: QWebEngineSettings, name: str, value: bool) -> None:
@@ -121,28 +190,35 @@ class NeoTodoPage(QWebEnginePage):
 class NeoTodoWebView(QWebEngineView):
     """Web view that knows the shell, its window and the bridge."""
 
-    def __init__(self, shell: "NeoTodoShell", *, main: bool = False, parent=None):
+    def __init__(
+        self,
+        shell: "NeoTodoShell",
+        profile: QWebEngineProfile,
+        *,
+        main: bool = False,
+        parent=None,
+    ):
         super().__init__(parent)
         self.shell = shell
         self.is_main = main
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
-        self.setPage(NeoTodoPage(self.page().profile(), self))
+        self.setPage(NeoTodoPage(profile, self))
         self.page().setBackgroundColor(QColor(BACKGROUND))
-        settings = self.page().profile().settings()
-        for name in (
-            "JavascriptEnabled",
-            "LocalStorageEnabled",
-            "JavascriptCanOpenWindows",
-            "JavascriptCanAccessClipboard",
-            "JavascriptCanPaste",
-            "LocalContentCanAccessRemoteUrls",
-            "FullScreenSupportEnabled",
-            "ScrollAnimatorEnabled",
-        ):
-            _enable(settings, name, True)
-        # The notebook is driven with the mouse wheel and the speakers are part
-        # of the design, so let audio start without a click.
-        _enable(settings, "PlaybackRequiresUserGesture", False)
+        try:
+            # A crashed renderer must come back by itself, like WebKitGTK's
+            # web-process-terminated reload on Linux.
+            self.page().renderProcessTerminated.connect(self._recover_renderer)
+        except Exception:
+            pass
+
+    def _recover_renderer(self, _status=None, _code=0) -> None:
+        def reload_now():
+            try:
+                self.reload()
+            except RuntimeError:
+                pass
+
+        QTimer.singleShot(250, reload_now)
 
     # -- bridge ---------------------------------------------------------
     def handle_bridge(self, url: QUrl) -> None:
@@ -207,8 +283,9 @@ class NeoTodoWebView(QWebEngineView):
 class NeoTodoShell:
     """Owns the HTTP backend hooks and every NeoTodo window."""
 
-    def __init__(self, port: int) -> None:
+    def __init__(self, port: int, profile: QWebEngineProfile) -> None:
         self.port = port
+        self.profile = profile
         self.ui = UiDispatcher()
         self.server = None
         self.main_windows: list[QMainWindow] = []
@@ -271,7 +348,7 @@ class NeoTodoShell:
         return self.url_for("/?desktop=1")
 
     def open_main_window(self) -> QMainWindow:
-        view = NeoTodoWebView(self, main=True)
+        view = NeoTodoWebView(self, self.profile, main=True)
         window = MainWindow(self, view)
         self.main_windows.append(window)
         window.destroyed.connect(
@@ -285,10 +362,10 @@ class NeoTodoShell:
     def create_detached_window(
         self, *, title: str = "NeoTodo", reveal: bool = False
     ) -> tuple[QMainWindow, NeoTodoWebView]:
-        view = NeoTodoWebView(self, main=False)
+        view = NeoTodoWebView(self, self.profile, main=False)
         window = DetachedWindow(self, view)
         window.setWindowTitle(title)
-        window.setWindowIcon(QIcon(str(backend.APP_DIR / "icon-check.png")))
+        window.setWindowIcon(app_icon())
         window.setCentralWidget(view)
         window.resize(960, 760)
         window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -397,7 +474,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.shell = shell
         self.setWindowTitle("NeoTodo")
-        self.setWindowIcon(QIcon(str(backend.APP_DIR / "icon-check.png")))
+        self.setWindowIcon(app_icon())
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setCentralWidget(view)
         self.resize(1280, 840)
@@ -440,6 +517,41 @@ def _set_taskbar_identity() -> None:
         pass
 
 
+def _crash_log_path():
+    return backend.DATA_DIR / "windows-crash.log"
+
+
+def report_fatal(error_text: str) -> None:
+    """Record a fatal error where the installed app can still be inspected.
+
+    The packaged build is windowed, so a traceback has nowhere to go. The log
+    lives beside the notebook data and a small message box names it.
+    """
+    path = _crash_log_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(
+                f"\n===== {datetime.now().isoformat(timespec='seconds')} =====\n"
+                f"{error_text}\n"
+            )
+    except Exception:
+        pass
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+
+            last = (error_text.strip().splitlines() or ["Unknown error"])[-1]
+            ctypes.windll.user32.MessageBoxW(
+                None,
+                f"NeoTodo 无法启动。\n\n错误：{last[:400]}\n\n日志：{path}",
+                "NeoTodo",
+                0x10,
+            )
+        except Exception:
+            pass
+
+
 def main() -> int:
     os.environ.setdefault(
         "QTWEBENGINE_CHROMIUM_FLAGS", "--autoplay-policy=no-user-gesture-required"
@@ -458,7 +570,8 @@ def main() -> int:
         pass
     server, port = backend.start_server(store)
 
-    shell = NeoTodoShell(port)
+    profile = make_profile(application, port)
+    shell = NeoTodoShell(port, profile)
     shell.bind_backend(server)
     application.aboutToQuit.connect(shell.shutdown)
 
@@ -467,4 +580,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except BaseException:
+        report_fatal(traceback.format_exc())
+        raise

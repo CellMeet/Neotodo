@@ -54,8 +54,18 @@ The shell now covers the parts of the Linux app the page depends on:
   closing the notebook window closes the detached sheets.
 - `window.open()` still creates real popup windows through the Qt shell, and
   popups answer the same bridge.
+- A named persistent WebEngine profile keeps localStorage and cookies in
+  `%APPDATA%\NeoTodo\webengine`, so volume, panel geometry and the plugin rail
+  survive a restart. A second copy gets its own port and profile folder.
+- A crashed renderer reloads itself; a fatal startup error is appended to
+  `%APPDATA%\NeoTodo\windows-crash.log` and shown in a message box, because the
+  packaged build has no console.
 - Autoplay is allowed (Chromium flag + `PlaybackRequiresUserGesture=false`), the
   context menu stays with the page, and the taskbar identity is set.
+- Packaging is install-and-use: `release.yml` and `windows-build.ps1` build an
+  `--onedir` PyInstaller bundle, and `installer.iss` wraps that whole folder in
+  a per-user Inno Setup installer with Start Menu and desktop shortcuts. The
+  user needs neither Python nor PySide6; data stays in `%APPDATA%\NeoTodo`.
 
 No Windows items are pending.
 
