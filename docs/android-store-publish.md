@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 包名 | `io.github.neotodo` | 一旦发布就不能改，想改现在就改 |
 | 版本 | `versionCode 1` / `versionName 0.0.1` | 每次上传 `versionCode` 必须 +1 |
-| targetSdk | 35 | Google Play 新应用/更新需要最新 API（2026-08-31 起是 36） |
+| targetSdk | 35 | 2026-08-31 起 Google Play 只收 target API 36+ 的新应用/更新 |
 | 签名 | 无上传密钥，release 回落到 debug 签名 | **必须**用固定的上传密钥，debug 签名会被拒 |
 | 64 位 | 已带 `arm64-v8a` | 已满足 |
 | 权限 | 只有 `INTERNET` | 越少越好，当前很干净 |
@@ -22,14 +22,14 @@
 要补的（按优先级）：
 
 1. **上传密钥 + release 构建**（下面第 1、2 步）。
-2. **targetSdk 提到 36**：装好 `platforms;android-36` 后把
-   `NeoTodo-Android/app/build.gradle` 里的 `compileSdk` / `targetSdk` 改成
-   36，重新构建并回归测试。
-3. **16 KB 页大小**：Google Play 要求 targetSdk 35+ 的应用在 2025-11 之后
-   支持 16 KB page size（Android 15 的 16 KB 机型）。Chaquopy 的
-   `libpython3.12.so` 等 so 需要是 16 KB 对齐的版本；用较新的 Chaquopy
-   （16.x 及以上）并跑一次
-   `zipalign -c -P 16 -v 4 app-release.apk` 验证。
+2. **targetSdk 提到 36（现在就必须）**：Google Play 从 2026-08-31 起只接受
+   target API 36 及以上的新应用和更新，延期到 2026-11-01 的申请窗口也已经
+   过了。装好 `platforms;android-36` 后把 `NeoTodo-Android/app/build.gradle`
+   里的 `compileSdk` / `targetSdk` 改成 36，重新构建并回归测试。
+3. **16 KB 页大小**：targetSdk 35+ 的应用要在 64 位设备上支持 16 KB 内存页；
+   2027-02-01 起 Google Play 不再发布不支持 16 KB 的更新。Chaquopy 的
+   `libpython3.12.so` 等 so 需要是 16 KB 对齐的版本，用较新的 Chaquopy
+   （16.x 及以上）并跑一次 `zipalign -c -P 16 -v 4 app-release.apk` 验证。
 4. ~~自适应图标~~ 已加：`res/mipmap-anydpi-v26/ic_launcher.xml`（前景线稿 +
    纸色背景），Android 8+ 不会再裁掉方形图标的白边。
 5. **隐私政策网址**：`store/privacy-policy.md` 已经写好，传到 GitHub Pages
@@ -80,7 +80,7 @@ cd NeoTodo-Android
 $ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs \
   ../NeoTodo-Android-release.apk | head -5
 
-# 16 KB 对齐（targetSdk 35+ 需要）
+# 16 KB 对齐（targetSdk 35+ 的 64 位包，2027-02 起强制）
 $ANDROID_HOME/build-tools/35.0.0/zipalign -c -P 16 -v 4 \
   ../NeoTodo-Android-release.apk | tail -3
 ```
