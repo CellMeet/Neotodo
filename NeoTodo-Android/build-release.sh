@@ -26,7 +26,7 @@ done
 
 if [ ! -f "$here/keystore.properties" ]; then
   echo "No keystore.properties — the bundle would be debug-signed and rejected." >&2
-  echo "Create the upload key first (see docs/android-store-publish.md):" >&2
+  echo "Create the upload key first:" >&2
   echo "  keytool -genkeypair -v -keystore \"$here/neotodo-upload.jks\" \\" >&2
   echo "    -alias neotodo -keyalg RSA -keysize 4096 -validity 10000" >&2
   echo "  cp keystore.properties.example keystore.properties  # then fill it in" >&2

@@ -15,6 +15,11 @@ NeoTodo-Android/keystore.properties
 NeoTodo-Android/*.jks
 NeoTodo-Android/*.keystore
 
+# Local-only store material: screenshots, store icon and feature graphic,
+# listing copy, privacy policy and the publishing guide. Kept on this machine,
+# never pushed to GitHub.
+NeoTodo-Android/store/
+
 # Local Android builds — keep the big binaries off the remote
 /NeoTodo-Android.apk
 /NeoTodo-Android-release.aab
@@ -26,6 +31,11 @@ NeoTodo-Android/*.keystore
 # Local run/scratch logs
 /run*.log
 *.log
+
+# Download site: staged release binaries and the generated deploy folder
+/site/dist/
+/site/releases/*
+!/site/releases/README.md
 
 # macOS local build output (NeoTodo-MacOS/build.sh)
 /NeoTodo-MacOS/build/

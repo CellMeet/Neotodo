@@ -37,7 +37,7 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 | :---: | --- | --- |
 | 🪟 | **Windows 10/11 x64** | [NeoTodo-0.0.1-Windows-x64-setup.exe](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64-setup.exe) |
 | 🐧 | **Linux x86_64** | [NeoTodo-0.0.1-Linux-x86_64.tar.gz](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Linux-x86_64.tar.gz) |
-| 🤖 | **Android (source)** | Build and sign in [`NeoTodo-Android/`](NeoTodo-Android/README.md); store steps in [`docs/android-store-publish.md`](docs/android-store-publish.md) |
+| 🤖 | **Android** | Build the debug APK or a signed store build with [`NeoTodo-Android/build-release.sh`](NeoTodo-Android/build-release.sh) |
 | 🍎 | **macOS 11+** | Build from source in [`NeoTodo-MacOS/`](NeoTodo-MacOS/README.md) |
 | 📱 | **iOS** | Planned |
 
@@ -45,6 +45,10 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 - 🐧 The Linux package is a source package; GTK4, PyGObject and WebKitGTK must already be installed.
 - 🍎 The macOS build is a native PyObjC + WKWebView shell around the same backend; `cd NeoTodo-MacOS && ./run-macos.sh`. App Store and notarization steps are in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
 - 🤖 The Android build embeds the same Python backend and web workspace, so the desktop logic stays the single source of truth.
+
+> 🧩 想自己托管下载页和插件目录？[`site/`](site/) 是一套可以直接放到阿里云 ECS 的静态站点：
+> 软件下载卡片、可搜索的插件架、自动生成 sha256 的构建脚本和 Nginx 配置都在里面，见
+> [`site/README.md`](site/README.md)。
 
 ## 🧭 Feature tour
 
@@ -175,8 +179,7 @@ python3 -m pip install -r requirements.txt
 ### 🤖 Android (source build)
 
 The Android build embeds the same Python backend and web workspace with Chaquopy.
-The project, its vendored sources and the store kit live in
-[`NeoTodo-Android/`](NeoTodo-Android/README.md).
+The project and its vendored sources live in `NeoTodo-Android/`.
 
 ```sh
 cd NeoTodo-Android
@@ -203,7 +206,7 @@ adb -s emulator-5558 shell am start -n io.github.neotodo/.MainActivity
 
 - ↩️ Back closes the topmost dialog, drawer or panel first, then sends the task to the background.
 - 🧪 `NeoTodo-Android.apk` is a local debug build and is not uploaded to GitHub; store builds go to `NeoTodo-Android-release.aab` / `.apk`, both git-ignored.
-- 🔏 Upload key, Play Console, Chinese stores, privacy policy and the APP filing are covered in [`docs/android-store-publish.md`](docs/android-store-publish.md).
+- 🔏 A store build needs your own upload key: copy `keystore.properties.example` to `keystore.properties`; `build-release.sh` refuses to build without it.
 
 ### 🧪 Tests
 

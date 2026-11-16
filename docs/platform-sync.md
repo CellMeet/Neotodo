@@ -90,15 +90,21 @@ No macOS items are pending.
 The Gradle project moved from `android/` to **`NeoTodo-Android/`** and was brought
 up to date with the Linux tree in a single pass. The folder now vendors
 `app.py`, `startup.py` and `web/` under `app/src/main/python/` (tracked, so the
-folder builds on its own) and carries the store kit:
+folder builds on its own), plus the release tooling:
 
 - `build-release.sh` + `keystore.properties.example` for a signed `.aab` /
   release `.apk`; `app/build.gradle` reads the upload key and only falls back to
   the debug key when `keystore.properties` is missing.
-- `store/` with the 512x512 icon, the 1024x500 feature graphic, the Chinese
-  listing copy and the bilingual privacy policy.
-- `docs/android-store-publish.md` — keystore, Google Play, the Chinese stores,
-  the APP filing, target API 36 / 16 KB page size and the review pitfalls.
+- Store material (512x512 icon, 1024x500 feature graphic, listing copy, privacy
+  policy, publishing guide) stays on this machine in `NeoTodo-Android/store/`
+  and is git-ignored — GitHub carries the source, and a built `.apk` goes out as a
+  single release asset instead of being committed.
+- Shell notes: the soft keyboard uses real IME insets so dialogs stay above it;
+  the hidden rails also open from a screen-edge tap (no hover on touch); links
+  open through an Android intent; folder pickers are desktop-only; detached
+  sheets run in `DetachedActivity`; app data lives at
+  `files/.local/share/neotodo/NeoTodo.json`; the AI terminal needs the
+  `opencode` CLI, which the APK does not bundle.
 
 The Linux-first features that were pending here are inside the snapshot:
 new-window support and the `neotodo.local` bridge, AI attachment pasting and the
