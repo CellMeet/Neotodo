@@ -367,7 +367,13 @@ class NavigationDelegate(NSObject):
             if host == "neotodo.local":
                 controller = self.controller
                 if controller is not None:
-                    controller.shell.handle_bridge(url, controller)
+                    # Window creation/closing is deferred to the next run-loop
+                    # turn, like the GTK shell's GLib.idle_add. A drag needs the
+                    # live mouse event, so it runs right here.
+                    if (url.path() or "").startswith("/window/"):
+                        controller.shell.handle_bridge(url, controller)
+                    else:
+                        AppHelper.callAfter(controller.shell.handle_bridge, url, controller)
                 handler(POLICY_CANCEL)
                 return
             if scheme in ("http", "https") and host in ("127.0.0.1", "localhost"):
@@ -557,7 +563,15 @@ class Shell:
         self._build_menu(nsapp)
 
         _log("starting Cocoa event loop")
-        AppHelper.runEventLoop()
+        # Drive NSApplication directly instead of AppHelper.runEventLoop's
+        # NSApplicationMain default: this process has no nib, and finishing the
+        # launch ourselves means applicationDidFinishLaunching opens the first
+        # window exactly once.
+        try:
+            nsapp.finishLaunching()
+            nsapp.run()
+        finally:
+            self.shutdown()
 
     def on_launch(self) -> None:
         self.open_main_window()
