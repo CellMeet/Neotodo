@@ -1,0 +1,62 @@
+{
+  "id": "nord",
+  "name": "北境",
+  "englishName": "Nord",
+  "version": "1.0.0",
+  "description": "北欧的雪与峡湾：石板蓝的纸、霜蓝的强调色，安静、克制、适合长时间阅读。",
+  "author": "NeoTodo",
+  "license": "CC BY 4.0",
+  "tags": [
+    "dark",
+    "nord",
+    "calm",
+    "blue"
+  ],
+  "theme": {
+    "paper": "#2e3440",
+    "paper2": "#292e39",
+    "ink": "#eceff4",
+    "muted": "#9aa5b8",
+    "accent": "#88c0d0",
+    "accent2": "#81a1c1",
+    "border": "#3b4252",
+    "stamp": "#a3be8c",
+    "line": "#434c5e",
+    "rule": "#4c566a",
+    "lineAlpha": 0.85,
+    "ruleAlpha": 0.55,
+    "glow": "rgba(136,192,208,.2)",
+    "motif": "❄",
+    "quote": "Cold air, clear thoughts."
+  },
+  "chrome": {
+    "baseline": "#434c5e",
+    "row": "#434c5e",
+    "submit": "#88c0d0",
+    "highlight": "#88c0d0"
+  },
+  "note": {
+    "paper": "#2e3440",
+    "ink": "#eceff4",
+    "muted": "#9aa5b8",
+    "rule": "#434c5e",
+    "accent": "#88c0d0",
+    "accent2": "#a3be8c",
+    "handle": "#d8dee9"
+  },
+  "ai": {
+    "bg": "#292e39",
+    "soft": "#2e3440",
+    "ink": "#eceff4",
+    "inkSoft": "#d8dee9",
+    "muted": "#9aa5b8",
+    "faint": "#616e88",
+    "line": "#3b4252",
+    "lineStrong": "#434c5e",
+    "accent": "#88c0d0",
+    "notice": "#d08770",
+    "handle": "#d8dee9"
+  },
+  "preview": "preview.svg",
+  "icon": "icon.svg"
+}

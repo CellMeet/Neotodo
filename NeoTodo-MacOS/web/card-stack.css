@@ -1,0 +1,379 @@
+/* ==========================================================================
+   CARD STACK
+   --------------------------------------------------------------------------
+   The floating cards are sheets lying on the desk, not a thick stack of paper:
+
+       the task page                (printed on the room, never lifts)
+       the finished-subtasks card   lies ON the task page
+       the Doing card               lies ON the finished-subtasks card
+
+   The overlap is clear but not a deck. A card keeps its ink-green stroke and
+   throws its own shadow onto the sheet under it (the light is at the
+   top-right). There is no second sheet, no coloured deck edge and no extra
+   paper peeking out: the card above simply rests on the card below.
+
+   The cards never share a layout slot. Opening or closing one only changes its
+   own opacity/transform; the other keeps the exact same box, so the Doing card
+   can slide out without shoving the finished card off its column, and the
+   finished card can open without changing the Doing card's hover strip (which
+   app.js measures from .current-half alone).
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------ the pile ---
+     One shadow for every card made the pile flat, and a flat pile is what
+     "these cards do not feel independent" looks like: three identical
+     rectangles of the same paper, lit the same way, are read as one surface
+     with lines drawn on it.
+
+     A stack is read from the height *difference* between its sheets, so each
+     card now owns its own rung. Every rung is built from the same two parts:
+
+       contact  the tight, dark seam between this sheet and the sheet under
+                it. Two cream cards on cream paper only separate because one
+                drops a small hard shadow on the other, so this is the whole
+                stacking cue.
+
+       air      one mid layer and one wide layer. They carry the card's
+                height: the live card barely leaves the page, the finished
+                card is one step up, the Doing card floats over both.
+
+     The direction never changes (light top-right, shadow down-left), the
+     paper never changes, and no rung paints a second sheet, a deck edge or a
+     coloured under-paper: the seam is always a blurred shadow, never a line.
+  */
+
+  /* Bottom sheet: the live subtask card lying straight on the task page. It
+     hugs the paper — a seam at its lower-left edge and very little air. */
+  --card-sheet-page:
+    -1px 2px 4px -2px rgba(18, 10, 4, 0.34),
+    -4px 8px 16px -12px rgba(18, 10, 4, 0.30),
+    -14px 26px 44px -34px rgba(18, 10, 4, 0.16);
+
+  /* Middle sheet: a card resting on another card. One readable step up. */
+  --card-sheet-card:
+    -2px 3px 6px -3px rgba(18, 10, 4, 0.42),
+    -8px 16px 28px -18px rgba(18, 10, 4, 0.40),
+    -22px 42px 66px -44px rgba(18, 10, 4, 0.26);
+
+  /* Top sheet: the Doing card floating over the pile. The seam is the
+     darkest of the three and the air reaches furthest. */
+  --card-sheet-top:
+    -2px 4px 7px -3px rgba(18, 10, 4, 0.46),
+    -11px 22px 38px -22px rgba(18, 10, 4, 0.44),
+    -34px 64px 100px -58px rgba(18, 10, 4, 0.30);
+
+  /* The same rungs with the shadow thrown to the right, for a card docked on
+     the desk's left border: same light, mirrored side. */
+  --card-sheet-card-left:
+    2px 3px 6px -3px rgba(18, 10, 4, 0.42),
+    8px 16px 28px -18px rgba(18, 10, 4, 0.40),
+    22px 42px 66px -44px rgba(18, 10, 4, 0.26);
+
+  --card-sheet-top-left:
+    2px 4px 7px -3px rgba(18, 10, 4, 0.46),
+    11px 22px 38px -22px rgba(18, 10, 4, 0.44),
+    34px 64px 100px -58px rgba(18, 10, 4, 0.30);
+
+  /* The card's own cut edge, painted inside the stroke. It is what makes the
+     sheet feel like paper and not like a painted rectangle: the top edge
+     catches the room light, the bottom edge turns away from it. The bottom
+     sheet only gets the shaded edge — it is underneath the pile and no light
+     reaches its top — while the two upper sheets get both. These are inset
+     shadows on the card itself, never a second element. */
+  --card-bevel-page:
+    inset 0 -2px 3px -2px rgba(18, 10, 4, 0.20);
+
+  --card-bevel-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.50),
+    inset 0 -1px 0 rgba(18, 10, 4, 0.10);
+
+  --card-bevel-top:
+    inset 0 1px 0 rgba(255, 255, 255, 0.56),
+    inset 0 -1px 0 rgba(18, 10, 4, 0.12);
+
+  /* On the wallpaper theme a card is made of the room's own picture, so its
+     face would otherwise be identical to the page behind it. Every card gets
+     exactly the same single 7% wash — no top/bottom sheen and no per-level
+     strength — so the subtask area, the finished card and the Doing card are
+     tinted once against the same wallpaper instead of looking progressively
+     darker. The wash colour is the wallpaper's own sampled tint, not the
+     theme paper: a dark theme paper sat on the picture as a grey veil and made
+     the cards look washed out. This is a surface step, not another card: no
+     coloured edge or under-sheet is painted. */
+  --card-face-wash: color-mix(
+    in srgb,
+    var(--wallpaper-tint, var(--overlay-paper, #f7efe3)) 7%,
+    transparent
+  );
+  --card-edge-light: inset 0 2px 0 rgba(255, 255, 255, 0.48);
+  --card-edge-shade: inset 0 -2px 0 rgba(0, 0, 0, 0.10);
+
+  /* Compatibility aliases for the plugin theme bridge and older card rules.
+     They resolve to the rungs above, so a plugin that still asks for the old
+     names follows the pile instead of pinning one flat shadow. */
+  --card-overlap-shadow: var(--card-sheet-card);
+  --card-overlap-shadow-left: var(--card-sheet-card-left);
+  --card-lift-page: var(--card-sheet-page);
+  --card-lift-card: var(--card-sheet-card);
+  --card-lift-tray: var(--card-sheet-card);
+  --card-lift-card-left: var(--card-sheet-card-left);
+}
+
+/* Dark paper (a dark theme pack): a warm near-black shadow on a near-black
+   page cannot separate anything, so the dark rungs are neutral and heavier,
+   and the bevel turns into the lighting. Same ladder, same direction: only the
+   ink of the shadow changes. */
+html[data-postcard-dark="true"] {
+  --card-sheet-page:
+    -1px 2px 4px -2px rgba(0, 0, 0, 0.55),
+    -4px 8px 16px -12px rgba(0, 0, 0, 0.45),
+    -14px 26px 44px -34px rgba(0, 0, 0, 0.26);
+
+  --card-sheet-card:
+    -2px 3px 6px -3px rgba(0, 0, 0, 0.62),
+    -8px 16px 28px -18px rgba(0, 0, 0, 0.55),
+    -22px 42px 66px -44px rgba(0, 0, 0, 0.38);
+
+  --card-sheet-top:
+    -2px 4px 7px -3px rgba(0, 0, 0, 0.70),
+    -11px 22px 38px -22px rgba(0, 0, 0, 0.60),
+    -34px 64px 100px -58px rgba(0, 0, 0, 0.42);
+
+  --card-sheet-card-left:
+    2px 3px 6px -3px rgba(0, 0, 0, 0.62),
+    8px 16px 28px -18px rgba(0, 0, 0, 0.55),
+    22px 42px 66px -44px rgba(0, 0, 0, 0.38);
+
+  --card-sheet-top-left:
+    2px 4px 7px -3px rgba(0, 0, 0, 0.70),
+    11px 22px 38px -22px rgba(0, 0, 0, 0.60),
+    34px 64px 100px -58px rgba(0, 0, 0, 0.42);
+
+  --card-bevel-page:
+    inset 0 -2px 3px -2px rgba(0, 0, 0, 0.45);
+
+  --card-bevel-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+
+  --card-bevel-top:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.40);
+}
+
+/* Dark paper without a wallpaper: the page and the cards are the same
+   near-black sheet, so a black shadow on black cannot separate them — the pile
+   would fall back to three outlined rectangles. The face steps up a little
+   instead, and the steps follow the ladder: the live card least, the finished
+   card more, the Doing card most. That is how a raised surface catches light in
+   a dark room, and it is a surface step on the card itself, never a second
+   sheet. With a wallpaper the picture pane supplies the face, so this rule
+   steps aside. */
+html[data-postcard-dark="true"]:not([data-wallpaper]) body #pending-subtask-card {
+  background-color: color-mix(in srgb, var(--overlay-paper, #f7efe3) 94%, var(--overlay-ink, #f7efe3)) !important;
+}
+
+html[data-postcard-dark="true"]:not([data-wallpaper]) body #completed-subtask-drawer,
+html[data-postcard-dark="true"]:not([data-wallpaper]) body .trash-drawer {
+  background-color: color-mix(in srgb, var(--overlay-paper, #f7efe3) 90%, var(--overlay-ink, #f7efe3)) !important;
+}
+
+html[data-postcard-dark="true"]:not([data-wallpaper]) body #doing-peek {
+  background-color: color-mix(in srgb, var(--overlay-paper, #f7efe3) 86%, var(--overlay-ink, #f7efe3)) !important;
+}
+
+/* The Doing card prints its paper through a veil over its art. On dark paper
+   that veil would hand back the page's own shade, so it carries the top step
+   too and the card keeps its place at the top of the pile. */
+html[data-postcard-dark="true"]:not([data-wallpaper]) body #doing-peek::before {
+  background: color-mix(in srgb, var(--overlay-paper, #f7efe3) 86%, var(--overlay-ink, #f7efe3)) !important;
+  opacity: 0.92 !important;
+}
+
+/* The live subtask card is the bottom sheet: it lies straight on the task page.
+   Its ::after paints the ink-green stroke; the page rung — one tight seam and
+   almost no air — is what makes it read as a sheet lying on the page instead
+   of paint on the page. */
+body #pending-subtask-card {
+  box-shadow: var(--card-sheet-page), var(--card-bevel-page) !important;
+}
+
+/* Folded down to its handle the card is gone; the page shows through, so no
+   shadow may be left behind the tab. */
+body #pending-subtask-card.collapsed {
+  box-shadow: none !important;
+}
+
+/* Top of the pile: the right-edge Doing card rests on the finished card. It
+   keeps the top rung, so the extra height is visible the moment both are out
+   at the same time. */
+body #doing-peek {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-sheet-top), var(--card-bevel-top) !important;
+}
+
+/* The finished-subtasks card rests on the task page below it: one rung above
+   the live sheet, one below the Doing card. */
+body .completed-subtask-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-sheet-card), var(--card-bevel-card) !important;
+}
+
+/* The magic-hat drawer is the same sheet: it lies straight on the task page,
+   carries the shared ink-green stroke and the card rung. The inset
+   ring draws the stroke because the drawer has no real border. Its card is
+   painted above the categories spine it opens over, while staying below the
+   postcard, Settings and Community sheets. `isolation` keeps the paper and its
+   wallpaper coating in one card layer instead of letting the spine's own
+   pattern show through it. */
+body .trash-drawer {
+  z-index: 155;
+  isolation: isolate;
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-sheet-card),
+    var(--card-bevel-card) !important;
+}
+
+/* The live subtask card is the bottom sheet: it lies on the task page with the
+   same ink-green stroke and the page rung, with or without a wallpaper. With a
+   wallpaper its picture pane supplies the face; this rule out-ranks the
+   wallpaper fallback lift so the pile keeps its own ladder. */
+html[data-wallpaper][data-wallpaper-cards] body #pending-subtask-card {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-sheet-page) !important;
+}
+
+/* Folded down to its handle the card is gone; the page shows through, so no
+   shadow may be left behind the tab. */
+html[data-wallpaper][data-wallpaper-cards] body #pending-subtask-card.collapsed {
+  box-shadow: none !important;
+}
+
+/* With a wallpaper the picture pane supplies the face edge to edge, so the
+   element's 1px border is painted the same ink green as the pane's inset
+   stroke: a transparent border would let the room show through as a thin line
+   tinted by the background. The pane also covers the card's face, so the bevel
+   lives on the pane's own rule further down instead of on the element.
+
+   The fallback in wallpaper-layers.css is scoped with two attributes and no
+   id, so an attribute-scoped pile rule ties with it on ids and loses on
+   attributes — the cards fell back to one flat shadow and the ladder vanished
+   on every wallpaper theme. Answering with each card's own id puts the rung
+   back on top of the fallback wherever the card is made of the room. */
+html[data-wallpaper][data-wallpaper-cards] body #doing-peek {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-sheet-top) !important;
+}
+
+html[data-wallpaper][data-wallpaper-cards] body #completed-subtask-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  box-shadow: var(--card-sheet-card) !important;
+}
+
+html[data-wallpaper][data-wallpaper-cards] body #trash-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  background-color: var(--overlay-paper, var(--paper, #f3efe2)) !important;
+  box-shadow: var(--card-sheet-card) !important;
+}
+
+/* Wallpaper-theme card faces: one shared paper wash, a light top bevel and a
+   shaded bottom edge. The finished card and the Doing card use the same wash as
+   the live subtask card; their old per-level washes sat heavier on the picture
+   and made both cards look dimmed. The wash lives on the wallpaper pane, under
+   the card's text, and adds no separate sheet or coloured border. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card > .card-wallpaper::after {
+  background: var(--card-face-wash);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
+}
+
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer > .card-wallpaper::after {
+  background: var(--card-face-wash);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
+}
+
+html[data-wallpaper][data-wallpaper-cards] #doing-peek > .card-wallpaper::after {
+  background: var(--card-face-wash);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
+}
+
+html[data-wallpaper][data-wallpaper-cards] .trash-drawer > .card-wallpaper::after {
+  background: var(--card-face-wash);
+  box-shadow:
+    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    var(--card-edge-light),
+    var(--card-edge-shade);
+}
+
+/* The finished sheet still carries one faint inner light along its top. It is
+   a panel inside the card, not a second sheet: the contact shadow under the
+   card is the only thing that shows its place in the pile. */
+body .completed-subtask-sheet,
+html[data-wallpaper] body .completed-subtask-drawer .completed-subtask-sheet {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+/* On a wallpaper the pane supplies the card face and its inset stroke, so the
+   drawer drops its own ring and keeps only the card rung. The opaque
+   paper under the pane is deliberate: the hat card opens over the categories
+   spine, and if the pane has any transparent edge the spine's pattern must
+   never show through the card. */
+html[data-wallpaper] body .trash-drawer {
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  background-color: var(--overlay-paper, var(--paper, #f3efe2)) !important;
+  box-shadow: var(--card-sheet-card) !important;
+}
+
+/* The cards are sheets of paper, not framed pictures: the lower edge of the
+   shadow needs room outside the task column. Without this the clip leaves a
+   small grey wedge under the live card's rounded bottom-left corner. The
+   card's own overflow still clips its rows, and a real scrollport keeps its
+   own auto overflow. */
+html[data-theme="postcard"] .current-half,
+html[data-theme="postcard"] .current-inner {
+  overflow: visible;
+}
+
+/* The two cards share the same desk without one shoving the other: sliding the
+   Doing card out must never move the finished-subtasks card off its column.
+   The contact shadow already says which sheet lies on top, so the finished
+   card keeps its own box whether the Doing card is open or tucked away. */
+
+/* A card docked on the left border throws its shadow into the room, to the
+   right: same light, mirrored side, same top rung. */
+body.doing-dock-left #doing-peek {
+  box-shadow: var(--card-sheet-top-left), var(--card-bevel-top) !important;
+}
+
+html[data-wallpaper] body.doing-dock-left #doing-peek {
+  box-shadow: var(--card-sheet-top-left) !important;
+}
+
+/* ------------------------------------------------- categories is not a card --- */
+
+/* The spine belongs to the room. Strip any card radius or shadow a theme might
+   have added, so the categories can never read as another sheet in the pile.
+   The row rules, the selection wash and the cat-dot are untouched. */
+.index,
+.index-head,
+.category-list,
+.index-foot,
+.category-item {
+  border-radius: 0 !important;
+}
+
+.index,
+.category-list {
+  box-shadow: none !important;
+}

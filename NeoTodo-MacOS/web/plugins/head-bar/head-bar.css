@@ -1,0 +1,681 @@
+/* ==========================================================================
+   HEAD BAR PLUGIN — a sea-salt crystal Dynamic Island for the notebook.
+   --------------------------------------------------------------------------
+   Hover the clock and a small rounded sea-salt capsule drops out of the top
+   border.
+   Click it and the whole working surface rolls upward, leaving only the room's
+   wallpaper. Click the island again to return.
+
+   Everything is scoped to .head-bar* or to body.head-bar-* state classes. The
+   plugin folder owns all of it; the rest of NeoTodo is untouched.
+   ========================================================================== */
+
+.head-bar {
+  --head-bar-left: 50%;
+  --head-bar-height: 56px;
+  --head-bar-hit-width: 190px;
+  --head-bar-island-width: 132px;
+  position: fixed;
+  top: 0;
+  left: var(--head-bar-left);
+  width: var(--head-bar-hit-width);
+  height: var(--head-bar-height);
+  z-index: 150;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 0.20s ease, height 0.38s cubic-bezier(0.55, 0.06, 0.68, 0.19);
+}
+
+body.app-ready.head-bar-ready .head-bar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Disabled through Settings → Plugins. */
+[data-plugin].plugin-hidden { display: none !important; }
+
+/* Detached AI / note windows are dedicated surfaces; the parent app owns the
+   Head Bar, so never show it there. */
+body.detached-mode .head-bar { display: none !important; }
+
+/* A sea-salt bottle rod: a translucent glass body with vertical hexagonal
+   facets, a bright central light shaft and a luminous lower edge. The colours
+   are variables so the plugin can switch between the blue and pink bottles. */
+.head-bar-island {
+  --hb-bottle-top: #f7fdff;
+  --hb-bottle-upper: #d8f6ff;
+  --hb-bottle-mid: #8edcf7;
+  --hb-bottle-low: #4fc3ec;
+  --hb-bottle-bottom: #1a9fd5;
+  --hb-rim: rgba(28, 132, 170, 0.75);
+  --hb-rim-dark: rgba(16, 96, 128, 0.32);
+  --hb-facet: rgba(255, 255, 255, 0.42);
+  --hb-facet-dark: rgba(20, 105, 140, 0.18);
+  --hb-glow: rgba(190, 245, 255, 0.65);
+  --hb-shadow: rgba(5, 45, 65, 0.32);
+  --head-bar-island-height: 12px;
+  --head-bar-island-rise: 6px;
+  position: absolute;
+  /* Raised by half a bar thickness from the previous one-bar drop. */
+  top: calc(2px + var(--head-bar-island-rise));
+  left: 50%;
+  width: var(--head-bar-island-width);
+  height: var(--head-bar-island-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  overflow: hidden;
+  background:
+    /* Central prism light shaft. */
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0 30%,
+      rgba(255, 255, 255, 0.16) 36%,
+      rgba(255, 255, 255, 0.62) 44%,
+      rgba(255, 255, 255, 0.16) 50%,
+      rgba(255, 255, 255, 0) 56% 100%
+    ),
+    /* Narrow vertical faces of the hexagonal prism. */
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0 17px,
+      var(--hb-facet) 17px 17.6px,
+      var(--hb-facet-dark) 17.6px 18.2px,
+      rgba(255, 255, 255, 0) 18.2px 35px
+    ),
+    /* A diagonal specular pane across the glass. */
+    linear-gradient(
+      112deg,
+      rgba(255, 255, 255, 0) 0 18%,
+      rgba(255, 255, 255, 0.22) 20%,
+      rgba(255, 255, 255, 0.02) 38%,
+      rgba(255, 255, 255, 0) 46% 100%
+    ),
+    linear-gradient(
+      180deg,
+      var(--hb-bottle-top) 0%,
+      var(--hb-bottle-upper) 20%,
+      var(--hb-bottle-mid) 50%,
+      var(--hb-bottle-low) 78%,
+      var(--hb-bottle-bottom) 100%
+    );
+  border: 1px solid var(--hb-rim);
+  box-shadow:
+    0 1px 3px var(--hb-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 var(--hb-glow),
+    inset 0 -3px 4px var(--hb-rim-dark),
+    inset 1px 0 0 rgba(255, 255, 255, 0.50),
+    inset -1px 0 0 var(--hb-rim);
+  opacity: 0;
+  transform: translate(-50%, -175%) scaleY(0.55);
+  transform-origin: 50% 0%;
+  /* The island is a hover reveal, so it has to be on screen by the time the
+     pointer arrives. The old 0.46s spring finished long after a quick move
+     across the clock had already left the strip, which read as a slow popup.
+     A short 0.14s travel with no overshoot now pops it out immediately. */
+  transition:
+    opacity 0.08s ease,
+    transform 0.14s cubic-bezier(0.2, 0.9, 0.25, 1);
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+
+/* Sea Salt Pink: the same prismatic glass in the blush bottle colour. */
+body[data-head-bar-style="pink"] .head-bar-island {
+  --hb-bottle-top: #fff8fa;
+  --hb-bottle-upper: #ffe4ed;
+  --hb-bottle-mid: #fbc1d4;
+  --hb-bottle-low: #f792b2;
+  --hb-bottle-bottom: #df6b93;
+  --hb-rim: rgba(190, 92, 126, 0.75);
+  --hb-rim-dark: rgba(150, 58, 88, 0.30);
+  --hb-facet: rgba(255, 255, 255, 0.44);
+  --hb-facet-dark: rgba(170, 70, 105, 0.18);
+  --hb-glow: rgba(255, 220, 233, 0.72);
+  --hb-shadow: rgba(80, 20, 40, 0.30);
+}
+
+/* A long, angled ice pane catches the light across the left half. */
+.head-bar-island::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 8%;
+  width: 38%;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.52) 40%,
+    rgba(255, 255, 255, 0.10) 72%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-22deg);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* The tiny white glint that makes the capsule read as a polished gem. */
+.head-bar-island::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 16%;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.22) 65%, transparent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* The capsule itself is the Head Bar now, so the old inner status line is not
+   needed. Keep the node hidden for compatibility with the plugin markup. */
+.head-bar-line {
+  display: none;
+}
+
+.head-bar:hover .head-bar-island,
+.head-bar:focus-visible .head-bar-island,
+.head-bar:active .head-bar-island{
+  opacity: 1;
+  transform: translate(-50%, 0) scaleY(1);
+}
+
+/* Just after a collapse the pointer is still on the trigger strip. Keep the
+   island hidden until the pointer leaves and comes back to the top. */
+.head-bar.head-bar-suppress-hover .head-bar-island {
+  opacity: 0 !important;
+  transform: translate(-50%, -175%) scaleY(0.55) !important;
+}
+
+/* The clock zone owns this strip: the old hidden top bar must not unfold the
+   settings/music icons while the pointer is over the time digits. */
+body.head-bar-hover .top-tools {
+  opacity: 0 !important;
+  transform: translateY(-115%) !important;
+  pointer-events: none !important;
+}
+
+/* The plugin detail toggle only talks about the switch; hide the generic
+   "sits in the left tool rail" line that does not apply to a chrome plugin. */
+[data-action="toggle-plugin"][data-plugin-id="head-bar"] .toggle-copy small {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Collapsed: the working surface rolls upward and only the wallpaper is left.
+   -------------------------------------------------------------------------- */
+
+body.head-bar-collapsed .head-bar {
+  /* Collapsed: a nearly invisible top strip. Move the pointer here and the
+     island drops back out, ready to restore the workspace. */
+  height: 44px !important;
+}
+
+body.head-bar-ready .app-shell > .notebook-head,
+body.head-bar-ready .app-shell > .notebook {
+  transition:
+    transform 0.52s cubic-bezier(0.55, 0.06, 0.68, 0.19),
+    opacity 0.30s ease;
+  will-change: transform, opacity;
+}
+
+body.head-bar-collapsed:not([data-head-bar-effect="burn"]) .app-shell > .notebook-head {
+  transform: translateY(-110%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.head-bar-collapsed:not([data-head-bar-effect="burn"]) .app-shell > .notebook {
+  transform: translateY(-115%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Burn effect: the page lights up like charred paper, blackened patches curl,
+   smoke drifts up, and the ink burns away to reveal the wallpaper. Restoring
+   runs the same keyframes backwards for a time-reversal feel.
+   -------------------------------------------------------------------------- */
+
+.head-bar-burn-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 148;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 62%, rgba(255, 198, 96, 0.60) 0%, rgba(255, 112, 24, 0.30) 38%, rgba(255, 82, 10, 0) 74%),
+    linear-gradient(180deg, rgba(255, 128, 26, 0) 0%, rgba(255, 128, 26, 0.05) 55%, rgba(255, 82, 10, 0.20) 100%);
+  mix-blend-mode: screen;
+  will-change: opacity;
+}
+
+.head-bar-burn-char {
+  position: fixed;
+  inset: 0;
+  z-index: 146;
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: 50% 100%;
+  background:
+    radial-gradient(ellipse 18% 11% at 22% 28%, rgba(28, 17, 10, 0.80) 0%, rgba(64, 35, 16, 0.42) 45%, transparent 74%),
+    radial-gradient(ellipse 14% 9% at 78% 67%, rgba(25, 15, 8, 0.76) 0%, rgba(58, 31, 14, 0.38) 45%, transparent 73%),
+    radial-gradient(ellipse 11% 7% at 52% 44%, rgba(34, 20, 12, 0.62) 0%, transparent 72%),
+    radial-gradient(ellipse 20% 12% at 62% 21%, rgba(38, 22, 12, 0.55) 0%, transparent 72%),
+    radial-gradient(ellipse 15% 10% at 30% 79%, rgba(28, 17, 10, 0.64) 0%, transparent 73%);
+  filter: blur(0.4px);
+  mix-blend-mode: multiply;
+  will-change: opacity, transform;
+}
+
+.head-bar-burn-smoke {
+  position: fixed;
+  inset: 0;
+  z-index: 149;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.head-bar-burn-smoke i {
+  position: absolute;
+  display: block;
+  width: var(--s, 90px);
+  height: var(--s, 90px);
+  left: var(--x, 50%);
+  top: var(--y, 65%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(198, 190, 180, 0.58) 0%, rgba(138, 130, 122, 0.30) 44%, transparent 72%);
+  filter: blur(var(--b, 11px));
+  opacity: 0;
+  transform: translateY(18px) scale(0.6);
+  will-change: opacity, transform;
+}
+
+.head-bar-burn-smoke i:nth-child(1) { --x: 15%; --y: 68%; --s: 105px; --b: 13px; --d: 0s; }
+.head-bar-burn-smoke i:nth-child(2) { --x: 31%; --y: 58%; --s: 80px; --b: 11px; --d: 0.03s; }
+.head-bar-burn-smoke i:nth-child(3) { --x: 47%; --y: 72%; --s: 120px; --b: 15px; --d: 0.01s; }
+.head-bar-burn-smoke i:nth-child(4) { --x: 63%; --y: 61%; --s: 92px; --b: 12px; --d: 0.05s; }
+.head-bar-burn-smoke i:nth-child(5) { --x: 78%; --y: 70%; --s: 110px; --b: 14px; --d: 0.02s; }
+.head-bar-burn-smoke i:nth-child(6) { --x: 88%; --y: 55%; --s: 70px; --b: 10px; --d: 0.06s; }
+.head-bar-burn-smoke i:nth-child(7) { --x: 40%; --y: 48%; --s: 72px; --b: 10px; --d: 0.04s; }
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-glow {
+  animation: head-bar-burn-glow 1.25s ease-out both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-glow {
+  animation: head-bar-burn-glow 1.25s ease-out reverse both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-char {
+  animation: head-bar-char-curl 1.25s ease-out both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-char {
+  animation: head-bar-char-curl 1.25s ease-out reverse both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-smoke {
+  animation: head-bar-smoke-wrap 1.25s ease-out both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-smoke {
+  animation: head-bar-smoke-wrap 1.25s ease-out reverse both;
+}
+
+body[data-head-bar-effect="burn"].head-bar-collapsed .head-bar-burn-smoke i {
+  animation: head-bar-smoke-puff 1.25s ease-out both;
+  animation-delay: var(--d, 0s);
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .head-bar-burn-smoke i {
+  animation: head-bar-smoke-puff 1.25s ease-out reverse both;
+  animation-delay: var(--d, 0s);
+}
+
+body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook-head,
+body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook {
+  transform: none !important;
+  transform-origin: 50% 100%;
+  pointer-events: none !important;
+  animation: head-bar-burn-away 1.25s cubic-bezier(0.4, 0.05, 0.6, 0.95) both !important;
+  transition: none !important;
+}
+
+body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook-head,
+body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook {
+  transform: none !important;
+  transform-origin: 50% 100%;
+  animation: head-bar-burn-away 1.25s cubic-bezier(0.4, 0.05, 0.6, 0.95) reverse both !important;
+  transition: none !important;
+}
+
+@keyframes head-bar-burn-away {
+  0% {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  16% {
+    opacity: 1;
+    filter: brightness(1.35) sepia(0.35) saturate(1.5) drop-shadow(0 0 10px rgba(255, 150, 40, 0.35));
+  }
+  44% {
+    opacity: 0.97;
+    filter: brightness(1.8) sepia(0.8) saturate(2.3) hue-rotate(-12deg) drop-shadow(0 0 16px rgba(255, 140, 30, 0.55));
+  }
+  68% {
+    opacity: 0.48;
+    filter: brightness(1.25) sepia(0.95) saturate(1.6) blur(0.3px);
+    transform: perspective(900px) rotateX(-2deg) translateY(-4px) scale(0.995);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(0.42) sepia(1) blur(2px);
+    transform: perspective(900px) rotateX(-7deg) translateY(-18px) scale(0.965);
+  }
+}
+
+@keyframes head-bar-char-curl {
+  0% {
+    opacity: 0;
+    transform: scale(1) translateY(0);
+  }
+  32% {
+    opacity: 0.58;
+    transform: scale(1.004) translateY(-1px);
+  }
+  66% {
+    opacity: 0.82;
+    transform: scale(1.012) translateY(-4px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.025) translateY(-10px);
+  }
+}
+
+@keyframes head-bar-burn-glow {
+  0% { opacity: 0; }
+  18% { opacity: 0.9; }
+  55% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+@keyframes head-bar-smoke-wrap {
+  0%, 100% { opacity: 0; }
+  14% { opacity: 1; }
+  72% { opacity: 0.9; }
+}
+
+@keyframes head-bar-smoke-puff {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.55);
+  }
+  22% {
+    opacity: 0.85;
+  }
+  68% {
+    opacity: 0.55;
+    transform: translateY(-42px) scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-96px) scale(1.65);
+  }
+}
+
+/* Only the room's wallpaper remains behind the blue island. */
+body.head-bar-collapsed .app-shell {
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* The collapsed room follows the same recipe as the right-hand Doing card.
+
+     - A still wallpaper gives the room that wallpaper's own theme: the theme's
+       sheet is laid over the picture at the same gentle strength the still
+       card uses (18% → 5%), and a hairline inner edge gives the whole window
+       the card's cut edge. The picture itself is never covered or moved.
+
+     - A film cannot be read as one palette, so it keeps its motion and takes
+       the reading mask instead — the same denser sheet the film card wears,
+       eased a little because no rows have to be read across the whole room. */
+
+html[data-wallpaper] body.head-bar-collapsed .app-shell {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 18%, transparent),
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 10%, transparent) 42%,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 5%, transparent)
+  ) !important;
+  box-shadow: inset 0 0 0 1px var(--wallpaper-glass-edge, rgba(0, 0, 0, 0.16)) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* A film: the picture moves under a paper mask, never under a still tint. */
+html[data-wallpaper][data-wallpaper-motion="film"] body.head-bar-collapsed .app-shell {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 46%, transparent),
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 34%, transparent) 42%,
+    color-mix(in srgb, var(--doing-paper, var(--pc-paper, #f7efe3)) 24%, transparent)
+  ) !important;
+}
+
+html[data-wallpaper] body.head-bar-collapsed .app-shell::before,
+html[data-wallpaper] body.head-bar-collapsed .app-shell::after{
+  opacity: 0 !important;
+}
+
+/* Older engines without color-mix() still get a mask, just a flat one. */
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  html[data-wallpaper] body.head-bar-collapsed .app-shell {
+    background-image: linear-gradient(
+      180deg,
+      rgba(247, 239, 227, 0.14),
+      rgba(247, 239, 227, 0.06)
+    ) !important;
+  }
+  html[data-wallpaper][data-wallpaper-motion="film"] body.head-bar-collapsed .app-shell {
+    background-image: linear-gradient(
+      180deg,
+      rgba(247, 239, 227, 0.38),
+      rgba(247, 239, 227, 0.24)
+    ) !important;
+  }
+}
+
+/* Floating workspace pieces live outside .app-shell, so hide them explicitly. */
+body.head-bar-collapsed .top-edge,
+body.head-bar-collapsed .top-tools,
+body.head-bar-collapsed .tool-rail,
+body.head-bar-collapsed #doing-peek,
+body.head-bar-collapsed .archive-drawer,
+body.head-bar-collapsed .archive-backdrop,
+body.head-bar-collapsed .trash-drawer,
+body.head-bar-collapsed .sound-panel,
+body.head-bar-collapsed #sound-panel,
+body.head-bar-collapsed #timer-root,
+body.head-bar-collapsed #modal-root,
+body.head-bar-collapsed .toast {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* The two bottom door lines are fixed to the viewport, so they would otherwise
+   pop back in the instant the workspace starts returning. Keep them hidden
+   until the page has landed; head-bar-restoring is cleared by the plugin. */
+body.head-bar-collapsed .desk-handle-ai,
+body.head-bar-collapsed .notes-handle-bottom,
+body.head-bar-restoring .desk-handle-ai,
+body.head-bar-restoring .notes-handle-bottom {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Every fixed piece waits for the page to land. This keeps the right-hand
+   Doing card, timer and drawers from appearing before the workspace returns. */
+body.head-bar-restoring .top-edge,
+body.head-bar-restoring .top-tools,
+body.head-bar-restoring .tool-rail,
+body.head-bar-restoring #doing-peek,
+body.head-bar-restoring .archive-drawer,
+body.head-bar-restoring .archive-backdrop,
+body.head-bar-restoring .trash-drawer,
+body.head-bar-restoring .sound-panel,
+body.head-bar-restoring #sound-panel,
+body.head-bar-restoring #timer-root,
+body.head-bar-restoring #modal-root,
+body.head-bar-restoring .toast {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.head-bar-reveal #doing-peek.open {
+  animation: head-bar-card-reveal 0.36s cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+
+@keyframes head-bar-card-reveal {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Settings → Plugins: bottle-style choice row.
+   -------------------------------------------------------------------------- */
+
+.plugin-setting-choice { display: grid; gap: 10px; padding: 2px 0; }
+.plugin-setting-choice + .plugin-setting-choice { margin-top: 10px; }
+.plugin-setting-choice-head { display: grid; gap: 3px; }
+.plugin-setting-choice-head strong {
+  color: var(--pc-ink, var(--ink));
+  font-family: var(--display, serif);
+  font-size: 13px;
+  font-weight: 600;
+}
+.plugin-setting-choice-head small {
+  color: var(--pc-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.45;
+}
+.plugin-choice-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.plugin-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--pc-border, var(--line));
+  border-radius: 10px;
+  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.3));
+  color: var(--pc-ink, var(--ink));
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+.plugin-choice:hover {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.06);
+  transform: translateY(-1px);
+}
+.plugin-choice.active {
+  border-color: var(--pc-accent, var(--gold));
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.10);
+  box-shadow: inset 0 0 0 1px rgba(var(--pc-accent-rgb, 157, 111, 28), 0.14);
+}
+.plugin-choice-swatch {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(30, 80, 110, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -2px 2px rgba(20, 70, 95, 0.24);
+}
+.plugin-choice-swatch[data-swatch="blue"] {
+  background: linear-gradient(180deg, #d8f6ff, #4fc3ec 70%, #1a9fd5);
+  border-color: rgba(28, 132, 170, 0.55);
+}
+.plugin-choice-swatch[data-swatch="pink"] {
+  background: linear-gradient(180deg, #ffe4ed, #f792b2 70%, #df6b93);
+  border-color: rgba(190, 92, 126, 0.55);
+}
+.plugin-choice-swatch[data-swatch="slide"] {
+  background: linear-gradient(180deg, #edf6ff, #b9d7f1 48%, #7fa8cf);
+  border-color: rgba(90, 138, 180, 0.55);
+}
+.plugin-choice-swatch[data-swatch="burn"] {
+  background: radial-gradient(circle at 30% 62%, #ffe18a 0%, #ff9f0a 35%, #ef5a1a 72%, #6d210c 100%);
+  border-color: rgba(190, 92, 38, 0.55);
+}
+.plugin-choice-copy { display: grid; gap: 2px; min-width: 0; }
+.plugin-choice-copy strong { font-size: 11.5px; font-weight: 650; line-height: 1.25; }
+.plugin-choice-copy small { color: var(--pc-muted, var(--muted)); font-size: 10px; line-height: 1.3; }
+
+@media (max-width: 560px) {
+  .plugin-choice-row { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .head-bar,
+  .head-bar-island,
+  body.head-bar-ready .app-shell > .notebook-head,
+  body.head-bar-ready .app-shell > .notebook {
+    transition: none !important;
+  }
+  body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook-head,
+  body.head-bar-collapsed[data-head-bar-effect="burn"] .app-shell > .notebook {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+  body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook-head,
+  body[data-head-bar-effect="burn"].head-bar-restoring .app-shell > .notebook {
+    animation: none !important;
+  }
+  .head-bar-burn-glow,
+  .head-bar-burn-char,
+  .head-bar-burn-smoke {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+  .plugin-choice { transition: none; }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "pomodoro",
+  "name": "番茄钟",
+  "englishName": "Pomodoro",
+  "version": "1.0.0",
+  "description": "带“成就”标记的番茄钟：安装后右上角会出现番茄计数器，每完成一次 25 分钟的专注就加一，耳机的成就图标会向左让出位置。",
+  "icon": "pomodoro.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "Interface",
+  "kind": "chrome",
+  "tags": ["achievement", "focus", "timer", "成就"],
+  "colors": {
+    "accent": "#FF5A4E",
+    "paper": "#f7efe3"
+  }
+}

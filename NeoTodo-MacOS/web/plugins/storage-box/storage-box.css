@@ -1,0 +1,275 @@
+/* ==========================================================================
+   收纳箱 / STORAGE BOX — host chrome
+   --------------------------------------------------------------------------
+   The box lives inside the Categories spine, right under the "Categories"
+   rule. Showing it pushes the category list down instead of covering it.
+   Everything is scoped to .storage-box-*; the notebook's own layout rules are
+   untouched apart from the rail button glyph.
+   ========================================================================== */
+
+/* The rail button keeps the user's box artwork. */
+.storage-box-button { overflow: visible; }
+
+.storage-box-glyph {
+  width: 33px;
+  height: 33px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(120, 72, 12, 0.22));
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.storage-box-button:hover .storage-box-glyph {
+  transform: translateY(-1px) rotate(-4deg) scale(1.08);
+}
+
+.storage-box-button:active .storage-box-glyph {
+  transform: scale(0.94);
+}
+
+.storage-box-button:focus,
+.storage-box-button:focus-visible {
+  outline: none !important;
+}
+
+html[data-postcard-dark="true"] .storage-box-glyph {
+  filter: drop-shadow(0 0 6px rgba(255, 201, 99, 0.30));
+}
+
+/* --------------------------------------------------------------------------
+   The box strip in the category spine.
+   -------------------------------------------------------------------------- */
+
+.storage-box {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  max-height: 0;
+  margin: 0;
+  /* A border-box cannot paint below its own frame, so a collapsed strip keeps
+     zero height only when the frame goes too. The active strip restores it. */
+  border: 0 solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    max-height 0.28s cubic-bezier(0.22, 0.8, 0.24, 1),
+    margin 0.28s cubic-bezier(0.22, 0.8, 0.24, 1),
+    opacity 0.18s ease,
+    border-width 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.storage-box.is-active {
+  max-height: 42px;
+  margin: 0 0 8px;
+  border-width: 1px;
+  border-color: color-mix(in srgb, var(--gold, #a8781f) 30%, var(--line, #ded5c2));
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, #ffc963 16%, transparent),
+      color-mix(in srgb, var(--paper, #f7efe3) 72%, transparent));
+  box-shadow: 0 6px 16px rgba(92, 60, 18, 0.10);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.storage-box.is-expanded {
+  max-height: min(42vh, 330px);
+}
+
+html[data-postcard-dark="true"] .storage-box.is-active {
+  border-color: color-mix(in srgb, #ffc963 34%, var(--line, rgba(255, 255, 255, 0.12)));
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, #ffc963 12%, transparent),
+      color-mix(in srgb, #000 18%, var(--paper, #1c1b22)));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34);
+}
+
+/* The strip is a single centred box: no name, no caret. Clicking it is what
+   unfolds the categories that live inside. */
+.storage-box-head {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink, #2b2340);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.storage-box-icon {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storage-box-head:hover .storage-box-glyph {
+  transform: rotate(-5deg) scale(1.06);
+}
+
+.storage-box-head .storage-box-glyph {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+}
+
+.storage-box-count {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--gold, #a8781f);
+  color: #fffaf0;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.storage-box-count[hidden] { display: none; }
+
+/* --------------------------------------------------------------------------
+   Stored categories
+   -------------------------------------------------------------------------- */
+
+.storage-box-tray {
+  display: none;
+  padding: 0 8px 8px;
+}
+
+.storage-box.is-expanded .storage-box-tray {
+  display: block;
+  max-height: calc(min(42vh, 330px) - 44px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--gold, #a8781f) 45%, transparent) transparent;
+}
+
+.storage-box-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.storage-box-item {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 7px;
+  border: 0;
+  border-bottom: 1px dotted color-mix(in srgb, var(--line, #ded5c2) 78%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #6b6f78);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.storage-box-item:hover {
+  color: var(--ink, #2b2340);
+  background: color-mix(in srgb, #ffc963 20%, transparent);
+}
+
+.storage-box-item-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c, var(--gold, #a8781f));
+}
+
+.storage-box-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.storage-box-return {
+  flex: 0 0 auto;
+  color: var(--gold, #a8781f);
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.storage-box-item:hover .storage-box-return,
+.storage-box-item:focus-visible .storage-box-return {
+  opacity: 1;
+}
+
+.storage-box-exit {
+  width: 100%;
+  height: 27px;
+  margin-top: 7px;
+  border: 1px dashed color-mix(in srgb, var(--gold, #a8781f) 42%, transparent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted, #6b6f78);
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.storage-box-exit[hidden] { display: none; }
+
+.storage-box-exit:hover {
+  color: var(--gold, #a8781f);
+  background: color-mix(in srgb, #ffc963 14%, transparent);
+}
+
+/* Empty box: a light knock so the centred icon still answers a click. */
+.storage-box.is-knock .storage-box-glyph {
+  animation: storage-box-knock 0.42s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+
+@keyframes storage-box-knock {
+  0%, 100% { transform: rotate(0) scale(1); }
+  22% { transform: rotate(-7deg) scale(1.05); }
+  48% { transform: rotate(5deg) scale(0.97); }
+  72% { transform: rotate(-3deg) scale(1.02); }
+}
+
+/* Collect mode: category rows read as things to put away. */
+body.storage-box-collecting .category-item:hover {
+  background: color-mix(in srgb, #ffc963 16%, transparent);
+}
+
+body.storage-box-collecting .category-item:hover .cat-name::after {
+  content: "  →";
+  color: var(--gold, #a8781f);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storage-box,
+  .storage-box-glyph,
+  .storage-box-item,
+  .storage-box-return {
+    transition: none;
+  }
+  .storage-box.is-knock .storage-box-glyph {
+    animation: none;
+  }
+}

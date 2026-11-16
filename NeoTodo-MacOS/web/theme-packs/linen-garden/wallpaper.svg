@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <pattern id="linen" width="38" height="38" patternUnits="userSpaceOnUse">
+      <path d="M0 19 H38 M19 0 V38" stroke="#2f382b" stroke-width="1" opacity=".06"/>
+    </pattern>
+    <radialGradient id="linen-glow" cx="78%" cy="18%" r="52%">
+      <stop offset="0" stop-color="#fbf8e9"/>
+      <stop offset="1" stop-color="#f2f0e4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="#f2f0e4"/>
+  <rect width="1600" height="1000" fill="url(#linen)"/>
+  <rect width="1600" height="1000" fill="url(#linen-glow)"/>
+  <circle cx="1260" cy="210" r="84" fill="#b08a5a" opacity=".18"/>
+  <g fill="none" stroke="#6f8f5a" opacity=".22">
+    <path d="M-40 860 C240 760 430 880 690 790 C940 704 1130 840 1640 700" stroke-width="22"/>
+    <path d="M-40 930 C260 840 470 950 730 864 C990 780 1210 900 1640 790" stroke-width="12"/>
+  </g>
+  <g fill="#6f8f5a" opacity=".16">
+    <ellipse cx="210" cy="772" rx="34" ry="13" transform="rotate(-28 210 772)"/>
+    <ellipse cx="252" cy="802" rx="30" ry="12" transform="rotate(24 252 802)"/>
+    <ellipse cx="360" cy="748" rx="36" ry="14" transform="rotate(-34 360 748)"/>
+    <ellipse cx="470" cy="820" rx="28" ry="11" transform="rotate(20 470 820)"/>
+    <ellipse cx="1180" cy="780" rx="34" ry="13" transform="rotate(-24 1180 780)"/>
+    <ellipse cx="1300" cy="842" rx="30" ry="12" transform="rotate(26 1300 842)"/>
+  </g>
+</svg>

@@ -1,0 +1,117 @@
+/* ==========================================================================
+   FINISHED-CARD ROW BASELINE
+   --------------------------------------------------------------------------
+   This file owns the hairline inside the finished-subtasks card, never the
+   page sheet and never the Doing panel:
+
+     .completed-subtask-drawer .current-subtask   finished-subtasks card
+
+   The page's ruled grid belongs to page_line (page-line.css): one object, one
+   colour, whether a task row carries text or is an empty filler. The live
+   subtask lane and the Doing panel also read page_line for their line colour,
+   so those regions can never drift away from the page.
+
+   The stored solid / gradient / height choice still describes the row
+   treatment, but the rule is no longer private: the finished card is printed
+   on the same sheet as the live subtask lane and the Doing card, so every mode
+   paints the one page_line colour *and weight*. The card therefore always
+   matches the line under the subtask names, even when the reader changes Page
+   line. A finished row can land on its own line without visibly reprinting it.
+
+   The rows already paint their own border; this file only replaces its fill.
+   ========================================================================== */
+
+:root {
+  /* Kept so an older baseline-rule.json or a settings preview still resolves a
+     value; the card hairline itself reads --baseline-row-paint below. */
+  --baseline-row-color: #333333;
+  --baseline-row-color-2: #a8691f;
+  --baseline-row-angle: 0deg;
+  --baseline-row-image: linear-gradient(90deg, #333333, #a8691f);
+  /* One weight for the finished card, the live lane and the Doing panel. A
+     fixed 1px here made a finished row change line mid-flight whenever the
+     reader had chosen a thicker page line. */
+  --baseline-row-size: var(--page-line-thickness, 1px);
+  /* One colour for the finished card, the live lane and the Doing panel. */
+  --baseline-row-paint: var(--page-line-paint, #333333);
+}
+
+/* ------------------------------------------------------------- colour --- */
+
+/* All three modes resolve to the same hairline colour; the mode switch no
+   longer paints a second palette inside the floating card. The first selector
+   also covers the frame before app.js has published the stored mode. */
+.completed-subtask-drawer .current-subtask,
+html[data-baseline-rows="solid"] .completed-subtask-drawer .current-subtask,
+html[data-baseline-rows="gradient"] .completed-subtask-drawer .current-subtask,
+html[data-baseline-rows="height"] .completed-subtask-drawer .current-subtask {
+  border-bottom: var(--baseline-row-size) solid var(--baseline-row-paint) !important;
+  border-image: none !important;
+}
+
+/* ----------------------------------------------- shared row exceptions --- */
+
+/* The floating finished-subtasks card does not end on the page baseline, so
+   its newest row keeps a line of its own — in the same page_line colour. */
+.page-body > .todos-section .completed-subtask-drawer .current-subtasks > .current-subtask:last-child {
+  border-image: none !important;
+  border-bottom-color: var(--baseline-row-paint) !important;
+}
+
+/* ------------------------------------------------ settings previews --- */
+
+.baseline-row-swatch {
+  width: 40px;
+  height: 10px;
+  flex: 0 0 40px;
+  border-radius: 2px;
+}
+
+.baseline-row-swatch.gradient {
+  background: linear-gradient(
+    calc(var(--angle, 0deg) + 90deg),
+    var(--a, #333333),
+    var(--b, #a8691f)
+  );
+}
+
+.baseline-row-swatch.solid {
+  background: var(--sample, #333333);
+}
+
+.baseline-row-swatch.height {
+  background: linear-gradient(180deg, var(--a, #333333), var(--b, #a8691f));
+}
+
+.baseline-row-live-sample {
+  width: 46px;
+  height: 2px;
+  margin-left: 4px;
+  border-radius: 2px;
+  background: var(--sample, #333333);
+}
+
+.baseline-row-preview {
+  height: 3px;
+  margin-top: 12px;
+  border-radius: 2px;
+  background: var(--a, #333333);
+}
+
+.baseline-row-preview.gradient {
+  background: linear-gradient(
+    calc(var(--angle, 0deg) + 90deg),
+    var(--a, #333333),
+    var(--b, #a8691f)
+  );
+}
+
+.baseline-row-preview.height {
+  height: 34px;
+  background: linear-gradient(180deg, var(--a, #333333), var(--b, #a8691f));
+}
+
+.baseline-row-second.is-hidden,
+.baseline-row-angle-row.is-hidden {
+  display: none !important;
+}

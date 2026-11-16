@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN" class="lightning-on" data-lg-dark="false" data-postcard-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>白色闪电 · NeoTodo</title>
+  <!-- The control page wears the notebook's live theme. -->
+  <script src="../plugin-theme.js"></script>
+  <script>
+    // Read the parent theme first so the preview never flashes the wrong paper.
+    (function () {
+      try {
+        if (window.parent !== window) {
+          var parentRoot = window.parent.document.documentElement;
+          var dark = parentRoot.dataset.postcardDark === "true";
+          document.documentElement.dataset.lgDark = dark ? "true" : "false";
+          document.documentElement.dataset.postcardDark = dark ? "true" : "false";
+        }
+      } catch (error) {}
+      window.addEventListener("message", function (event) {
+        if (!event.data || event.data.type !== "neotodo-theme") return;
+        var dark = event.data.dark ? "true" : "false";
+        document.documentElement.dataset.lgDark = dark;
+        document.documentElement.dataset.postcardDark = dark;
+      });
+      document.documentElement.classList.add("lg-booting");
+    })();
+  </script>
+  <link rel="stylesheet" href="lightning.css">
+  <link rel="stylesheet" href="plugin.css">
+  <link rel="stylesheet" href="../plugin-theme.css">
+</head>
+<body>
+  <svg class="lg-defs" aria-hidden="true" width="0" height="0">
+    <defs>
+      <symbol id="lg-fan" viewBox="0 0 64 64">
+        <circle cx="32" cy="27" r="19" fill="#E9E2FA" stroke="#2f1d18" stroke-width="2.6"/>
+        <path d="M32 27c-8-3-12-9-9-15 4 3 8 6 9 10z" fill="#C8B9FC"/>
+        <path d="M32 27c3-8 9-12 15-9-3 4-6 8-10 9z" fill="#A482F9"/>
+        <path d="M32 27c-1 8 1 14 7 15 1-5 0-10-3-13z" fill="#C8B9FC"/>
+        <circle cx="32" cy="27" r="4" fill="#9575FC"/>
+        <path d="M30 46h4v6h-4z" fill="#2f1d18"/>
+        <ellipse cx="32" cy="55" rx="11" ry="4" fill="#FFDC4A" stroke="#2f1d18" stroke-width="2.6"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <main class="lg-page">
+    <button class="lg-close" type="button" data-close aria-label="Close Lightning">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+
+    <section class="lg-hero">
+      <div class="lg-stage" aria-hidden="true">
+        <div class="lg-sheet">
+          <div class="lg-row">
+            <span class="lg-icon doing-mark has-unseen">
+              <svg viewBox="0 0 64 64"><use href="#lg-fan"></use></svg>
+            </span>
+            <span class="lg-row-name">一团白色闪电</span>
+            <span class="lg-row-count">3/5</span>
+          </div>
+          <div class="lg-row lg-row-sub">
+            <span class="lg-icon doing-fan has-unseen">
+              <svg viewBox="0 0 64 64"><use href="#lg-fan"></use></svg>
+            </span>
+            <span class="lg-row-name">像活物一样呼吸</span>
+          </div>
+          <div class="lg-row lg-row-quiet">
+            <span class="lg-icon">
+              <svg viewBox="0 0 64 64"><use href="#lg-fan"></use></svg>
+            </span>
+            <span class="lg-row-name">读过之后，雷声就停了</span>
+          </div>
+        </div>
+        <span class="lg-stage-caption">Doing · unseen agent results</span>
+      </div>
+
+      <div class="lg-title">
+        <span class="lg-kicker">PLUGIN · EFFECTS</span>
+        <h1>白色闪电</h1>
+        <p>完成任务的代理，会让 Doing 图标被一团白色的闪电包住。</p>
+      </div>
+
+      <div class="lg-copy">
+        <p>它不是一颗球，也不只是几道干脆的直线：是一团团挤在一起、互相缠着的白色细闪电。里层短、外层长，中间不断分叉，边缘的电丝越往外越淡，最后化在纸里。看上去不像一个圆，更像一团毛茸茸的、活着的电。</p>
+        <p>这团东西会呼吸。三层电弧用不同的节奏一起涨大、缩回、轻微扭转，有些电丝还会突然亮一下、暗一下，所以它不会像循环动画一样准时。闪电本身是白的，只有周围的空气带一点冷蓝。亮色主题会给白色电弧加一圈冷色描边，免得在浅色纸上消失。打开子任务的笔记后，它会立刻停。</p>
+      </div>
+
+      <button class="lg-power" id="lg-power" type="button" aria-pressed="true">
+        <span class="lg-power-copy">
+          <strong id="lg-power-title">Lightning is on</strong>
+          <small id="lg-power-detail">代理留下未读结果时，图标会被一团呼吸着的白色闪电包住。</small>
+        </span>
+        <span class="lg-switch" aria-hidden="true"><span class="lg-thumb"></span></span>
+      </button>
+
+      <div class="lg-hints">
+        <span><b>White</b> 白色电弧 · 冷蓝空气</span>
+        <span><b>Breathing</b> 三层错开呼吸</span>
+        <span><b>Alive</b> 电丝随机闪烁</span>
+      </div>
+
+      <button class="lg-done" type="button" data-close>Back to NeoTodo</button>
+    </section>
+  </main>
+
+  <script src="lightning.js"></script>
+  <script src="plugin.js"></script>
+</body>
+</html>

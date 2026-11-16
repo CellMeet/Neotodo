@@ -1,0 +1,17 @@
+{
+  "id": "postcard",
+  "name": "明信片",
+  "englishName": "Postcards",
+  "version": "1.0.0",
+  "description": "每一周完成的事情都印成一张明信片。点击左栏的图片图标，和 Settings 一样在应用内打开档案：按年份和月份翻看，点一张卡片就能在原来的位置展开。",
+  "icon": "postcard.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "tags": ["intheme", "postcard", "archive", "weekly"],
+  "colors": {
+    "accent": "#FFC824",
+    "paper": "#f7efe3"
+  }
+}

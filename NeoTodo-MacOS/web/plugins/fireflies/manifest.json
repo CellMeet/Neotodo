@@ -1,0 +1,16 @@
+{
+  "id": "fireflies",
+  "name": "萤火虫特效",
+  "englishName": "Fireflies",
+  "version": "1.0.0",
+  "description": "完成任务的代理会让 Doing 图标周围飘起小光点：暗色主题是萤火虫和纸灯笼，亮色主题是缓缓升起的暖色余烬。和火光特效、白色闪电彼此独立。",
+  "icon": "fireflies.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#ffc14f",
+    "paper": "#f7efe3"
+  }
+}

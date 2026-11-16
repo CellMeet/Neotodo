@@ -1,0 +1,16 @@
+{
+  "id": "lightning",
+  "name": "白色闪电",
+  "englishName": "White Lightning",
+  "version": "1.4.0",
+  "description": "完成任务的代理会让 Doing 图标被一团白色闪电包住：三层互相缠绕的白色电弧像活物一样一呼一吸地涨大、缩回，边缘的电丝不断闪烁又化开。不是球，也没有硬边。",
+  "icon": "lightning.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#e6f5ff",
+    "paper": "#f2f7ff"
+  }
+}

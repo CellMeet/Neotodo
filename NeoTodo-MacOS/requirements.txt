@@ -1,0 +1,7 @@
+# [macos] Runtime requirements for the native macOS shell.
+#
+# The macOS app is a thin PyObjC + WKWebView shell around the shared
+# Linux-first Python backend. py2app is only needed for build.sh.
+pyobjc-framework-Cocoa>=10.1
+pyobjc-framework-WebKit>=10.1
+py2app>=0.28.8
