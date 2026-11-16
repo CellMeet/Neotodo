@@ -63,9 +63,12 @@ The shell now covers the parts of the Linux app the page depends on:
 - Autoplay is allowed (Chromium flag + `PlaybackRequiresUserGesture=false`), the
   context menu stays with the page, and the taskbar identity is set.
 - Packaging is install-and-use: `release.yml` and `windows-build.ps1` build an
-  `--onedir` PyInstaller bundle, and `installer.iss` wraps that whole folder in
-  a per-user Inno Setup installer with Start Menu and desktop shortcuts. The
-  user needs neither Python nor PySide6; data stays in `%APPDATA%\NeoTodo`.
+  `--onedir` PyInstaller bundle, wrap it in a per-user Inno Setup installer and
+  then in `NeoTodo-0.0.1-Windows-x64.zip` (the download users get: unzip, run
+  the setup, click through the wizard). The Start Menu folder holds **NeoTodo**
+  and **Uninstall NeoTodo**, and Inno registers the same uninstaller under
+  Settings → Apps. The user needs neither Python nor PySide6; data stays in
+  `%APPDATA%\NeoTodo` and survives an uninstall.
 
 No Windows items are pending.
 

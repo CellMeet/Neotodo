@@ -63,7 +63,12 @@ Type: filesandordirs; Name: "{app}\_internal"
 Source: "dist\NeoTodo\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\NeoTodo"; Filename: "{app}\NeoTodo.exe"; WorkingDir: "{app}"
+; One Start Menu folder with the app and its uninstaller. Inno Setup also
+; registers the same uninstaller under Settings → Apps ("NeoTodo"), so the app
+; can be removed from either place; the notebook data in %APPDATA%\NeoTodo is
+; left alone.
+Name: "{group}\NeoTodo"; Filename: "{app}\NeoTodo.exe"; WorkingDir: "{app}"
+Name: "{group}\Uninstall NeoTodo"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\NeoTodo"; Filename: "{app}\NeoTodo.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]

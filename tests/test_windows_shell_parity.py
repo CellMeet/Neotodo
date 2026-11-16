@@ -21,6 +21,7 @@ WEB_SOURCE = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
 INSTALLER = (ROOT / "installer.iss").read_text(encoding="utf-8")
 RELEASE = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 BUILD_SCRIPT = (ROOT / "windows-build.ps1").read_text(encoding="utf-8")
+README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 
 def string_literals(node: ast.AST) -> set[str]:
@@ -88,7 +89,7 @@ class WindowsShellParityTests(unittest.TestCase):
         self.assertIn(r'Source: "dist\NeoTodo\*"', INSTALLER)
         self.assertIn("recursesubdirs", INSTALLER)
         self.assertIn("PrivilegesRequired=lowest", INSTALLER)
-        self.assertIn("{autoprograms}", INSTALLER)
+        self.assertIn('Name: "{group}\\NeoTodo"', INSTALLER)
         self.assertIn("{autodesktop}", INSTALLER)
 
     def test_release_build_is_onedir_with_every_bundled_asset(self):
@@ -99,6 +100,20 @@ class WindowsShellParityTests(unittest.TestCase):
             self.assertIn("--collect-all PySide6", source)
         self.assertIn("ISCC.exe", BUILD_SCRIPT)
         self.assertIn("NeoTodo-0.0.1-Windows-x64-setup.exe", BUILD_SCRIPT)
+
+    def test_the_download_is_a_zip_holding_the_installer(self):
+        # Users get one .zip from the download page: unzip, then run the setup.
+        for source in (RELEASE, BUILD_SCRIPT):
+            self.assertIn("Compress-Archive", source)
+            self.assertIn("NeoTodo-0.0.1-Windows-x64.zip", source)
+        self.assertIn("NeoTodo-0.0.1-Windows-x64.zip", README)
+        self.assertIn("dist/NeoTodo-*.zip", RELEASE)
+
+    def test_the_installer_offers_a_visible_uninstaller(self):
+        # Inno Setup also registers it under Settings > Apps; the Start Menu
+        # entry makes it one click for the reader.
+        self.assertIn("{uninstallexe}", INSTALLER)
+        self.assertIn('Name: "{group}\\Uninstall NeoTodo"', INSTALLER)
 
 
 if __name__ == "__main__":

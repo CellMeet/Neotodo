@@ -38,10 +38,35 @@ jobs:
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+      - name: Pack the installer for download
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist\download | Out-Null
+          Copy-Item dist\NeoTodo-0.0.1-Windows-x64-setup.exe dist\download\
+          @"
+          NeoTodo for Windows — 安装说明 / Install guide
+
+          1. 解压本压缩包，得到 NeoTodo-0.0.1-Windows-x64-setup.exe
+          2. 双击 setup.exe，按提示一路“下一步”完成安装（不需要管理员权限，也不需要 Python）
+          3. 从开始菜单或桌面快捷方式启动 NeoTodo
+          4. 卸载：开始菜单 → NeoTodo → Uninstall NeoTodo，或 设置 → 应用 → NeoTodo
+
+          你的任务、主题和设置保存在 %APPDATA%\NeoTodo，卸载不会删除这些数据。
+
+          1. Unzip this archive to get NeoTodo-0.0.1-Windows-x64-setup.exe
+          2. Double-click the setup and follow the wizard (no admin rights, no Python)
+          3. Launch NeoTodo from the Start Menu or the desktop shortcut
+          4. Uninstall from Start Menu > NeoTodo > Uninstall NeoTodo, or Settings > Apps
+
+          Your notebook data stays in %APPDATA%\NeoTodo when you uninstall.
+          "@ | Set-Content -Encoding UTF8 dist\download\安装说明.txt
+          Compress-Archive -Path dist\download\* -DestinationPath dist\NeoTodo-0.0.1-Windows-x64.zip -Force
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist/NeoTodo-*-setup.exe
+          path: |
+            dist/NeoTodo-*-setup.exe
+            dist/NeoTodo-*.zip
           if-no-files-found: error
 
   linux:

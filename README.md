@@ -35,13 +35,13 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 
 | | Platform | Package |
 | :---: | --- | --- |
-| 🪟 | **Windows 10/11 x64** | [NeoTodo-0.0.1-Windows-x64-setup.exe](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64-setup.exe) |
+| 🪟 | **Windows 10/11 x64** | [NeoTodo-0.0.1-Windows-x64.zip](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64.zip) |
 | 🐧 | **Linux x86_64** | [NeoTodo-0.0.1-Linux-x86_64.tar.gz](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Linux-x86_64.tar.gz) |
 | 🤖 | **Android** | Build the debug APK or a signed store build with [`NeoTodo-Android/build-release.sh`](NeoTodo-Android/build-release.sh) |
 | 🍎 | **macOS 11+** | Build from source in [`NeoTodo-MacOS/`](NeoTodo-MacOS/README.md) |
 | 📱 | **iOS** | Planned |
 
-- 📦 The Windows installer bundles its own Python runtime and Qt WebEngine, so it installs and runs like any other desktop app — no Python, pip or terminal needed. Double-click the setup, finish the wizard, and launch NeoTodo from the Start Menu or desktop.
+- 📦 The Windows download is a `.zip` holding the installer: unzip it, double-click `NeoTodo-0.0.1-Windows-x64-setup.exe`, and click through the wizard. It bundles its own Python runtime and Qt WebEngine, so no Python, pip or terminal is needed. The Start Menu gets **NeoTodo** and **Uninstall NeoTodo**; Settings → Apps lists it too.
 - 🐧 The Linux package is a source package; GTK4, PyGObject and WebKitGTK must already be installed.
 - 🍎 The macOS build is a native PyObjC + WKWebView shell around the same backend; `cd NeoTodo-MacOS && ./run-macos.sh`. App Store and notarization steps are in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
 - 🤖 The Android build embeds the same Python backend and web workspace, so the desktop logic stays the single source of truth.
@@ -157,14 +157,20 @@ python3 app.py --serve
 
 ### 🪟 Windows
 
-**Install and use (recommended):** download
-[`NeoTodo-0.0.1-Windows-x64-setup.exe`](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64-setup.exe),
-run it, and launch NeoTodo from the Start Menu or the desktop shortcut. The app
-installs per user (no administrator prompt) and needs no Python or terminal.
+**Install and use (recommended):**
+
+1. Download
+   [`NeoTodo-0.0.1-Windows-x64.zip`](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64.zip)
+   and unzip it.
+2. Double-click `NeoTodo-0.0.1-Windows-x64-setup.exe` and click through the
+   wizard — no administrator prompt, no Python, no terminal.
+3. Start NeoTodo from the Start Menu (folder **NeoTodo**) or the desktop
+   shortcut.
 
 - 🗂️ Task data, plugins and the WebEngine profile live in `%APPDATA%\NeoTodo`.
-  Uninstalling from Settings → Apps leaves that folder, so your notebook is
-  never removed by accident.
+  Uninstalling leaves that folder, so your notebook is never removed by accident.
+- 🧹 **Uninstall:** Start Menu → NeoTodo → **Uninstall NeoTodo**, or
+  Settings → Apps → NeoTodo → Uninstall.
 
 **Build the installer yourself (one command, on Windows):**
 
@@ -173,7 +179,9 @@ powershell -ExecutionPolicy Bypass -File windows-build.ps1
 ```
 
 It creates a `.venv`, installs PySide6 + PyInstaller, builds `dist\NeoTodo\`
-and, when Inno Setup 6 is installed, `dist\NeoTodo-0.0.1-Windows-x64-setup.exe`.
+and, when Inno Setup 6 is installed, the installer
+`dist\NeoTodo-0.0.1-Windows-x64-setup.exe` plus the download-ready
+`dist\NeoTodo-0.0.1-Windows-x64.zip`.
 
 **Run from source (for development):**
 
@@ -243,7 +251,7 @@ python3 tests/test_plugin_community.py
 
 The GitHub Actions workflow `.github/workflows/release.yml` builds:
 
-- 🪟 `NeoTodo-0.0.1-Windows-x64-setup.exe` with PyInstaller + Inno Setup
+- 🪟 `NeoTodo-0.0.1-Windows-x64.zip` (the setup .exe inside) with PyInstaller + Inno Setup
 - 🐧 `NeoTodo-0.0.1-Linux-x86_64.tar.gz` as the Linux source package
 
 The macOS app is built locally on a Mac ([`NeoTodo-MacOS/build.sh`](NeoTodo-MacOS/build.sh)); its Developer ID / Mac App Store signing steps are documented in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
