@@ -65,24 +65,28 @@ def main() -> int:
     assert "width: `${landedRect.width}px`" not in fly, (
         "the flight still animates width, which lays the row out every frame"
     )
-    # The provider mark belongs to the run, not to the finished row: it drops
-    # away where the click happened instead of riding into the tray. Carrying
-    # it made the landing row one badge-width too wide (fan/name shifted right
-    # in the air, then snapped back left once the mark was cleared).
-    assert "flyModelMarkAway(ghost, duration, delay);" in fly, (
-        "the AI provider mark still flies with the finished row"
+    # The provider mark belongs to the run, not to the finished row. The click
+    # takes it (and its slot) out of the row at once; the flight must neither
+    # carry the badge nor close an empty slot while it travels, or the fan and
+    # name arrive one badge-width too far right and snap back left on landing.
+    assert "flyModelMarkAway" not in fly and "flyModelMarkAway" not in app_js, (
+        "the AI provider mark still has its own flight animation"
     )
-    mark = block_after(app_js, "function flyModelMarkAway(", "\nfunction flyCompletedRow(")
-    assert 'ghost.querySelector(".sub-agent-model img")' in mark
-    assert "badge.remove();" in mark, "the mark is still part of the flying row's layout"
-    assert "mark.classList.add(\"subtask-flight-mark\");" in mark
-    assert "document.body.appendChild(mark);" in mark
-    assert "translateY(18px) scale(0.68)" in mark, "the mark does not slide down out of the row"
-    assert "delay, easing: \"cubic-bezier(.4,0,.7,1)\"" in mark, (
-        "the mark drops before the row moves, not while the tray opens"
+    assert 'ghost.querySelectorAll(".sub-agent-model").forEach((mark) => mark.remove());' in fly, (
+        "the flying row still carries the AI provider mark"
     )
-    assert "[{ paddingLeft:" in mark, (
-        "the row does not close the mark's empty slot, so the landing shifts left"
+    assert 'ghost.querySelectorAll(".fan-pop").forEach((node) => node.classList.remove("fan-pop"));' in fly, (
+        "the click's fan pop restarts on the flying row"
+    )
+    assert "paddingLeft" not in fly, (
+        "the flight still animates a padding slot, which lays the row out every frame"
+    )
+    mark_click = block_after(split_css, ".current-subtask.subtask-completing .sub-agent-model {", "}")
+    assert "display: none;" in mark_click, (
+        "the provider mark is still in the submitting row's layout"
+    )
+    assert "const modelBadge = subtask.done || agentRunning" in app_js, (
+        "a finished row still renders the AI provider mark"
     )
     # The page rule is not part of the trip. The drawer prints its own rule as
     # the row lands, so an airborne line was the only animated line in the
@@ -90,8 +94,9 @@ def main() -> int:
     assert 'ghost.style.setProperty("border-bottom-color", "transparent", "important");' in fly, (
         "the flying row still carries an animated bottom line"
     )
-    assert ".subtask-flight-mark {" in split_css
-    assert "position: fixed;" in block_after(split_css, ".subtask-flight-mark {", "}")
+    assert ".subtask-flight-mark" not in split_css, (
+        "the removed provider-mark flight is still styled"
+    )
     assert "flight.onfinish = settle;" in fly and "flight.oncancel = settle;" in fly
     assert 'row.classList.remove("subtask-slot-arriving");' in fly and "row.isConnected" in fly
     assert 'check.classList.add("check-in");' in fly, (

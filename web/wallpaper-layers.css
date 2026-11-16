@@ -13,18 +13,20 @@
         right-edge Doing card — carry the marker and are made out of the
         wallpaper itself: each one carries a picture baked once from the
         wallpaper around its own box (never from the whole background), so the
-        card is already finished before it opens. The picture is taken from
-        140% of the card's box, so the card is a sheet of the room rather than
-        an exactly aligned, see-through hole in it. A film is baked from its
-        paused middle frame, so its card is a still of the same scene. The
-        cards show that picture edge to edge — one complete card with one fixed
-        outline — and only a shadow below lifts it off the room. The top hidden
-        box is not a card: it borrows the same wallpaper picture as its
-        background (`data-wallpaper-surface`), but it samples exactly its own
-        box (100%, not the cards' 140%) so it lines up with the room behind it,
-        and it keeps its own bar edge and shadow, with no card outline. The
-        remaining floating controls are frosted panes, so their text always
-        stays readable.
+        card is already finished before it opens. Every card keeps the
+        subtask area's 140% rule at its own centre, and all of them sample one
+        shared object: the bottom wallpaper layer. The finished card and the
+        Doing card therefore read the pattern and colour of the room itself,
+        instead of each upper card taking a darker slice from the card under
+        it. A film
+        is baked from its paused middle frame, so its card is a still of the
+        same scene. The cards show that picture edge to edge — one complete
+        card with one fixed outline — and only a shadow below lifts it off the
+        room. The top hidden box is not a card: it borrows the same wallpaper
+        picture as its background (`data-wallpaper-surface`), at 100% so it
+        lines up with the room, and it keeps its own bar edge and shadow, with
+        no card outline. The remaining floating controls are frosted panes, so
+        their text always stays readable.
 
    Everything here is scoped to an active wallpaper, so the plain paper
    themes keep their existing notebook look untouched.
@@ -128,8 +130,9 @@ html[data-wallpaper] .card-wallpaper[data-fit="window"] > .wallpaper-media {
   display: block;
   object-fit: cover;
   transform: translate3d(var(--card-wallpaper-x, 0px), var(--card-wallpaper-y, 0px), 0);
-  /* The pane is repositioned on every frame while a card slides, so keep the
-     copy on its own compositing layer instead of repainting the card. */
+  /* The shift is the card's resting corner, so the copy rides the sheet for the
+     whole slide and still lines up with the room once it lands. Keep it on its
+     own compositing layer instead of repainting the card. */
   will-change: transform;
 }
 
@@ -176,6 +179,16 @@ html[data-wallpaper] .trash-drawer > .card-wallpaper[data-fit="patch"] > .wallpa
   height: 100%;
   border-radius: inherit;
   box-shadow: none;
+}
+
+/* The live card folds by shrinking its own box. Its baked face has to stay
+   anchored to the sheet's top while the bottom edge travels: a centred cover
+   fit re-crops the picture inside the shrinking pane, so the wallpaper panned
+   at half the fold's speed while the rows and the edge moved on. Anchoring the
+   picture at the top makes the moving edge the only thing that clips it, so the
+   face, the paper and the words arrive together. */
+html[data-wallpaper] #pending-subtask-card > .card-wallpaper[data-fit="patch"] > .wallpaper-media {
+  object-position: 50% 0;
 }
 
 /* One fixed stroke for every sub-card: 墨绿 (ink green). It is deliberately not
@@ -254,7 +267,8 @@ html[data-wallpaper] #pending-subtask-card > .pending-subtask-toggle {
    mounted, so unfolding reveals the same baked picture at once. */
 html[data-wallpaper] #pending-subtask-card.collapsed > .card-wallpaper {
   opacity: 0;
-  transition: opacity 0.18s ease;
+  /* The face leaves on the fold's own beat, not halfway through it. */
+  transition: opacity 0.12s ease;
 }
 
 /* The old paper veil would gray the pane out; the pane's own scrim replaces

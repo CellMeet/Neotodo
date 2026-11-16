@@ -190,6 +190,10 @@ THEME_ARCHIVE_MAX_UNCOMPRESSED = 64_000_000
 THEME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 THEME_ASSET_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".svg"}
 THEME_ASSET_AUDIO_EXTS = {".wav", ".mp3", ".ogg", ".flac", ".m4a"}
+SOUND_AUDIO_EXTS = {".wav", ".mp3", ".ogg", ".flac", ".m4a"}
+# Sound styles are folders under <data>/sounds/. "classical" is the bundled
+# NeoTodo set; any other folder the reader drops there becomes a style.
+DEFAULT_SOUND_STYLE = "classical"
 THEME_SOUND_KEYS = (
     "type", "enter", "drawerOpen", "drawerClose", "waterFlow",
     "trickle", "windScroll", "train", "paperTear", "steamHiss",
@@ -237,21 +241,99 @@ FILE_PICK_CALLBACK = None
 PROJECT_FILE_LIMIT = 160
 
 
+def sound_style_id(raw) -> str:
+    """A single folder name under sounds/, never a path."""
+    name = str(raw or "").strip()
+    if not name or name in (".", "..") or "\\" in name or "/" in name:
+        return ""
+    if Path(name).name != name:
+        return ""
+    return name
+
+
+def sound_style_label(name: str) -> str:
+    label = str(name or "").replace("-", " ").replace("_", " ").strip()
+    return (label[:1].upper() + label[1:]) if label else str(name or "")
+
+
 def ensure_sounds_dir() -> Path:
-    """Create a user-editable sounds folder and seed it with bundled files."""
+    """Create the sounds shelf, one folder per style, and seed classical/.
+
+    The bundled set lives in ``sounds/classical/``. Older installs kept the
+    sample files flat in ``sounds/``; those are folded into classical/ once so
+    the style picker always has one folder per set and nothing is lost.
+    """
     try:
         SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
+        classical = SOUNDS_DIR / DEFAULT_SOUND_STYLE
+        classical.mkdir(parents=True, exist_ok=True)
         bundled = WEB_DIR / "sounds"
         if bundled.is_dir():
             for src in bundled.iterdir():
                 if not src.is_file():
                     continue
-                dest = SOUNDS_DIR / src.name
+                dest = classical / src.name
                 if not dest.exists():
                     shutil.copy2(src, dest)
+        for item in SOUNDS_DIR.iterdir():
+            if not item.is_file() or item.suffix.lower() not in SOUND_AUDIO_EXTS:
+                continue
+            dest = classical / item.name
+            if not dest.exists():
+                shutil.move(str(item), str(dest))
     except Exception:
         pass
     return SOUNDS_DIR
+
+
+def sound_style_dir(style: str = "") -> Path | None:
+    """The folder for one sound style, or None when it does not exist."""
+    ensure_sounds_dir()
+    raw = str(style or "").strip()
+    name = sound_style_id(raw) if raw else DEFAULT_SOUND_STYLE
+    if not name:
+        return None
+    try:
+        candidate = (SOUNDS_DIR / name).resolve()
+        if candidate.is_relative_to(SOUNDS_DIR.resolve()) and candidate.is_dir():
+            return candidate
+    except Exception:
+        pass
+    return None
+
+
+def discover_sound_styles() -> list[dict]:
+    """Every folder on the sound shelf, classical/ first, with its audio files."""
+    ensure_sounds_dir()
+    try:
+        folders = [
+            item for item in SOUNDS_DIR.iterdir()
+            if item.is_dir() and not item.name.startswith(".")
+        ]
+    except Exception:
+        folders = []
+    folders.sort(key=lambda item: (item.name != DEFAULT_SOUND_STYLE, item.name.lower()))
+    styles = []
+    for folder in folders:
+        try:
+            files = sorted(
+                item.name for item in folder.iterdir()
+                if item.is_file() and item.suffix.lower() in SOUND_AUDIO_EXTS
+            )
+        except Exception:
+            files = []
+        styles.append({
+            "id": folder.name,
+            "name": sound_style_label(folder.name),
+            "files": files,
+        })
+    if not styles:
+        styles.append({
+            "id": DEFAULT_SOUND_STYLE,
+            "name": sound_style_label(DEFAULT_SOUND_STYLE),
+            "files": [],
+        })
+    return styles
 
 
 def ensure_note_materials_dir() -> Path:
@@ -1199,6 +1281,54 @@ def ensure_theme_packs_dir() -> Path:
     return THEME_PACKS_DIR
 
 
+def seed_bundled_theme_packs() -> None:
+    """Put real theme folders in a fresh shelf, once.
+
+    Appearance → Theme → Manage opens ``<data>/theme-packs``. A new notebook
+    has no user packs there, so the folder used to open empty even though the
+    Theme list was full of palettes. Copy the bundled packs into the shelf the
+    first time the folder is opened; every shelf entry then has a folder the
+    reader can inspect, edit or delete. A marker keeps the copy from coming
+    back after a pack is removed on purpose.
+    """
+    root = ensure_theme_packs_dir()
+    marker = root / ".bundled-packs-seeded"
+    if marker.exists():
+        return
+    try:
+        marker.write_text(
+            "Bundled theme packs were copied here once. Delete a pack folder to "
+            "remove it; delete this marker to copy the bundled packs again.\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        return
+    try:
+        bundles = sorted(
+            (
+                item
+                for item in (WEB_DIR / "theme-packs").iterdir()
+                if item.is_dir() and not item.name.startswith(".")
+            ),
+            key=lambda item: item.name.lower(),
+        )
+    except Exception:
+        return
+    for source in bundles:
+        pack = read_theme_manifest(source, "bundled")
+        if pack is None or pack["id"] in THEMES:
+            continue
+        destination = root / pack["id"]
+        if destination.exists():
+            continue
+        staging = root / f".seed-{pack['id']}-{uuid.uuid4().hex[:8]}"
+        try:
+            shutil.copytree(source, staging)
+            staging.rename(destination)
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+
+
 def ensure_theme_exports_dir() -> Path:
     try:
         THEME_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -2121,16 +2251,27 @@ def _theme_export_asset(ref, prefixes: dict):
     parsed = urlparse(raw)
     path = unquote(parsed.path or raw)
     for prefix, root in prefixes.items():
-        if path.startswith(prefix):
-            name = path[len(prefix):].strip("/")
-            if not name or "/" in name or "\\" in name:
-                return None
-            candidate = (root / name).resolve()
+        if not path.startswith(prefix):
+            continue
+        name = path[len(prefix):].strip("/")
+        parts = [part for part in name.split("/") if part]
+        if not parts or len(parts) > 2:
+            return None
+        if any(part in (".", "..") or "\\" in part or part != Path(part).name for part in parts):
+            return None
+        # Sounds live in a style folder now; a legacy flat name still reads the
+        # classical set, exactly like the /user-sounds/ route.
+        candidates = [root.joinpath(*parts)]
+        if prefix == "/user-sounds/" and len(parts) == 1:
+            candidates.append(root / DEFAULT_SOUND_STYLE / parts[0])
+        for candidate in candidates:
+            resolved = candidate.resolve()
             try:
-                if candidate.is_relative_to(root.resolve()) and candidate.is_file():
-                    return candidate
+                if resolved.is_relative_to(root.resolve()) and resolved.is_file():
+                    return resolved
             except Exception:
-                return None
+                continue
+        return None
     if path.startswith("/theme-assets/"):
         rest = path[len("/theme-assets/"):]
         theme_id, _, relative = rest.partition("/")
@@ -2351,11 +2492,13 @@ def save_postcard_art(items) -> dict:
 
 
 def sanitize_wallpaper_file_path(value) -> str:
-    """An absolute picture path the reader picked. NeoTodo only reads it.
+    """An absolute picture path the reader picked.
 
-    The file is never copied, so a path that is temporarily unavailable (an
-    unmounted drive, a renamed folder) is still remembered: the path is only
-    checked for shape here and read when the wallpaper is served.
+    A picked file is linked (or copied across filesystems) into
+    ``pictures/wallpapers`` by :func:`import_wallpaper_file`; this sanitizer
+    only checks the shape. A path that is temporarily unavailable (an
+    unmounted drive, a renamed folder) is still remembered and read when the
+    wallpaper is served.
     """
     if not isinstance(value, str):
         return ""
@@ -2375,7 +2518,175 @@ def sanitize_wallpaper_file_path(value) -> str:
         return ""
 
 
-WALLPAPER_RECENT_LIMIT = 12
+WALLPAPER_RECENT_LIMIT = 6
+
+
+def ensure_wallpaper_shelf_dir() -> Path:
+    """The dedicated folder that holds every wallpaper option.
+
+    ``Choose`` opens the system picker, but the picked picture is linked into
+    this folder so the picker's recent options and the folder always describe
+    the same files. Deleting a file here removes that option.
+    """
+    folder = PICTURES_DIR / "wallpapers"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return folder
+
+
+def _wallpaper_source_path(value) -> Path | None:
+    """Resolve a saved choice to the picture or film it points at."""
+    name = sanitize_wallpaper_file_path(value)
+    if name:
+        return Path(name)
+    bare = sanitize_picture_name(value, PICTURE_IMAGE_EXTS | PICTURE_VIDEO_EXTS)
+    if bare:
+        return Path(PICTURES_DIR) / bare
+    return None
+
+
+def _wallpaper_shelf_match(folder: Path, source: Path) -> Path | None:
+    """Find an existing shelf entry for ``source`` so links are never doubled."""
+    try:
+        stat = source.stat()
+    except Exception:
+        return None
+    try:
+        candidates = [item for item in folder.iterdir() if item.is_file()]
+    except Exception:
+        return None
+    for candidate in candidates:
+        try:
+            cstat = candidate.stat()
+        except Exception:
+            continue
+        if cstat.st_dev == stat.st_dev and cstat.st_ino == stat.st_ino:
+            return candidate
+        # A copy (different filesystem) has no shared inode; the original name,
+        # size and mtime still identify the same file across repeated syncs.
+        if (
+            candidate.name == source.name
+            and cstat.st_size == stat.st_size
+            and int(cstat.st_mtime) == int(stat.st_mtime)
+        ):
+            return candidate
+    return None
+
+
+def import_wallpaper_file(value) -> str:
+    """Link or copy one picked wallpaper into the dedicated shelf.
+
+    Returns the shelf path, or "" when the value is not a readable picture or
+    film. A hard link keeps the reader's original file untouched while giving
+    the option its own entry: deleting the shelf entry removes the option and
+    leaves the original in place.
+    """
+    source = _wallpaper_source_path(value)
+    if source is None:
+        return ""
+    try:
+        folder = ensure_wallpaper_shelf_dir().resolve()
+        source = source.expanduser()
+        if not source.is_file():
+            return ""
+        resolved = source.resolve()
+        if resolved.is_relative_to(folder):
+            return str(resolved)
+        suffix = resolved.suffix.lower()
+        if suffix not in (PICTURE_IMAGE_EXTS | PICTURE_VIDEO_EXTS):
+            return ""
+        matched = _wallpaper_shelf_match(folder, resolved)
+        if matched is not None:
+            return str(matched)
+        stem = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "-", resolved.stem, flags=re.UNICODE)
+        stem = stem.strip(" .-_")[:64] or "wallpaper"
+        destination = folder / f"{stem}{suffix}"
+        if destination.exists():
+            destination = folder / f"{stem}-{new_id()[:8]}{suffix}"
+        try:
+            os.link(resolved, destination)
+        except OSError:
+            shutil.copy2(resolved, destination)
+        return str(destination)
+    except Exception:
+        return ""
+
+
+def import_wallpaper_shelf(settings: dict) -> bool:
+    """Point an older notebook's wallpaper choices at the dedicated shelf."""
+    if not isinstance(settings, dict):
+        return False
+    changed = False
+    current = settings.get("wallpaper")
+    if isinstance(current, str) and _wallpaper_source_path(current) is not None:
+        moved = import_wallpaper_file(current)
+        if moved and moved != current:
+            settings["wallpaper"] = moved
+            changed = True
+    recent = settings.get("wallpaper_recent")
+    if isinstance(recent, list):
+        next_recent = []
+        seen = set()
+        for item in recent:
+            if not isinstance(item, str):
+                continue
+            source = _wallpaper_source_path(item)
+            if source is not None:
+                try:
+                    if not source.expanduser().is_file():
+                        changed = True
+                        continue
+                except Exception:
+                    changed = True
+                    continue
+                moved = import_wallpaper_file(item) or item
+            else:
+                moved = item
+            if moved in seen:
+                continue
+            seen.add(moved)
+            next_recent.append(moved)
+        if next_recent != recent:
+            settings["wallpaper_recent"] = next_recent
+            changed = True
+    return changed
+
+
+def prune_wallpaper_shelf(settings: dict) -> bool:
+    """Drop options whose shelf file was deleted by hand."""
+    if not isinstance(settings, dict):
+        return False
+    try:
+        folder = ensure_wallpaper_shelf_dir().resolve()
+    except Exception:
+        return False
+
+    def missing(value) -> bool:
+        source = _wallpaper_source_path(value)
+        if source is None:
+            return False
+        try:
+            path = source.expanduser().resolve()
+            if not path.is_relative_to(folder):
+                return False
+            return not path.is_file()
+        except Exception:
+            return False
+
+    changed = False
+    recent = settings.get("wallpaper_recent")
+    if isinstance(recent, list):
+        kept = [item for item in recent if isinstance(item, str) and not missing(item)]
+        if kept != recent:
+            settings["wallpaper_recent"] = kept
+            changed = True
+    current = settings.get("wallpaper")
+    if isinstance(current, str) and missing(current):
+        settings["wallpaper"] = ""
+        changed = True
+    return changed
 
 
 def sanitize_wallpaper_recent(raw) -> list:
@@ -2489,12 +2800,15 @@ def note_material_file_names() -> list:
         return []
 
 
-def sound_file_names() -> list:
-    ensure_sounds_dir()
+def sound_file_names(style: str = "") -> list:
+    """Audio files inside one style folder (classical/ when none is given)."""
+    folder = sound_style_dir(style)
+    if folder is None:
+        return []
     try:
         return sorted(
-            item.name for item in SOUNDS_DIR.iterdir()
-            if item.is_file() and item.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac", ".m4a"}
+            item.name for item in folder.iterdir()
+            if item.is_file() and item.suffix.lower() in SOUND_AUDIO_EXTS
         )
     except Exception:
         return []
@@ -2750,6 +3064,9 @@ def default_data() -> dict:
             "body_font_color": "",
             "note_font_color": "",
             "show_time_cost": False,
+            "show_clock": True,
+            "show_brand": True,
+            "show_achievements": True,
             "focus_count": 0,
             "focus_log": [],
             "caret_blink": False,
@@ -2881,7 +3198,10 @@ def load_data(path: Path | None = None) -> dict:
             settings.setdefault("note_font_size", 14)
             settings.setdefault("body_font_color", "")
             settings.setdefault("note_font_color", "")
-            settings.setdefault("show_time_cost", False)
+            settings["show_time_cost"] = settings.get("show_time_cost") is True
+            settings["show_clock"] = settings.get("show_clock") is not False
+            settings["show_brand"] = settings.get("show_brand") is not False
+            settings["show_achievements"] = settings.get("show_achievements") is not False
             try:
                 settings["focus_count"] = max(0, int(settings.get("focus_count", 0)))
             except (TypeError, ValueError):
@@ -2938,6 +3258,10 @@ def load_data(path: Path | None = None) -> dict:
             # choice — the theme paper shows through — so the retired
             # static/dynamic shelf must not resurrect a picture on load.
             sanitize_wallpaper_settings(settings, derive_legacy=False)
+            # Options whose shelf file was deleted by hand leave the picker.
+            # Older external picks are linked into the shelf when Wallpaper →
+            # Manage or the folder chip is opened, not during startup.
+            prune_wallpaper_shelf(settings)
             data["settings"] = settings
             for card in data["archive"]:
                 card.setdefault("id", new_id())
@@ -3181,8 +3505,9 @@ class Store:
                 return {"ok": False, "error": "Folder picker is not available"}
             path = FOLDER_PICK_CALLBACK()
             return {"ok": True, "path": path or "", "cancelled": not bool(path), "state": self.state()}
-        # The wallpaper is chosen, not copied: the native picker returns a path
-        # and the store only remembers it. Platforms without the picker fall
+        # The native picker returns a path. The file is linked into the
+        # dedicated pictures/wallpapers shelf so the recent list and the folder
+        # button describe one set of options. Platforms without the picker fall
         # back to the browser file input and let the client upload instead.
         if payload.get("action") == "choose_wallpaper_file":
             if FILE_PICK_CALLBACK is None:
@@ -3193,6 +3518,11 @@ class Store:
                 return {"ok": False, "error": "Choose an image or a film"}
             if not picked:
                 return {"ok": True, "path": "", "cancelled": True}
+            # The picker opens the reader's own folder; the choice is linked
+            # into pictures/wallpapers so the recent options and the folder
+            # button describe the same entries. If the link fails the original
+            # path still works, so a wallpaper is never lost.
+            picked = import_wallpaper_file(picked) or picked
             # Remember the pick before answering: /user-wallpaper only serves a
             # path the store already knows, and the page mounts the picture the
             # moment it hears this answer. Saving here makes the first image
@@ -3641,18 +3971,21 @@ class Store:
                     except Exception as exc:
                         error = f"Could not open folder: {exc}"
             elif name == "open_sounds_folder":
+                # The shelf itself: it holds classical/ and every style folder,
+                # so a new style can be made just by adding a folder there.
                 ensure_sounds_dir()
+                target = SOUNDS_DIR
                 try:
                     if sys.platform == "win32":
-                        os.startfile(str(SOUNDS_DIR))
+                        os.startfile(str(target))
                     elif sys.platform == "darwin":
-                        subprocess.Popen(["open", str(SOUNDS_DIR)], start_new_session=True)
+                        subprocess.Popen(["open", str(target)], start_new_session=True)
                     else:
-                        subprocess.Popen(["xdg-open", str(SOUNDS_DIR)], start_new_session=True,
+                        subprocess.Popen(["xdg-open", str(target)], start_new_session=True,
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception as open_error:
                     error = str(open_error)
-                result["folder"] = str(SOUNDS_DIR)
+                result["folder"] = str(target)
             elif name == "open_note_materials_folder":
                 ensure_note_materials_dir()
                 try:
@@ -3681,8 +4014,9 @@ class Store:
                 result["folder"] = str(PLUGINS_DIR)
             elif name in ("open_theme_packs_folder", "open_theme_exports_folder",
                           "open_note_themes_folder", "open_ai_themes_folder",
-                          "open_icon_themes_folder"):
+                          "open_icon_themes_folder", "open_wallpaper_folder"):
                 if name == "open_theme_packs_folder":
+                    seed_bundled_theme_packs()
                     folder = ensure_theme_packs_dir()
                 elif name == "open_note_themes_folder":
                     folder = ensure_pane_themes_dir("note")
@@ -3690,6 +4024,16 @@ class Store:
                     folder = ensure_pane_themes_dir("ai")
                 elif name == "open_icon_themes_folder":
                     folder = ensure_icon_themes_dir()
+                elif name == "open_wallpaper_folder":
+                    # The dedicated shelf, not the reader's own wallpaper
+                    # folder: it holds exactly the recent options. Older
+                    # external picks are linked in first, and deleted shelf
+                    # files drop out of the list.
+                    current_settings = self.data.setdefault("settings", {})
+                    import_wallpaper_shelf(current_settings)
+                    prune_wallpaper_shelf(current_settings)
+                    folder = ensure_wallpaper_shelf_dir()
+                    result["state"] = self.state()
                 else:
                     folder = ensure_theme_exports_dir()
                 try:
@@ -3764,15 +4108,22 @@ class Store:
                         ):
                             error = "Wallpaper is too large"
                         else:
-                            ensure_pictures_dir()
+                            folder = ensure_wallpaper_shelf_dir()
                             stem = re.sub(r"[^\w-]+", "-", Path(str(name)).stem, flags=re.UNICODE).strip("-_")[:48] or "wallpaper"
-                            dest = PICTURES_DIR / f"{stem}-{new_id()[:8]}{suffix}"
+                            dest = folder / f"{stem}-{new_id()[:8]}{suffix}"
                             try:
                                 dest.write_bytes(raw)
-                                result["file"] = dest.name
+                                result["file"] = str(dest)
                                 result["kind"] = kind
                             except Exception as write_error:
                                 error = str(write_error)
+            elif name == "sync_wallpaper_shelf":
+                # Called when Wallpaper → Manage opens: link any older pick
+                # into the dedicated folder and drop options deleted there.
+                current_settings = self.data.setdefault("settings", {})
+                import_wallpaper_shelf(current_settings)
+                prune_wallpaper_shelf(current_settings)
+                result["state"] = self.state()
             elif name == "save_postcard_art":
                 items = payload.get("items")
                 if not isinstance(items, list):
@@ -3780,8 +4131,9 @@ class Store:
                 else:
                     result.update(save_postcard_art(items))
             elif name == "sound_files":
-                result["files"] = sound_file_names()
-                result["folder"] = str(SOUNDS_DIR)
+                result["files"] = sound_file_names(payload.get("style"))
+                result["styles"] = discover_sound_styles()
+                result["folder"] = str(sound_style_dir(payload.get("style")) or SOUNDS_DIR)
             elif name == "save_note":
                 _, todo = self._find_todo(payload.get("id"))
                 subtask_id = payload.get("subtask_id")
@@ -3839,8 +4191,9 @@ class Store:
                             current[color_key] = color.lower()
                         elif color == "":
                             current.pop(color_key, None)
-                    if isinstance(incoming.get("show_time_cost"), bool):
-                        current["show_time_cost"] = incoming["show_time_cost"]
+                    for key in ("show_time_cost", "show_clock", "show_brand", "show_achievements"):
+                        if isinstance(incoming.get(key), bool):
+                            current[key] = incoming[key]
                     try:
                         current["focus_count"] = max(0, int(incoming.get("focus_count", 0)))
                     except (TypeError, ValueError):
@@ -3913,6 +4266,11 @@ class Store:
                     if isinstance(incoming.get("postcards_exported"), bool):
                         current["postcards_exported"] = incoming["postcards_exported"]
                     sanitize_wallpaper_settings(current, derive_legacy="wallpaper" not in incoming)
+                    prune_wallpaper_shelf(current)
+                    if "sound_style" in incoming:
+                        style = sound_style_id(incoming.get("sound_style"))
+                        if style and (SOUNDS_DIR / style).is_dir():
+                            current["sound_style"] = style
                     if "sound_overrides" in incoming:
                         overrides = {}
                         raw_overrides = incoming.get("sound_overrides")
@@ -4203,6 +4561,10 @@ class AgentStore:
         self.build_waiting = {}
         self.build_seq = 0
         self.running_agents = set()
+        # A chat request spends a moment discovering models and preparing files
+        # before it owns a worker. Esc must still land during that gap, so the
+        # request is visible here from the moment it is accepted.
+        self.starting_agents = set()
         self.build_max = max(1, int(os.environ.get("NEOTODO_AGENT_PARALLEL", "12") or 12))
         self.live_lock = threading.Lock()
         self.live = {}
@@ -4395,7 +4757,7 @@ class AgentStore:
         self.stopping.set()
         with self.procs_lock:
             procs = list(self.procs.values())
-            active = sorted(self.running_agents)
+            active = sorted(self.running_agents | self.starting_agents)
             # Workers treat this like a manual pause, so the reply they leave
             # behind is marked interrupted instead of finished.
             self.interrupts.update(active)
@@ -5964,7 +6326,7 @@ class AgentStore:
                 process = self.procs.get(agent_id)
                 if process is not None and process.poll() is not None:
                     process = None
-                running = agent_id in self.running_agents
+                running = agent_id in self.running_agents or agent_id in self.starting_agents
                 # Mark before looking for the process: a worker that has not
                 # published its OpenCode process yet must still see the pause.
                 if process is not None or running:
@@ -6000,60 +6362,76 @@ class AgentStore:
             # The window is closing: never start a fresh agent behind it.
             return {"ok": False, "error": "NeoTodo is closing. Send the instruction again after reopening."}
         kind = str(scope.get("kind") or "")
-        with self.lock:
-            data = self._load()
-            agent = data.get("agents", {}).get(agent_id) or {"messages": []}
-            history = agent.get("messages") if isinstance(agent.get("messages"), list) else []
-            history = self._settle_pending(history)
-        mode = self._normalize_mode(payload.get("mode") or agent.get("mode"), kind)
-        requested = str(payload.get("model") or agent.get("model") or "").strip()
-        models = self._available_models()
-        model = requested if requested in models else self._default_model(kind)
-        file_args, persistent_files = self._agent_file_args(agent_id, agent)
-        with self.lock:
-            data = self._load()
-            stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
-            messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
-            messages = self._settle_pending(messages)
-            messages = (messages + [{"role": "user", "content": message}])[-40:]
-            messages.append({
-                "role": "assistant",
-                "content": "",
-                "process": "",
-                "model": model,
-                "pending": True,
-            })
-            stored["messages"] = messages[-40:]
-            stored["title"] = title
-            stored["mode"] = mode
-            stored["model"] = model
-            self._save(data)
+        # Register the request before the slow model/file preparation. Esc
+        # pressed while the picker is still loading must land on this request:
+        # otherwise the interrupt sees no run yet, is discarded, and the agent
+        # starts anyway -- the reason the hint needed a second press.
+        with self.procs_lock:
+            self.starting_agents.add(agent_id)
+        started = False
+        try:
+            with self.lock:
+                data = self._load()
+                agent = data.get("agents", {}).get(agent_id) or {"messages": []}
+                history = agent.get("messages") if isinstance(agent.get("messages"), list) else []
+                history = self._settle_pending(history)
+            mode = self._normalize_mode(payload.get("mode") or agent.get("mode"), kind)
+            requested = str(payload.get("model") or agent.get("model") or "").strip()
+            models = self._available_models()
+            model = requested if requested in models else self._default_model(kind)
+            file_args, persistent_files = self._agent_file_args(agent_id, agent)
+            with self.lock:
+                data = self._load()
+                stored = data.setdefault("agents", {}).setdefault(agent_id, {"messages": []})
+                messages = stored.get("messages") if isinstance(stored.get("messages"), list) else []
+                messages = self._settle_pending(messages)
+                messages = (messages + [{"role": "user", "content": message}])[-40:]
+                messages.append({
+                    "role": "assistant",
+                    "content": "",
+                    "process": "",
+                    "model": model,
+                    "pending": True,
+                })
+                stored["messages"] = messages[-40:]
+                stored["title"] = title
+                stored["mode"] = mode
+                stored["model"] = model
+                self._save(data)
 
-        self._spawn_run(
-            agent_id=agent_id,
-            title=title,
-            scope=scope,
-            message=message,
-            model=model,
-            mode=mode,
-            file_args=file_args,
-            history=history,
-        )
-        with self.lock:
-            fresh = self._load()
-            stored_now = fresh.get("agents", {}).get(agent_id) or {}
-        return {
-            "ok": True,
-            "started": True,
-            "title": title,
-            "messages": stored_now.get("messages", []),
-            "mode": mode,
-            "provider": self._provider_for_model(model),
-            "model": model,
-            "usage": stored_now.get("usage", {}),
-            "live": {},
-            "files": persistent_files,
-        }
+            self._spawn_run(
+                agent_id=agent_id,
+                title=title,
+                scope=scope,
+                message=message,
+                model=model,
+                mode=mode,
+                file_args=file_args,
+                history=history,
+            )
+            started = True
+            with self.lock:
+                fresh = self._load()
+                stored_now = fresh.get("agents", {}).get(agent_id) or {}
+            return {
+                "ok": True,
+                "started": True,
+                "title": title,
+                "messages": stored_now.get("messages", []),
+                "mode": mode,
+                "provider": self._provider_for_model(model),
+                "model": model,
+                "usage": stored_now.get("usage", {}),
+                "live": {},
+                "files": persistent_files,
+            }
+        finally:
+            with self.procs_lock:
+                self.starting_agents.discard(agent_id)
+                if not started:
+                    # The turn never reached a worker; its cancel flag must not
+                    # leak into the next instruction.
+                    self.interrupts.discard(agent_id)
 
 
 class ApiHandler(BaseHTTPRequestHandler):
@@ -6122,12 +6500,26 @@ class ApiHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path.startswith("/user-sounds/"):
-            name = unquote(parsed.path.rsplit("/", 1)[-1])
-            if not name or Path(name).name != name:
+            # /user-sounds/<style>/<file>, with a legacy flat /user-sounds/<file>
+            # that reads classical/. A cue missing from a style falls back to
+            # classical/ so a partial style pack still plays every sound.
+            rest = unquote(parsed.path[len("/user-sounds/"):])
+            parts = [part for part in rest.split("/") if part]
+            if len(parts) == 1:
+                style, name = DEFAULT_SOUND_STYLE, parts[0]
+            elif len(parts) == 2:
+                style, name = parts
+            else:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            style = sound_style_id(style)
+            if not style or not name or Path(name).name != name or "\\" in name:
                 self._json(404, {"ok": False, "error": "Not found"})
                 return
             ensure_sounds_dir()
-            candidate = SOUNDS_DIR / name
+            candidate = SOUNDS_DIR / style / name
+            if not candidate.is_file():
+                candidate = SOUNDS_DIR / DEFAULT_SOUND_STYLE / name
             if not candidate.is_file():
                 candidate = WEB_DIR / "sounds" / name
             try:
@@ -6259,6 +6651,14 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "ok": True,
                 "themes": discover_icon_themes(),
                 "folder": str(ensure_icon_themes_dir()),
+            })
+            return
+        if parsed.path == "/api/sound-styles":
+            self._json(200, {
+                "ok": True,
+                "styles": discover_sound_styles(),
+                "folder": str(ensure_sounds_dir()),
+                "default": DEFAULT_SOUND_STYLE,
             })
             return
         if parsed.path == "/api/themes/community":

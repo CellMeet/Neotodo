@@ -7,6 +7,8 @@ editing the main notebook code.
 ```
 plugins/
   plugin-host.css      shared host frame + rail icon styles
+  plugin-theme.css     shared theme mapping for every control page
+  plugin-theme.js      copies the notebook's live theme before first paint
   pindou/
     manifest.json      plugin metadata (id, name, version, icon, entry)
     index.html         plugin UI
@@ -116,8 +118,26 @@ Palette, Postcards and Community pages are the bundled examples.
 3. Add a `.tool-button` with a `data-action` that calls
    `openPluginPanel("<id>")`.
 
-The host sends `{ type: "neotodo-theme", dark }` messages to the iframe and
-listens for `{ type: "neotodo-plugin-close" }` so a plugin can close itself.
+The host sends `{ type: "neotodo-theme", dark, vars }` messages to the iframe
+and listens for `{ type: "neotodo-plugin-close" }` so a plugin can close itself.
+`vars` carries the live postcard palette, page_line paint and weight, the shared
+ink-green card outline / corner / lift, and the reader's font stacks; the host
+repeats it whenever the theme, wallpaper or page line changes.
+
+Every non-`intheme` control page loads the shared theme bridge:
+
+```html
+<script src="../plugin-theme.js"></script>   <!-- in <head>, before the plugin CSS -->
+<link rel="stylesheet" href="../plugin-theme.css"> <!-- after the plugin CSS -->
+```
+
+`plugin-theme.js` reads the parent palette before the first paint, sets
+`data-nt-theme` on the page and mirrors the light/dark switch onto the plugin's
+own `data-*-dark` flag. `plugin-theme.css` maps `--nt-*` onto the plugin's
+private `--xx-paper` / `--xx-ink` / `--xx-line` variables, so the page wears the
+current theme while its identity colour (a tomato, a flame, a bead board) stays
+its own. Pages tagged `"intheme"` load `/style.css` and copy `vars` themselves
+instead; they must not load the bridge, because their stage is transparent.
 
 ### Community plugins
 

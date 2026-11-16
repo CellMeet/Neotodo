@@ -1,6 +1,6 @@
 """Icon themes are a separate shelf from the paper/wallpaper themes.
 
-The Classical set keeps every original NeoTodo mark. The bundled Pvs set swaps
+The Classical set keeps every original NeoTodo mark. The bundled PvZ set swaps
 the six requested slots and leaves anything it does not define alone.
 """
 import sys
@@ -21,13 +21,13 @@ def main() -> int:
     pvs = themes["pvs"]
     expected = {
         "tissue", "fan", "fanDone", "aiRunning", "aiDone", "aiDoneFinal",
-        "achievement", "checkDone", "rowBurn",
+        "achievement", "checkDone", "rowBurn", "fork",
     }
     assert expected <= set(pvs["icons"]), pvs["icons"]
     for slot in expected:
         asset = app.icon_theme_asset_path("pvs", pvs["icons"][slot])
         assert asset is not None and asset.stat().st_size > 0, (slot, pvs["icons"][slot])
-    print("Icon themes: Classical is original; Pvs maps every requested slot")
+    print("Icon themes: Classical is original; PvZ maps every requested slot")
     return 0
 
 

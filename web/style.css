@@ -3564,7 +3564,8 @@ html[data-font="mono"] { --display: "DejaVu Sans Mono", "Liberation Mono", "Noto
 .ai-provider-block-head > div { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 1px; }
 .ai-provider-block-head strong { font-family: var(--display); font-size: 13px; }
 .ai-provider-block-head small { color: var(--muted); font-size: 10.5px; }
-.ai-provider-icon { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; border-radius: 3px; }
+.ai-provider-icon { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; border-radius: 3px; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+.ai-provider-icon::selection { background: transparent; }
 .ai-provider-status { flex: 0 0 auto; color: var(--muted); font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
 .ai-model-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px dotted var(--line); }
 .ai-model-row:last-child { border-bottom: 0; }
@@ -8127,6 +8128,11 @@ html[data-theme="postcard"] .head-right .tomato-counter #tomato-count {
   text-shadow: 0 1px 0 rgba(255, 255, 255, .4);
 }
 body.clock-hidden .header-clock { display: none; }
+/* Appearance → Others can hide the top-left wordmark and the achievement
+   shelf without touching the clock or the week stamp. */
+body.brand-hidden .nt-brand { display: none !important; }
+body.achievements-hidden .head-right [data-achievement],
+body.achievements-hidden .head-right [data-achievement-plugin] { display: none !important; }
 
 /* The chronicle sheet is top-anchored and always clears the header clock. */
 .completed-stage {
@@ -8797,6 +8803,9 @@ html[data-theme="postcard"] .history-row > .h-date {
 .doing-peek.doing-dock-left .doing-kicker {
   flex-direction: row-reverse;
 }
+/* A pinned card has no border home any more: its pin always sits at the top
+   left, the same way on every part of the desk. */
+.doing-peek.doing-floating .doing-kicker { flex-direction: row; }
 .doing-peek .doing-dock {
   flex: 0 0 24px;
   width: 24px;
@@ -8813,8 +8822,8 @@ html[data-theme="postcard"] .history-row > .h-date {
   color: var(--pc-muted, var(--muted, #8b7a5f));
   font-size: 9px;
   font-weight: 600;
-  /* The kicker is the drawer's grab bar: hold it and pull the card to the
-     other border. The box keeps its size and height; only the anchor moves. */
+  /* The kicker is the drawer's grab bar: hold it and pull the card anywhere on
+     the desk. The box keeps its size while the pull owns the offset. */
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -8823,26 +8832,22 @@ html[data-theme="postcard"] .history-row > .h-date {
 .doing-peek.doing-dragging.open {
   transition: none !important;
   transform: none !important;
-  /* The pull moves the card with its own composited translate. `left` is
-     committed once, on release, so no frame relayouts the page under the
-     pointer or repaints the card's shadows. */
-  translate: var(--doing-drag-x, 0px) 0px;
+  /* The pull moves the card with an inline `translate` (a transform, not a
+     custom property): no frame relayouts the page under the pointer and no row
+     under the card is restyled. The card's own shadow is left untouched: a new
+     four-layer blur at the grab would repaint the whole sheet. */
   will-change: transform;
   cursor: grabbing;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 26px 60px rgba(64, 44, 18, 0.26),
-    0 4px 10px rgba(64, 44, 18, 0.12);
 }
 .doing-peek.doing-dragging .doing-kicker { cursor: grabbing; }
 /* While pulled, the drawer floats above every sheet it crosses. */
-#doing-peek.doing-dragging { z-index: 140 !important; }
-/* A dropped card glides straight to the border it was released on. The glide is
+#doing-peek.doing-dragging,
+#doing-peek.doing-floating { z-index: 140 !important; }
+/* A dropped card glides straight to the box it was released on. The glide is
    a composited translate, not a `left` animation: the landing box is committed
    first, and only the offset back to the pointer's drop point moves. */
 .doing-peek.doing-snapping,
 .doing-peek.doing-snapping.open {
-  translate: var(--doing-drag-x, 0px) 0px;
   will-change: transform;
   transition:
     translate 0.3s cubic-bezier(0.22, 0.8, 0.24, 1),
@@ -10852,6 +10857,66 @@ html[data-theme="postcard"] .settings-close::before{
   flex: 0 0 auto;
   margin-inline-end: 36px;
 }
+/* Appearance → Others: one fold-out row holds the four display switches
+   (time cost, current time, top-left logo, top-right achievements). */
+.theme-others-section {
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--pc-line, var(--line));
+}
+.theme-others-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pc-ink, var(--ink));
+  text-align: left;
+  cursor: pointer;
+}
+.theme-others-trigger:hover .theme-settings-title,
+.theme-others-trigger:focus-visible .theme-settings-title {
+  color: var(--pc-accent, var(--gold));
+}
+.theme-others-trigger:focus-visible {
+  outline: 2px solid var(--pc-accent, var(--gold));
+  outline-offset: 3px;
+}
+.theme-others-chevron { margin-left: auto; transition: transform 0.18s ease; }
+.theme-others-section.open .theme-others-chevron { transform: rotate(180deg); }
+.theme-others-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 6px;
+}
+.theme-others-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--pc-line, var(--line));
+}
+.theme-others-side {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-others-state {
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.theme-others-state.on { color: var(--pc-accent, var(--gold)); }
+.theme-others-item .theme-setting-switch {
+  flex: 0 0 auto;
+  margin-inline-end: 36px;
+}
 .theme-chip,
 .theme-chip-button {
   display: inline-flex;
@@ -11000,15 +11065,30 @@ html[data-theme="postcard"] .settings-close::before{
   gap: 8px;
 }
 .theme-manage-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-/* Theme → Manage folds out tight under its own row and closes with a
-   hairline, so the pack actions read as the tail of Theme instead of
-   crowding the Wallpaper row below. */
+/* The folder chip opens a shelf on disk. It is a square the height of the
+   neighbouring buttons and borrows the theme ink through currentColor. */
+.theme-folder-button {
+  flex: 0 0 auto;
+  width: 30px;
+  min-width: 30px;
+  height: 29px;
+  padding: 0;
+  justify-content: center;
+}
+.theme-folder-glyph {
+  width: 15px;
+  height: 15px;
+  color: var(--pc-muted, var(--muted));
+}
+.theme-folder-button:hover .theme-folder-glyph { color: var(--pc-accent, var(--gold)); }
+/* Theme → Manage folds out tight under its own row. The pack actions are the
+   tail of Theme: no closing hairline, and only a small breath before Wallpaper. */
 .theme-settings-row.theme-manage-open { margin-bottom: 0; }
 .theme-settings-row.theme-manage-open + .theme-manage-panel {
   margin-top: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--pc-line, var(--line));
-  margin-bottom: 24px;
+  padding-bottom: 0;
+  border-bottom: 0;
+  margin-bottom: 16px;
 }
 .theme-manage-panel .custom-theme-editor { margin-top: 4px; margin-bottom: 0; }
 
@@ -15001,6 +15081,10 @@ html[data-theme="postcard"] .head-right .trophy-glyph {
   gap: 1px 12px;
   margin: 6px 0 12px;
 }
+/* Sound style row: the folder chip opens the sounds shelf, where classical/
+   and every other style folder live, so a new style is one new folder away. */
+.sound-settings-row .theme-settings-controls { justify-content: flex-end; }
+.sound-style-menu .theme-menu-list { width: 220px; }
 @media (max-width: 720px) {
   .sound-settings-list { grid-template-columns: 1fr; }
 }
@@ -15184,6 +15268,13 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
   /* The mark is bare ink on the paper: no tile, plate or wash behind it. */
   background: transparent;
   border-radius: 0;
+  /* The badge is a decorative mark, not text. If it took part in a text
+     selection, the selection wash painted behind its transparent SVG showed
+     through as a brown square the size of the badge ("the AI icon has a
+     coloured backing"). Keep it out of selections entirely. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .sub-agent-model:empty { display: none; }
 .sub-agent-model.icon-failed { display: none !important; }
@@ -15192,6 +15283,15 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
   height: 18px;
   display: block;
   object-fit: contain;
+  background: transparent;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Belt and braces for engines that still include the replaced box in a range:
+   even selected, the mark never paints a selection plate behind itself. */
+.sub-agent-model::selection,
+.sub-agent-model img::selection {
   background: transparent;
 }
 .sub-agent-model.pop {
@@ -15323,9 +15423,12 @@ html[data-theme="postcard"] .head-right #tomato-count {
   height: 56px !important;
 }
 .top-tools {
+  /* Opening is triggered by a hover, so the box must appear the instant the
+     pointer lands on the band. Keep the slide shorter than a blink instead of
+     making the user wait for the old 0.11s easing tail. */
   transition:
-    opacity 0.08s ease,
-    transform 0.11s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+    opacity 0.04s linear,
+    transform 0.06s cubic-bezier(0.2, 0.9, 0.25, 1) !important;
 }
 
 /* Doing card: keep a real card border on the right edge too. */
@@ -16072,6 +16175,7 @@ html[data-wallpaper] .doing-peek::before { opacity: 0.50; }
   flex-direction: column;
   gap: 8px;
   margin-top: -12px;
+  margin-bottom: 16px;
 }
 .wallpaper-manage-options {
   display: flex;
@@ -16082,6 +16186,14 @@ html[data-wallpaper] .doing-peek::before { opacity: 0.50; }
 .wallpaper-manage-options .theme-chip-button {
   min-width: 64px;
   justify-content: center;
+}
+/* The folder chip sits at the right end of the row, so the three options step
+   a little to the left without moving away from the page edge. */
+.wallpaper-manage-options .theme-folder-button {
+  min-width: 30px;
+  width: 30px;
+  margin-left: 12px;
+  padding: 0;
 }
 .wallpaper-blur-row {
   display: flex;

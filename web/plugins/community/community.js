@@ -761,6 +761,15 @@
     if (file) installPluginArchive(file);
   });
 
+  // Plugin icons are transparent SVGs, so the fallback must replace the image
+  // instead of sitting behind it (otherwise the puzzle shows through).
+  document.addEventListener("error", (event) => {
+    const image = event.target;
+    if (!image?.matches?.(".shop-plugin-icon img")) return;
+    const holder = image.closest(".shop-plugin-icon");
+    if (holder) holder.innerHTML = puzzleGlyph;
+  }, true);
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closePage();
   });

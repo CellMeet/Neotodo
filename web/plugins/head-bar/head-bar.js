@@ -30,7 +30,7 @@
     id: PLUGIN_ID,
     title: "Head Bar",
     englishTitle: "Dynamic Island",
-    version: "2.3.0",
+    version: "2.3.2",
     author: "NeoTodo",
     category: "Interface",
     description: "悬停时间数字时，一条海盐瓶水晶质感的灵动岛从上边框滑出。点击后工作区可选择推拉收起，或像纸张燃烧一样变黑、卷起、冒烟，最后露出壁纸；恢复时动画倒放，像时间倒流。",

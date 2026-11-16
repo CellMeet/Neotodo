@@ -13,6 +13,11 @@
    button opens and closes the drawer, and the drawer slides down from the top
    edge of the task block.
 
+   The field also creates work. Enter on an empty result list turns the typed
+   text into a new subtask, selects it and clears the field, so a search that
+   finds nothing becomes the fastest way to add that subtask. Leaving the field
+   without pressing Enter abandons the search and empties it.
+
    It registers itself with the NeoTodo plugin host so Settings → Plugins can
    turn it on or off like any other plugin. No source file outside this folder
    needs to know what it does.
@@ -30,10 +35,10 @@
     id: PLUGIN_ID,
     title: "子任务搜索",
     englishTitle: "Subtask Search",
-    version: "1.0.0",
+    version: "1.1.0",
     author: "NeoTodo",
     category: "Interface",
-    description: "左栏放大镜卡片可以开关子任务搜索栏。匹配结果按最近活跃时间从上到下排列，右侧显示几分钟、几小时或几天前；已完成子任务也会列出，点击即可跳转并选中它；搜索栏的磨砂模糊可在插件页调整。",
+    description: "左栏放大镜卡片可以开关子任务搜索栏。匹配结果按最近活跃时间从上到下排列，右侧显示几分钟、几小时或几天前；已完成子任务也会列出，点击即可跳转并选中它；没有匹配时按 Enter 会用输入的文字新建子任务并选中，离开搜索框会清空内容；搜索栏的磨砂模糊可在插件页调整。",
     icon: "/plugins/subtask-search/subtask-search.svg",
     entry: "/plugins/subtask-search/index.html",
     kind: "chrome",
@@ -46,6 +51,8 @@
   let resultToken = 0;
   let clearTimer = 0;
   let clockTimer = 0;
+  let creatingSubtask = false;
+  let drawerPointerDown = false;
 
   // ------------------------------------------------------------------------
   // The glass blur is the user's setting, tuned on the plugin's own control
@@ -223,16 +230,39 @@
       query = input.value;
       renderResults();
     });
-    input.addEventListener("focus", () => panel.classList.add("is-focused"));
-    input.addEventListener("blur", () => panel.classList.remove("is-focused"));
+    input.addEventListener("focus", () => {
+      panel.classList.add("is-focused");
+    });
+    input.addEventListener("blur", (event) => {
+      panel.classList.remove("is-focused");
+      // Leaving the field without Enter abandons the search, so the text goes
+      // with it. Pointer presses outside the drawer are emptied by the capture
+      // listeners at boot; this covers Tab and window focus changes. A press
+      // still down inside the drawer is a result click on its way, so let its
+      // click select and clear instead of wiping the row under the pointer.
+      if (creatingSubtask || !query) return;
+      const next = event.relatedTarget;
+      if (next && panel.contains(next)) return;
+      if (drawerPointerDown) return;
+      clearSearch(false);
+    });
     input.addEventListener("keydown", (event) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") {
         const first = panel.querySelector(".subtask-search-result");
-        if (!first) return;
-        event.preventDefault();
-        event.stopPropagation();
-        first.click();
+        if (first) {
+          event.preventDefault();
+          event.stopPropagation();
+          first.click();
+          return;
+        }
+        // Nothing matched: Enter takes the typed words as a brand-new
+        // subtask instead of leaving the search dead.
+        if (query.trim()) {
+          event.preventDefault();
+          event.stopPropagation();
+          createSubtaskFromQuery();
+        }
       }
     });
 
@@ -253,6 +283,49 @@
     if (input) input.value = "";
     renderResults();
     if (refocus && input) input.focus({ preventScroll: true });
+  }
+
+  // A search with no matches becomes a new subtask: the typed words are the
+  // name, the app's own add-subtask action saves it, and the fresh row is then
+  // selected the same way a search hit is. The field ends up empty and the
+  // drawer stays open.
+  async function createSubtaskFromQuery() {
+    const name = query.trim();
+    const todoId = currentTodoData()?.id || currentInner()?.dataset.currentTodo || "";
+    if (!name || !todoId || creatingSubtask) return false;
+    if (typeof action !== "function") return false;
+
+    creatingSubtask = true;
+    cancelScheduledClear();
+    try {
+      if (typeof AudioFX !== "undefined") AudioFX.mechanical();
+    } catch (error) {}
+
+    let result = null;
+    try {
+      result = await action("add_subtask", { todo_id: todoId, name });
+    } catch (error) {
+      result = null;
+    }
+    creatingSubtask = false;
+
+    const created = result?.ok ? String(result.created || "") : "";
+    if (!created) {
+      // The app has already reported the failure. Keep the words in the field
+      // so a retry does not need retyping.
+      const input = currentInput();
+      if (input) input.focus({ preventScroll: true });
+      return false;
+    }
+
+    // render() rebuilt the stage during the request, so the new row is at the
+    // top of the pending lane. Empty the field first: the drawer is rebuilt on
+    // the next frame and reads `query`, and the search is finished either way.
+    query = "";
+    const input = currentInput();
+    if (input) input.value = "";
+    jumpToResult(created, false);
+    return true;
   }
 
   // ------------------------------------------------------------------------
@@ -481,6 +554,8 @@
       if (match.stamp) time.title = absoluteTimeText(match.stamp);
       button.appendChild(time);
 
+      // The capture listener already knows a press inside the drawer is a
+      // result click on its way, so its blur never wipes the row.
       button.addEventListener("pointerdown", (event) => event.stopPropagation());
       button.addEventListener("click", (event) => {
         event.preventDefault();
@@ -494,7 +569,13 @@
     if (!matches.length) {
       const empty = document.createElement("div");
       empty.className = "subtask-search-empty";
-      empty.textContent = "没有匹配的子任务";
+      const emptyText = document.createElement("span");
+      emptyText.className = "subtask-search-empty-text";
+      emptyText.textContent = "没有匹配的子任务";
+      const emptyHint = document.createElement("span");
+      emptyHint.className = "subtask-search-empty-hint";
+      emptyHint.textContent = "Enter 新建";
+      empty.append(emptyText, emptyHint);
       fragment.appendChild(empty);
     }
 
@@ -601,6 +682,8 @@
   // ------------------------------------------------------------------------
   function resetView() {
     cancelScheduledClear();
+    creatingSubtask = false;
+    drawerPointerDown = false;
     stopClock();
     document.querySelectorAll(".subtask-search-drawer").forEach((node) => node.remove());
     document.querySelectorAll(".subtask-search-hit").forEach((node) => {
@@ -707,6 +790,33 @@
     }
     openPanel();
   });
+
+  // ------------------------------------------------------------------------
+  // Leaving the field abandons the search, so its text goes with it. A press
+  // outside the drawer empties the field immediately, before the blur can
+  // carry a stale value; a press on a result row is the search's own Enter, so
+  // its click selects the row and clears by itself. If that press is dragged
+  // back out before release, the search is abandoned after all.
+  // ------------------------------------------------------------------------
+  document.addEventListener("pointerdown", (event) => {
+    const panel = currentPanel();
+    drawerPointerDown = Boolean(panel?.contains(event.target));
+    if (!panelOpen || creatingSubtask || !panel || drawerPointerDown) return;
+    if (query) clearSearch(false);
+  }, true);
+
+  window.addEventListener("pointerup", (event) => {
+    const pressedInside = drawerPointerDown;
+    drawerPointerDown = false;
+    if (!pressedInside || !panelOpen || creatingSubtask || !query) return;
+    const panel = currentPanel();
+    if (!panel || panel.contains(event.target)) return;
+    clearSearch(false);
+  }, true);
+
+  window.addEventListener("pointercancel", () => {
+    drawerPointerDown = false;
+  }, true);
 
   // Escape clears the field but keeps the drawer open: the left rail card is
   // the only control that closes it.

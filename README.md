@@ -59,7 +59,7 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 ### ✅ Todos, subtasks and the right-click toolbox
 - 🎯 **One active todo per category.** Complete it, celebrate, and the next task rises to the top of the page.
 - 🧾 **Subtasks are the real checklist.** Add, rename and tick them inline; completed rows settle into a quiet drawer behind a purple line instead of crowding the work.
-- 🖱️ **Right-click anywhere useful.** A live subtask opens **Fork / Copy / Cut / Paste**, a completed one adds **Edit note**, and a note or AI panel opens **Open as new window**.
+- 🖱️ **Right-click anywhere useful.** A live subtask body opens **Fork / Cut**, a completed one opens **Fork / Copy name / Edit note**, and a note or AI panel opens **Open as new window**.
 - 🌬️ **Right-click the fan** in front of a live subtask to delete it in one motion; deleted subtasks are kept in the magic hat.
 - 🔀 **Fork a subtask.** A fork branches it into its own category and window, keeping the original untouched and carrying the linked project folder along.
 - 🎩 **Magic hat recovery.** Every deleted subtask lands in the hat with its source and timestamp; restore it or clear the hat deliberately.

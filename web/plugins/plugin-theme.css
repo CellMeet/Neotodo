@@ -173,9 +173,9 @@ html[data-nt-theme] {
 }
 
 /* ----------------------------------------------------------------- cards --- */
-/* A floating panel on a plugin page is the same piece of paper as the
-   notebook's cards: one ink-green stroke and the shared corner. Only the
-   plugin's named preview stages are targeted; the plugin keeps its geometry. */
+/* A control page preview is a sheet from the same notebook, so it borrows the
+   card corner. It keeps its own preview chrome and identity colours; only the
+   geometry is shared. */
 
 html[data-nt-theme] .pd-stage,
 html[data-nt-theme] .cd-stage,
@@ -185,8 +185,7 @@ html[data-nt-theme] .lg-stage,
 html[data-nt-theme] .sb-stage,
 html[data-nt-theme] .ss-stage,
 html[data-nt-theme] .mp-stage,
-html[data-nt-theme] .hb-stage,
-html[data-nt-theme] .ft-window {
+html[data-nt-theme] .hb-stage {
   border-radius: var(--nt-radius);
 }
 

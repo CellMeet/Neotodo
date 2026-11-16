@@ -3,6 +3,11 @@
 Every mark must be present, non-empty, and painted only with the page ink
 (`currentColor`). A hard-coded grey fill used to show up as a grey plate in the
 subtask row, so any painted fixed colour is treated as a regression.
+
+The badge is also decorative, never text: if it joins a text selection the
+selection wash is painted behind its transparent SVG and reads as a brown tile
+the exact size of the icon. The stylesheet must keep the badge out of
+selections and paint no selection plate behind it.
 """
 import re
 from pathlib import Path
@@ -47,6 +52,18 @@ def main() -> int:
         print(f"empty: {empty}")
         print(f"fixed fills (grey plate): {tinted}")
         return 1
+
+    # A selected row used to leave a brown plate behind the transparent mark.
+    style = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
+    badge = re.search(r"\.sub-agent-model \{[^}]*\}", style)
+    assert badge, "the subtask model badge has no style block"
+    assert "user-select: none" in badge.group(0), "the model badge may join a text selection"
+    assert "-webkit-user-select: none" in badge.group(0), "WebKit may still select the badge"
+    assert re.search(
+        r"\.sub-agent-model::selection,\s*\.sub-agent-model img::selection\s*\{[^}]*background:\s*transparent",
+        style,
+    ), "a selected model badge may paint the brown selection plate again"
+
     print(f"{len(ICONS)} model icons passed")
     return 0
 

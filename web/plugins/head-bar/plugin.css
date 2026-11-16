@@ -136,7 +136,8 @@ html[data-hb-dark="true"] .hb-stage {
   --hb-stage-glow: rgba(190, 245, 255, 0.65);
   --hb-stage-shadow: rgba(5, 45, 65, 0.32);
   position: absolute;
-  top: 8px;
+  /* Mirror the app: half an island-height back up from the lowered spot. */
+  top: 14px;
   left: 50%;
   width: 92px;
   height: 12px;

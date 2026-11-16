@@ -52,6 +52,18 @@ class CardWallpaperPrewarmTests(unittest.TestCase):
         # A missing wallpaper must never hold startup open forever.
         self.assertIn("wallpaperBitmapCache.has(wallpaper.key)", body)
 
+    def test_a_sliding_card_carries_its_wallpaper_face_with_it(self):
+        # A film card is a window onto the room. If the window copy is aligned
+        # against the card's live frame, every animation frame re-pins it to the
+        # room: the words and the stroke slide out, the sheet's own face stays
+        # behind. The resting box keeps the picture on the card for the trip, so
+        # the face arrives with its text and still lines up at rest.
+        place = block_after(self.app_js, "function placeCardWallpaper(", "\n}\n")
+        self.assertIn("const box = host ? subcardBox(host) : null;", place)
+        self.assertNotIn("layer.getBoundingClientRect()", place)
+        self.assertIn('layer.style.setProperty("--card-wallpaper-x", x);', place)
+        self.assertIn('layer.style.setProperty("--card-wallpaper-y", y);', place)
+
     def test_startup_waits_for_the_faces_before_going_visible(self):
         init = self.app_js.split("async function init()", 1)[1]
         start = init.index("const cardFacesReady = prewarmCardWallpaperFaces();")

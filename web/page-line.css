@@ -284,12 +284,14 @@ html[data-theme="postcard"] .trash-drawer .trash-row:last-child {
   border-bottom-color: transparent !important;
 }
 
-/* A docked note or AI card carries the sheet boundary on its rounded top
-   edge; it is the same page line, not a separate colour. */
+/* A note or AI card is a lifted sheet on the desk, not another ruled row: its
+   top edge stays free of the page line. Recolouring the card's border with
+   page_line here painted a grey rim along the open pane, which is exactly the
+   edge the reader asked to remove. The page line still stops at the desk
+   boundary; the card's own material draws its edge. */
 html[data-theme="postcard"] .page-body > #notes-half:not(.notes-hidden),
 html[data-theme="postcard"] .page-body > #agent-terminal.open {
-  border-top-color: var(--page-line-paint) !important;
-  border-top-width: var(--page-line-thickness) !important;
+  border-top-width: 0 !important;
 }
 
 /* ---------------------------------------------------------- previews --- */

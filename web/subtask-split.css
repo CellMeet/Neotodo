@@ -137,9 +137,14 @@
   border-radius: var(--overlay-radius, 10px);
   background-color: var(--overlay-paper, var(--paper));
   background-image: none;
-  /* The stretch is the control: the bottom edge travels, the top stays. */
-  transition: max-height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-    background-color 0.18s ease;
+  /* The stretch is the control: the bottom edge travels, the top stays.
+     This card unfolds much further than the finished tray down the page, so
+     it gets the app's near-instant beat (the search pop is 100ms) instead of
+     a slow travel: the sheet, its paper and its rows all land in one short
+     wipe. Everything that fades during the fold shares this exact duration,
+     so no layer can arrive before or after the edge. */
+  transition: max-height 0.12s cubic-bezier(0.2, 1, 0.3, 1),
+    background-color 0.12s ease;
 }
 
 /* The stroke is painted inside the box (a 1px border would push every row off
@@ -152,7 +157,8 @@
   pointer-events: none;
   border: 1px solid var(--subcard-outline, #2f5d4e);
   border-radius: inherit;
-  transition: opacity 0.18s ease;
+  /* Same beat as the fold: the stroke leaves with the edge, not before it. */
+  transition: opacity 0.12s ease;
 }
 
 /* Folded away the card is gone: no face, no stroke, no corner. Only the handle
@@ -168,8 +174,10 @@
   opacity: 0;
 }
 
+/* The rows fade on the fold's own beat; a shorter fade made the words reach
+   their place while the paper edge was still travelling. */
 .pending-subtask-card .subtask-lanes {
-  transition: opacity 0.16s ease;
+  transition: opacity 0.12s ease;
 }
 
 .pending-subtask-card.collapsed .subtask-lanes {
@@ -270,6 +278,36 @@
 .pending-subtask-toggle.collapsed:hover .pending-subtask-line,
 .pending-subtask-toggle.collapsed:focus-visible .pending-subtask-line {
   opacity: 1;
+}
+
+/* Folded away the purple line is not left lying on the page: it tucks itself
+   above the block's top boundary, inside the card's clipped box, and waits
+   there. The first row of the subtask area is its handle — the pointer entering
+   that band hands the line back out onto the top band, and leaving the band
+   tucks it away again. `peek` is set by bindPendingSubtaskToggle(); a click on
+   the line then unfolds the rows as before. Keyboard focus always keeps the
+   line out, and a device without hover keeps it visible (`@media (hover)`), so
+   the control is never unreachable. */
+.pending-subtask-card.collapsed > .pending-subtask-toggle {
+  /* The pill rides the shrinking edge, so its tuck uses the fold's own beat. */
+  transition: transform 0.12s cubic-bezier(0.2, 1, 0.3, 1),
+    opacity 0.1s ease;
+}
+
+.pending-subtask-toggle.collapsed.peek .pending-subtask-line {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .pending-subtask-card.collapsed
+    > .pending-subtask-toggle:not(.peek):not(:focus-visible) {
+    /* The line rides the card's shrinking bottom edge up to the top band while
+       it tucks itself beyond the card's clipped top, so folding away reads as
+       the handle retreating into the subtask area, not as a blink. */
+    transform: translateY(-44px);
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 
 /* The finished column and the live card are one sheet: no divider line. */
@@ -448,17 +486,6 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   contain: layout paint;
 }
 
-/* The provider mark leaves the row before the row lands. It is pinned to the
-   spot where the click happened and drops out of sight there; the ghost only
-   closes the empty slot, so no badge is ever carried into the finished tray. */
-.subtask-flight-mark {
-  position: fixed;
-  z-index: 241;
-  margin: 0 !important;
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-
 /* The new finished row's rule arrives first; its fan, name and check land with
    the flight. Keeping the row itself visible lets the rule push the finished
    rows below it down, instead of opening an empty hole above them. */
@@ -488,6 +515,14 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   transform: scale(0.94);
   opacity: 0.86;
   transition: transform 0.12s ease, opacity 0.12s ease;
+}
+/* The provider mark belongs to the live run, not to the submission: it leaves
+   the moment the row starts to submit and takes its slot with it. The row is
+   already in the layout the finished row will land in, so the flight carries a
+   row without an invisible icon in front and nothing shifts sideways when it
+   lands. A failed request restores the mark with the row's own state. */
+.current-subtask.subtask-completing .sub-agent-model {
+  display: none;
 }
 
 .completed-subtask-sheet {

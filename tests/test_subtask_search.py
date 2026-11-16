@@ -28,6 +28,21 @@ def main() -> int:
     # Selecting happens after the finished-task drawer is opened.
     assert jump.index("toggleCompletedSubtasks(true)") < jump.index("selectRow(picked)")
 
+    # Enter with no matches turns the typed words into a new subtask through the
+    # app's own add-subtask action, then selects it like a search hit. The field
+    # empties on the way out (jumpToResult clears it), and leaving the field
+    # without Enter also empties it.
+    assert "async function createSubtaskFromQuery()" in plugin
+    assert 'action("add_subtask", { todo_id: todoId, name })' in plugin
+    keyboard = plugin.split('input.addEventListener("keydown"', 1)[1].split("// Clicking anywhere", 1)[0]
+    assert "createSubtaskFromQuery();" in keyboard
+    assert "function scheduleBlurClear(event, panel)" not in plugin
+    assert "let drawerPointerDown = false;" in plugin
+    assert "if (drawerPointerDown) return;" in plugin
+    assert 'document.addEventListener("pointerdown", (event) => {' in plugin
+    assert "if (query) clearSearch(false);" in plugin
+    assert '"Enter 新建"' in plugin
+
     # The blur is a setting: the live page paints --ss-search-blur from the
     # shared localStorage key and follows the control page's message.
     assert 'const BLUR_KEY = "neotodo.subtask-search.blur";' in plugin
@@ -94,6 +109,10 @@ def main() -> int:
     # The focused field is a flat tint, not a gloss.
     focus_bar = css.split(".subtask-search-bar.is-focused {", 1)[1].split("\n}", 1)[0]
     assert "background: rgba(255, 255, 255, 0.10);" in focus_bar
+
+    # The empty result row says what Enter does right where the results would be.
+    assert ".subtask-search-empty-hint {" in css
+    assert "text-transform" not in css.split(".subtask-search-empty-hint {", 1)[1].split("\n}", 1)[0]
 
     # Deep-black magnifiers: the field icon (bigger) and the rail card icon.
     field_icon = css.split(".subtask-search-field-icon {", 1)[1].split("\n}", 1)[0]

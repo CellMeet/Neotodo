@@ -139,6 +139,68 @@ class PendingSubtaskCardTests(unittest.TestCase):
         self.assertIn('bar.classList.toggle("line-hidden", !show);', helper)
         self.assertIn('bar.classList.add("line-reveal");', helper)
 
+    def test_live_sheet_folds_on_the_near_instant_beat(self):
+        # The live card travels the whole task block, so it gets the near-instant
+        # beat instead of the old 0.3s crawl: it must unfold and fold in one
+        # short wipe, as fast as the rest of the panels.
+        card = css_block(self.split_css, ".pending-subtask-card {")
+        self.assertIn("max-height 0.12s", card)
+        self.assertIn("background-color 0.12s", card)
+        # Every layer that leaves during the fold fades on the same beat, so the
+        # words and the paper edge arrive together.
+        lanes = css_block(self.split_css, ".pending-subtask-card .subtask-lanes {")
+        self.assertIn("opacity 0.12s", lanes)
+        edge = css_block(self.split_css, ".pending-subtask-card::after {")
+        self.assertIn("opacity 0.12s", edge)
+        toggle = css_block(
+            self.split_css,
+            ".pending-subtask-card.collapsed > .pending-subtask-toggle {",
+        )
+        self.assertIn("transform 0.12s", toggle)
+
+    def test_wallpaper_face_is_clipped_by_the_fold_not_recropped(self):
+        # A centred cover fit re-crops the picture inside the shrinking pane, so
+        # the wallpaper panned at half the fold's speed. Top-anchored, the moving
+        # edge is the only thing that clips the face.
+        self.assertIn(
+            '#pending-subtask-card > .card-wallpaper[data-fit="patch"] > .wallpaper-media',
+            self.layers_css,
+        )
+        self.assertIn("object-position: 50% 0;", self.layers_css)
+        folded = block_after(
+            self.layers_css,
+            "html[data-wallpaper] #pending-subtask-card.collapsed > .card-wallpaper {",
+            "\n}\n",
+        )
+        self.assertIn("opacity: 0;", folded)
+        self.assertIn("opacity 0.12s", folded)
+
+    def test_folded_handle_hides_in_the_top_band_and_follows_the_first_row(self):
+        # A folded card has no rows on the page, so its purple line is not left
+        # lying there either: it retreats beyond the card's clipped top edge.
+        self.assertIn(
+            ".pending-subtask-card.collapsed > .pending-subtask-toggle {",
+            self.split_css,
+        )
+        tucked = block_after(self.split_css, "@media (hover: hover) {", "\n}")
+        self.assertIn("transform: translateY(-44px);", tucked)
+        self.assertIn("opacity: 0;", tucked)
+        self.assertIn("pointer-events: none;", tucked)
+        # Keyboard focus keeps the line reachable even on a hover-capable sheet.
+        self.assertIn(":not(:focus-visible)", tucked)
+
+        # The first row of the column is the handle: entering its band slides
+        # the line back out, leaving tucks it away again. A click still unfolds.
+        bind = block_after(self.app_js, "function bindPendingSubtaskToggle(", "\n}\n")
+        self.assertIn("const peekZone = card.parentElement;", bind)
+        self.assertIn("const peekBand = 42;", bind)
+        self.assertIn('bar.classList.toggle("peek", inside);', bind)
+        self.assertIn("pointerenter", bind)
+        self.assertIn("pointerleave", bind)
+        # A held edge owns the line and must not be tucked away mid-stretch.
+        self.assertIn("const peekPaused = () => bar.classList.contains", bind)
+        self.assertIn("if (event.pointerType === \"touch\" || peekPaused()) return;", bind)
+
     def test_finished_handle_appears_with_the_first_finished_row(self):
         hidden = css_block(
             self.split_css,
@@ -186,7 +248,7 @@ class PendingSubtaskCardTests(unittest.TestCase):
         # It must be the last word on the tray's shadow: after the page lift and
         # after the wallpaper lift that card-stack.css keeps as fallbacks.
         wallpaper_lift = self.card_stack_css.index(
-            "html[data-wallpaper] body .completed-subtask-drawer {"
+            "html[data-wallpaper][data-wallpaper-cards] body #completed-subtask-drawer {"
         )
         self.assertGreater(self.card_stack_css.index(inset), wallpaper_lift)
 
@@ -220,12 +282,15 @@ class PendingSubtaskCardTests(unittest.TestCase):
             'SUBCARD_FLOATING = new Set(["pending", "doing", "completed", "trash"])',
             self.app_js,
         )
-        # The card face is taken from 140% of its own box, not exactly the 100%
-        # element, so it reads as its own photograph of the room.
+        # The card face keeps the subtask area's 140% sample at its own centre.
+        # Every card samples the same object — the bottom wallpaper — so no
+        # upper card picks a darker slice from the card below it.
         self.assertIn("SUBCARD_PAPER_REGION = 1.4", self.app_js)
+        self.assertIn("function subcardSampleObjectFor(wallpaper)", self.app_js)
         crop = block_after(self.app_js, "function subcardCropSource(", "\n}\n")
         self.assertIn("box.width * region", crop)
         self.assertIn("box.height * region", crop)
+        self.assertNotIn("subcardSampleCenter", self.app_js)
 
         # On a wallpaper the pane is the card's whole face: no paper, no second
         # edge, and the pile keeps the one shared lift.

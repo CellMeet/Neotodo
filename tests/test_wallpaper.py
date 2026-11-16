@@ -173,15 +173,50 @@ def main() -> int:
     assert "function subcardCropSource(" in app_js, "the local wallpaper crop is missing"
     assert "function subcardBox(" in app_js, "a sub-card cannot find its open box"
     assert "function bakeSubcardPaper(" in app_js, "a sub-card picture is never baked"
-    assert "SUBCARD_PAPER_REGION = 1.4" in app_js, "a sub-card is no longer baked from 140% of its box"
+    assert "SUBCARD_PAPER_REGION = 1.4" in app_js, (
+        "a sub-card no longer keeps the subtask area's 140% sample"
+    )
+    # Every card keeps its own centre, but all of them sample one shared
+    # object: the bottom wallpaper layer the subtask area selected.
+    assert "let subcardSampleObject = { wallpaper: \"\", image: null, url: \"\" };" in app_js, (
+        "the cards no longer share one sampling object"
+    )
+    assert "function subcardSampleObjectFor(wallpaper)" in app_js, (
+        "the shared sampling object is not resolved"
+    )
+    assert "const sample = subcardSampleObjectFor(wallpaper);" in app_js, (
+        "a card samples something other than the shared wallpaper object"
+    )
+    assert "subcardSampleCenter" not in app_js, (
+        "the upper cards borrow another card's centre instead of their own"
+    )
+    assert "SUBCARD_SHARED_SAMPLE" not in app_js, (
+        "the upper cards are tied to the subtask centre again"
+    )
     # The top hidden bar is not a card: it wears the wallpaper as its own
     # background and must match the room, so it samples exactly its box (100%).
     assert "SURFACE_PAPER_REGION = 1" in app_js, "the top hidden bar lost its 100% wallpaper sample"
     assert "function subcardPaperRegion(host)" in app_js, (
         "the top hidden bar cannot choose its own 100% crop"
     )
-    assert "subcardCropSource(image, box, subcardPaperRegion(host))" in app_js, (
+    assert "subcardPaperRegion(host)," in app_js, (
         "the baked picture ignores the surface's own crop size"
+    )
+    # Every card copies the room's own bottom wallpaper element. Sampling the
+    # card below made the finished card and the Doing card look washed again.
+    assert "function roomWallpaperImage()" in app_js, (
+        "the cards no longer read the bottom wallpaper layer"
+    )
+    assert 'const media = $("#wallpaper-layer")?.firstElementChild;' in app_js, (
+        "the card face takes its pixels from a card instead of the room"
+    )
+    bake = app_js.split("function bakeSubcardPaper(", 1)[1].split("\n}\n", 1)[0]
+    assert "const sample = subcardSampleObjectFor(wallpaper);" in bake
+    assert "if (sample.image) { paint(sample.image); return; }" in bake, (
+        "a still card is not painted from the shared wallpaper object"
+    )
+    assert "subcardSampleCenter" not in bake, (
+        "a card sample uses another card's centre"
     )
     assert "schedulePrimeSubcardPapers(0)" in app_js, "the picture is not baked ahead of opening"
     assert "subcardPaperCache" in app_js, "a baked picture is not kept"
@@ -239,19 +274,28 @@ def main() -> int:
     assert "linear-gradient" not in ring, "the card is washed again"
     assert "64%, transparent" not in layers_css, "the card is washed grey again"
 
-    # The pile: one shared overlap configuration drives every task card and
-    # out-ranks the wallpaper's "one shadow below the card" fallback, so the
-    # stack is visible with or without a wallpaper.
+    # The pile: one light and one direction drive every task card through a
+    # ladder of heights. The rungs out-rank the wallpaper's "one shadow below
+    # the card" fallback, so the stack is visible with or without a wallpaper.
     stack_css = (ROOT / "web" / "card-stack.css").read_text(encoding="utf-8")
     assert '/card-stack.css' in index_html, "the card pile stylesheet is not loaded"
-    assert "--card-overlap-shadow:" in stack_css, "the cards have no shared overlap shadow"
-    assert "--card-overlap-shadow-left:" in stack_css, "the left dock has no mirrored shadow"
-    assert stack_css.count("box-shadow: var(--card-overlap-shadow) !important;") >= 4, (
-        "not every task card uses the shared overlap shadow"
+    assert "--card-sheet-page:" in stack_css, "the live card has no page rung"
+    assert "--card-sheet-card:" in stack_css, "the finished card has no rung"
+    assert "--card-sheet-top:" in stack_css, "the Doing card has no rung"
+    assert "--card-sheet-top-left:" in stack_css, "the left dock has no mirrored rung"
+    assert stack_css.count("var(--card-sheet-page)") >= 2, (
+        "not every bottom-sheet rule uses the page rung"
     )
-    # The plugin bridge still receives the old name, now an alias of the one
-    # unified configuration.
-    assert "--card-lift-page: var(--card-overlap-shadow);" in stack_css
+    assert stack_css.count("var(--card-sheet-top)") >= 2, (
+        "not every Doing-card rule uses the top rung"
+    )
+    assert stack_css.count("var(--card-sheet-card)") >= 3, (
+        "not every mid-sheet rule uses the card rung"
+    )
+    # The plugin bridge still receives the old name, now an alias of the middle
+    # rung.
+    assert "--card-overlap-shadow: var(--card-sheet-card);" in stack_css
+    assert "--card-lift-page: var(--card-sheet-page);" in stack_css
     # The shadow is thrown down-left, the way paper casts onto the sheet below;
     # there is no coloured edge or second line around the card.
     assert "sakura" not in stack_css, "a coloured paper edge is back on the card"
@@ -261,8 +305,12 @@ def main() -> int:
     assert "--card-pile" not in stack_css, "the extra deck sheets are back"
     assert "--card-under-paper" not in stack_css, "a coloured under-sheet is back"
     assert "--card-face-wash:" in stack_css, "the wallpaper card face has no surface step"
-    assert "var(--card-face-wash-raised)" in stack_css
-    assert "var(--card-face-wash-top)" in stack_css
+    assert "--card-face-wash-raised:" not in stack_css, (
+        "the finished card is washed darker than the live subtask card"
+    )
+    assert "--card-face-wash-top:" not in stack_css, (
+        "the Doing card is washed darker than the live subtask card"
+    )
     # The two cards share the desk without shoving each other aside: opening
     # the Doing card must never move the finished-subtasks card off its column.
     press_aside = [
@@ -276,9 +324,16 @@ def main() -> int:
     assert "border-color: var(--subcard-outline, #2f5d4e) !important;" in stack_css, (
         "the card edge is not painted with the shared ink-green stroke"
     )
-    assert "html[data-wallpaper] body #doing-peek" in stack_css, (
+    # The wallpaper fallback is scoped with two attributes and no id. The pile
+    # must answer with each card's own id, otherwise the fallback's single flat
+    # shadow replaces the rung and the ladder disappears on every wallpaper.
+    assert "html[data-wallpaper][data-wallpaper-cards] body #doing-peek" in stack_css, (
         "the pile loses to the wallpaper lift rule"
     )
+    for selector in ("#doing-peek", "#completed-subtask-drawer", "#trash-drawer"):
+        assert f"html[data-wallpaper][data-wallpaper-cards] body {selector} {{" in stack_css, (
+            f"the wallpaper fallback still flattens {selector}"
+        )
     # The categories spine is the room, never another sheet in the pile.
     spine_rule = stack_css.split("categories is not a card --- */", 1)[1]
     assert ".index-head," in spine_rule and "border-radius: 0 !important;" in spine_rule, (

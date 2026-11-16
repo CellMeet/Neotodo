@@ -16,9 +16,10 @@
 
    The baseline, the task region and the desk are peers. The baseline is the
    top edge of the lower desk region, not an overlay: where a note/AI card
-   occupies the desk top, that card's own top border is the visible line.
-   Opening, closing, splitting or dragging a pane can never change the task
-   region or move the boundary. Layer order is explicit (see the
+   occupies the desk top, the card's own surface supplies the edge and the
+   baseline simply runs underneath it (no sheet paints a second grey rule on
+   its top edge). Opening, closing, splitting or dragging a pane can never
+   change the task region or move the boundary. Layer order is explicit (see the
    --page-layer-* variables), so z-index accidents in other stylesheets
    cannot put the line on top of a card.
    ========================================================================== */
@@ -148,11 +149,14 @@
   z-index: var(--page-layer-desk-border);
 }
 
-/* A sheet docked at the desk top carries the same 1px border, so the line
-   follows its rounded corners instead of cutting across them. */
+/* Sheets carry no rule of their own on the top edge. The old hand-off border
+   repeated the page baseline along the card's top; on the AI card it drew a
+   dark grey rim across the interface, and on the note it stacked a second line
+   on the paper's own edge. The desk keeps its baseline below the sheets, while
+   a pane's surface and its material supply the visible boundary. */
 .page-body > #notes-half:not(.notes-hidden),
 .page-body > #agent-terminal.open {
-  border-top: 1px solid var(--page-baseline-color) !important;
+  border-top: 0 !important;
 }
 
 /* A detached window is a sheet on its own; there is no page boundary. */

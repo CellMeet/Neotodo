@@ -29,6 +29,14 @@
 
    The last row the user stopped on is remembered in localStorage and restored
    on the next launch, so opening the rail shows the same part of the drum.
+
+   The stored state is the row itself (its plugin/action key), not only a pixel
+   offset: bundled and community plugins mount asynchronously and a disabled
+   plugin can disappear between launches, so raw pixels would point at a
+   different icon. Restoring by row keeps the plugin the reader left in the
+   middle of the glass in the middle, and only a real move by the reader
+   overwrites the stored row. A short-lived non-scrollable shelf during boot
+   can never reset the saved position anymore.
    ========================================================================== */
 
 (function () {
@@ -37,7 +45,7 @@
   const RAIL_SELECTOR = "#tool-rail";
   const STORAGE_KEY = "neotodo:toolRailScroll";
   const WHEEL_LINE_PX = 18;    // Firefox reports wheel deltas in lines
-  const SAVE_MS = 180;         // quiet time before the position is stored
+  const SAVE_MS = 220;         // quiet time before the position is stored
 
   // ------------------------------------------------------------------ drum ---
   // How far the outermost row would turn around the platen, the size it gets
@@ -78,7 +86,7 @@
   const drum = { half: 0, reach: 0.83, rowHeight: 43, items: [] };
   let hoverNode = null;
 
-  let remembered = readRemembered();
+  let savedScroll = readRemembered();
   let target = 0;       // where the wheel wants the drum to stop
   let position = 0;     // fractional scroll position while the spring runs
   let velocity = 0;     // px per second
@@ -90,18 +98,37 @@
 
   // ------------------------------------------------------------- storage ---
 
+  /**
+   * The stored shape is `{ top, row }`. `row` is the stable key of the icon
+   * that was facing the reader; `top` is its pixel fallback. Builds before
+   * this one stored the bare offset, so a plain number is still understood.
+   */
   function readRemembered() {
     try {
-      const value = Number(window.localStorage.getItem(STORAGE_KEY));
-      return Number.isFinite(value) && value > 0 ? value : 0;
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { top: 0, row: "" };
+      // Legacy value: "216".
+      if (/^\s*-?\d+(\.\d+)?\s*$/.test(raw)) {
+        return { top: Math.max(0, Number(raw) || 0), row: "" };
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return { top: 0, row: "" };
+      return {
+        top: Math.max(0, Number(parsed.top) || 0),
+        row: typeof parsed.row === "string" ? parsed.row : "",
+      };
     } catch (error) {
-      return 0;
+      return { top: 0, row: "" };
     }
   }
 
-  function writeRemembered(value) {
+  function writeRemembered(record) {
     try {
-      window.localStorage.setItem(STORAGE_KEY, String(Math.round(value)));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        top: Math.round(record.top),
+        row: record.row || "",
+        at: Date.now(),
+      }));
     } catch (error) {
       // Private windows and older shells can refuse storage; scrolling still works.
     }
@@ -115,11 +142,17 @@
   function saveNow() {
     window.clearTimeout(saveTimer);
     saveTimer = 0;
-    // A shelf that momentarily cannot scroll (plugins still mounting, or a
-    // very short list) must not overwrite the row the user chose before.
+    // Restoring the remembered row also sets scrollTop, and a shelf that
+    // momentarily cannot scroll (plugins still mounting, or a very short
+    // list) reports 0. Neither is a position the reader picked, so only a
+    // real move may replace the stored row.
+    if (!userMoved) return;
     if (maxScroll() <= 0) return;
-    remembered = clamp(rail.scrollTop, 0, maxScroll());
-    writeRemembered(remembered);
+    savedScroll = {
+      top: clamp(rail.scrollTop, 0, maxScroll()),
+      row: centredRowKey(),
+    };
+    writeRemembered(savedScroll);
   }
 
   function maxScroll() {
@@ -128,6 +161,39 @@
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
+  }
+
+  // ------------------------------------------------------------- row key ---
+
+  /** A stable name for a row that survives re-renders and plugin changes. */
+  function rowKey(node) {
+    if (!node) return "";
+    const plugin = node.dataset ? node.dataset.plugin : "";
+    if (plugin) return `plugin:${plugin}`;
+    const action = node.dataset ? node.dataset.action : "";
+    if (action) return `action:${action}`;
+    return `label:${node.getAttribute("aria-label") || ""}`;
+  }
+
+  /** The row facing the middle of the glass for a given scroll offset. */
+  function nearestRowKey(top) {
+    const centre = top + drum.half;
+    let best = "";
+    let bestDistance = Infinity;
+    for (let i = 0; i < drum.items.length; i += 1) {
+      const item = drum.items[i];
+      const distance = Math.abs(item.center - centre);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = rowKey(item.node);
+      }
+    }
+    return best;
+  }
+
+  /** The row facing the middle of the glass, i.e. the reader's current spot. */
+  function centredRowKey() {
+    return nearestRowKey(rail.scrollTop);
   }
 
   // ---------------------------------------------------------------- drum ---
@@ -233,7 +299,21 @@
   /** Put the shelf back on the row it was left on, clamped to real content. */
   function applyRemembered(max = maxScroll()) {
     if (max <= 0) return;
-    const top = clamp(remembered, 0, max);
+    // Prefer the remembered row: plugin lists gain or lose rows between
+    // launches, and the pixel offset that fitted last time may now point at a
+    // neighbour. When the offset still lands on the same row, keep its exact
+    // sub-row position; otherwise re-centre the row. A row that has gone away
+    // falls back to the stored offset.
+    let top = clamp(savedScroll.top, 0, max);
+    if (savedScroll.row && nearestRowKey(top) !== savedScroll.row) {
+      for (let i = 0; i < drum.items.length; i += 1) {
+        const item = drum.items[i];
+        if (rowKey(item.node) === savedScroll.row) {
+          top = clamp(item.center - drum.half, 0, max);
+          break;
+        }
+      }
+    }
     position = top;
     target = top;
     velocity = 0;
@@ -349,23 +429,31 @@
 
   // Native touch scrolling (and a keyboard-focused row) move the rail without
   // passing through the wheel handler; follow along and remember the result.
-  // When the shelf cannot scroll at all its scrollTop is a forced 0, which is
-  // not a row the user picked, so it must not replace the stored one.
+  // A programmatic restore also fires `scroll`, so nothing is written until
+  // the reader has actually moved the shelf. When the shelf cannot scroll at
+  // all its scrollTop is a forced 0, which is not a row the reader picked, so
+  // it must not replace the stored one.
   rail.addEventListener("scroll", () => {
     if (!animating) {
       position = rail.scrollTop;
       target = position;
       paint();
     }
-    if (maxScroll() > 0) remembered = rail.scrollTop;
-    scheduleSave();
+    if (userMoved && maxScroll() > 0) scheduleSave();
   }, { passive: true });
 
-  // Once the user has touched the shelf, a late layout pass must not yank the
-  // rows back to the remembered position.
+  // Once the reader has touched the shelf, a late layout pass must not yank
+  // the rows back to the remembered position.
   const markMoved = () => { userMoved = true; };
   rail.addEventListener("pointerdown", markMoved, { passive: true });
   rail.addEventListener("touchstart", markMoved, { passive: true });
+  // Keyboard scrolling is a real move too (a focused row responds to arrows,
+  // PageUp/PageDown and Home/End without ever passing through pointerdown).
+  rail.addEventListener("keydown", (event) => {
+    if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) {
+      markMoved();
+    }
+  });
 
   // The drum's transform includes the old two-pixel hover nudge.
   const setHover = (node) => {

@@ -326,6 +326,7 @@ body.subtask-search-open .page-body > .todos-section > .current-half > .current-
   height: 40px;
   display: flex;
   align-items: center;
+  gap: 9px;
   box-sizing: border-box;
   padding: 0 12px 0 17px;
   border-bottom: 1px solid var(--ss-glass-line);
@@ -334,6 +335,27 @@ body.subtask-search-open .page-body > .todos-section > .current-half > .current-
   font-size: 13.5px;
   font-style: italic;
   opacity: 0.72;
+}
+
+.subtask-search-empty-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The empty row doubles as the new-subtask hint: Enter turns the typed words
+   into a row, so say so where the missing results would be. */
+.subtask-search-empty-hint {
+  flex: 0 0 auto;
+  color: var(--ss-glass-ink);
+  font-family: var(--mono, "SFMono-Regular", monospace);
+  font-size: 9.5px;
+  font-style: normal;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  opacity: 0.78;
 }
 
 /* The row the user picked gets a brief ruled-paper highlight after the drawer

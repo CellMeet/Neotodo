@@ -17,7 +17,7 @@ web/icon-themes/pvs/
 ```json
 {
   "id": "pvs",
-  "name": "Pvs",
+  "name": "PvZ",
   "englishName": "Plants vs Zombies",
   "icons": {
     "tissue": "icons/tissue-chomper.gif",
@@ -27,8 +27,9 @@ web/icon-themes/pvs/
     "aiDone": "icons/ai-done.gif",
     "aiDoneFinal": "icons/ai-done-final.png",
     "achievement": "icons/achievement-cherry.gif",
-    "checkDone": "icons/check-done-potatomine.gif",
-    "rowBurn": "icons/row-burn.gif"
+    "checkDone": "icons/check-done-marigold.gif",
+    "rowBurn": "icons/row-burn.gif",
+    "fork": "icons/fork-coffee.gif"
   }
 }
 ```

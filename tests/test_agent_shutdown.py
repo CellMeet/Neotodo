@@ -10,6 +10,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -256,6 +257,53 @@ class AgentShutdownTests(unittest.TestCase):
                 lambda: store.action({"action": "running"})["running"] == [],
                 timeout=4.0,
             ))
+
+    def test_pause_during_model_discovery_cannot_be_dropped(self):
+        fake = fake_opencode(
+            self.tmp,
+            "echo '{\"type\":\"text\",\"sessionID\":\"ses_fake\",\"part\":{\"text\":\"working\"}}'\n"
+            "sleep 30\n",
+        )
+        neotodo.shutil.which = lambda name: str(fake) if name == "opencode" else None
+        store = neotodo.AgentStore(self.agents_file)
+        entered = threading.Event()
+        release = threading.Event()
+        saved_models = neotodo.AgentStore._available_models
+
+        def slow_models(store_obj):
+            entered.set()
+            release.wait(5)
+            return ["deepseek/deepseek-flash"]
+
+        neotodo.AgentStore._available_models = slow_models
+        self.addCleanup(setattr, neotodo.AgentStore, "_available_models", saved_models)
+
+        result = {}
+
+        def chat():
+            result["chat"] = store.action({
+                "action": "chat", "agent_id": "subtask:test", "title": "do work",
+                "scope": {"kind": "subtask", "todo": "t"}, "message": "make it",
+                "model": "deepseek/deepseek-flash", "mode": "chat",
+            })
+
+        thread = threading.Thread(target=chat)
+        thread.start()
+        # No run exists yet: the request is still discovering models. Esc must
+        # still be remembered and cancel the turn that is about to start.
+        self.assertTrue(entered.wait(3.0))
+        self.assertTrue(store.action(
+            {"action": "interrupt", "agent_id": "subtask:test"}
+        )["interrupted"])
+        release.set()
+        thread.join(timeout=10.0)
+        self.assertTrue(self.wait_for(
+            lambda: self.messages()[-1].get("interrupted")
+        ))
+        self.assertTrue(self.wait_for(
+            lambda: store.action({"action": "running"})["running"] == [],
+            timeout=4.0,
+        ))
 
     def test_new_instruction_starts_after_a_pause(self):
         fake = fake_opencode(

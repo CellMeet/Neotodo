@@ -1,9 +1,12 @@
-"""The three task cards rest on one another with a clear contact shadow.
+"""The three task cards rest on one another and each keeps its own height.
 
 The live subtask card, the finished-subtasks card and the right-edge Doing card
-must read as sheets lying on top of each other. Every card uses one shared
-shadow configuration: its ink-green stroke plus a soft down-left shadow thrown
-onto the sheet under it. There is no second sheet, no coloured deck edge and no
+must read as sheets lying on top of each other. They share the light (top-right)
+and the paper, but not one shadow: sharing one number made the pile flat, and a
+flat pile is what "the cards do not feel independent" looks like. Each card owns
+a rung of the ladder — the live card barely leaves the page, the finished card is
+one step up, the Doing card floats over both — and each rung is a tight contact
+seam plus two soft layers. There is no second sheet, no coloured deck edge and no
 extra paper peeking out from under a card.
 
 The other half of the rule is independence. The Doing card slides out over the
@@ -38,23 +41,43 @@ def main() -> int:
     style_css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
     layers_css = (ROOT / "web" / "wallpaper-layers.css").read_text(encoding="utf-8")
 
-    # --- one shared overlap configuration ------------------------------------
-    assert "--card-overlap-shadow:" in stack_css, "the live card has no shared shadow"
-    assert "--card-overlap-shadow-left:" in stack_css, "the left-docked shadow is not mirrored"
-    assert "--card-lift-page: var(--card-overlap-shadow);" in stack_css, (
-        "the plugin bridge no longer resolves to the shared shadow"
+    # --- one pile, one ladder ------------------------------------------------
+    # The three cards share the light, the direction and the paper. They do not
+    # share one shadow: identical shadows made the pile read as one surface, so
+    # each sheet owns its own rung and the height difference is the stack.
+    assert "--card-sheet-page:" in stack_css, "the live card has no page rung"
+    assert "--card-sheet-card:" in stack_css, "a card resting on a card has no rung"
+    assert "--card-sheet-top:" in stack_css, "the Doing card has no top rung"
+    assert "--card-sheet-top-left:" in stack_css, "the left-docked Doing card has no mirrored rung"
+    # The plugin bridge still receives the old name, now an alias of the middle
+    # rung instead of a flat configuration.
+    assert "--card-overlap-shadow: var(--card-sheet-card);" in stack_css
+    assert "--card-lift-page: var(--card-sheet-page);" in stack_css
+    # The rungs must differ, otherwise the pile is flat again.
+    def rung(name: str) -> str:
+        assert f"  {name}:\n" in stack_css, f"missing rung: {name}"
+        return stack_css.split(f"  {name}:\n", 1)[1].split(";", 1)[0].strip()
+
+    page_rung, card_rung, top_rung = (
+        rung("--card-sheet-page"),
+        rung("--card-sheet-card"),
+        rung("--card-sheet-top"),
     )
+    assert page_rung != card_rung, "the finished card sits at the live card's height"
+    assert card_rung != top_rung, "the Doing card sits at the finished card's height"
+    assert page_rung != top_rung, "the Doing card sits at the live card's height"
     # No deck: the card above rests directly on the card below.
     assert "--card-pile" not in stack_css, "the extra deck sheets are back"
     assert "--card-under-paper" not in stack_css, "a coloured under-sheet is back"
-    # The wallpaper faces get a paper wash so they do not merge with the page,
-    # but it is a surface step on the card itself, never a second sheet.
+    # The wallpaper faces get one shared paper wash so they do not merge with
+    # the page, but it is a surface step on the card itself, never a second
+    # sheet. The finished card and the Doing card use the live subtask card's
+    # wash exactly: heavier per-level washes made them look darkened.
     assert "--card-face-wash:" in stack_css
-    assert "--card-face-wash-raised:" in stack_css
-    assert "--card-face-wash-top:" in stack_css
-    assert "var(--card-face-sheen), var(--card-face-wash)" in stack_css
-    assert "var(--card-face-wash-raised)" in stack_css
-    assert "var(--card-face-wash-top)" in stack_css
+    assert "--wallpaper-tint" in stack_css, "the 7% wash is not the wallpaper's own colour"
+    assert "--card-face-wash-raised:" not in stack_css, "the finished card is washed darker again"
+    assert "--card-face-wash-top:" not in stack_css, "the Doing card is washed darker again"
+    assert "--card-face-sheen" not in stack_css, "a second light/dark gradient sits on the 7% wash"
     for selector in (
         "#pending-subtask-card > .card-wallpaper::after",
         ".completed-subtask-drawer > .card-wallpaper::after",
@@ -62,16 +85,65 @@ def main() -> int:
         ".trash-drawer > .card-wallpaper::after",
     ):
         assert selector in stack_css, f"the wallpaper face step is missing: {selector}"
+        face = css_block(stack_css, selector)
+        assert "background: var(--card-face-wash);" in face, (
+            f"the card does not use the single shared wash: {selector}"
+        )
 
-    # --- every card uses the same configuration ------------------------------
-    live = css_block(stack_css, "body #pending-subtask-card {")
-    assert "box-shadow: var(--card-overlap-shadow) !important;" in live
-    tray = css_block(stack_css, "body .completed-subtask-drawer {")
-    assert "box-shadow: var(--card-overlap-shadow) !important;" in tray
-    doing = css_block(stack_css, "body #doing-peek {")
-    assert "box-shadow: var(--card-overlap-shadow) !important;" in doing
-    folded = css_block(stack_css, "body #pending-subtask-card.collapsed {")
+    # --- every card sits on its own rung of the pile -------------------------
+    live = css_block(stack_css, "\nbody #pending-subtask-card {")
+    assert "box-shadow: var(--card-sheet-page), var(--card-bevel-page) !important;" in live, (
+        "the live card does not lie on the page rung"
+    )
+    tray = css_block(stack_css, "\nbody .completed-subtask-drawer {")
+    assert "box-shadow: var(--card-sheet-card), var(--card-bevel-card) !important;" in tray, (
+        "the finished card does not rest one rung above the live card"
+    )
+    doing = css_block(stack_css, "\nbody #doing-peek {")
+    assert "box-shadow: var(--card-sheet-top), var(--card-bevel-top) !important;" in doing, (
+        "the Doing card does not float on the top rung"
+    )
+    # The cut edge is the card's own paper: a lit top edge and a shaded bottom
+    # edge on the two sheets that catch the light, a shaded edge on the bottom
+    # sheet. No element, no line.
+    def bevel(name: str) -> str:
+        return stack_css.split(f"  {name}:\n", 1)[1].split(";", 1)[0]
+
+    assert "inset 0 1px 0 rgba(255, 255, 255" in bevel("--card-bevel-card")
+    assert "inset 0 1px 0 rgba(255, 255, 255" in bevel("--card-bevel-top")
+    assert "inset 0 1px 0 rgba(255, 255, 255" not in bevel("--card-bevel-page")
+    folded = css_block(stack_css, "\nbody #pending-subtask-card.collapsed {")
     assert "box-shadow: none !important;" in folded, "the folded tab still drags a shadow behind it"
+
+    # Dark paper keeps the same ladder: without it every card on a dark theme
+    # pack merged into the near-black page.
+    dark = block_after(stack_css, 'html[data-postcard-dark="true"] {', "\n}")
+    for token in (
+        "--card-sheet-page:",
+        "--card-sheet-card:",
+        "--card-sheet-top:",
+        "--card-sheet-card-left:",
+        "--card-sheet-top-left:",
+        "--card-bevel-page:",
+        "--card-bevel-card:",
+        "--card-bevel-top:",
+    ):
+        assert token in dark, f"the dark pile lost its rung: {token}"
+
+    # Without a wallpaper the dark page and the dark cards are the same sheet,
+    # so a black shadow cannot separate them. The faces step up instead, and
+    # the steps follow the ladder: the live card least, the Doing card most.
+    def dark_face(selector: str) -> str:
+        marker = f'html[data-postcard-dark="true"]:not([data-wallpaper]) body {selector} {{'
+        assert marker in stack_css, f"the dark card face rule is missing: {selector}"
+        return stack_css.split(marker, 1)[1].split("}", 1)[0]
+
+    page_face = dark_face("#pending-subtask-card")
+    top_face = dark_face("#doing-peek")
+    assert "color-mix(" in page_face and "color-mix(" in top_face
+    for face in (page_face, top_face):
+        assert "!important" in face, "a theme background can still repaint the dark card"
+    assert page_face != top_face, "the dark Doing card sits at the live card's brightness"
 
     # --- the magic-hat card is a card too ------------------------------------
     drawer = index_html.split('<aside class="trash-drawer"', 1)[1].split(">", 1)[0]
@@ -80,9 +152,9 @@ def main() -> int:
     assert "trash-label" not in index_html, "the printed card tag is back"
     assert "卡片" not in hat_body, "the hat card still prints the old card tag"
     assert "trash-label" not in style_css and "trash-label" not in layers_css
-    trash = css_block(stack_css, "body .trash-drawer {")
-    assert "var(--card-overlap-shadow) !important;" in trash, (
-        "the hat card does not use the shared overlap shadow"
+    trash = css_block(stack_css, "\nbody .trash-drawer {")
+    assert "var(--card-sheet-card)" in trash, (
+        "the hat card does not rest on the card rung"
     )
     assert "z-index: 155;" in trash, "the hat card paints under the categories spine"
     assert "isolation: isolate;" in trash, "the hat card's coating shares the spine's layer"
@@ -129,7 +201,7 @@ def main() -> int:
     assert not coupled, "the Doing card still shoves the finished card aside"
     assert "translateX(calc(-1 * min(150px, 11vw)))" not in split_css
 
-    print("the cards rest on one another with one clear shadow and no extra sheets")
+    print("the cards rest on one another, each on its own rung of the pile")
     return 0
 
 

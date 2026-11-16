@@ -514,34 +514,46 @@ const AudioFX = (() => {
   const sampleLoading = {};
   const htmlPools = {};
   const htmlCursor = {};
-  const SAMPLE_URLS = {
-    type: "/user-sounds/keyany.wav",
-    enter: "/user-sounds/keyenter.wav",
-    drawerOpen: "/user-sounds/drawer-open.mp3",
-    drawerClose: "/user-sounds/drawer-close.mp3",
+  // The cue each style folder may provide, and the bundled filename it falls
+  // back to. A style only has to include the sounds it wants to replace.
+  const SAMPLE_FILES = {
+    type: "keyany.wav",
+    enter: "keyenter.wav",
+    drawerOpen: "drawer-open.mp3",
+    drawerClose: "drawer-close.mp3",
     // Gentle flowing-water loop for scrolling (CC0); see sounds/CREDITS.txt.
-    waterFlow: "/user-sounds/water-flow.wav",
-    trickle: "/user-sounds/water-trickle.wav",
-    windScroll: "/user-sounds/wind-scroll.wav",
-    train: "/user-sounds/train-whistle.mp3",
-    paperTear: "/user-sounds/paper-tear.wav",
-    steamHiss: "/user-sounds/steam-hiss.mp3",
+    waterFlow: "water-flow.wav",
+    trickle: "water-trickle.wav",
+    windScroll: "wind-scroll.wav",
+    train: "train-whistle.mp3",
+    paperTear: "paper-tear.wav",
+    steamHiss: "steam-hiss.mp3",
   };
-  const DEFAULT_SAMPLE_URLS = { ...SAMPLE_URLS };
+  const DEFAULT_SOUND_STYLE = "classical";
+  const SAMPLE_URLS = {};
+  const DEFAULT_SAMPLE_URLS = {};
 
-  // Theme packs may replace individual foley samples. Keep the default map
-  // intact so switching back to NeoTodo's own sounds is lossless.
-  function setSampleOverrides(overrides) {
-    const clean = {};
-    if (overrides && typeof overrides === "object") {
-      for (const [name, url] of Object.entries(overrides)) {
-        if (!(name in DEFAULT_SAMPLE_URLS) || typeof url !== "string" || !url) continue;
-        if (!url.startsWith("/theme-assets/") && !url.startsWith("/user-sounds/")) continue;
-        clean[name] = url;
-      }
+  function styleSampleUrls(style, files) {
+    const names = Array.isArray(files) ? files.map((name) => String(name || "")) : [];
+    const folder = encodeURIComponent(style || DEFAULT_SOUND_STYLE);
+    const urls = {};
+    for (const [key, fallback] of Object.entries(SAMPLE_FILES)) {
+      const stem = fallback.replace(/\.[^.]+$/, "").toLowerCase();
+      const match = names.find((name) => name.replace(/\.[^.]+$/, "").toLowerCase() === stem);
+      urls[key] = `/user-sounds/${folder}/${encodeURIComponent(match || fallback)}`;
     }
-    for (const name of Object.keys(DEFAULT_SAMPLE_URLS)) {
-      const next = clean[name] || DEFAULT_SAMPLE_URLS[name];
+    return urls;
+  }
+
+  let baseSampleUrls = styleSampleUrls(DEFAULT_SOUND_STYLE, null);
+  let sampleOverrides = {};
+  Object.assign(DEFAULT_SAMPLE_URLS, baseSampleUrls);
+
+  // The current style's files sit under the theme-pack overrides: picking a
+  // pack may still replace one cue (a train whistle, say) on top of any style.
+  function refreshSampleUrls() {
+    for (const name of Object.keys(SAMPLE_FILES)) {
+      const next = sampleOverrides[name] || baseSampleUrls[name] || DEFAULT_SAMPLE_URLS[name];
       if (SAMPLE_URLS[name] === next) continue;
       SAMPLE_URLS[name] = next;
       delete sampleBuffers[name];
@@ -549,6 +561,35 @@ const AudioFX = (() => {
       delete htmlPools[name];
       delete htmlCursor[name];
     }
+    return { ...SAMPLE_URLS };
+  }
+  refreshSampleUrls();
+
+  // Switch the folder the cues read from. `files` is the style's listing, so a
+  // style may use another extension (keyany.ogg) and still be recognised.
+  function setSoundStyle(style, files) {
+    const wanted = typeof style === "string" && style.trim() ? style.trim() : DEFAULT_SOUND_STYLE;
+    const urls = styleSampleUrls(wanted, files);
+    const changed = JSON.stringify(urls) !== JSON.stringify(baseSampleUrls);
+    baseSampleUrls = urls;
+    if (changed) refreshSampleUrls();
+    return { ...SAMPLE_URLS };
+  }
+
+  // Theme packs may replace individual foley samples. Keep the current style
+  // map intact underneath so switching back to a style's own sounds is
+  // lossless.
+  function setSampleOverrides(overrides) {
+    const clean = {};
+    if (overrides && typeof overrides === "object") {
+      for (const [name, url] of Object.entries(overrides)) {
+        if (!(name in SAMPLE_FILES) || typeof url !== "string" || !url) continue;
+        if (!url.startsWith("/theme-assets/") && !url.startsWith("/user-sounds/")) continue;
+        clean[name] = url;
+      }
+    }
+    sampleOverrides = clean;
+    refreshSampleUrls();
     return { ...SAMPLE_URLS };
   }
 
@@ -2010,7 +2051,7 @@ const AudioFX = (() => {
     completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle,
     startLeafStretch, stopLeafStretch, unlock, preloadSamples, wake, toggle,
     tetrisMove, tetrisErase, tetrisClear,
-    setVolume, getVolume, setSampleOverrides,
+    setVolume, getVolume, setSampleOverrides, setSoundStyle,
     sampleFiles: () => ({ ...SAMPLE_URLS }),
     audition: (name) => {
       const wasMuted = muted;
@@ -2022,13 +2063,17 @@ const AudioFX = (() => {
   };
 })();
 
-// `wallpaper` is the single wallpaper choice: a picture or film the reader
-// picked (an absolute path), a legacy bare name from the old pictures folder,
-// a built-in postcard (`art:<id>`) or a theme-pack picture (`theme:<pack-id>`).
-// Images and films share the same option now; there is no separate
+// `wallpaper` is the single wallpaper choice: a picture or film in the
+// dedicated `pictures/wallpapers` shelf (or a legacy absolute path), a built-in
+// postcard (`art:<id>`) or a theme-pack picture (`theme:<pack-id>`). The shelf
+// is what the folder chip opens, so deleting an entry there removes that
+// recent option. Images and films share the same option; there is no separate
 // static/dynamic switch.
-const WALLPAPER_RECENT_LIMIT = 12;
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", icon_theme: "classical", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {} };
+const WALLPAPER_RECENT_LIMIT = 6;
+// The little folder that opens a shelf on disk. Drawn inline so it borrows the
+// current theme ink instead of carrying the SVG file's own dark fill.
+const FOLDER_GLYPH = `<svg class="theme-folder-glyph" viewBox="0 0 1025 1024" aria-hidden="true"><path d="M961.793 446.344 961.793 446.344 202.079 446.344c-28.215 0-52.07 18.43-60.285 43.93l0 0L75.51 694.483 75.51 129.847l0 0 316.499 0 0 0 0.07 0c0 69.927 56.645 126.57 126.575 126.57l0 0 316.499 0 0 126.572 63.28 0L898.433 256.417c0-34.927-28.35-63.287-63.28-63.287L518.579 193.13c-34.925 0-63.285-28.355-63.285-63.282l0 0c0-34.93-28.285-63.287-63.285-63.287l0 0L75.51 66.561c-34.927 0-63.285 28.357-63.285 63.287l0 759.571c0 34.93 28.357 63.28 63.285 63.28l759.573 0c28.215 0 52.07-18.425 60.285-43.93l0.07 0 129.5-399.137C1024.937 474.704 996.722 446.416 961.793 446.344zM838.368 889.418 75.51 889.418l123.285-379.787 762.853 0L838.368 889.418z" fill="currentColor"/></svg>`;
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, show_brand: true, show_achievements: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "default", ai_theme: "auto", icon_theme: "classical", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {}, sound_style: "classical" };
 // The page baseline is saved in its own baseline-color.json file, outside the
 // theme and outside the notebook settings. This is only the first-paint
 // fallback until /api/state answers with the stored colour.
@@ -2117,6 +2162,9 @@ const BASE_DARK_THEME = "dark";
 const CUSTOM_THEME_COLOR_KEYS = ["paper", "ink", "line", "accent"];
 let customThemesOpen = false;
 let themeManageOpen = false;
+// Appearance → Others folds the four display switches (time cost, current
+// time, top-left logo, top-right achievements) into one expanding row.
+let themeOthersOpen = false;
 // Wallpaper → Manage folds out the three wallpaper options: Back, Blur and
 // Wallpaper theme. It behaves like the Theme row's Manage drawer.
 let wallpaperManageOpen = false;
@@ -2344,6 +2392,10 @@ let iconThemes = [ICON_THEME_FALLBACK];
 let iconThemeFolder = "";
 let iconImageObserver = null;
 let iconImageScanQueued = false;
+// Sound styles are folders under the sounds shelf. Classical is the bundled
+// set every install starts on; another folder the reader adds becomes a style.
+let soundStyles = [{ id: "classical", name: "Classical", files: [] }];
+let soundFolder = "";
 // The notebook and the console read their palettes from their own folders
 // (note-theme/ and ai-theme/). Keeping them out of theme-packs means applying a
 // NeoTodo theme can never repaint either pane.
@@ -2574,7 +2626,24 @@ let lastAddedSubtaskId = null;
 let categoryDrag = null;
 let suppressCategoryClickUntil = 0;
 let doingPeekOpen = false;
-let doingExpandedTodoIds = new Set();
+// Which todo rows the reader left open in the Doing card. The rows belong to
+// the card, not to the moment it is on screen: closing the drawer used to fold
+// every row back to its head, so the next peek always started collapsed. Keep
+// the open rows in localStorage and restore them on the next peek or launch,
+// the same way the dock side is remembered.
+const DOING_EXPANDED_KEY = "neotodo.doingExpandedTodoIds.v1";
+let doingExpandedTodoIds = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DOING_EXPANDED_KEY) || "[]");
+    if (Array.isArray(saved)) {
+      return new Set(saved.filter((id) => typeof id === "string" && id));
+    }
+  } catch (error) {}
+  return new Set();
+})();
+function saveDoingExpandedTodoIds() {
+  try { localStorage.setItem(DOING_EXPANDED_KEY, JSON.stringify([...doingExpandedTodoIds])); } catch (error) {}
+}
 let doingMarkedTodoId = null;
 let doingMarkedSubtaskId = null;
 let doingPeekOpenTimer = 0;
@@ -2599,12 +2668,33 @@ let doingDockSide = (() => {
 })();
 // The measured subtask column; its own left/right borders are the two homes.
 let doingHome = null;
+// A pinned card remembers the spot the reader dropped it on. While this is set
+// the drawer ignores its border homes and appears at that box; the close pin
+// clears it and glides the card back to the border it came from.
+const DOING_FLOAT_KEY = "neotodo.doingFloatPosition.v1";
+let doingFloat = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DOING_FLOAT_KEY) || "null");
+    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+      return { left: saved.left, top: saved.top };
+    }
+  } catch (error) {}
+  return null;
+})();
+function saveDoingFloat() {
+  try {
+    if (doingFloat) localStorage.setItem(DOING_FLOAT_KEY, JSON.stringify(doingFloat));
+    else localStorage.removeItem(DOING_FLOAT_KEY);
+  } catch (error) {}
+}
 let doingDrag = null;
 let doingPress = null;
 let doingDragClickUntil = 0;
 let doingPointerFrame = 0;
 let doingDragX = 0;
+let doingDragY = 0;
 let doingDragFrame = 0;
+let doingGlideToken = 0;
 let agentTerminalOpen = false;
 let panelPreview = null;
 let singleDock = null;
@@ -5222,6 +5312,19 @@ function activateNoteBlock(index, anchorEvent = null, caretOverride = null) {
   }, 0);
 }
 
+function noteGhostMarkup() {
+  const first = noteBlocks[0];
+  if (!first || String(first.raw || "").trim()) return "";
+  return '<span class="note-ghost" data-note-ghost aria-hidden="true">write mood light ...</span>';
+}
+
+function syncNoteGhost(editorIndex, raw) {
+  if (Number(editorIndex) !== 0) return;
+  const ghost = document.querySelector("#note-live [data-note-ghost]");
+  if (!ghost) return;
+  ghost.hidden = Boolean(String(raw || "").trim());
+}
+
 function notesHtml() {
   const category = selectedCategory();
   const active = activeNoteTarget();
@@ -5250,7 +5353,7 @@ function notesHtml() {
     ? `<textarea class="note-block-editor" data-note-block-editor="${index}" spellcheck="false">${esc(block.raw || NOTE_ZERO_WIDTH)}</textarea>`
     : `<div class="note-block markdown" data-note-block="${index}">${block.raw.trim() ? renderMarkdown(block.raw) : ""}</div>`).join("");
   return `${topHandle}<div class="notes-head"><div class="notes-title">${notesIcon}<span>${esc(noteTitle)}</span></div></div>
-    <div class="notes-body"><div class="note-live" id="note-live">${blocks}</div></div>`;
+    <div class="notes-body"><div class="note-live" id="note-live">${noteGhostMarkup()}${blocks}</div></div>`;
 }
 
 function renderNotesPanel() {
@@ -5312,9 +5415,11 @@ function deleteSubtaskRows(rows) {
   };
   if (ids.includes(selectedSubtaskId)) selectedSubtaskId = null;
   if (burnUrl) {
-    // Let the pepper reach the full burning line before the row folds away.
+    // Let the pepper reach the burning line, then fold the row away quickly.
+    // The gif's inflation is trimmed to ~260ms, so the row starts folding
+    // right after the fire lands instead of waiting out a long wind-up.
     rows.forEach((row, index) => playRowBurn(row, index > 0, burnUrl));
-    setTimeout(finish, 1450);
+    setTimeout(finish, 520);
     return;
   }
   rows.forEach((row, index) => {
@@ -5885,8 +5990,8 @@ function playRowBurn(row, silent = false, burnUrl = "") {
   layer.style.height = `${rect.height}px`;
   layer.style.backgroundImage = `url("${url}")`;
   document.body.appendChild(layer);
-  setTimeout(() => layer.classList.add("fading"), 1600);
-  setTimeout(() => layer.remove(), 1900);
+  setTimeout(() => layer.classList.add("fading"), 580);
+  setTimeout(() => layer.remove(), 860);
   return true;
 }
 
@@ -5984,6 +6089,18 @@ function animateSubtaskRowsAway(rows) {
 
 function vanishSubtaskRow(row, after) {
   if (!row) return;
+  const burnUrl = iconThemeAsset(iconThemeById(settings.icon_theme), "rowBurn");
+  if (burnUrl) {
+    // Backspace / Enter on an empty inline subtask gets the same fast pepper
+    // fire as a right-click delete, instead of the old smoke puff.
+    playRowBurn(row, false, burnUrl);
+    setTimeout(() => {
+      row.classList.add("subtask-vanishing");
+      animateSubtaskRowsAway([row]);
+      if (after) setTimeout(after, 280);
+    }, 520);
+    return;
+  }
   playVanishSmoke(row.querySelector(".sub-fan") || row);
   row.classList.add("subtask-vanishing");
   animateSubtaskRowsAway([row]);
@@ -7419,7 +7536,9 @@ function renderAgentTerminal() {
   }
   const escEl = $("#agent-meta-esc");
   if (escEl) {
-    const canInterrupt = Boolean(busy && !loading && !uploading);
+    // A requested pause is already on its way: hide the hint at once instead
+    // of inviting a second Esc while the worker winds down.
+    const canInterrupt = Boolean(busy && !loading && !uploading && !agentPausedIds.has(agent.id));
     escEl.classList.toggle("show", canInterrupt);
     escEl.setAttribute("aria-hidden", canInterrupt ? "false" : "true");
   }
@@ -7612,7 +7731,9 @@ function openAgentTerminal(silent = false) {
   agentClosing = false;
   clearSingleDock();
   protectDeskHandles(420);
-  if (!silent) AudioFX.drawer();
+  // The AI conversation is a paper sheet like the note panel, so it opens with
+  // the note's leaf rustle instead of the wooden drawer-stretch sample.
+  if (!silent) AudioFX.leafRustle();
   $(".desk-handle-ai")?.classList.remove("handle-vanished", "handle-closing");
   agentTerminalOpen = true;
   document.body.classList.add("agent-terminal-open");
@@ -8225,6 +8346,9 @@ function interruptAgent(targetId = "") {
   AudioFX.categoryTap();
   agentPost({ action: "interrupt", agent_id: agentId }).catch(() => {});
   setStatus("Interrupted");
+  // The hint goes away now: the user pressed once, and waiting for the next
+  // poll to redraw the meta line made the first press look ignored.
+  if (agentTerminalOpen) renderAgentTerminal();
   return true;
 }
 
@@ -8388,6 +8512,12 @@ async function sendAgentMessage() {
         // Older synchronous backend: it has already finished.
         finishAgentRun(agent.id, { messages: data.messages, model: data.model, usage: data.usage });
       } else {
+        // Esc can land before the backend has registered the run (model
+        // discovery, attachments). Repeat the pause now that the run exists,
+        // so the hint never needs a second press.
+        if (agentPausedIds.has(agent.id)) {
+          agentPost({ action: "interrupt", agent_id: agent.id }).catch(() => {});
+        }
         renderAgentTerminal();
       }
     } else {
@@ -8442,59 +8572,11 @@ function restoreAgentScroll(snapshot) {
 }
 
 // The finished card never shows the provider mark: that mark answers "who
-// worked on this row", and the row is leaving the run behind. During the
-// flight it would otherwise be cloned along with the row and hand a stray
-// badge to the tray. Let it slide down and fade where the click happened,
-// while the row's leading edge closes the empty slot. Keeping the slot closed
-// on the ghost means the row lands with the tray's own content offsets, so
-// nothing shifts back to the left at the end of the trip.
-function flyModelMarkAway(ghost, duration, delay = 0) {
-  const badge = ghost.querySelector(".sub-agent-model img")?.closest(".sub-agent-model");
-  if (!badge) return;
-  // A badge that just popped in is mid-transform; measure the resting box.
-  badge.classList.remove("pop");
-  const badgeRect = badge.getBoundingClientRect();
-  const ghostRect = ghost.getBoundingClientRect();
-  const name = ghost.querySelector(".sub-name");
-  const offsetWithMark = name ? name.getBoundingClientRect().left - ghostRect.left : 0;
-  const mark = badge.cloneNode(true);
-  mark.classList.remove("pop");
-  mark.classList.add("subtask-flight-mark");
-  mark.setAttribute("aria-hidden", "true");
-  mark.style.left = `${badgeRect.left}px`;
-  mark.style.top = `${badgeRect.top}px`;
-  mark.style.width = `${badgeRect.width}px`;
-  mark.style.height = `${badgeRect.height}px`;
-  badge.remove();
-  // How much room the mark (and its flex gap) took from the row's content.
-  const basePad = parseFloat(getComputedStyle(ghost).paddingLeft) || 0;
-  const offsetWithoutMark = name ? name.getBoundingClientRect().left - ghostRect.left : 0;
-  const slot = Math.max(0, Math.round(offsetWithMark - offsetWithoutMark));
-  ghost.style.paddingLeft = `${basePad + slot}px`;
-  document.body.appendChild(mark);
-  try {
-    const drop = mark.animate(
-      [
-        { transform: "translateY(0) scale(1)", opacity: 1 },
-        { transform: "translateY(18px) scale(0.68)", opacity: 0 },
-      ],
-      { duration: Math.min(260, duration), delay, easing: "cubic-bezier(.4,0,.7,1)", fill: "forwards" }
-    );
-    drop.onfinish = () => mark.remove();
-    drop.oncancel = () => mark.remove();
-  } catch (error) {
-    mark.remove();
-  }
-  if (!slot) return;
-  try {
-    ghost.animate(
-      [{ paddingLeft: `${basePad + slot}px` }, { paddingLeft: `${basePad}px` }],
-      { duration: Math.min(260, duration), delay, easing: "cubic-bezier(.4,0,.6,1)", fill: "forwards" }
-    );
-  } catch (error) {
-    ghost.style.paddingLeft = `${basePad}px`;
-  }
-}
+// worked on this row", and the row is leaving the run behind. The click has
+// already removed it from the row (see `.subtask-completing` in
+// subtask-split.css), so the flight must not bring it back: the ghost drops the
+// mark and its slot entirely and starts in the same layout the tray row lands
+// in. Nothing slides sideways between the click and the landing.
 
 // The finished row leaves a card that clips its own children: the drawer and
 // the lane inside it cut the path off at the card edge, so a transform on the
@@ -8520,6 +8602,13 @@ function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null
   // wash is the lane's emphasis, not the row's paper: carrying it would drag a
   // coloured block across the page and hand it to the finished card.
   ghost.classList.remove("subtask-completing", "selected", "agent-running");
+  // The provider mark belongs to the AI run, not to the finished paper, and the
+  // click already took it (with its slot) out of the clicked row. The flying
+  // copy must not bring either back: no badge in the air, and the fan and name
+  // start exactly where the tray row will print them. The press pop is likewise
+  // the click's, not the trip's: the row in the air rests at full size.
+  ghost.querySelectorAll(".sub-agent-model").forEach((mark) => mark.remove());
+  ghost.querySelectorAll(".fan-pop").forEach((node) => node.classList.remove("fan-pop"));
   ghost.removeAttribute("data-subtask-id");
   ghost.setAttribute("aria-hidden", "true");
   ghost.tabIndex = -1;
@@ -8539,13 +8628,6 @@ function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null
   // pushed down, instead of leaving a blank gap in the finished card.
   row.classList.add("subtask-slot-arriving");
   document.body.appendChild(ghost);
-  // The provider mark belongs to the AI run, not to the finished paper. It
-  // must not ride into the tray: the completed row has no badge, so carrying
-  // one made the fan and name arrive one badge-width too far right and then
-  // snap back left when the mark was cleared. Drop the mark where the row was
-  // clicked instead, and close its slot while the row travels so the landing
-  // layout is exactly the tray row's layout — the trip ends in place.
-  flyModelMarkAway(ghost, duration, delay);
   const dx = landedRect.left - originRect.left;
   const dy = landedRect.top - originRect.top;
   const clipRight = Math.max(0, originRect.width - landedRect.width);
@@ -8810,7 +8892,10 @@ function renderStage() {
         : `<button class="sub-fan sub-fan-action" data-action="complete-subtask" data-todo-id="${esc(current.id)}" data-subtask-id="${esc(subtask.id)}" aria-label="Finish ${esc(subtask.name)}"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"/><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></button>`;
       const agentId = `subtask:${subtask.id}`;
       const agentRunning = agentIsRunning(agentId);
-      const modelBadge = agentRunning
+      // The provider mark answers "who is working / who just worked", so it
+      // belongs to the live row only. A finished row keeps the empty slot (it
+      // is hidden when empty) so the landing layout already matches the flight.
+      const modelBadge = subtask.done || agentRunning
         ? `<span class="sub-agent-model" aria-hidden="true"></span>`
         : subtaskModelIconHtml(subtask.id);
       const forkBranch = forkedSubtaskBranch(current.id, subtask.id);
@@ -9196,6 +9281,9 @@ function setPendingSubtasksCollapsed(collapsed) {
   // has no room for it, so the tray closes with the sheet it belongs to.
   if (pendingSubtasksCollapsed && completedSubtasksOpen) setCompletedSubtasksOpen(false);
   if (!bar) return;
+  // A state change folds the line away itself; a hover preview left over from
+  // the previous state must not keep it out.
+  bar.classList.remove("peek");
   bar.classList.toggle("collapsed", pendingSubtasksCollapsed);
   bar.setAttribute("aria-expanded", pendingSubtasksCollapsed ? "false" : "true");
   bar.setAttribute("aria-label", pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks");
@@ -9245,6 +9333,42 @@ function bindPendingSubtaskToggle() {
     Boolean(lane?.querySelector(".current-subtask[data-subtask-id], [data-add-subtask-row]")),
     "pending"
   );
+  // Folded, the purple line waits above the block's top boundary. The first row
+  // of the column is its handle: entering that band slides the line back out
+  // into the top band, leaving tucks it away again. The click is still the same
+  // control, so the hover only previews it. The listener lives on the column
+  // wrapper instead of the bar: the bar is clipped while it is tucked away and
+  // must be reachable before it is visible.
+  const peekZone = card.parentElement;
+  let updatePeek = null;
+  if (peekZone && peekZone.dataset.subtaskPeekBound !== "1") {
+    peekZone.dataset.subtaskPeekBound = "1";
+    const peekBand = 42;
+    // A held edge owns the line: the pointer travels with the stretch and may
+    // leave the first-row band, but the handle it is dragging must stay out.
+    const peekPaused = () => bar.classList.contains("stretching");
+    updatePeek = (event) => {
+      if (event.pointerType === "touch" || peekPaused()) return;
+      if (!pendingSubtasksCollapsed) {
+        bar.classList.remove("peek");
+        return;
+      }
+      const rect = peekZone.getBoundingClientRect();
+      const inside =
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY - rect.top <= peekBand;
+      bar.classList.toggle("peek", inside);
+    };
+    peekZone.addEventListener("pointermove", updatePeek, { passive: true });
+    peekZone.addEventListener("pointerleave", () => {
+      if (!peekPaused()) bar.classList.remove("peek");
+    });
+    bar.addEventListener("pointerenter", () => {
+      if (pendingSubtasksCollapsed) bar.classList.add("peek");
+    });
+  }
   if (bar.dataset.stretchBound === "1") return;
   bar.dataset.stretchBound = "1";
   let pointerId = null;
@@ -9298,6 +9422,9 @@ function bindPendingSubtaskToggle() {
     // pointerup must not flip the card a second time.
     suppressPendingSubtaskToggleUntil = performance.now() + 320;
     const folded = height < (foldHeight + limit) / 2;
+    // The pointer may have left the first-row band while it was dragging; the
+    // release position decides whether the hover preview stays out.
+    updatePeek?.(event);
     if (folded === pendingSubtasksCollapsed) return;
     setPendingSubtasksCollapsed(folded);
     AudioFX.drawer(!folded);
@@ -11449,10 +11576,10 @@ async function copyPlainText(text) {
   }
 }
 
-// The one subtask menu: Fork on top, then the clipboard trio. Whether the
-// right-click lands on the row or inside its rename input, the menu looks the
-// same; only the target of cut/copy/paste follows the pointer (text selection
-// while renaming, the whole subtask otherwise).
+// The one subtask menu: Fork on top, then Cut. Whether the right-click lands
+// on the row body or inside its rename input, the menu looks the same; only the
+// target of Cut follows the pointer (text selection while renaming, the whole
+// subtask otherwise). Copy and Paste stay out of this menu on purpose.
 function subtaskSelectedText(editable) {
   if (!editable) return "";
   try {
@@ -11477,15 +11604,6 @@ function replaceEditableSelection(editable, text) {
   editable.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-async function readClipboardText() {
-  try {
-    if (navigator.clipboard?.readText) {
-      return String((await navigator.clipboard.readText()) || "");
-    }
-  } catch (error) {}
-  return "";
-}
-
 function showCurrentSubtaskMenu(x, y, subtaskId, editable = null) {
   const category = selectedCategory();
   const current = category?.todos.find((todo) => !todo.done);
@@ -11495,12 +11613,6 @@ function showCurrentSubtaskMenu(x, y, subtaskId, editable = null) {
   const row = input?.closest(".current-subtask[data-subtask-id]")
     || document.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(subtaskId)}"]`);
   const selection = subtaskSelectedText(input);
-
-  const copy = async () => {
-    const text = selection || subtask.name;
-    if (!text) return;
-    if (await copyToClipboard(text)) flashPageCopy();
-  };
 
   const cut = async () => {
     if (input) {
@@ -11514,27 +11626,13 @@ function showCurrentSubtaskMenu(x, y, subtaskId, editable = null) {
     deleteSubtaskRows([row]);
   };
 
-  const paste = async () => {
-    if (input) {
-      const text = await readClipboardText();
-      if (!text) return;
-      replaceEditableSelection(input, text);
-      return;
-    }
-    const text = (await readClipboardText()).split("\n")[0].trim();
-    if (!text) return;
-    action("add_subtask", { todo_id: current.id, name: text });
-  };
-
   openContextMenu(x, y, [
     // The fork window is a Forktree feature; without the installed plugin the
     // action does not appear at all.
     ...(pluginEnabled("forktree")
       ? [{ label: "Fork", icon: FORK_ICON, run: () => forkSubtask(current, subtask) }]
       : []),
-    { label: "Copy", run: copy },
     { label: "Cut", disabled: input ? !selection : subtask.done, run: cut },
-    { label: "Paste", run: paste },
   ]);
 }
 
@@ -11941,7 +12039,7 @@ function doingTodoHtml(entry) {
 function doingPeekMarkup(entries) {
   // The card's background is mounted by syncCardWallpapers(): a live pane of
   // the room, not a picture printed inside the card. The kicker is the card's
-  // grab bar (hold it and pull the card to the other border); clicking it does
+  // grab bar (hold it and pull the card anywhere on the desk); clicking it does
   // nothing else, so it keeps only the close pin and the label.
   return `<div class="doing-kicker">
     <button class="doing-pin" type="button" data-doing-pin aria-label="Close Doing card">
@@ -11998,11 +12096,29 @@ function positionDoingPeek() {
   if (!doingZone || !doingHome) return;
   const home = doingHome;
   const width = doingCardWidth;
-  const top = doingCardTop;
   const height = doingCardHeight;
   panel.style.width = `${width}px`;
-  panel.style.top = `${top}px`;
   panel.style.height = `${height}px`;
+  panel.style.maxHeight = `${Math.max(180, window.innerHeight - 12)}px`;
+  panel.style.right = "auto";
+  // A pinned card sits exactly where it was dropped, clamped inside the desk
+  // so a window that shrinks under it cannot carry it off the page.
+  if (doingFloat) {
+    const left = Math.round(Math.max(6, Math.min(window.innerWidth - width - 6, doingFloat.left)));
+    const top = Math.round(Math.max(6, Math.min(Math.max(6, window.innerHeight - height - 6), doingFloat.top)));
+    doingFloat = { left, top };
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
+    doingPanelRect = {
+      left,
+      right: left + width,
+      top,
+      bottom: top + height,
+    };
+    return;
+  }
+  const top = doingCardTop;
+  panel.style.top = `${top}px`;
   panel.style.maxHeight = `${Math.max(180, window.innerHeight - top - 12)}px`;
   // Right-docked cards grow leftward from the column's right border; a
   // left-docked card grows rightward from its left border. The box itself
@@ -12011,7 +12127,6 @@ function positionDoingPeek() {
     ? home.left
     : home.right - width;
   panel.style.left = `${Math.round(left)}px`;
-  panel.style.right = "auto";
   doingPanelRect = {
     left,
     right: left + width,
@@ -12040,8 +12155,9 @@ function setDoingDockSide(side) {
   if (doingPeekOpen) settleCardWallpaper(panel, 460);
 }
 
-/** Press anywhere on the card. A mostly horizontal pull picks it up; a plain
-    click on a row and a vertical gesture keep their own behaviour. */
+/** Press anywhere on the card. The kicker is the card's handle and pulls in
+    every direction; a pull from the list keeps the old sideways rule so a
+    vertical gesture still scrolls the rows. */
 function beginDoingPress(event) {
   if (event.button !== 0 || !doingPeekOpen) return;
   // A pointer released outside the window can swallow its pointerup; a fresh
@@ -12057,6 +12173,7 @@ function beginDoingPress(event) {
     startX: event.clientX,
     startY: event.clientY,
     panel,
+    fromKicker: Boolean(event.target.closest(".doing-kicker")),
   };
   window.addEventListener("pointermove", moveDoingPress, { passive: false });
   window.addEventListener("pointerup", endDoingPress);
@@ -12068,9 +12185,11 @@ function moveDoingPress(event) {
   if (!event.buttons) { endDoingPress(); return; }
   const dx = event.clientX - doingPress.startX;
   const dy = event.clientY - doingPress.startY;
-  // The card is a drawer, not a text field: only a deliberate sideways pull
-  // lifts it, so row clicks and scrolling stay exactly as they were.
-  if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(dy)) return;
+  if (Math.hypot(dx, dy) < 6) return;
+  // The card is a drawer, not a text field: either a deliberate pull on the
+  // kicker or a sideways pull on the rows lifts it, so row clicks and vertical
+  // scrolling stay exactly as they were.
+  if (!doingPress.fromKicker && Math.abs(dx) <= Math.abs(dy)) return;
   const press = doingPress;
   endDoingPress();
   beginDoingDrag(press, event);
@@ -12084,33 +12203,46 @@ function endDoingPress() {
   window.removeEventListener("pointercancel", endDoingPress);
 }
 
-/** Start the pull. The box is frozen at the moment of the grab: width, height
-    and vertical position never change during the move. */
+/** Start the pull. The box is frozen at the moment of the grab: width and
+    height never change during the move, and the card follows the pointer on
+    both axes so it can be pinned anywhere on the desk. */
 function beginDoingDrag(press, event) {
   const panel = press.panel;
-  if (!panel) return;
+  if (!panel || !panel.isConnected) return;
   if (!doingHome) refreshDoingZone();
   if (!doingHome) return;
   const rect = panel.getBoundingClientRect();
   const startLeft = Math.round(rect.left);
+  const startTop = Math.round(rect.top);
   // Grabbing a card that is still gliding home freezes it where the pointer
-  // caught it: the visual box becomes the laid-out `left`, so the pull's offset
-  // is measured from the same box the compositor is about to move.
+  // caught it: the visual box becomes the laid-out `left`/`top`, so the pull's
+  // offset is measured from the same box the compositor is about to move.
   panel.classList.remove("doing-snapping");
   panel.style.left = `${startLeft}px`;
+  panel.style.top = `${startTop}px`;
   panel.style.right = "auto";
-  panel.style.setProperty("--doing-drag-x", "0px");
+  panel.style.translate = "0px 0px";
+  clearDoingWallpaperOffsets(panel);
+  // One measurement at the grab (not per frame) settles the pane on the box
+  // the pull is about to move, including when the card is caught mid-glide.
+  panel.querySelectorAll(":scope > .card-wallpaper").forEach(placeCardWallpaper);
+  // A drop glide may still be measuring this card; the pull paints the pane
+  // itself now, so the loop must not fight it.
+  cardWallpaperHosts.delete(panel);
   doingDrag = {
     pointerId: event.pointerId,
     startX: press.startX,
+    startY: press.startY,
     startLeft,
+    startTop,
     left: startLeft,
+    top: startTop,
     width: rect.width,
-    top: rect.top,
     height: rect.height,
     moved: false,
   };
   doingDragX = 0;
+  doingDragY = 0;
   panel.classList.add("doing-dragging");
   document.body.classList.add("doing-dragging");
   try { panel.setPointerCapture?.(event.pointerId); } catch (error) {}
@@ -12121,19 +12253,42 @@ function beginDoingDrag(press, event) {
   event.preventDefault();
 }
 
+/** A film card is a window onto the room: while it is pulled, its copy has to
+    slide the other way so the crop stays welded to the desk. Only the media
+    leaf moves, with its own composited `translate` — no custom property, no
+    layout read, and the card's rows are never restyled. */
+function paintDoingWallpaperOffset(panel, x, y) {
+  if (!panel) return;
+  panel.querySelectorAll(":scope > .card-wallpaper[data-fit='window'] > .wallpaper-media").forEach((media) => {
+    const value = `${Math.round(-x)}px ${Math.round(-y)}px`;
+    if (media.style.translate !== value) media.style.translate = value;
+  });
+}
+
+function clearDoingWallpaperOffsets(panel) {
+  if (!panel) return;
+  panel.querySelectorAll(":scope > .card-wallpaper > .wallpaper-media").forEach((media) => {
+    media.style.removeProperty("translate");
+  });
+}
+
 /** Paint the pull's offset on the compositor. Pointer events arrive faster than
     the screen refreshes, so the card is moved at most once per frame and never
-    through `left` (which would relayout and repaint the page under the pull). */
+    through `left`/`top` (which would relayout and repaint the page under the
+    pull). The offset is an inline `translate`, not a custom property: custom
+    properties inherit, so a per-frame `--doing-drag-x` restyled every row in
+    the card (the stutter the pull used to have). */
 function flushDoingDragFrame() {
   doingDragFrame = 0;
   if (!doingDrag) return;
   const panel = $("#doing-peek");
   if (!panel) return;
-  panel.style.setProperty("--doing-drag-x", `${Math.round(doingDragX)}px`);
-  // A film card is a window onto the room: when the card is pulled across the
-  // desk its copy must slide the other way, or the crop would travel with the
-  // card instead of staying the same piece of the wallpaper.
-  panel.querySelectorAll(":scope > .card-wallpaper").forEach(placeCardWallpaper);
+  const x = Math.round(doingDragX);
+  const y = Math.round(doingDragY);
+  const value = `${x}px ${y}px`;
+  if (panel.style.translate === value) return;
+  panel.style.translate = value;
+  paintDoingWallpaperOffset(panel, x, y);
 }
 
 function cancelDoingDragFrame() {
@@ -12148,7 +12303,8 @@ function cancelDoingDragFrame() {
 function clearDoingDragOffset(panel) {
   if (!panel || doingDrag) return;
   panel.classList.remove("doing-snapping");
-  panel.style.removeProperty("--doing-drag-x");
+  panel.style.removeProperty("translate");
+  clearDoingWallpaperOffsets(panel);
 }
 
 function moveDoingDrag(event) {
@@ -12156,30 +12312,67 @@ function moveDoingDrag(event) {
   // A release outside the window can lose its pointerup; no buttons held means
   // the pull is over, so drop the card at the spot it reached.
   if (!event.buttons) { endDoingDrag(true); return; }
-  const home = doingHome;
-  if (!home) return;
   event.preventDefault();
   const dx = event.clientX - doingDrag.startX;
-  if (Math.abs(dx) > 3) doingDrag.moved = true;
+  const dy = event.clientY - doingDrag.startY;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) doingDrag.moved = true;
   const width = doingDrag.width;
-  const minLeft = home.left - width * 0.5;
-  const maxLeft = home.right - width * 0.5;
-  const left = Math.round(Math.max(minLeft, Math.min(maxLeft, doingDrag.startLeft + dx)));
+  const height = doingDrag.height;
+  // The card may be pinned anywhere on the desk; it is only kept a hair inside
+  // the window so it can always be grabbed again.
+  const maxLeft = Math.max(6, window.innerWidth - width - 6);
+  const maxTop = Math.max(6, window.innerHeight - height - 6);
+  const left = Math.round(Math.max(6, Math.min(maxLeft, doingDrag.startLeft + dx)));
+  const top = Math.round(Math.max(6, Math.min(maxTop, doingDrag.startTop + dy)));
   doingDrag.left = left;
-  // Only the composited offset changes here. `left` is committed once, on
-  // release, so the card follows the pointer without a layout pass per event.
+  doingDrag.top = top;
+  // Only the composited offset changes here. `left`/`top` are committed once,
+  // on release, so the card follows the pointer without a layout pass per event.
   doingDragX = left - doingDrag.startLeft;
+  doingDragY = top - doingDrag.startTop;
   if (!doingDragFrame) doingDragFrame = requestAnimationFrame(flushDoingDragFrame);
   doingPanelRect = {
     left,
     right: left + width,
-    top: doingDrag.top,
-    bottom: doingDrag.top + doingDrag.height,
+    top,
+    bottom: top + height,
   };
 }
 
-/** Drop the card: whichever border its centre is closest to becomes home, or
-    the old border if the pull never really left the spot. */
+/** Turn the pull's composited offset off and let it glide to zero against the
+    box that was just committed. Reused by the drop (pin it where it landed) and
+    by the pin button (glide back to the border). */
+function glideDoingPanelBack(panel, slackX, slackY) {
+  if (!panel) return;
+  const token = ++doingGlideToken;
+  // The pull counter-moved the pane; hand it back to the resting box before
+  // the glide starts.
+  clearDoingWallpaperOffsets(panel);
+  panel.style.translate = `${Math.round(slackX)}px ${Math.round(slackY)}px`;
+  void panel.offsetWidth;
+  panel.classList.remove("doing-dragging");
+  document.body.classList.remove("doing-dragging");
+  panel.classList.add("doing-snapping");
+  requestAnimationFrame(() => {
+    if (token !== doingGlideToken) return;
+    panel.style.translate = "0px 0px";
+  });
+  // Re-place the film window on the card's resting box before it glides.
+  if (doingPeekOpen) settleCardWallpaper(panel, 460);
+  AudioFX.categoryTap();
+  setTimeout(() => {
+    if (token !== doingGlideToken) return;
+    panel.classList.remove("doing-snapping");
+    // A new pull may have started inside the glide: it owns the variables and
+    // the frame budget now.
+    if (doingDrag) return;
+    panel.style.removeProperty("translate");
+    if (doingPeekOpen) settleCardWallpaper(panel, 460);
+  }, 360);
+}
+
+/** Drop the card: it stays exactly where it was released, pinned there until
+    the close pin sends it back to its border. */
 function endDoingDrag(commit) {
   if (!doingDrag) return;
   const drag = doingDrag;
@@ -12195,62 +12388,82 @@ function endDoingDrag(commit) {
     // The row under the pointer must not also open: a pull is not a click.
     doingDragClickUntil = performance.now() + 400;
   }
-  const home = doingHome;
-  const snap = commit && drag.moved && home;
-  if (snap) {
-    const center = drag.left + drag.width / 2;
-    // Drop against the subtask column's own left/right borders, not the page's.
-    const mid = (home.left + home.right) / 2;
-    const side = center < mid ? "left" : "right";
-    // positionDoingPeek() below anchors with the column's card width, so the
-    // landing box must use the same number or the glide would start one pixel
-    // off the pointer's drop point.
+  if (commit && drag.moved) {
+    // positionDoingPeek() below lays the card out with the column's card size,
+    // so the pinned box must use the same numbers or the glide would start a
+    // pixel or two off the pointer's drop point.
     const width = doingCardWidth || drag.width;
-    const targetLeft = Math.round(side === "left" ? home.left : home.right - width);
+    const height = doingCardHeight || drag.height;
+    const targetLeft = Math.round(Math.max(6, Math.min(Math.max(6, window.innerWidth - width - 6), drag.left)));
+    const targetTop = Math.round(Math.max(6, Math.min(Math.max(6, window.innerHeight - height - 6), drag.top)));
+    doingFloat = { left: targetLeft, top: targetTop };
+    saveDoingFloat();
+    const slackX = drag.left - targetLeft;
+    const slackY = drag.top - targetTop;
     // Zero the composited offset first: the wallpaper pane is matched against
     // the box the card will actually occupy once it lands. Matching it against
     // the pointer's drop point would miss the baked pane and mount a
     // viewport-sized one underneath the glide.
-    const slack = Math.round(drag.left - targetLeft);
-    panel.style.setProperty("--doing-drag-x", "0px");
+    clearDoingWallpaperOffsets(panel);
+    panel.style.translate = "0px 0px";
     panel.style.right = "auto";
     panel.style.left = `${targetLeft}px`;
+    panel.style.top = `${targetTop}px`;
     void panel.offsetWidth;
-    if (side !== doingDockSide) setDoingDockSide(side);
-    else positionDoingPeek();
-    // Put the card back under the pointer while the dragging rule still
-    // cancels transitions, and commit that offset before the snapping rule is
-    // switched on. Only the composited translate then glides to zero, so the
-    // snap never relayouts the page frame by frame.
-    panel.style.setProperty("--doing-drag-x", `${slack}px`);
-    void panel.offsetWidth;
-    panel.classList.remove("doing-dragging");
-    document.body.classList.remove("doing-dragging");
-    panel.classList.add("doing-snapping");
-    requestAnimationFrame(() => panel.style.setProperty("--doing-drag-x", "0px"));
-    // Keep a film window glued to the room along the whole snap glide.
-    if (doingPeekOpen) settleCardWallpaper(panel, 460);
-    AudioFX.categoryTap();
-    setTimeout(() => {
-      panel.classList.remove("doing-snapping");
-      // A new pull may have started inside the glide: it owns the variable and
-      // the frame budget now.
-      if (doingDrag) return;
-      panel.style.removeProperty("--doing-drag-x");
-      if (doingPeekOpen) settleCardWallpaper(panel, 460);
-    }, 360);
+    positionDoingPeek();
+    // The pinned box is a new window onto the room: rebake/match this card's
+    // pane at that box before the glide starts.
+    syncCardWallpaper(panel);
+    syncDoingPinState(panel);
+    glideDoingPanelBack(panel, slackX, slackY);
     return;
   }
   // A tap and a cancelled pull leave the card where the laid-out box put it,
   // exactly as before.
   panel.style.left = `${Math.round(drag.left)}px`;
+  panel.style.top = `${Math.round(drag.top)}px`;
   panel.style.right = "auto";
-  panel.style.removeProperty("--doing-drag-x");
+  panel.style.removeProperty("translate");
+  clearDoingWallpaperOffsets(panel);
   panel.classList.remove("doing-dragging");
   document.body.classList.remove("doing-dragging");
   positionDoingPeek();
   syncCardWallpaper(panel);
   if (doingPeekOpen) settleCardWallpaper(panel, 360);
+}
+
+/** The close pin is also the way home: a pinned card says "return", a docked
+    one says "close". */
+function syncDoingPinState(panel) {
+  if (!panel) return;
+  const floating = Boolean(doingFloat);
+  panel.classList.toggle("doing-floating", floating);
+  const pin = panel.querySelector("[data-doing-pin]");
+  if (!pin) return;
+  pin.setAttribute("aria-label", floating ? "Return Doing card to its border" : "Close Doing card");
+  pin.setAttribute("title", floating ? "Return to the border" : "Close");
+}
+
+/** Un-pin the card and glide it back to the border it came from. */
+function returnDoingPeekHome() {
+  const panel = $("#doing-peek");
+  if (!panel) { doingFloat = null; saveDoingFloat(); return; }
+  // Cancel any in-flight drop glide and keep the box the reader currently sees,
+  // so the return trip starts from the card itself and not from a stray offset.
+  panel.classList.remove("doing-snapping");
+  panel.style.translate = "0px 0px";
+  clearDoingWallpaperOffsets(panel);
+  const from = panel.getBoundingClientRect();
+  doingFloat = null;
+  saveDoingFloat();
+  refreshDoingZone();
+  positionDoingPeek();
+  // The home box is a different window onto the room: match the pane before
+  // the card glides there, exactly like a free drop.
+  syncCardWallpaper(panel);
+  syncDoingPinState(panel);
+  const to = panel.getBoundingClientRect();
+  glideDoingPanelBack(panel, from.left - to.left, from.top - to.top);
 }
 
 function finishDoingDrag() { endDoingDrag(true); }
@@ -12305,7 +12518,9 @@ function updateDoingPeek(force = false) {
     doingPeekOpen = false;
     document.body.classList.remove("doing-peek-open");
     document.body.classList.remove("doing-dock-left");
-    doingExpandedTodoIds.clear();
+    // Keep doingExpandedTodoIds: a render can briefly arrive without entries
+    // (first paint, a data reload), and that must not wipe the rows the reader
+    // left open for the next peek.
     doingPeekSignature = "";
     doingPanelRect = null;
     ensureCardWallpaperClock();
@@ -12315,6 +12530,9 @@ function updateDoingPeek(force = false) {
     panel = document.createElement("aside");
     panel.id = "doing-peek";
     panel.dataset.subcard = "doing";
+    // The card is a movable sheet: the marker says so for scripts. The pull is
+    // explained by the grab cursor on the sheet, not by a corner label.
+    panel.dataset.draggable = "true";
     panel.className = "doing-peek";
     panel.setAttribute("aria-label", "Doing");
     panel.addEventListener("pointerenter", () => {
@@ -12347,6 +12565,7 @@ function updateDoingPeek(force = false) {
     animateDoingReorder(previousTops, nextList);
   }
   panel.classList.toggle("open", doingPeekOpen);
+  syncDoingPinState(panel);
   const list = panel.querySelector(".doing-list");
   bindDoingCard(list);
   syncDoingFanSpins(list, doingPeekOpen);
@@ -12391,7 +12610,8 @@ function closeDoingPeek() {
   if (!doingPeekOpen) return;
   doingPeekOpen = false;
   document.body.classList.remove("doing-peek-open");
-  doingExpandedTodoIds.clear();
+  // The open rows stay put: reopening the drawer restores the same subtask
+  // lists instead of folding every todo back to its head.
   const panel = $("#doing-peek");
   if (panel) {
     panel.classList.remove("open");
@@ -12429,6 +12649,7 @@ function jumpToDoingTodo(todoId, categoryId) {
   doingMarkedTodoId = todoId;
   if (doingExpandedTodoIds.has(todoId)) doingExpandedTodoIds.delete(todoId);
   else doingExpandedTodoIds.add(todoId);
+  saveDoingExpandedTodoIds();
   updateDoingPeek(true);
   if (categoryId && categoryId !== state.selectedCategoryId) activateDoingCategory(categoryId);
 }
@@ -12998,7 +13219,12 @@ async function handleAction(actionName, element) {
     if (element?.dataset.soundKey) AudioFX.audition(element.dataset.soundKey);
     return;
   }
-  if (actionName === "open-sounds-folder") { silentAction("open_sounds_folder"); return; }
+  if (actionName === "open-sounds-folder") {
+    silentAction("open_sounds_folder").then((result) => {
+      if (result && result.ok === false && result.error) toast(result.error, true);
+    });
+    return;
+  }
   if (actionName === "import-theme-pack") { document.querySelector("[data-theme-pack-input]")?.click(); return; }
   if (actionName === "install-theme-pack") {
     installThemeFromCatalog(element?.dataset.themeId || "", element?.dataset.themeBundled === "1");
@@ -13007,6 +13233,15 @@ async function handleAction(actionName, element) {
   if (actionName === "apply-theme-pack") { applyThemePackById(element?.dataset.themeId || ""); return; }
   if (actionName === "remove-theme-pack") { removeThemePackById(element?.dataset.themeId || ""); return; }
   if (actionName === "open-theme-packs-folder") { silentAction("open_theme_packs_folder"); return; }
+  if (actionName === "open-wallpaper-folder") {
+    silentAction("open_wallpaper_folder").then((result) => {
+      if (!result?.state || !adoptWallpaperShelfState(result.state.settings)) return;
+      saveSettings();
+      applySettings();
+      if (settingsTab === "theme") renderSettings();
+    });
+    return;
+  }
   if (actionName === "open-icon-themes-folder") { silentAction("open_icon_themes_folder"); return; }
   if (actionName === "open-note-themes-folder") { silentAction("open_note_themes_folder"); return; }
   if (actionName === "open-ai-themes-folder") { silentAction("open_ai_themes_folder"); return; }
@@ -13018,6 +13253,9 @@ async function handleAction(actionName, element) {
   if (actionName === "toggle-wallpaper-manage") {
     wallpaperManageOpen = !wallpaperManageOpen;
     renderSettings();
+    // Opening Manage is the moment options are managed. Ask the shelf what
+    // files still exist so a hand-deleted wallpaper leaves the picker.
+    if (wallpaperManageOpen) syncWallpaperShelf();
     return;
   }
   if (actionName === "wallpaper-back") {
@@ -13087,6 +13325,25 @@ async function handleAction(actionName, element) {
     settings.show_clock = !settings.show_clock;
     saveSettings();
     applySettings();
+    renderSettings();
+    return;
+  }
+  if (actionName === "toggle-show-brand") {
+    settings.show_brand = settings.show_brand === false;
+    saveSettings();
+    applySettings();
+    renderSettings();
+    return;
+  }
+  if (actionName === "toggle-show-achievements") {
+    settings.show_achievements = settings.show_achievements === false;
+    saveSettings();
+    applySettings();
+    renderSettings();
+    return;
+  }
+  if (actionName === "toggle-theme-others") {
+    themeOthersOpen = !themeOthersOpen;
     renderSettings();
     return;
   }
@@ -13601,6 +13858,8 @@ function loadSettings() {
   if (!/^#[0-9a-f]{6}$/i.test(String(settings.note_font_color || ""))) settings.note_font_color = "";
   settings.show_time_cost = settings.show_time_cost === true;
   settings.show_clock = settings.show_clock !== false;
+  settings.show_brand = settings.show_brand !== false;
+  settings.show_achievements = settings.show_achievements !== false;
   settings.focus_count = Math.max(0, Math.floor(Number(settings.focus_count) || 0));
   if (!Array.isArray(settings.focus_log)) settings.focus_log = [];
   if (!FONT_OPTIONS.some((font) => font.id === settings.font)) settings.font = "serif";
@@ -13614,14 +13873,14 @@ function loadSettings() {
   if (!/^#[0-9a-f]{6}$/i.test(String(settings.ai_caret_light || ""))) settings.ai_caret_light = "#1b1b1b";
   // An empty highlight is a choice: the active theme keeps its own wash.
   if (settings.highlight && !normalizeHighlightColorInput(settings.highlight)) settings.highlight = "";
-  if (!/^[a-z0-9_-]+$/i.test(String(settings.note_material || ""))) settings.note_material = "paper";
-  if (!/^[a-z0-9_-]+\.css$/i.test(String(settings.note_material_file || ""))) {
-    settings.note_material_file = materialFileForId(settings.note_material);
-  }
+  // One note style only: the beige `default` sticky note. A saved Paper /
+  // Glass / Focus surface or a custom material from an older build is ignored.
+  settings.note_material = "paper";
+  settings.note_material_file = "paper.css";
   // Pane themes: fall back to the built-in choice if a downloaded pack was
   // removed since the last launch.
   const noteIds = new Set(noteThemeChoices().map((choice) => choice.id));
-  if (!noteIds.has(settings.note_theme)) settings.note_theme = "white";
+  if (!noteIds.has(settings.note_theme)) settings.note_theme = "default";
   const aiIds = new Set(aiThemeChoices().map((choice) => choice.id));
   if (!aiIds.has(settings.ai_theme)) settings.ai_theme = "auto";
   const background = typeof settings.note_background === "string" ? settings.note_background : "";
@@ -13737,6 +13996,8 @@ function loadSettings() {
     }
   }
   settings.sound_overrides = soundOverrides;
+  const wantedSoundStyle = String(settings.sound_style || "classical");
+  settings.sound_style = soundStyleById(wantedSoundStyle).id;
   // We no longer keep the static/dynamic switch: a single `wallpaper` choice
   // covers both. Remove the retired keys from the saved settings so nothing
   // stale is written back to disk.
@@ -13873,19 +14134,18 @@ const AI_BUILTIN_PALETTES = {
   },
 };
 
-// The notebook has exactly one palette of its own: a plain white page. It is
-// not tied to the app theme or the wallpaper, and it is not a shelf of presets
-// any more — the old parchment / ivory / rose / mint palettes are gone. A flat
-// white sheet is also the cheapest surface to paint, so pulling the height
-// line has nothing sheet-sized to re-raster (the note-theme.css file owns the
-// same values as CSS defaults).
+// The notebook has exactly one style: a warm beige sticky note ruled with
+// white hairlines. It is not tied to the app theme or the wallpaper, and the
+// old palette shelf and the Paper / Glass / Focus surfaces are gone. This is
+// the single `default` note style; note-theme.css owns the same values as CSS
+// defaults.
 const NOTE_THEME_BUILTINS = [
   {
-    id: "white", name: "White", english: "Plain white page",
+    id: "default", name: "Default", english: "Beige sticky note · white ruled lines",
     palette: {
-      paper: "#ffffff", ink: "#2b2b2e", muted: "rgba(43, 43, 46, 0.58)",
-      rule: "rgba(43, 43, 46, 0.14)", accent: "#6b6b73", accent2: "#8a8a92",
-      handle: "rgba(62, 62, 68, 0.70)", handleHover: "rgba(38, 38, 44, 0.92)",
+      paper: "#f6e8c4", ink: "#4a3a28", muted: "rgba(74, 58, 40, 0.55)",
+      rule: "rgba(255, 255, 255, 0.90)", accent: "#9a7443", accent2: "#7f5f38",
+      handle: "rgba(74, 58, 40, 0.70)", handleHover: "rgba(58, 45, 30, 0.92)",
       handleHalo: "rgba(255, 255, 255, 0.20)", handleHaloHover: "rgba(255, 255, 255, 0.30)",
     },
   },
@@ -13979,10 +14239,9 @@ function installedPaneChoices(kind) {
 }
 
 function noteThemeChoices() {
-  // One built-in white page. A palette the reader drops into the note-theme/
-  // folder (their own file) is still honoured — the notebook owns its colours
-  // and no app theme or wallpaper can tint them.
-  return [...NOTE_THEME_BUILTINS.map((theme) => ({ ...theme, source: "builtin" })), ...installedPaneChoices("note")];
+  // One built-in style only: the beige sticky note. Note-theme packs and the
+  // old Paper / Glass / Focus surfaces are intentionally not listed any more.
+  return NOTE_THEME_BUILTINS.map((theme) => ({ ...theme, source: "builtin" }));
 }
 
 // The two notebook surfaces the notebook used before palettes existed. They
@@ -14131,7 +14390,7 @@ function applyAiTheme() {
 
 function normalizePaneThemeSettings() {
   const noteIds = new Set(noteThemeChoices().map((choice) => choice.id));
-  if (!noteIds.has(settings.note_theme)) settings.note_theme = "white";
+  if (!noteIds.has(settings.note_theme)) settings.note_theme = "default";
   const aiIds = new Set(aiThemeChoices().map((choice) => choice.id));
   if (!aiIds.has(settings.ai_theme)) settings.ai_theme = "auto";
 }
@@ -14278,6 +14537,46 @@ async function loadIconThemes() {
   } catch (error) {
     return false;
   }
+}
+
+async function loadSoundStyles() {
+  try {
+    const response = await fetch("/api/sound-styles", { cache: "no-store" });
+    const data = await response.json();
+    if (!data?.ok || !Array.isArray(data.styles)) return false;
+    const seen = new Set();
+    const styles = [];
+    for (const style of data.styles) {
+      const id = String(style?.id || "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      styles.push({
+        id,
+        name: String(style?.name || id),
+        files: Array.isArray(style?.files) ? style.files.map((name) => String(name)) : [],
+      });
+    }
+    if (!seen.has("classical")) {
+      styles.unshift({ id: "classical", name: "Classical", files: [] });
+    }
+    soundStyles = styles;
+    soundFolder = String(data.folder || "");
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function soundStyleById(id) {
+  const wanted = String(id || "classical");
+  return soundStyles.find((style) => style.id === wanted)
+    || soundStyles.find((style) => style.id === "classical")
+    || soundStyles[0]
+    || { id: "classical", name: "Classical", files: [] };
+}
+
+function activeSoundStyle() {
+  return soundStyleById(settings.sound_style);
 }
 
 function iconThemeById(id) {
@@ -15393,16 +15692,17 @@ function subcardPaperKey(host, wallpaper, box) {
   ].join("|");
 }
 
-/* A sub-card is a sheet of the room, not a hole cut into it. Its picture is
-   taken from a region larger than the card's own footprint — 140% of the box,
-   kept centred — so the card carries its own photograph of the wallpaper
-   instead of being an exactly aligned, see-through copy of the area behind it.
-   The sampled region is drawn back onto the card at full size, which is what
-   gives every card its own crop.
+/* A sub-card keeps the 140% wallpaper sample: it is a sheet of the room, so
+   the picture is wider than the card's own footprint and kept centred.
 
-   The top hidden bar is deliberately NOT a card: it wears the wallpaper as its
-   own background and must line up with the room behind it, so it samples
-   exactly its box (100%) instead of the card's wider crop. */
+   Every card crops its own centre from one shared sampling object: the room's
+   bottom wallpaper. The finished card and the Doing card therefore use the
+   same 140% rule as the subtask area, but each keeps its own centre. They
+   never sample the card below them, which was what made the upper sheets look
+   progressively darker.
+
+   The top hidden bar is sampled at 100%: it wears the wallpaper as its own
+   background and must line up with the room behind it. */
 const SUBCARD_PAPER_REGION = 1.4;
 const SURFACE_PAPER_REGION = 1;
 
@@ -15426,7 +15726,7 @@ function subcardCropSource(image, box, region = SUBCARD_PAPER_REGION) {
   const x = (left - offsetX) / scale;
   const y = (top - offsetY) / scale;
   // Keep the sample inside the picture: a surface near an edge must not bake a
-  // transparent strip where a 140% crop runs past the wallpaper.
+  // transparent strip where the crop runs past the wallpaper.
   return {
     x: Math.min(Math.max(0, x), Math.max(0, imageWidth - width)),
     y: Math.min(Math.max(0, y), Math.max(0, imageHeight - height)),
@@ -15447,12 +15747,46 @@ function pruneSubcardPapers() {
   }
 }
 
-/** Bake one card-sized picture from the wallpaper at the card's open box. */
+/* The room's own wallpaper element: the bottom layer every card must copy.
+   Cards never sample the painted card below them (that was what made the live
+   card, the finished card and the Doing card look progressively darker). For
+   still pictures and theme-pack pictures the original <img> is already decoded,
+   so every card's pattern and colour come straight from the room. */
+function roomWallpaperImage() {
+  const media = $("#wallpaper-layer")?.firstElementChild;
+  if (!media || media.tagName !== "IMG") return null;
+  return media.complete && media.naturalWidth ? media : null;
+}
+
+/* One sampling object for every card: the subtask area picks the room's bottom
+   wallpaper, and the finished card and the Doing card sample the same object
+   at their own centres. The object is cached per wallpaper so the whole pile
+   is always cut from one picture, never from another card's face. */
+let subcardSampleObject = { wallpaper: "", image: null, url: "" };
+
+function subcardSampleObjectFor(wallpaper) {
+  if (subcardSampleObject.wallpaper !== wallpaper.key) {
+    subcardSampleObject = { wallpaper: wallpaper.key, image: null, url: "" };
+  }
+  const room = roomWallpaperImage();
+  if (room) {
+    subcardSampleObject.image = room;
+    subcardSampleObject.url = room.currentSrc || room.src || subcardSampleObject.url;
+  }
+  const bitmap = wallpaperBitmapCache.get(wallpaper.key);
+  if (!subcardSampleObject.url && bitmap?.ready && bitmap.url) {
+    subcardSampleObject.url = bitmap.url;
+  }
+  if (!subcardSampleObject.image && !subcardSampleObject.url) return null;
+  return subcardSampleObject;
+}
+
+/** Bake one card-sized picture from the shared wallpaper object. */
 function bakeSubcardPaper(host, wallpaper, box) {
   const key = subcardPaperKey(host, wallpaper, box);
   if (subcardPaperCache.has(key) || subcardPaperPending.has(key)) return;
-  const bitmap = wallpaperBitmapCache.get(wallpaper.key);
-  if (!bitmap?.ready || !bitmap.url) return;
+  const sample = subcardSampleObjectFor(wallpaper);
+  if (!sample) return;
   subcardPaperPending.add(key);
   const finish = (url) => {
     subcardPaperPending.delete(key);
@@ -15466,10 +15800,9 @@ function bakeSubcardPaper(host, wallpaper, box) {
     pruneSubcardPapers();
     refreshCardWallpaperPanes();
   };
-  const image = new Image();
-  image.decoding = "async";
-  image.onload = () => {
+  const paint = (image) => {
     try {
+      // Every card keeps its own centre; only the sampling object is shared.
       const source = subcardCropSource(image, box, subcardPaperRegion(host));
       const view = subcardViewport();
       const canvas = document.createElement("canvas");
@@ -15487,8 +15820,15 @@ function bakeSubcardPaper(host, wallpaper, box) {
       finish("");
     }
   };
+  // A still picture is copied from the shared room object itself, never from
+  // another card or from a downsized intermediate: the original pixels carry
+  // the pattern and the colour the reader sees behind the card.
+  if (sample.image) { paint(sample.image); return; }
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => paint(image);
   image.onerror = () => finish("");
-  image.src = bitmap.url;
+  image.src = sample.url;
 }
 
 /** Bake every marked sub-card for the current still wallpaper. */
@@ -15613,22 +15953,34 @@ function ensureCardWallpapers() {
 /* A still card is made of the wallpaper itself: the pre-rendered picture covers
    the card's box, so there is no room offset to track. A film card is a window
    onto the room, so its viewport-sized copy is shifted by the card's own
-   top-left corner to line the two pictures up exactly. */
-/* A baked sub-card needs no room offset: its picture is already the card. A
-   live window copy (film) is viewport-sized and shifted by the card's box. */
+   resting top-left corner to line the two pictures up exactly.
+
+   The offset always comes from the card's resting box, never from the frame it
+   happens to occupy mid-slide. Reading the live frame re-pinned the picture to
+   the room on every animation frame, so a card that slid out carried its words
+   and its stroke to the new place while its own face stayed behind: the text
+   arrived and the paper had not. Anchoring the window copy to the resting box
+   keeps the picture welded to the sheet for the whole trip, and the copy still
+   lines up with the room frame-for-frame once the card comes to rest. */
 function placeCardWallpaper(layer) {
   if (layer.dataset.fit !== "window") {
     layer.dataset.placed = "1";
     return true;
   }
-  const moving = layer.dataset.moving === "1";
-  const box = moving ? layer.getBoundingClientRect() : subcardBox(layer.parentElement);
+  const host = layer.parentElement;
+  const box = host ? subcardBox(host) : null;
   if (!box || box.width < 2 || box.height < 2) {
     layer.removeAttribute("data-placed");
     return false;
   }
-  layer.style.setProperty("--card-wallpaper-x", `${-box.left.toFixed(2)}px`);
-  layer.style.setProperty("--card-wallpaper-y", `${-box.top.toFixed(2)}px`);
+  const x = `${-box.left.toFixed(2)}px`;
+  const y = `${-box.top.toFixed(2)}px`;
+  if (layer.style.getPropertyValue("--card-wallpaper-x") !== x) {
+    layer.style.setProperty("--card-wallpaper-x", x);
+  }
+  if (layer.style.getPropertyValue("--card-wallpaper-y") !== y) {
+    layer.style.setProperty("--card-wallpaper-y", y);
+  }
   // The pane stays invisible until it sits on the right crop, so a freshly
   // mounted card never flashes the film at the wrong offset.
   layer.dataset.placed = "1";
@@ -15684,8 +16036,8 @@ function syncCardWallpaperPlayback() {
   });
 }
 
-/* Only a film needs per-frame alignment while its card slides; a still card is
-   baked ahead of time, so the loop is skipped entirely for it. */
+/* Only a film carries a window copy to re-place while its resting box settles;
+   a still card is baked ahead of time, so the loop is skipped entirely for it. */
 function cardWallpaperLoop() {
   cardWallpaperFrame = 0;
   placeCardWallpapers();
@@ -15735,7 +16087,7 @@ let cardWallpaperHostFrame = 0;
 let cardWallpaperHostDeadline = 0;
 const cardWallpaperHosts = new Set();
 
-/* The same slide alignment as cardWallpaperLoop, scoped to the cards that are
+/* The same placement pass as cardWallpaperLoop, scoped to the cards that are
    actually moving (the Doing drawer). The finished card keeps its own pane and
    its own alignment while the drawer slides out beside it. */
 function cardWallpaperHostLoop() {
@@ -15995,6 +16347,13 @@ function applyDoingPalette(postcard) {
     : artTheme
       ? (artTheme.paper2 || artTheme.accent)
       : (wallpaper.file ? wallpaperTintCache.get(wallpaper.key) : "");
+  // The wallpaper card face uses this same sampled tint for its single 7%
+  // wash. It is the room's own colour, so the wash can never act as a second,
+  // grey paper veil on top of the picture. With no wallpaper (or with the
+  // wallpaper card theme off) the property is removed and the CSS falls back
+  // to the theme paper.
+  if (tint) root.style.setProperty("--wallpaper-tint", tint);
+  else root.style.removeProperty("--wallpaper-tint");
   const dark = postcardIsDark(currentPostcardId());
   let doingPaper, doingPaper2;
   if (tint) {
@@ -16061,7 +16420,11 @@ function applySettings() {
   root.dataset.font = settings.font;
   root.dataset.noteFont = settings.note_font;
   document.body.classList.toggle("clock-hidden", !settings.show_clock);
+  document.body.classList.toggle("brand-hidden", settings.show_brand === false);
+  document.body.classList.toggle("achievements-hidden", settings.show_achievements === false);
   document.body.classList.add("custom-caret");
+  const soundStyle = activeSoundStyle();
+  AudioFX.setSoundStyle(soundStyle.id, soundStyle.files);
   AudioFX.setSampleOverrides(settings.sound_overrides);
   applyPluginState();
   scheduleCustomCaret();
@@ -16179,6 +16542,10 @@ function openSettings(tab = "theme") {
     // dropped in while the settings sheet was closed.
     loadThemePacks().then(() => { if (settingsTab === "theme") renderSettings(); });
     loadIconThemes().then(() => { if (settingsTab === "theme") renderSettings(); });
+  } else if (settingsTab === "sound") {
+    // A style is just a folder on the sounds shelf; refresh it so a folder
+    // added in the file manager shows up without reopening Settings.
+    loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
   }
 }
 
@@ -16478,10 +16845,8 @@ function themeSettings() {
   const managePanel = themeManageOpen ? `<div class="theme-manage-panel">
     <div class="theme-manage-actions">
       <button class="theme-chip-button" type="button" data-action="import-theme-pack" ${themePackBusy === "import" ? "disabled" : ""}>${themePackBusy === "import" ? "Importing…" : "Import .zip"}</button>
-      <button class="theme-chip-button" type="button" data-action="open-theme-packs-folder">Open folder</button>
-      <button class="theme-chip-button" type="button" data-action="new-custom-theme">+ New theme</button>
+      <button class="theme-chip-button theme-folder-button" type="button" data-action="open-theme-packs-folder" title="Open the theme folder" aria-label="Open the theme folder">${FOLDER_GLYPH}</button>
     </div>
-    ${editor}
     <input type="file" accept=".zip,application/zip" data-theme-pack-input hidden>
   </div>` : "";
   // The Theme row itself is the selector. Its menu can switch between the app
@@ -16493,31 +16858,38 @@ function themeSettings() {
       ${themeFieldMenu}
       ${fieldMode === "app"
         ? `<button class="theme-chip-button ${themeManageOpen ? "active" : ""}" type="button" data-action="toggle-theme-manage" aria-expanded="${themeManageOpen ? "true" : "false"}">Manage</button>`
-        : `<button class="theme-chip-button" type="button" data-action="${fieldMode === "ai" ? "open-ai-themes-folder" : "open-note-themes-folder"}" title="${esc(fieldMode === "ai" ? (paneThemeFolders.ai || "ai-theme") : (paneThemeFolders.note || "note-theme"))}">Folder</button>`}
+        : fieldMode === "ai"
+          ? `<button class="theme-chip-button" type="button" data-action="open-ai-themes-folder" title="${esc(paneThemeFolders.ai || "ai-theme")}">Folder</button>`
+          : ""}
     </div>
   </div>`;
-  return `${themeRow}
-    ${fieldMode === "note" ? `<div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Note surface</div>
-      <div class="theme-settings-controls">${noteSurfaceRow}</div>
+  // The bottom of Appearance is one fold-out row. The four display switches
+  // share the same list, each with its own on/off thumb.
+  const otherSwitch = (title, action, on, ariaOn, ariaOff) => `<div class="theme-others-item">
+    <div class="theme-settings-title">${title}</div>
+    <div class="theme-others-side">
+      <span class="theme-others-state ${on ? "on" : "off"}">${on ? "On" : "Off"}</span>
+      <button class="sound-switch theme-setting-switch ${on ? "on" : "off"}" type="button" data-action="${action}" aria-pressed="${on ? "true" : "false"}" aria-label="${on ? ariaOff : ariaOn}"><span class="sound-switch-knob"></span></button>
     </div>
-    ${glassBackgroundRow}` : ""}
+  </div>`;
+  const othersRow = `<div class="settings-section theme-others-section ${themeOthersOpen ? "open" : ""}">
+    <button class="theme-others-trigger" type="button" data-action="toggle-theme-others" aria-expanded="${themeOthersOpen ? "true" : "false"}" aria-controls="theme-others-panel">
+      <span class="theme-settings-title">Others</span>
+      <svg class="theme-menu-chevron theme-others-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    ${themeOthersOpen ? `<div class="theme-others-panel" id="theme-others-panel">
+      ${otherSwitch("Time cost", "toggle-time-cost", settings.show_time_cost === true, "Turn time cost on", "Turn time cost off")}
+      ${otherSwitch("Current time", "toggle-show-clock", settings.show_clock !== false, "Turn current time on", "Turn current time off")}
+      ${otherSwitch("Logo", "toggle-show-brand", settings.show_brand !== false, "Show the top-left logo", "Hide the top-left logo")}
+      ${otherSwitch("Achievements", "toggle-show-achievements", settings.show_achievements !== false, "Show the top-right achievements", "Hide the top-right achievements")}
+    </div>` : ""}
+  </div>`;
+  return `${themeRow}
     ${fieldMode === "app" ? managePanel : ""}
     ${wallpaperSettingsSection()}
     ${iconSettingsSection()}
     ${caretRow}
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Time cost</div>
-      <div class="theme-settings-controls">
-        <button class="sound-switch theme-setting-switch ${settings.show_time_cost ? "on" : "off"}" type="button" data-action="toggle-time-cost" aria-pressed="${settings.show_time_cost ? "true" : "false"}" aria-label="${settings.show_time_cost ? "Turn time cost off" : "Turn time cost on"}"><span class="sound-switch-knob"></span></button>
-      </div>
-    </div>
-    <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Current time</div>
-      <div class="theme-settings-controls">
-        <button class="sound-switch theme-setting-switch ${settings.show_clock ? "on" : "off"}" type="button" data-action="toggle-show-clock" aria-pressed="${settings.show_clock ? "true" : "false"}" aria-label="${settings.show_clock ? "Turn current time off" : "Turn current time on"}"><span class="sound-switch-knob"></span></button>
-      </div>
-    </div>`;
+    ${othersRow}`;
 }
 
 
@@ -16625,7 +16997,7 @@ function wallpaperRecentList() {
     if (!name || seen.has(name) || !wallpaperIsLocalFile(name)) return false;
     seen.add(name);
     return true;
-  });
+  }).slice(0, WALLPAPER_RECENT_LIMIT);
 }
 
 function rememberWallpaperChoice(path) {
@@ -16656,6 +17028,29 @@ function applyWallpaperChoice(path) {
   applySettings();
   if (settingsTab === "theme") renderSettings();
   toast("Wallpaper set");
+}
+
+/** Adopt the backend's shelf view after a pick, migration or prune. */
+function adoptWallpaperShelfState(next) {
+  if (!next || typeof next !== "object") return false;
+  const wallpaper = String(next.wallpaper || "");
+  const recent = Array.isArray(next.wallpaper_recent) ? next.wallpaper_recent.slice() : [];
+  const before = JSON.stringify([settings.wallpaper, settings.wallpaper_recent]);
+  settings.wallpaper = wallpaper;
+  settings.wallpaper_recent = recent;
+  return before !== JSON.stringify([settings.wallpaper, settings.wallpaper_recent]);
+}
+
+/** Link older picks into pictures/wallpapers and drop files deleted there. */
+function syncWallpaperShelf() {
+  return silentAction("sync_wallpaper_shelf").then((result) => {
+    if (!result?.ok || !result.state) return false;
+    if (!adoptWallpaperShelfState(result.state.settings)) return false;
+    saveSettings();
+    applySettings();
+    if (settingsTab === "theme") renderSettings();
+    return true;
+  });
 }
 
 function chooseWallpaperFile() {
@@ -16715,7 +17110,7 @@ function wallpaperSettingsSection() {
   const wallpaper = activeWallpaper();
   const recent = wallpaperRecentList();
   const name = wallpaper.key ? wallpaperDisplayName(wallpaper) : "Theme paper";
-  const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4-4 4 4M8 14l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const recentRows = recent.map((path) => {
     const active = String(settings.wallpaper || "") === path;
     const isVideo = WALLPAPER_VIDEO_RE.test(path);
@@ -16750,6 +17145,7 @@ function wallpaperSettingsSection() {
         <button class="theme-chip-button" type="button" data-action="wallpaper-back" title="Return to the theme wallpaper">Back</button>
         <button class="theme-chip-button ${blurOn ? "active" : ""}" type="button" data-action="toggle-wallpaper-blur" aria-pressed="${blurOn ? "true" : "false"}" title="Frosted glass between the wallpaper and the page">Blur</button>
         <button class="theme-chip-button ${cardsOn ? "active" : ""}" type="button" data-action="toggle-wallpaper-cards" aria-pressed="${cardsOn ? "true" : "false"}" title="Build the cards out of the wallpaper">Wallpaper theme</button>
+        <button class="theme-chip-button theme-folder-button" type="button" data-action="open-wallpaper-folder" title="Open the wallpaper folder" aria-label="Open the wallpaper folder">${FOLDER_GLYPH}</button>
       </div>
       ${blurOn ? `<div class="wallpaper-blur-row">
         <input id="wallpaper-blur-range" class="wallpaper-blur-range" type="range" min="0" max="100" step="1" value="${blurValue}" aria-label="Wallpaper glass blur">
@@ -16852,6 +17248,24 @@ function stickersSettings() {
 function soundSettings() {
   const on = !AudioFX.muted;
   const volume = Math.round(AudioFX.getVolume() * 100);
+  const current = activeSoundStyle();
+  const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const rows = soundStyles.map((style) => {
+    const active = style.id === current.id;
+    return `<div class="theme-menu-row ${active ? "active" : ""}">
+      <button class="theme-menu-item" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-sound-style="${esc(style.id)}">
+        <span class="theme-menu-name">${esc(style.name || style.id)}</span>
+        <span class="choice-check" aria-hidden="true">✓</span>
+      </button>
+    </div>`;
+  }).join("");
+  const nameControl = `<details class="theme-menu sound-style-menu" data-theme-menu>
+    <summary class="theme-menu-trigger" aria-label="Sound style: ${esc(current.name || current.id)}">
+      <span class="theme-menu-name">${esc(current.name || current.id)}</span>
+      ${chevron}
+    </summary>
+    <div class="theme-menu-list" role="listbox" aria-label="Sound style">${rows}</div>
+  </details>`;
   const files = Object.entries(AudioFX.sampleFiles())
     .map(([key, url]) => {
       const name = String(url).split("/").pop();
@@ -16871,14 +17285,20 @@ function soundSettings() {
         <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-settings-volume>
       </div>
     </div>
+    <div class="settings-section theme-settings-row sound-settings-row">
+      <div class="theme-settings-title">Sound style</div>
+      <div class="theme-settings-controls">
+        ${nameControl}
+        <button class="theme-chip-button theme-folder-button" type="button" data-action="open-sounds-folder" title="Open the sounds folder${soundFolder ? ` · ${esc(soundFolder)}` : ""}" aria-label="Open the sounds folder">${FOLDER_GLYPH}</button>
+      </div>
+    </div>
     <div class="settings-section">
-      <div class="settings-label">Audio files</div>
+      <div class="settings-label">Audio files <span>${esc(current.id)}</span></div>
       ${Object.keys(settings.sound_overrides || {}).length ? `<div class="sound-pack-note">
         <span>A theme pack is replacing ${Object.keys(settings.sound_overrides).length} sample(s).</span>
         <button class="btn small" type="button" data-action="reset-theme-sounds">Use NeoTodo sounds</button>
       </div>` : ""}
       <div class="sound-settings-list">${files}</div>
-      <button class="btn small" type="button" data-action="open-sounds-folder">Open sounds folder</button>
     </div>`;
 }
 
@@ -17104,9 +17524,9 @@ function closeCommunity() {
 }
 
 /**
- * The shop is the "community" plugin now. Old links (Settings → Community,
- * Theme → Browse community) still call this helper, so they land in the same
- * plugin page instead of reopening the retired modal.
+ * The shop is the "community" plugin now. Old deep links still call this
+ * helper, so they land in the same plugin page instead of reopening the
+ * retired modal.
  */
 function openCommunityPlugin(section = "plugins") {
   const target = ["plugins", "games", "themes"].includes(section) ? section : "plugins";
@@ -18309,8 +18729,13 @@ function bindEvents() {
     if (doingPin) {
       event.preventDefault();
       event.stopPropagation();
-      AudioFX.categoryTap();
-      closeDoingPeek();
+      // A pinned card is sent back to its border; the pin on a docked card
+      // closes the drawer as it always did. The return glide plays its own tap.
+      if (doingFloat) returnDoingPeekHome();
+      else {
+        AudioFX.categoryTap();
+        closeDoingPeek();
+      }
       return;
     }
     const doingExpand = event.target.closest("[data-doing-expand]");
@@ -18320,6 +18745,7 @@ function bindEvents() {
       const todoId = doingExpand.dataset.doingExpand;
       if (doingExpandedTodoIds.has(todoId)) doingExpandedTodoIds.delete(todoId);
       else doingExpandedTodoIds.add(todoId);
+      saveDoingExpandedTodoIds();
       AudioFX.categoryTap();
       updateDoingPeek();
       return;
@@ -18400,6 +18826,20 @@ function bindEvents() {
       saveSettings();
       applyIconTheme();
       renderSettings();
+      return;
+    }
+    const soundStyleChoice = event.target.closest("[data-sound-style]");
+    if (soundStyleChoice) {
+      event.preventDefault();
+      const next = soundStyleById(soundStyleChoice.dataset.soundStyle || "classical");
+      settings.sound_style = next.id;
+      saveSettings();
+      applySettings();
+      renderSettings();
+      // Let the reader hear the new set immediately instead of waiting for
+      // the next key press.
+      AudioFX.unlock();
+      AudioFX.audition("type");
       return;
     }
     const postcardChoice = event.target.closest("[data-postcard-choice]");
@@ -18572,6 +19012,7 @@ function bindEvents() {
       pluginDetailId = null;
       pluginPendingUninstallId = null;
       renderSettings();
+      if (settingsTab === "sound") loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
       const settingsScroll = $(".settings-scroll");
       if (settingsScroll) settingsScroll.scrollTop = 0;
       return;
@@ -19006,6 +19447,7 @@ function bindEvents() {
       if (!noteBlocks[index]) return;
       const cleanValue = event.target.value.split(NOTE_ZERO_WIDTH).join("");
       noteBlocks[index].raw = cleanValue;
+      syncNoteGhost(index, cleanValue);
       if (!event.target.value && !event.isComposing) {
         // Keep one invisible character so WebKit always has a line to paint the caret on.
         event.target.value = NOTE_ZERO_WIDTH;
@@ -19314,8 +19756,7 @@ function bindEvents() {
       }
     }
     // Subtasks own one menu everywhere: the row body and the inline rename
-    // input both open Fork / Copy / Cut / Paste instead of the generic editor
-    // clipboard menu.
+    // input both open Fork / Cut instead of the generic editor clipboard menu.
     const subtaskRow = event.target.closest(".current-subtask[data-subtask-id]");
     if (subtaskRow) {
       event.preventDefault();
@@ -19599,6 +20040,9 @@ function bindEvents() {
 
   let deskStripHovered = false;
   document.addEventListener("pointermove", (event) => {
+    // A Doing pull owns the pointer: toggling the door-line hover would
+    // re-match body-wide styles in the middle of the drag.
+    if (doingDrag) return;
     const latched = document.body.classList.contains("desk-handle-strip-drag")
       || document.body.classList.contains("desk-handle-strip-latch");
     const stripHovered = event.clientY >= window.innerHeight - 36 || latched;
@@ -20078,6 +20522,9 @@ function bindEvents() {
   }
 
   document.addEventListener("mousemove", (event) => {
+    // A Doing pull owns the pointer: the left rail must not open (and re-match
+    // body-wide styles) just because the card was pulled against the edge.
+    if (doingDrag) return;
     const open = document.body.classList.contains("tools-open");
     if (event.clientX <= 24) {
       if (!open) document.body.classList.add("tools-open");
@@ -20436,6 +20883,7 @@ async function init() {
   await loadInstalledPlugins();
   await loadThemePacks();
   await loadIconThemes();
+  await loadSoundStyles();
   loadSettings();
   applySettings();
   bindEvents();

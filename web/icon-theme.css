@@ -18,13 +18,18 @@ html[data-icon-tissue="1"] .page-head .banner-icon use {
 /* Picture packs read smaller than the drawn napkin. Lift this one and let it
    grow past the old box without moving the ruled header line. */
 html[data-icon-tissue="1"] .page-head .banner-title .banner-icon {
-  transform: translateY(-7px) scale(1.16);
+  transform: translateY(-13px) scale(1.16);
 }
 html[data-icon-tissue="1"] .doing-mark svg {
   background: var(--icon-tissue) center / contain no-repeat;
 }
 html[data-icon-tissue="1"] .doing-mark svg use {
   opacity: 0;
+}
+/* The picture sits low inside its transparent frame; lift the whole button so
+   the chomper's centre shares the Doing row's text baseline. */
+html[data-icon-tissue="1"] .doing-mark {
+  translate: 0 -7px;
 }
 
 /* Fan: live rows keep the normal fan; finished rows get their own mark. */
@@ -53,6 +58,14 @@ html[data-icon-fan-done="1"] .history-subtask .fan-stack {
 html[data-icon-ai-running="1"] .current-subtask.agent-running .fan-stack,
 html[data-icon-ai-running="1"] .doing-sub.agent-running .fan-stack {
   background-image: var(--icon-ai-running);
+  /* The spraying gif is much wider than the idle puffshroom. Match its
+     mushroom height to the static fan instead of fitting the whole canvas,
+     otherwise the running icon reads markedly smaller. */
+  background-size: auto 100%;
+}
+/* The Doing card's fan is the same picture; lift it onto the text line. */
+html[data-icon-fan="1"] .doing-fan {
+  translate: 0 -3px;
 }
 /* AI done: the finished mark replaces the provider badge. Match the fan's
    size instead of the old 28px dot. */
@@ -99,11 +112,14 @@ html[data-icon-achievement-gold="1"] .moon-icon.gold-moon use {
   opacity: 0;
 }
 /* The top-right achievement is the hero mark: let the cherry sit larger than
-   the old headphone. The category counters use the same cherry. */
+   the old headphone. 64px = 1.2× of the previous 53px mark. The postcard
+   stylesheet pins the headphone glyph to 50px !important, so the picture pack
+   has to match that weight to actually own the size. The category counters
+   keep the small cherry. */
 html[data-icon-achievement="1"] .head-right .trophy-button .trophy-glyph {
-  width: 40px;
-  height: 40px;
-  font-size: 40px;
+  width: 64px !important;
+  height: 64px !important;
+  font-size: 64px !important;
 }
 html[data-icon-achievement="1"] .cat-count .moon-icon {
   width: 16px;
@@ -143,4 +159,19 @@ html[data-icon-fork="1"] .cat-fork img,
 html[data-icon-fork="1"] .sub-fork-link img,
 html[data-icon-fork="1"] .h-sub-fork-link img {
   content: var(--icon-fork);
+  /* A pack may draw the mark in its own portrait frame (the Pvs coffee bean)
+     rather than the square pixel flame. Keep that frame's aspect ratio instead
+     of stretching it into the old square. */
+  object-fit: contain;
+}
+/* The picture is centred in its own frame, so it needs no optical lift: drop
+   the flame's two-pixel label nudge and let icon and word share one centre. */
+html[data-icon-fork="1"] .context-item-icon .context-label {
+  transform: none;
+}
+/* Rows align on their text baseline, and the label there keeps its own
+   two-pixel nudge; move the picture down by the same amount. */
+html[data-icon-fork="1"] .sub-fork-link img,
+html[data-icon-fork="1"] .h-sub-fork-link img {
+  translate: 0 2px;
 }
