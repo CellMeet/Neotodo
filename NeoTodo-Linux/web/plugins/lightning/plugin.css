@@ -1,0 +1,372 @@
+/* ==========================================================================
+   LIGHTNING PLUGIN PAGE — the little control surface.
+   All rules live here and are scoped to .lg-*; the notebook itself is never
+   touched by this stylesheet. lightning.css is loaded too, but only the
+   preview markup inside .lg-stage can match its selectors.
+   ========================================================================== */
+
+:root {
+  --lg-ink: #2c241c;
+  --lg-muted: #7c6a58;
+  --lg-paper: #f7efe3;
+  --lg-card: #fffaf1;
+  --lg-line: rgba(88, 62, 36, 0.16);
+  --lg-flame: #3b82f6;
+  --lg-flame-deep: #1d4ed8;
+  --lg-ember: #9fe4ff;
+  --lg-shadow: rgba(24, 42, 92, 0.18);
+}
+
+html[data-lg-dark="true"] {
+  --lg-ink: #e8f4ff;
+  --lg-muted: #9fb4cc;
+  --lg-paper: #0c1424;
+  --lg-card: #121d33;
+  --lg-line: rgba(186, 224, 255, 0.16);
+  --lg-flame: #60b8ff;
+  --lg-flame-deep: #b6ecff;
+  --lg-ember: #d8f6ff;
+  --lg-shadow: rgba(0, 0, 0, 0.46);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 16% 10%, rgba(96, 176, 255, 0.18), transparent 36%),
+    radial-gradient(circle at 88% 92%, rgba(37, 99, 235, 0.12), transparent 42%),
+    linear-gradient(180deg, var(--lg-paper), var(--lg-paper));
+  color: var(--lg-ink);
+  font-family: "Noto Serif", Georgia, "Times New Roman", var(--serif, serif);
+  opacity: 1;
+}
+
+.lg-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 26px;
+  overflow: auto;
+}
+
+.lg-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--lg-line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--lg-card) 82%, transparent);
+  color: var(--lg-muted);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.lg-close:hover {
+  color: var(--lg-ink);
+  border-color: color-mix(in srgb, var(--lg-flame) 60%, var(--lg-line));
+  transform: rotate(6deg);
+}
+
+.lg-close svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.lg-hero {
+  width: min(660px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 6px 26px;
+}
+
+/* --------------------------------------------------------------------------
+   Preview: a miniature Doing card in the current theme. Because the real
+   lightning.css is loaded, the little fan and its specks behave exactly like
+   the notebook's icons.
+   -------------------------------------------------------------------------- */
+
+.lg-stage {
+  position: relative;
+  width: 100%;
+  padding: 16px 18px 30px;
+  border: 1px solid var(--lg-line);
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 18% 4%, rgba(255, 255, 255, 0.32), transparent 48%),
+    color-mix(in srgb, var(--lg-card) 60%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.lg-sheet {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--lg-line);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--lg-card) 88%, transparent);
+  box-shadow: 0 10px 26px var(--lg-shadow);
+}
+
+.lg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 14px;
+  border-top: 1px solid var(--lg-line);
+}
+
+.lg-row:first-child { border-top: 0; }
+
+.lg-row-sub { min-height: 38px; padding-left: 30px; }
+.lg-row-quiet { opacity: 0.72; }
+
+.lg-icon {
+  position: relative;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lg-icon.doing-fan {
+  flex-basis: 24px;
+  width: 24px;
+  height: 24px;
+}
+
+.lg-icon > svg {
+  width: 32px;
+  height: 32px;
+  display: block;
+}
+
+.lg-icon.doing-fan > svg {
+  width: 22px;
+  height: 22px;
+}
+
+.lg-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.lg-row-sub .lg-row-name {
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.lg-row-count {
+  flex: 0 0 auto;
+  color: var(--lg-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.lg-stage-caption {
+  position: absolute;
+  left: 20px;
+  bottom: 10px;
+  color: var(--lg-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   Title, copy, power switch and hints.
+   -------------------------------------------------------------------------- */
+
+.lg-title {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 4px;
+}
+
+.lg-kicker {
+  color: var(--lg-flame-deep);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.lg-title h1 {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 48px);
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.lg-title p {
+  margin: 0;
+  color: var(--lg-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.lg-copy {
+  max-width: 58ch;
+  color: var(--lg-muted);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+
+.lg-copy p {
+  margin: 0 0 8px;
+}
+
+.lg-power {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--lg-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
+    color-mix(in srgb, var(--lg-card) 90%, transparent);
+  color: var(--lg-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--lg-shadow) 70%, transparent);
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.lg-power:hover {
+  border-color: color-mix(in srgb, var(--lg-flame) 46%, var(--lg-line));
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--lg-shadow) 80%, transparent);
+}
+
+.lg-power-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lg-power-copy strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lg-power-copy small {
+  color: var(--lg-muted);
+  font-size: 12px;
+}
+
+.lg-switch {
+  position: relative;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lg-ink) 16%, transparent);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: background-color 0.18s ease;
+}
+
+.lg-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--lg-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.lg-power[aria-pressed="true"] .lg-switch {
+  background: linear-gradient(90deg, var(--lg-flame), var(--lg-ember));
+}
+
+.lg-power[aria-pressed="true"] .lg-thumb {
+  transform: translateX(20px);
+}
+
+.lg-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  color: var(--lg-muted);
+  font-size: 11.5px;
+}
+
+.lg-hints b {
+  color: var(--lg-flame-deep);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lg-done {
+  align-self: flex-start;
+  padding: 9px 18px;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--lg-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.lg-done:hover {
+  background: color-mix(in srgb, var(--lg-flame) 12%, transparent);
+  border-color: color-mix(in srgb, var(--lg-flame) 48%, var(--lg-line));
+}
+
+/* The preview is static decoration; keep it accessible-hidden and stop the
+   host page's own scrolling. */
+.lg-defs { position: absolute; width: 0; height: 0; }
+
+@media (max-width: 520px) {
+  .lg-page { padding: 18px; }
+  .lg-hero { gap: 13px; padding-bottom: 18px; }
+  .lg-stage { padding: 12px 12px 28px; }
+  .lg-row { min-height: 42px; padding: 0 10px; }
+  .lg-row-sub { padding-left: 22px; }
+  .lg-hints { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-power,
+  .lg-power:hover { transition: none; transform: none; }
+}

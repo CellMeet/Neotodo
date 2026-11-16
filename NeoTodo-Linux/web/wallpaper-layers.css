@@ -1,0 +1,360 @@
+/* ==========================================================================
+   WALLPAPER LAYERS
+   --------------------------------------------------------------------------
+   The wallpaper is the room. Only two levels may sit on it:
+
+     1. The working surface — the header, the live subtask rows and the
+        completed-history lane — is ink and rules printed straight on the
+        wallpaper. It must never paint a paper plate, a gradient wash or a
+        backdrop blur of its own, otherwise the rows look like they live in a
+        second window inside the room.
+
+     2. Sub-cards — the live subtask card, the finished-subtasks card and the
+        right-edge Doing card — carry the marker and are made out of the
+        wallpaper itself: each one carries a picture baked once from the
+        wallpaper around its own box (never from the whole background), so the
+        card is already finished before it opens. Every card keeps the
+        subtask area's 140% rule at its own centre, and all of them sample one
+        shared object: the bottom wallpaper layer. The finished card and the
+        Doing card therefore read the pattern and colour of the room itself,
+        instead of each upper card taking a darker slice from the card under
+        it. A film
+        is baked from its paused middle frame, so its card is a still of the
+        same scene. The cards show that picture edge to edge — one complete
+        card with one fixed outline — and only a shadow below lifts it off the
+        room. The top hidden box is not a card: it borrows the same wallpaper
+        picture as its background (`data-wallpaper-surface`), at 100% so it
+        lines up with the room, and it keeps its own bar edge and shadow, with
+        no card outline. The remaining floating controls are frosted panes, so
+        their text always stays readable.
+
+   Everything here is scoped to an active wallpaper, so the plain paper
+   themes keep their existing notebook look untouched.
+   ========================================================================== */
+
+html[data-wallpaper] {
+  /* One glass recipe for every floating card. */
+  --wallpaper-glass: color-mix(in srgb, var(--pc-paper, #f7efe3) 52%, transparent);
+  --wallpaper-glass-strong: color-mix(in srgb, var(--pc-paper, #f7efe3) 72%, transparent);
+  --wallpaper-glass-edge: color-mix(in srgb, var(--pc-ink, #2d2922) 18%, transparent);
+  --wallpaper-glass-blur: saturate(1.06) blur(20px);
+  --wallpaper-glass-shadow:
+    0 24px 56px -26px rgba(0, 0, 0, 0.58),
+    0 4px 14px -8px rgba(0, 0, 0, 0.32);
+}
+
+/* ------------------------------------------------- level 1: bare surface --- */
+
+/* Containers only. Rows stay untouched so their selection wash and their
+   hairline rules still belong to the task itself, not to a page plate. */
+html[data-wallpaper] .index,
+html[data-wallpaper] .index-head,
+html[data-wallpaper] .category-list,
+html[data-wallpaper] .index-foot,
+html[data-wallpaper] .page,
+html[data-wallpaper] .page-body,
+html[data-wallpaper] .todos-section,
+html[data-wallpaper] .history-half,
+html[data-wallpaper] .current-half,
+html[data-wallpaper] .current-inner,
+html[data-wallpaper] .history-reel,
+html[data-wallpaper] .history-rows,
+html[data-wallpaper] .current-subtasks,
+html[data-wallpaper] .subtask-lanes,
+html[data-wallpaper] .subtask-lane,
+html[data-wallpaper] .subtask-lane-column,
+html[data-wallpaper] .section-art {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* The header keeps its ink rules, but no paper fill of its own. */
+html[data-wallpaper] .page-head {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* The ruled paper that used to be printed below the task block belongs to the
+   paper theme. On a wallpaper the room itself is the empty desk. */
+html[data-wallpaper] .page-body::after {
+  display: none !important;
+}
+
+/* ------------------------------------------------ level 2: floating cards --- */
+
+/* The finished-subtasks card and the Doing card are not paper laid on top of
+   the room: they are built out of the wallpaper itself. `.card-wallpaper`
+   (mounted by app.js → syncCardWallpapers) holds the active wallpaper, and how
+   it is laid out depends on what the wallpaper is:
+
+     - a still picture is pre-rendered once, then fitted to the card. The card
+       is a new card made from the wallpaper — the whole scene fills the card,
+       not a transposed slice of the room behind it;
+
+     - a film cannot be pre-rendered, so it keeps the live window: the copy is
+       sized to the window and shifted by the card's corner, which keeps the
+       film's timing and crop identical to the room. */
+
+html[data-wallpaper] .card-wallpaper {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* A still sub-card: its own baked picture, already cropped to this card. */
+html[data-wallpaper] .card-wallpaper[data-fit="patch"] > .wallpaper-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transform: none;
+}
+
+/* A film sub-card: a window onto the room, shifted to the card's own corner. */
+html[data-wallpaper] .card-wallpaper[data-fit="window"] > .wallpaper-media {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  object-fit: cover;
+  transform: translate3d(var(--card-wallpaper-x, 0px), var(--card-wallpaper-y, 0px), 0);
+  /* The shift is the card's resting corner, so the copy rides the sheet for the
+     whole slide and still lines up with the room once it lands. Keep it on its
+     own compositing layer instead of repainting the card. */
+  will-change: transform;
+}
+
+/* A freshly mounted film pane stays invisible until it is aligned with the
+   room, so a card never flashes the film at the wrong offset as it slides out.
+   A baked still card needs no offset at all. */
+html[data-wallpaper] .card-wallpaper:not([data-placed]) > .wallpaper-media {
+  opacity: 0;
+}
+
+/* The art fallback (before the pre-render settles) fills the card like the
+   picture it replaces. */
+html[data-wallpaper] .card-wallpaper > .wallpaper-media svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The Blur switch treats a card like any other room surface: a frosted pane
+   sits between the baked card picture and its rows. */
+html[data-wallpaper-blur] .card-wallpaper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: rgba(var(--pc-paper-rgb, 247, 239, 227), var(--wallpaper-veil-alpha, 0.14));
+  -webkit-backdrop-filter: blur(var(--wallpaper-veil-blur, 12px)) saturate(1.04);
+  backdrop-filter: blur(var(--wallpaper-veil-blur, 12px)) saturate(1.04);
+}
+
+/* One card, edge to edge. The wallpaper piece is the card's whole face — no
+   paper mat and no top light: any of those would draw a dark edge on one side
+   and a white line on the other, and the card would read as two pieces instead
+   of one. The rounded clip and the card's own drop shadow lift it off the
+   room. */
+html[data-wallpaper] #pending-subtask-card > .card-wallpaper[data-fit="patch"] > .wallpaper-media,
+html[data-wallpaper] #doing-peek > .card-wallpaper[data-fit="patch"] > .wallpaper-media,
+html[data-wallpaper] .completed-subtask-drawer > .card-wallpaper[data-fit="patch"] > .wallpaper-media,
+html[data-wallpaper] .trash-drawer > .card-wallpaper[data-fit="patch"] > .wallpaper-media {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  box-shadow: none;
+}
+
+/* The live card folds by shrinking its own box. Its baked face has to stay
+   anchored to the sheet's top while the bottom edge travels: a centred cover
+   fit re-crops the picture inside the shrinking pane, so the wallpaper panned
+   at half the fold's speed while the rows and the edge moved on. Anchoring the
+   picture at the top makes the moving edge the only thing that clips it, so the
+   face, the paper and the words arrive together. */
+html[data-wallpaper] #pending-subtask-card > .card-wallpaper[data-fit="patch"] > .wallpaper-media {
+  object-position: 50% 0;
+}
+
+/* One fixed stroke for every sub-card: 墨绿 (ink green). It is deliberately not
+   a theme colour, so every marked surface — the live subtask card, the Doing
+   card, the finished subtasks and anything added later — has the same outline
+   whatever the wallpaper or theme is. The categories spine is not a card and
+   therefore carries no outline. */
+:root {
+  --subcard-outline: #2f5d4e;
+}
+
+html[data-wallpaper] [data-subcard] > .card-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e);
+}
+
+/* The card's ink sits on a picture now, so it gets a paper halo instead of a
+   grey film: the words still read, and the picture keeps its colour. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,
+html[data-wallpaper][data-wallpaper-cards] #doing-peek,
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
+html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--pc-paper, #f7efe3) 62%, transparent);
+}
+
+/* The pane supplies the whole face of the sheet, so the card must paint no
+   second surface and no edge of its own: a hairline here would show up as a
+   dark border along one side of the picture. The shadow only falls below the
+   card, so it never draws a dark rim on the left or the top.
+
+   card-stack.css then layers the physical pile on top of this fallback with a
+   higher specificity: the finished card rests on the task page and the Doing
+   card rests on the finished card, with down-left shadows. Both sheets may own
+   the column's border at once, and the Doing card always stays the upper one,
+   so it can be opened without tucking the finished card away. Keep this
+   declaration as the fallback, but do not raise its specificity above the
+   pile. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,
+html[data-wallpaper][data-wallpaper-cards] #doing-peek,
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
+html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
+  /* The card's own 1px border is painted too, in the same ink green: a
+     transparent border here would let the room show through as a thin line
+     tinted by the background along the picture's edge. */
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow:
+    0 22px 30px -24px rgba(0, 0, 0, 0.55),
+    0 8px 14px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* The live subtask card already paints its own 1px stroke through
+   `.pending-subtask-card::after`. The pane carries the same ink-green ring, so
+   the element's stroke steps aside and the card keeps exactly one outline. */
+html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card::after {
+  opacity: 0 !important;
+}
+
+/* The live subtask card's handle button is a direct child of the card, so the
+   shared "content above the pane" rule must not turn it into a static box. It
+   stays pinned to the card's bottom edge, above the picture. */
+html[data-wallpaper] #pending-subtask-card > .pending-subtask-toggle {
+  position: absolute;
+  z-index: 12;
+}
+
+/* Folded down to its handle the card is gone, so its picture goes with it:
+   only the purple line is left on the page's plain ruling. The pane stays
+   mounted, so unfolding reveals the same baked picture at once. */
+html[data-wallpaper] #pending-subtask-card.collapsed > .card-wallpaper {
+  opacity: 0;
+  /* The face leaves on the fold's own beat, not halfway through it. */
+  transition: opacity 0.12s ease;
+}
+
+/* The old paper veil would gray the pane out; the pane's own scrim replaces
+   it, so the film keeps its colour and its motion. */
+html[data-wallpaper][data-wallpaper-cards] #doing-peek::before {
+  background: none !important;
+  opacity: 0 !important;
+}
+
+/* The finished-subtasks card paints its surface once, through the pane. */
+html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer .completed-subtask-sheet {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+}
+
+/* The Doing card's rows already sit above the card; make sure the sheet they
+   are printed on never covers the pane. */
+html[data-wallpaper] #doing-peek .doing-kicker,
+html[data-wallpaper] #doing-peek .doing-list {
+  position: relative;
+  z-index: 2;
+}
+
+/* ----------------------------------------------------- wallpaper surfaces --- */
+
+/* Two markers exist:
+     `data-subcard`            a card made of the wallpaper (pane + stroke),
+     `data-wallpaper-surface`  a surface that only borrows the wallpaper as its
+                               background and keeps its own, non-card chrome.
+   Both need a positioning context for the pane and a layer for their content
+   above it. The pane itself is supplied by app.js. */
+html[data-wallpaper] [data-subcard],
+html[data-wallpaper] [data-wallpaper-surface] {
+  isolation: isolate;
+}
+
+html[data-wallpaper] [data-subcard] > :not(.card-wallpaper),
+html[data-wallpaper] [data-wallpaper-surface] > :not(.card-wallpaper) {
+  position: relative;
+  z-index: 1;
+}
+
+/* The top hidden box: the room's own picture behind the tools, sampled at the
+   box's exact size (100%) so it sits perfectly in the room, and nothing else.
+   It is not a card, so it gets no card stroke, no card radius and no card
+   shadow — only its own bar edge and drop shadow stay, exactly as without a
+   wallpaper. */
+html[data-wallpaper] #top-tools {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Everything else that floats on the page keeps a frosted sheet: its text must
+   stay readable, and it is a control, not a piece of the room. The subtask
+   search drawer is deliberately absent: it brings its own glass mask from
+   plugins/subtask-search/subtask-search.css, so it keeps one material with or
+   without a wallpaper. */
+
+/* Settings, Community and the achievement sheets are the strongest layers:
+   their text must stay readable, so they keep more paper in the mix. */
+html[data-wallpaper] .settings-panel,
+html[data-wallpaper] .community-panel,
+html[data-wallpaper] .completed-sheet {
+  border-color: var(--wallpaper-glass-edge) !important;
+  background-color: var(--wallpaper-glass-strong) !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: var(--wallpaper-glass-blur) !important;
+  backdrop-filter: var(--wallpaper-glass-blur) !important;
+  box-shadow: var(--wallpaper-glass-shadow) !important;
+}
+
+/* The settings nav strip is part of the same pane, not a second card. */
+html[data-wallpaper] .settings-nav {
+  background: transparent !important;
+}
+
+/* Older engines without backdrop blur still get a layer, just a denser one. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,
+  html[data-wallpaper][data-wallpaper-cards] #doing-peek,
+  html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
+  html[data-wallpaper][data-wallpaper-cards] .trash-drawer,
+  html[data-wallpaper] .settings-panel,
+  html[data-wallpaper] .community-panel,
+  html[data-wallpaper] .completed-sheet {
+    background-color: color-mix(in srgb, var(--pc-paper, #f7efe3) 82%, transparent) !important;
+  }
+}

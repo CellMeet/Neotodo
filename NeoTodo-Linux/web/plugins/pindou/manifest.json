@@ -1,0 +1,15 @@
+{
+  "id": "pindou",
+  "name": "拼豆工坊",
+  "englishName": "Perler Bead Studio",
+  "version": "1.0.0",
+  "description": "把一颗颗小豆豆拼成画。粉花、爱心、星星、蘑菇和小猫都可以慢慢拼出来。",
+  "icon": "pindou.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "play",
+  "colors": {
+    "accent": "#e86a9c",
+    "paper": "#f7efe3"
+  }
+}

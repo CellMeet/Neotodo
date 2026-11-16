@@ -3,6 +3,24 @@
 Linux is the source of truth. Windows and Android were updated together in a
 single platform-sync step; Android still follows that step below.
 
+## One folder per platform
+
+Each platform keeps its own folder, and **only Linux is developed now**:
+
+| Folder | Platform |
+| --- | --- |
+| repo root (`app.py`, `web/`, `run.sh`) | Shared Linux-first sources — the tree that is edited |
+| `NeoTodo-Linux/` | Saved Linux build (snapshot of the root sources) |
+| `NeoTodo-MacOS/` | macOS build |
+| `NeoTodo-iOS/` | iOS build |
+| `android/`, `NeoTodo-Android.apk` | Android build |
+| `windows_app.py`, `installer.iss` | Windows build |
+
+Linux work lands at the repo root; `NeoTodo-Linux/` is refreshed from it with
+`NeoTodo-Linux/sync-sources.sh`. The other platforms are **not** synced as part
+of Linux work — they are updated together only when the user asks for a
+platform-sync pass.
+
 ## Windows: synced once
 
 `windows_app.py` was brought up to date with the Linux backend on 2026-11-16.

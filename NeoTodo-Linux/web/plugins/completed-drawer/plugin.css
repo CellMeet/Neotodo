@@ -1,0 +1,346 @@
+/* ==========================================================================
+   COMPLETED DRAWER PLUGIN PAGE — the little control surface.
+   All rules live here and are scoped to .cd-*; the notebook itself is never
+   touched by this stylesheet.
+   ========================================================================== */
+
+:root {
+  --cd-ink: #2b2340;
+  --cd-muted: #74698c;
+  --cd-paper: #f7efe3;
+  --cd-card: #fbf8ff;
+  --cd-line: rgba(58, 43, 87, 0.14);
+  --cd-purple: #C8B9FC;
+  --cd-purple-deep: #6A4EA6;
+  --cd-shadow: rgba(48, 34, 80, 0.16);
+}
+
+html[data-cd-dark="true"] {
+  --cd-ink: #f3eeff;
+  --cd-muted: #b8acd0;
+  --cd-paper: #1c1b22;
+  --cd-card: #27242f;
+  --cd-line: rgba(222, 208, 255, 0.14);
+  --cd-shadow: rgba(0, 0, 0, 0.42);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(200, 185, 252, 0.20), transparent 34%),
+    linear-gradient(180deg, var(--cd-paper), var(--cd-paper));
+  color: var(--cd-ink);
+  font-family: "Noto Serif", Georgia, "Times New Roman", var(--serif, serif);
+}
+
+/* Stay visible even if the first animation frame is delayed; this page is a
+   small control surface, not the notebook's opening scene. */
+body { opacity: 1; }
+
+.cd-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 26px;
+  overflow: auto;
+}
+
+.cd-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--cd-line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cd-card) 82%, transparent);
+  color: var(--cd-muted);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.cd-close:hover {
+  color: var(--cd-ink);
+  border-color: color-mix(in srgb, var(--cd-purple) 66%, var(--cd-line));
+  transform: rotate(6deg);
+}
+
+.cd-close svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.cd-hero {
+  width: min(660px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 6px 26px;
+}
+
+/* --------------------------------------------------------------------------
+   Preview: three live rows on the left, the finished-task card on the right,
+   and the purple handle line centred on that card.
+   -------------------------------------------------------------------------- */
+
+.cd-stage {
+  position: relative;
+  width: 100%;
+  height: 230px;
+  margin-bottom: 4px;
+  border: 1px solid var(--cd-line);
+  border-radius: 18px;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 40px, var(--cd-line) 40px 41px),
+    color-mix(in srgb, var(--cd-card) 38%, transparent);
+  overflow: hidden;
+}
+
+.cd-stage-live {
+  position: absolute;
+  top: 24px;
+  left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.cd-stage-row {
+  width: 205px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--cd-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.cd-stage-row i,
+.cd-stage-task i {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid color-mix(in srgb, var(--cd-purple-deep) 52%, transparent);
+  border-radius: 50%;
+}
+
+.cd-stage-row b,
+.cd-stage-task b {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.cd-stage-card {
+  position: absolute;
+  top: 46px;
+  right: 20px;
+  width: min(286px, 56%);
+  display: flex;
+  flex-direction: column;
+  padding: 30px 14px 12px;
+  border: 1px solid color-mix(in srgb, var(--cd-purple-deep) 22%, var(--cd-line));
+  border-radius: 14px;
+  background: var(--cd-card);
+  box-shadow: 0 16px 32px var(--cd-shadow);
+}
+
+.cd-stage-line {
+  position: absolute;
+  top: 13px;
+  left: 50%;
+  width: 64px;
+  height: 5px;
+  margin-left: -32px;
+  border-radius: 3px;
+  background: var(--cd-purple);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.cd-stage-task {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--cd-ink);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.cd-stage-task i {
+  border-color: color-mix(in srgb, var(--cd-purple-deep) 34%, transparent);
+  background: color-mix(in srgb, var(--cd-purple) 40%, transparent);
+}
+
+.cd-stage-task em {
+  margin-left: auto;
+  color: #d42e24;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-style: normal;
+}
+
+/* --------------------------------------------------------------------------
+   Copy and controls
+   -------------------------------------------------------------------------- */
+
+.cd-kicker {
+  color: var(--cd-purple-deep);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.cd-title h1 {
+  margin: 4px 0 3px;
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+
+.cd-title p {
+  margin: 0;
+  color: var(--cd-muted);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.cd-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--cd-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.cd-copy p { margin: 0; }
+
+.cd-power {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 2px;
+  padding: 15px 17px;
+  border: 1px solid color-mix(in srgb, var(--cd-purple-deep) 24%, var(--cd-line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--cd-purple) 12%, var(--cd-card));
+  color: var(--cd-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.cd-power:hover {
+  border-color: color-mix(in srgb, var(--cd-purple-deep) 44%, var(--cd-line));
+  background: color-mix(in srgb, var(--cd-purple) 20%, var(--cd-card));
+}
+
+.cd-power-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cd-power-copy strong { font-size: 15px; }
+.cd-power-copy small { color: var(--cd-muted); font-size: 12.5px; }
+
+.cd-switch {
+  flex: 0 0 50px;
+  width: 50px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--cd-purple-deep);
+  transition: background 0.18s ease;
+}
+
+.cd-thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(30, 18, 58, 0.26);
+  transform: translateX(22px);
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cd-power.cd-off .cd-switch { background: color-mix(in srgb, var(--cd-muted) 42%, transparent); }
+.cd-power.cd-off .cd-thumb { transform: translateX(0); }
+
+.cd-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: var(--cd-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+.cd-hints span {
+  padding: 5px 9px;
+  border: 1px solid var(--cd-line);
+  border-radius: 999px;
+}
+
+.cd-hints b {
+  margin-right: 4px;
+  color: var(--cd-purple-deep);
+  font-weight: 700;
+}
+
+.cd-done {
+  margin-top: 4px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cd-purple-deep);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: filter 0.16s ease;
+}
+
+.cd-done:hover { filter: brightness(1.08); }
+
+@media (max-width: 560px) {
+  .cd-page { padding: 18px; }
+  .cd-stage { height: 205px; }
+  .cd-stage-live { left: 12px; }
+  .cd-stage-row { width: 150px; }
+  .cd-stage-card { right: 12px; width: min(250px, 62%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .cd-close,
+  .cd-power,
+  .cd-switch,
+  .cd-thumb,
+  .cd-done { transition: none; }
+}

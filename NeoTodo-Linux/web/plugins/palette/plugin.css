@@ -1,0 +1,68 @@
+/* ==========================================================================
+   PALETTE PLUGIN PAGE
+   --------------------------------------------------------------------------
+   The page itself is the notebook's own Settings sheet: style.css supplies the
+   stage, panel, nav, rows, chips, ranges and close button, and the theme
+   variables are copied from the parent window. This file only carries the few
+   pieces the sheet does not have: the rail mark and the section jump list.
+   ========================================================================== */
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+}
+
+body {
+  overflow: hidden;
+}
+
+.palette-brand-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex: 0 0 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(90, 42, 20, 0.14));
+}
+
+.palette-nav-foot {
+  margin: auto 8px 0;
+  overflow: hidden;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.palette-section {
+  scroll-margin-top: 12px;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+@media (max-width: 680px) {
+  .settings-nav {
+    display: none;
+  }
+
+  .settings-panel {
+    width: min(720px, 96vw);
+    height: min(640px, 92vh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-nav-item,
+  .theme-chip,
+  .theme-chip-button {
+    transition: none;
+  }
+}

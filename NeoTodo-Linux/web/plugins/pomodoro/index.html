@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN" data-pd-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>番茄钟 · NeoTodo</title>
+  <!-- The control page wears the notebook's live theme. -->
+  <script src="../plugin-theme.js"></script>
+  <script>
+    // Read the parent theme before the first paint so a dark notebook never
+    // flashes a bright control card.
+    try {
+      if (window.parent !== window) {
+        const parentRoot = window.parent.document.documentElement;
+        if (parentRoot.dataset.postcardDark === "true") {
+          document.documentElement.dataset.pdDark = "true";
+        }
+      }
+    } catch (error) {}
+    window.addEventListener("message", (event) => {
+      if (event.data?.type !== "neotodo-theme") return;
+      document.documentElement.dataset.pdDark = event.data.dark ? "true" : "false";
+    });
+    document.documentElement.classList.add("pd-booting");
+  </script>
+  <link rel="stylesheet" href="plugin.css">
+  <link rel="stylesheet" href="../plugin-theme.css">
+</head>
+<body>
+  <main class="pd-page">
+    <button class="pd-close" type="button" data-close aria-label="Close Pomodoro">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+
+    <section class="pd-hero">
+      <div class="pd-stage" aria-hidden="true">
+        <div class="pd-stage-head">
+          <span class="pd-stage-brand">NeoTodo</span>
+          <div class="pd-stage-shelf">
+            <span class="pd-stage-ach pd-stage-headphone">
+              <svg viewBox="0 0 64 64"><path d="M14 36v-4a18 18 0 0 1 36 0v4" fill="none" stroke="#d8b45c" stroke-width="4" stroke-linecap="round"/><rect x="8" y="32" width="12" height="20" rx="6" fill="#e7bd55" stroke="#6f5220" stroke-width="2"/><rect x="44" y="32" width="12" height="20" rx="6" fill="#e7bd55" stroke="#6f5220" stroke-width="2"/><text x="32" y="55" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#6f5220">128</text></svg>
+            </span>
+            <span class="pd-stage-ach pd-stage-tomato">
+              <img src="pomodoro.svg" alt="">
+              <b>12</b>
+            </span>
+          </div>
+        </div>
+        <span class="pd-stage-arrow pd-stage-arrow-head">
+          <em>耳机</em>
+          <i>← 向左让位</i>
+        </span>
+        <span class="pd-stage-arrow pd-stage-arrow-tomato">
+          <em>新成就</em>
+          <i>从右侧加入</i>
+        </span>
+        <div class="pd-stage-clock">
+          <img src="pomodoro.svg" alt="">
+          <div>
+            <strong>25:00</strong>
+            <small>Finish the first tomato</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="pd-title">
+        <span class="pd-kicker">PLUGIN · ACHIEVEMENT</span>
+        <h1>番茄钟</h1>
+        <p>一个带“成就”标记的专注计时器。</p>
+      </div>
+
+      <div class="pd-copy">
+        <p>开启后，右上角的耳机旁边会出现一枚番茄计数器。完成一次 25 分钟的专注，番茄数就加一；点番茄可以查看每一次专注的记录。</p>
+        <p>番茄钟默认没有安装，所以刚打开 NeoTodo 时右上角只有耳机。安装并在插件库里打开它之后，耳机会向左移动，给新的成就腾出位置。</p>
+      </div>
+
+      <button class="pd-power" id="pd-power" type="button" aria-pressed="false">
+        <span class="pd-power-copy">
+          <strong id="pd-power-title">Pomodoro is off</strong>
+          <small id="pd-power-detail">安装后，番茄计数器会出现在右上角。</small>
+        </span>
+        <span class="pd-switch" aria-hidden="true"><span class="pd-thumb"></span></span>
+      </button>
+
+      <button class="pd-start" id="pd-start" type="button" disabled>
+        <img src="pomodoro.svg" alt="">
+        <span>Start a 25-minute tomato</span>
+      </button>
+
+      <div class="pd-hints">
+        <span><b>Achievement</b> 右上角展示</span>
+        <span><b>25 min</b> 一次专注</span>
+        <span><b>Off</b> 收起番茄</span>
+      </div>
+
+      <button class="pd-done" type="button" data-close>Back to NeoTodo</button>
+    </section>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

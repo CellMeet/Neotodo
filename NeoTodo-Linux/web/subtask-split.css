@@ -1,0 +1,612 @@
+/* ==========================================================================
+   Subtask column and the completed-task drawer
+   Unfinished work fills a single lane. Finished rows live behind a short
+   handle line under the task block's top boundary: clicking the line, or
+   pulling it downwards, slides the completed list down over the pending rows.
+   Clicking the line again (or pulling upwards) tucks it back away.
+
+   Every rule here is additive; the base typography, fan marks, checks and
+   theme colours still come from style.css and completed.css.
+   ========================================================================== */
+
+/* Both subtask handles share one purple. It has to stay a real purple on the
+   warm paper of every theme, so it leans to purple rather than blue and is
+   well saturated: the old pale lavender read as a grey smudge on the postcard
+   and the plain sheet alike. */
+:root {
+  --subtask-handle: #A855F7;
+  --subtask-handle-hover: #9333EA;
+  --subtask-handle-ring: rgba(255, 255, 255, 0.32);
+  --subtask-handle-ring-hover: rgba(255, 255, 255, 0.46);
+  --subtask-handle-glow: rgba(168, 85, 247, 0.42);
+  --subtask-handle-glow-hover: rgba(168, 85, 247, 0.58);
+}
+
+/* Give the subtask lanes more room by pulling the main column divider left;
+   the completed-todo history keeps the smaller share of the page. */
+.todos-section > .history-half {
+  flex: 1 1 32%;
+}
+
+.todos-section > .current-half {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 68%;
+  max-width: none;
+}
+
+.current-inner {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.subtask-lanes {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.subtask-lane-column {
+  position: relative;
+  flex: 1 1 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.subtask-lane {
+  position: relative;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.subtask-lane::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none !important;
+}
+
+/* Rows keep their full-width rule and seven-row grid inside a lane. */
+.subtask-lane .current-subtasks {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.subtask-lane .current-subtask {
+  width: 100%;
+  /* A row is always one complete ruled line. Without the min-width guard a
+     flex/lane change elsewhere can make a freshly inserted row shrink-wrap to
+     its name, which reads as a truncated row. */
+  min-width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
+  flex: 0 0 40px;
+}
+
+/* The rule's hit strip sits over the first row, but the row's own controls
+   must win: the fan, model mark, name and check stay above it. The drawer
+   later lifts above all of them, so nothing from the live lane leaks through. */
+.subtask-lane .current-subtask .sub-fan,
+.subtask-lane .current-subtask .sub-agent-model,
+.subtask-lane .current-subtask .sub-name,
+.subtask-lane .current-subtask .sub-name-input,
+.subtask-lane .current-subtask .subtask-name-input,
+.subtask-lane .current-subtask .sub-done-check {
+  position: relative;
+  z-index: 9;
+}
+
+.subtask-lane-column .slim-scrollbar {
+  right: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   The live subtask card
+   --------------------------------------------------------------------------
+   The unfinished rows are printed on a card. A card is a sheet that appears
+   on top of the page: paper, one stroke on all four sides, one corner. It is
+   exactly seven unit rows tall, so its bottom edge lands on the page baseline
+   and the rows never leave the page's ruled grid.
+
+   The purple handle line is the card's bottom edge. Stretch it up and the card
+   folds away — face, stroke and corner all go — until only the line is left
+   right under the block's top line and the page's own ruling shows through.
+   Stretch it down and the card comes back. The button rides the edge, so the
+   control is always exactly where the sheet ends.
+   -------------------------------------------------------------------------- */
+
+.pending-subtask-card {
+  --pending-card-fold: 28px;
+  position: relative;
+  box-sizing: border-box;
+  /* The block is the page's fixed seven-row sheet. 100% keeps the card inside
+     the column while the search plugin shortens the block by one row. The
+     stretch animates the cap, not the height: both ends are lengths, so the
+     edge travels at a steady pace in every WebKit build. */
+  height: 100%;
+  max-height: var(--page-task-h, 280px);
+  overflow: hidden;
+  border-radius: var(--overlay-radius, 10px);
+  background-color: var(--overlay-paper, var(--paper));
+  background-image: none;
+  /* The stretch is the control: the bottom edge travels, the top stays.
+     This card unfolds much further than the finished tray down the page, so
+     it gets the app's near-instant beat (the search pop is 100ms) instead of
+     a slow travel: the sheet, its paper and its rows all land in one short
+     wipe. Everything that fades during the fold shares this exact duration,
+     so no layer can arrive before or after the edge. */
+  transition: max-height 0.12s cubic-bezier(0.2, 1, 0.3, 1),
+    background-color 0.12s ease;
+}
+
+/* The stroke is painted inside the box (a 1px border would push every row off
+   the page's 40px pitch) and on all four sides: a card is closed. */
+.pending-subtask-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  border: 1px solid var(--subcard-outline, #2f5d4e);
+  border-radius: inherit;
+  /* Same beat as the fold: the stroke leaves with the edge, not before it. */
+  transition: opacity 0.12s ease;
+}
+
+/* Folded away the card is gone: no face, no stroke, no corner. Only the handle
+   line is left, and the page underneath is its plain ruled self again — the
+   rows of the page line run straight across the block. */
+.pending-subtask-card.collapsed {
+  max-height: var(--pending-card-fold, 28px);
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.pending-subtask-card.collapsed::after {
+  opacity: 0;
+}
+
+/* The rows fade on the fold's own beat; a shorter fade made the words reach
+   their place while the paper edge was still travelling. */
+.pending-subtask-card .subtask-lanes {
+  transition: opacity 0.12s ease;
+}
+
+.pending-subtask-card.collapsed .subtask-lanes {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* One 30px strip lying on the card's bottom edge, holding the purple pill. */
+.pending-subtask-toggle {
+  position: absolute;
+  left: 50%;
+  /* Anchored by `top` so the pill can tuck itself above the card's top
+     boundary when the lane is empty, then be pulled back down onto the edge. */
+  top: calc(100% - 30px);
+  bottom: auto;
+  z-index: 12;
+  width: 140px;
+  height: 30px;
+  display: block;
+  margin: 0 0 0 -70px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font: inherit;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* While the edge is stretched the card follows the pointer, so the bar must
+   not animate the height it is setting by hand. */
+.pending-subtask-toggle.stretching {
+  cursor: grabbing;
+}
+
+.pending-subtask-line {
+  position: absolute;
+  left: 50%;
+  bottom: 9px;
+  width: 76px;
+  height: 5px;
+  margin-left: -38px;
+  border-radius: 3px;
+  background: var(--subtask-handle, #A855F7);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring, rgba(255, 255, 255, 0.32)),
+    0 0 7px var(--subtask-handle-glow, rgba(168, 85, 247, 0.42));
+  opacity: 1;
+  transition: width 0.16s ease, margin-left 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.pending-subtask-toggle:hover .pending-subtask-line,
+.pending-subtask-toggle:focus-visible .pending-subtask-line {
+  width: 90px;
+  margin-left: -45px;
+  background: var(--subtask-handle-hover, #9333EA);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring-hover, rgba(255, 255, 255, 0.46)),
+    0 0 10px var(--subtask-handle-glow-hover, rgba(168, 85, 247, 0.58));
+  opacity: 1;
+}
+
+.pending-subtask-toggle:active .pending-subtask-line {
+  width: 84px;
+  margin-left: -42px;
+}
+
+/* An empty lane has nothing to fold. The pill waits above the block's top
+   boundary, out of the card's clipped box, until a row is added. */
+.pending-subtask-toggle.line-hidden {
+  top: -30px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The first row pulls the pill out of that top boundary and back down onto the
+   card's bottom edge. */
+.pending-subtask-toggle.line-reveal {
+  animation: pending-subtask-line-pull 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pending-subtask-line-pull {
+  from { top: -30px; opacity: 0; }
+  to { top: calc(100% - 30px); opacity: 1; }
+}
+
+/* Folded, the line is the whole card: keep it reachable but quieter, so the
+   tab reads as tucked paper rather than live rows. */
+.pending-subtask-toggle.collapsed .pending-subtask-line {
+  opacity: 0.6;
+}
+
+.pending-subtask-toggle.collapsed:hover .pending-subtask-line,
+.pending-subtask-toggle.collapsed:focus-visible .pending-subtask-line {
+  opacity: 1;
+}
+
+/* Folded away the purple line is not left lying on the page: it tucks itself
+   above the block's top boundary, inside the card's clipped box, and waits
+   there. The first row of the subtask area is its handle — the pointer entering
+   that band hands the line back out onto the top band, and leaving the band
+   tucks it away again. `peek` is set by bindPendingSubtaskToggle(); a click on
+   the line then unfolds the rows as before. Keyboard focus always keeps the
+   line out, and a device without hover keeps it visible (`@media (hover)`), so
+   the control is never unreachable. */
+.pending-subtask-card.collapsed > .pending-subtask-toggle {
+  /* The pill rides the shrinking edge, so its tuck uses the fold's own beat. */
+  transition: transform 0.12s cubic-bezier(0.2, 1, 0.3, 1),
+    opacity 0.1s ease;
+}
+
+.pending-subtask-toggle.collapsed.peek .pending-subtask-line {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .pending-subtask-card.collapsed
+    > .pending-subtask-toggle:not(.peek):not(:focus-visible) {
+    /* The line rides the card's shrinking bottom edge up to the top band while
+       it tucks itself beyond the card's clipped top, so folding away reads as
+       the handle retreating into the subtask area, not as a blink. */
+    transform: translateY(-44px);
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+/* The finished column and the live card are one sheet: no divider line. */
+html[data-theme="postcard"] .page-body > .todos-section > .current-half::before {
+  display: none !important;
+}
+
+/* Folded, the card is a tab in the top band of the block — the finished tray's
+   own handle lives in that band too, and two purple pills side by side would
+   read as two different folds. The tray belongs to the card, so its handle
+   travels with it: unfold the card and the tray handle is back. */
+.pending-subtask-card.collapsed ~ .completed-subtask-toggle {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   The short handle line just below the task block's top boundary.
+   Same shape and motion as the note/AI door lines, but in the saturated purple
+   of the live card's handle: one 76px pill with a light halo and a soft glow,
+   widening on hover. The colour deliberately differs so the finished-task card
+   reads as its own control instead of a second note/AI door.
+   -------------------------------------------------------------------------- */
+
+.completed-subtask-toggle {
+  position: absolute;
+  top: 0;
+  /* The line must sit in the middle of the finished-task card, not the middle
+     of the whole column. The card is pinned 12px from the right and is
+     clamp(220px, 56%, 460px) wide, so its centre is 12px + half that width in
+     from the right edge. max(50%, …) keeps the control centred on very narrow
+     columns, where the card's max-width makes it span the full width. */
+  left: max(50%, calc(100% - 12px - clamp(110px, 28%, 230px)));
+  z-index: 8;
+  width: 120px;
+  height: 30px;
+  display: block;
+  margin: 0 0 0 -60px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pc-muted, var(--muted));
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The open card is above the live rows, and its handle line stays above the
+   card so the same control can tuck the list away again. */
+.completed-subtask-toggle.open {
+  z-index: 11;
+}
+
+/* Nothing finished, no handle: the line stays tucked above the block's top
+   boundary until the first finished row gives the tray something to show. */
+.completed-subtask-toggle.line-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The first finished row pulls the line back out from that top boundary. */
+.completed-subtask-toggle.line-reveal {
+  animation: completed-subtask-line-pull 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes completed-subtask-line-pull {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.completed-subtask-line {
+  position: absolute;
+  left: 50%;
+  top: 9px;
+  width: 76px;
+  height: 5px;
+  margin-left: -38px;
+  border-radius: 3px;
+  background: var(--subtask-handle, #A855F7);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring, rgba(255, 255, 255, 0.32)),
+    0 0 7px var(--subtask-handle-glow, rgba(168, 85, 247, 0.42));
+  opacity: 1;
+  transition: width 0.16s ease, margin-left 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.completed-subtask-toggle:hover .completed-subtask-line,
+.completed-subtask-toggle:focus-visible .completed-subtask-line {
+  width: 90px;
+  margin-left: -45px;
+  background: var(--subtask-handle-hover, #9333EA);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring-hover, rgba(255, 255, 255, 0.46)),
+    0 0 10px var(--subtask-handle-glow-hover, rgba(168, 85, 247, 0.58));
+  opacity: 1;
+}
+
+.completed-subtask-toggle:active .completed-subtask-line {
+  width: 84px;
+  margin-left: -42px;
+}
+
+/* --------------------------------------------------------------------------
+   The finished rows: a compact paper card that slides down on the right.
+   It floats over the live lane instead of covering the whole subtask column,
+   so unfinished rows stay readable on the left. The card is a little wider
+   than half the column and scrolls its own list.
+   -------------------------------------------------------------------------- */
+
+.completed-subtask-drawer {
+  position: absolute;
+  top: 24px;
+  right: 12px;
+  z-index: 7;
+  width: clamp(220px, 56%, 460px);
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 34px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 14px;
+  background: var(--pc-paper, var(--paper));
+  box-shadow: 0 18px 36px rgba(20, 20, 24, 0.16);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-14px) scale(0.985);
+  transform-origin: 50% 0;
+  transition: opacity 0.18s ease,
+    transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0.26s;
+}
+
+.completed-subtask-drawer.open {
+  z-index: 10;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+  transition: opacity 0.2s ease,
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s;
+}
+
+.completed-subtask-drawer.no-motion {
+  transition: none;
+}
+
+/* While a finished row is gliding into the card, the card itself must not
+   slide: its entrance would move the landing spot under the flying row. It
+   fades in at its final box instead, and the row carries the movement. */
+.completed-subtask-drawer.flight-target,
+.completed-subtask-drawer.flight-target.open {
+  transform: none;
+  transition: opacity 0.16s ease;
+}
+
+/* The flying row is drawn on the page, not inside the cards: the drawer and its
+   lane both clip their children, so the real row would be invisible for most of
+   the trip. The trip itself only moves and clips the ghost: the width is fixed
+   at the pending row's width and the narrower landing box is reached by
+   clipping the right edge, so no frame has to lay the row out again. */
+.subtask-flight {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  will-change: transform, clip-path;
+  contain: layout paint;
+}
+
+/* The new finished row's rule arrives first; its fan, name and check land with
+   the flight. Keeping the row itself visible lets the rule push the finished
+   rows below it down, instead of opening an empty hole above them. */
+.current-subtask.subtask-slot-arriving > * {
+  visibility: hidden;
+}
+
+/* What travels is the row's paper: its bottom line, its fan and its name. The
+   accent wash under a selected row stays in the pending lane — it marks where
+   the reader is working, and a wash moving with the row would paint a coloured
+   block over the page and leave it on the finished card. */
+.subtask-flight,
+.subtask-flight.selected,
+.subtask-flight::before,
+.subtask-flight::after {
+  background: none !important;
+  box-shadow: none !important;
+}
+
+/* The click answers before the row leaves: the fan dips into its paper and the
+   row lifts a hair, so waiting for the backend never looks like a freeze. */
+.current-subtask.subtask-completing {
+  transform: translateY(-1px);
+  transition: transform 0.12s ease;
+}
+.current-subtask.subtask-completing .sub-fan {
+  transform: scale(0.94);
+  opacity: 0.86;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+/* The provider mark belongs to the live run, not to the submission: it leaves
+   the moment the row starts to submit and takes its slot with it. The row is
+   already in the layout the finished row will land in, so the flight carries a
+   row without an invisible icon in front and nothing shifts sideways when it
+   lands. A failed request restores the mark with the row's own state. */
+.current-subtask.subtask-completing .sub-agent-model {
+  display: none;
+}
+
+.completed-subtask-sheet {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: 6px 0;
+  background: var(--pc-paper, var(--paper));
+}
+
+.completed-subtask-drawer .subtask-lane-column {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: auto;
+}
+
+.completed-subtask-drawer .subtask-lane {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.completed-subtask-drawer .subtask-lane::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none !important;
+}
+
+.completed-subtask-drawer .current-subtasks {
+  min-height: 0;
+}
+
+.completed-subtask-drawer .current-subtask {
+  flex: 0 0 40px;
+}
+
+.completed-subtask-drawer .slim-scrollbar {
+  right: 3px;
+}
+
+.completed-subtask-empty {
+  padding: 12px 16px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--display, var(--sans));
+  font-size: 14px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Finished rows sit quieter than the live lane, even while selected. */
+.subtask-lane .current-subtask.done .sub-name {
+  opacity: 0.82;
+}
+
+.subtask-lane .current-subtask.done.selected {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--pc-accent-rgb, 157, 111, 28), 0.08),
+    transparent 86%
+  );
+}
+
+@media (max-width: 1180px) {
+  .todos-section > .current-half { flex-basis: 68%; }
+}
+
+@media (max-width: 900px) {
+  .todos-section > .history-half { flex-basis: 36%; }
+  .todos-section > .current-half { flex-basis: 64%; }
+}
+
+/* The pull-out is decoration; the handles still appear in place for readers
+   who ask their system to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  .pending-subtask-toggle.line-reveal,
+  .completed-subtask-toggle.line-reveal { animation: none; }
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="lgBolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".45" stop-color="#f4fbff"/>
+      <stop offset="1" stop-color="#d6ecff"/>
+    </linearGradient>
+  </defs>
+  <path d="M38 3 21 32h10l-5 29 24-34H38l4-24Z" fill="url(#lgBolt)" stroke="#27476b" stroke-width="2.2" stroke-linejoin="miter"/>
+  <path d="M25 33 14 26" fill="none" stroke="#7fa4c8" stroke-width="2" stroke-linecap="round" stroke-linejoin="miter"/>
+  <path d="M36 40 48 44" fill="none" stroke="#a9c6e2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="miter"/>
+  <path d="M41 24 52 18" fill="none" stroke="#cfe4f7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="miter"/>
+  <circle cx="14" cy="26" r="1.8" fill="#ffffff" stroke="#27476b" stroke-width="0.8"/>
+  <circle cx="48" cy="44" r="1.5" fill="#ffffff" stroke="#27476b" stroke-width="0.7"/>
+</svg>

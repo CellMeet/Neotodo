@@ -1,0 +1,62 @@
+{
+  "id": "catppuccin-mocha",
+  "name": "摩卡猫",
+  "englishName": "Catppuccin Mocha",
+  "version": "1.0.0",
+  "description": "Catppuccin 的摩卡夜色：深紫的纸、薰衣草与天空蓝，柔和得像一杯加奶的咖啡。",
+  "author": "NeoTodo",
+  "license": "CC BY 4.0",
+  "tags": [
+    "dark",
+    "pastel",
+    "catppuccin",
+    "calm"
+  ],
+  "theme": {
+    "paper": "#1e1e2e",
+    "paper2": "#181825",
+    "ink": "#cdd6f4",
+    "muted": "#a6adc8",
+    "accent": "#cba6f7",
+    "accent2": "#89b4fa",
+    "border": "#313244",
+    "stamp": "#f5c2e7",
+    "line": "#45475a",
+    "rule": "#585b70",
+    "lineAlpha": 0.85,
+    "ruleAlpha": 0.55,
+    "glow": "rgba(203,166,247,.2)",
+    "motif": "☕",
+    "quote": "Soft colours, steady focus."
+  },
+  "chrome": {
+    "baseline": "#45475a",
+    "row": "#45475a",
+    "submit": "#cba6f7",
+    "highlight": "#cba6f7"
+  },
+  "note": {
+    "paper": "#1e1e2e",
+    "ink": "#cdd6f4",
+    "muted": "#a6adc8",
+    "rule": "#45475a",
+    "accent": "#cba6f7",
+    "accent2": "#89b4fa",
+    "handle": "#b4befe"
+  },
+  "ai": {
+    "bg": "#181825",
+    "soft": "#1e1e2e",
+    "ink": "#cdd6f4",
+    "inkSoft": "#bac2de",
+    "muted": "#a6adc8",
+    "faint": "#6c7086",
+    "line": "#313244",
+    "lineStrong": "#45475a",
+    "accent": "#cba6f7",
+    "notice": "#fab387",
+    "handle": "#b4befe"
+  },
+  "preview": "preview.svg",
+  "icon": "icon.svg"
+}

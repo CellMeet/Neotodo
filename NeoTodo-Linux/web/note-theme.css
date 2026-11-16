@@ -1,0 +1,337 @@
+/* ==========================================================================
+   The notebook has its own style, independent of the NeoTodo app theme.
+   There is exactly one: a beige sticky note ruled with white hairlines. The
+   paper material reads only the --note-* variables declared here. Nothing in
+   this file may take a colour from a postcard slot; the few --pc-* names below
+   are only re-pointed at the notebook palette for legacy rules.
+   ========================================================================== */
+
+:root {
+  /* Theme slots. The notebook owns one style: a beige sticky note with white
+     ruled lines. app.js writes these same values when it applies the single
+     built-in note style; the paper material only reads them, so no app theme
+     or wallpaper can tint the notebook. */
+  --note-theme-paper: #f6e8c4;
+  --note-theme-ink: #4a3a28;
+  --note-theme-muted: rgba(74, 58, 40, 0.55);
+  --note-theme-rule: rgba(255, 255, 255, 0.90);
+  --note-theme-accent: #9a7443;
+  --note-theme-accent2: #7f5f38;
+  --note-handle-line: rgba(74, 58, 40, 0.70);
+  --note-handle-hover: rgba(58, 45, 30, 0.92);
+  --note-handle-halo: rgba(255, 255, 255, 0.20);
+  --note-handle-halo-hover: rgba(255, 255, 255, 0.30);
+
+  --note-paper: var(--note-theme-paper);
+  --note-ink: var(--note-theme-ink);
+  --note-muted: var(--note-theme-muted);
+  --note-rule: var(--note-theme-rule);
+  --note-accent: var(--note-theme-accent);
+  --note-accent-2: var(--note-theme-accent2);
+  --notes-mask: var(--note-theme-paper);
+
+  /* Static default cover for the Glass mask. It is the notebook's own
+     material, not the app wallpaper, so themes cannot tint it. */
+  --note-glass-default: none;
+
+  --note-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+}
+
+/* --------------------------------------------------------------------------
+   The notebook reads only the notebook palette
+   style.css still has rules written before the notebook owned a palette; they
+   point generic slots (--ink, --line, --paper …) at the app's postcard colours.
+   Remapping those slots on the notebook card keeps the whole page independent:
+   switching a NeoTodo theme can no longer tint the notebook.
+   -------------------------------------------------------------------------- */
+html[data-theme] body .page-body .notes-half.floating-notes {
+  --paper: var(--note-paper);
+  --paper-2: var(--note-paper);
+  --ink: var(--note-ink);
+  --ink-soft: var(--note-ink);
+  --muted: var(--note-muted);
+  --faint: var(--note-muted);
+  --gold: var(--note-accent);
+  --gold-soft: var(--note-accent-2, var(--note-accent));
+  --gold-bright: var(--note-accent);
+  --line: var(--note-rule);
+  --rule: var(--note-rule);
+  --notes-mask: var(--note-theme-paper);
+  /* Legacy rules in style.css paint the card with the postcard aliases.
+     Point those aliases at the notebook palette inside the card only. */
+  --pc-paper: var(--note-paper);
+  --pc-paper2: var(--note-paper);
+  --pc-ink: var(--note-ink);
+  --pc-ink-soft: var(--note-ink);
+  --pc-muted: var(--note-muted);
+  --pc-line: var(--note-rule);
+  --pc-rule: var(--note-rule);
+  --pc-accent: var(--note-accent);
+  --pc-accent-2: var(--note-accent-2, var(--note-accent));
+  --pc-border: var(--note-rule);
+}
+
+/* The split/layout rules in style.css used to repaint the pane with the app
+   paper; keep the notebook's own colour there too. */
+html[data-theme] body .page-body .notes-half.floating-notes {
+  background-color: var(--note-paper) !important;
+}
+
+/* ------------------------------------------------------- Ink and details --- */
+html[data-theme] body .page-body .notes-half.floating-notes,
+html[data-theme] body .page-body .notes-half.floating-notes .notes-head,
+html[data-theme] body .page-body .notes-half.floating-notes .notes-title,
+html[data-theme] body .page-body .notes-half.floating-notes .notes-title > span,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block-editor,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block h1,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block h2,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block h3,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block h4,
+html[data-theme] body .page-body .notes-half.floating-notes .notes-empty,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block-placeholder {
+  color: var(--note-ink) !important;
+  text-shadow: none !important;
+}
+
+html[data-theme] body .page-body .notes-half.floating-notes .notes-head {
+  border-bottom-color: var(--note-rule) !important;
+}
+
+html[data-theme] body .page-body .notes-half.floating-notes .notes-icon,
+html[data-theme] body .page-body .notes-half.floating-notes .note-link {
+  color: var(--note-accent) !important;
+}
+
+/* Small details in the head are the notebook's ink, never the app's. */
+html[data-theme] body .page-body .notes-half.floating-notes .notes-todo {
+  color: var(--note-muted) !important;
+}
+html[data-theme] body .page-body .notes-half.floating-notes .notes-badge {
+  color: var(--note-muted) !important;
+  border-color: var(--note-rule) !important;
+  background: transparent !important;
+}
+
+html[data-theme] body .page-body .notes-half.floating-notes .note-block code,
+html[data-theme] body .page-body .notes-half.floating-notes .note-block pre {
+  color: var(--note-ink) !important;
+  background: rgba(43, 43, 46, 0.06) !important;
+  border-left-color: var(--note-accent-2) !important;
+}
+
+html[data-theme] body .page-body .notes-half.floating-notes .note-block blockquote {
+  color: var(--note-muted) !important;
+  border-left-color: var(--note-rule) !important;
+}
+
+html[data-theme] body .page-body .notes-half.floating-notes .notes-drag-handle span {
+  background: var(--note-ink) !important;
+  opacity: 0.3 !important;
+}
+
+/* The notebook never grows a themed focus ring or selection colour. */
+html[data-theme] body .page-body .notes-half.floating-notes :focus,
+html[data-theme] body .page-body .notes-half.floating-notes :focus-visible {
+  outline: none !important;
+}
+html[data-theme] body .page-body .notes-half.floating-notes ::selection {
+  background: rgba(43, 43, 46, 0.14) !important;
+  color: var(--note-ink) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Project folder link: the napkin/note icon is the button. Clicking it shows
+   the folder the current todo's subtask agents read and write in.
+   -------------------------------------------------------------------------- */
+.notes-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.notes-icon-button:hover .notes-icon {
+  color: var(--note-accent) !important;
+}
+.project-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 150px;
+  min-width: 0;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--note-rule);
+  border-radius: 999px;
+  background: rgba(43, 43, 46, 0.06);
+  color: var(--note-muted);
+  font-family: var(--note-font, var(--display));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.project-folder-chip:hover {
+  background: rgba(43, 43, 46, 0.10);
+  color: var(--note-ink);
+}
+.project-folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-folder-count {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+.project-folder-clear {
+  flex: 0 0 auto;
+  margin-left: 3px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: var(--note-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.project-folder-clear:hover { color: var(--note-ink); }
+
+/* Notebook context menu uses the notebook paper palette, not the app theme. */
+html[data-theme="postcard"] .context-menu.context-note,
+.context-menu.context-note {
+  background: var(--note-paper, #f6e8c4) !important;
+  color: var(--note-ink, #4a3a28);
+  border-color: var(--note-rule, rgba(255, 255, 255, 0.90));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16), 0 3px 8px rgba(0, 0, 0, 0.08);
+  font-family: var(--note-font, "Z003", "URW Bookman", serif);
+}
+.context-menu.context-note .context-item { color: var(--note-ink, #2b2b2e); }
+.context-menu.context-note .context-item:hover { background: rgba(43, 43, 46, 0.08); }
+.context-menu.context-note .context-icon { color: var(--note-accent, #6b6b73); }
+.context-menu.context-note .context-sep { background: var(--note-rule, rgba(43, 43, 46, 0.14)); }
+.context-menu.context-note .context-danger { color: var(--note-accent-2, #8a8a92) !important; }
+
+/* The notebook must rise bottom-to-top as fast as the eye can follow. The
+   0.34s exponential ease this used to carry spent most of its curve in the
+   last few pixels, so the sheet looked like it was still moving after the
+   click. A tenth of a second with a hard-out curve reads as instant while
+   still showing the sheet's own edge travel up from the door line. */
+.notes-half.floating-notes.sheet-opening {
+  animation: notes-sheet-up 0.1s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+@keyframes notes-sheet-up {
+  from { transform: translateY(100%); opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+
+/* One ink for the notebook title and every text line. */
+.notes-half.floating-notes .notes-title,
+.notes-half.floating-notes .notes-title > span,
+.notes-half.floating-notes .note-block,
+.notes-half.floating-notes .note-block-editor,
+.notes-half.floating-notes .note-live,
+.notes-half.floating-notes .notes-empty {
+  color: var(--note-ink, #4a3a28) !important;
+}
+
+/* The empty first line is a ghost prompt, not content: write mood light ...
+   It sits over the first editor's padding so it reads in the same italic hand
+   as the note, and never catches a click. */
+.note-live {
+  position: relative;
+}
+.note-ghost {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 0;
+  pointer-events: none;
+  color: var(--note-muted, rgba(74, 58, 40, 0.55));
+  font-family: var(--note-font, var(--display));
+  font-size: calc(17px * var(--user-scale, 1));
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+.note-ghost[hidden] {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
+   Dark notebook themes
+   The parchment material paints a warm paper wash and a warm inner shadow.
+   On a dark note paper that reads as muddy brown, so a dark theme gets a
+   neutral, cooler version of the same material instead.
+   -------------------------------------------------------------------------- */
+html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes {
+  background-image:
+    radial-gradient(ellipse at 50% 42%, rgba(255, 255, 255, 0.06), transparent 66%),
+    radial-gradient(ellipse at 4% 0%, rgba(0, 0, 0, 0.30), transparent 52%),
+    radial-gradient(ellipse at 100% 100%, rgba(0, 0, 0, 0.26), transparent 56%) !important;
+  box-shadow:
+    inset 0 0 68px rgba(0, 0, 0, 0.34),
+    inset 0 0 14px rgba(255, 255, 255, 0.05),
+    0 16px 40px rgba(0, 0, 0, 0.42) !important;
+}
+
+html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .notes-title > span,
+html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .note-block h1,
+html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .note-block h2,
+html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .note-block h3 {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35) !important;
+}
+
+/* The frosted mask is always light; a dark note theme flips the frost so the
+   light ink stays readable. */
+html[data-note-material="blur"][data-note-dark="true"] .notes-half.floating-notes::before {
+  background-color: rgba(22, 26, 30, 0.58) !important;
+  background-image:
+    var(--note-noise),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.10)) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Theme slots travel with every note material
+   The note-materials folder is user-editable and was seeded from an older
+   build: paper.css/glass.css/focus.css in that folder may hard-code the
+   original parchment ink and paper. The notebook palette is a living setting,
+   so its slots must win even when an older material file is loaded; picking a
+   note theme then repaints the page immediately instead of having no effect.
+   Only the built-in surface names are themed, so a custom material keeps its
+   own surface untouched.
+   -------------------------------------------------------------------------- */
+html[data-note-material="paper"] body .page-body .notes-half.floating-notes {
+  --note-paper: var(--note-theme-paper) !important;
+  --note-ink: var(--note-theme-ink) !important;
+  --note-muted: var(--note-theme-muted) !important;
+  --note-rule: var(--note-theme-rule) !important;
+  --note-accent: var(--note-theme-accent) !important;
+  --note-accent-2: var(--note-theme-accent2) !important;
+  background-color: var(--note-theme-paper) !important;
+}
+html[data-note-material="blur"] body .page-body .notes-half.floating-notes {
+  --note-ink: var(--note-theme-ink) !important;
+  --note-muted: var(--note-theme-muted) !important;
+  --note-rule: var(--note-theme-rule) !important;
+  --note-accent: var(--note-theme-accent) !important;
+  --note-accent-2: var(--note-theme-accent2) !important;
+}
+/* Focus frosts the note's own photograph; the palette owns its ink, hairlines
+   and accent, while the frost itself stays a neutral glass veil. */
+html[data-note-material="focus"] body .page-body .notes-half.floating-notes {
+  --note-ink: var(--note-theme-ink) !important;
+  --note-muted: var(--note-theme-muted) !important;
+  --note-rule: var(--note-theme-rule) !important;
+  --note-accent: var(--note-theme-accent) !important;
+  --note-accent-2: var(--note-theme-accent2) !important;
+}

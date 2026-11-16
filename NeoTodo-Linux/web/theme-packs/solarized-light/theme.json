@@ -1,0 +1,62 @@
+{
+  "id": "solarized-light",
+  "name": "日晒纸",
+  "englishName": "Solarized Light",
+  "version": "1.0.0",
+  "description": "Solarized 的暖白纸面：米色的底、墨绿的正文和一点海蓝，白天读字最舒服的一组配色。",
+  "author": "NeoTodo",
+  "license": "CC BY 4.0",
+  "tags": [
+    "light",
+    "solarized",
+    "paper",
+    "calm"
+  ],
+  "theme": {
+    "paper": "#fdf6e3",
+    "paper2": "#eee8d5",
+    "ink": "#586e75",
+    "muted": "#93a1a1",
+    "accent": "#268bd2",
+    "accent2": "#2aa198",
+    "border": "#eee8d5",
+    "stamp": "#cb4b16",
+    "line": "#d9d2bd",
+    "rule": "#e4ddc8",
+    "lineAlpha": 0.85,
+    "ruleAlpha": 0.55,
+    "glow": "rgba(38,139,210,.16)",
+    "motif": "☀",
+    "quote": "Sunlight on old paper."
+  },
+  "chrome": {
+    "baseline": "#d9d2bd",
+    "row": "#d9d2bd",
+    "submit": "#268bd2",
+    "highlight": "#268bd2"
+  },
+  "note": {
+    "paper": "#fdf6e3",
+    "ink": "#586e75",
+    "muted": "#93a1a1",
+    "rule": "#ded8c4",
+    "accent": "#268bd2",
+    "accent2": "#2aa198",
+    "handle": "#657b83"
+  },
+  "ai": {
+    "bg": "#fdf6e3",
+    "soft": "#eee8d5",
+    "ink": "#586e75",
+    "inkSoft": "#657b83",
+    "muted": "#93a1a1",
+    "faint": "#b5af9c",
+    "line": "#eee8d5",
+    "lineStrong": "#ddd6c1",
+    "accent": "#268bd2",
+    "notice": "#cb4b16",
+    "handle": "#657b83"
+  },
+  "preview": "preview.svg",
+  "icon": "icon.svg"
+}
