@@ -54,6 +54,9 @@
        after every surface and theme stylesheet so one object paints the header,
        the task rows and the empty desk with the same line. -->
   <link rel="stylesheet" href="/page-line.css">
+  <!-- Icon themes paint over the original marks; loaded last so a wallpaper or
+       theme stylesheet cannot hide a pack's image. -->
+  <link rel="stylesheet" href="/icon-theme.css">
   <!-- BOOT_DATA -->
   <script>
     document.documentElement.classList.add("booting");

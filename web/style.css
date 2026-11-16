@@ -7888,24 +7888,6 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
 .todos-section > .history-half { flex: 1 1 36%; }
 .todos-section > .current-half { flex: 1 1 64%; max-width: none; }
 
-/* Ghost "Write ..." prompt in an empty note; not a caret, just a hint. */
-.note-live { position: relative; }
-.note-live .note-empty-placeholder {
-  position: absolute;
-  top: 3px;
-  left: 2px;
-  z-index: 1;
-  color: var(--note-muted, var(--pc-muted, var(--muted)));
-  opacity: .55;
-  font-family: var(--note-font, var(--display));
-  font-size: calc(17px * var(--user-scale, 1));
-  font-weight: 500;
-  font-style: italic;
-  line-height: 1.5;
-  pointer-events: none;
-  user-select: none;
-}
-
 /* Achievement counters: no ghost ring; a colored sticker appears when selected. */
 html[data-theme="postcard"] .head-right .trophy-button,
 html[data-theme="postcard"] .head-right .tomato-counter {
@@ -8211,11 +8193,6 @@ body.clock-hidden .header-clock { display: none; }
   font-weight: 600;
 }
 html[data-theme="postcard"] .subtask-name-input { color: var(--ink-soft); }
-.subtask-name-input::placeholder {
-  color: var(--muted);
-  opacity: .5;
-  font-style: italic;
-}
 
 /* Trophy toast: the headphone mark plus an exclamation, in darker type. */
 .toast { color: #1b1208; font-weight: 600; }
@@ -10084,7 +10061,6 @@ html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-bloc
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h4 {
   color: #ffffff !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-empty-placeholder,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-empty,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block-placeholder {
   color: rgba(236, 245, 252, 0.58) !important;
@@ -10399,7 +10375,6 @@ html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-bloc
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h4 {
   color: #11110e !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-empty-placeholder,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-empty,
 html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block-placeholder {
   color: rgba(30, 30, 25, 0.5) !important;
@@ -11591,18 +11566,13 @@ html[data-theme="postcard"] .page-head > .page-head-title {
   transform: translateX(-8px);
 }
 
-/* Empty "Nothing to do..." line: larger, lifted so the N crosses the rule. */
+/* Empty todo title line: larger, lifted so its first letter crosses the rule. */
 .page-head .new-todo-title {
   height: 42px;
   font-size: calc(31px * var(--user-scale, 1));
   line-height: 42px;
   position: relative;
   top: -6px;
-}
-.page-head .new-todo-title::placeholder {
-  font-size: inherit;
-  font-weight: 600;
-  opacity: 0.82;
 }
 
 /* Dialog title: solid, dense ink instead of a gradient. */

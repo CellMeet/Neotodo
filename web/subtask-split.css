@@ -9,6 +9,19 @@
    theme colours still come from style.css and completed.css.
    ========================================================================== */
 
+/* Both subtask handles share one purple. It has to stay a real purple on the
+   warm paper of every theme, so it leans to purple rather than blue and is
+   well saturated: the old pale lavender read as a grey smudge on the postcard
+   and the plain sheet alike. */
+:root {
+  --subtask-handle: #A855F7;
+  --subtask-handle-hover: #9333EA;
+  --subtask-handle-ring: rgba(255, 255, 255, 0.32);
+  --subtask-handle-ring-hover: rgba(255, 255, 255, 0.46);
+  --subtask-handle-glow: rgba(168, 85, 247, 0.42);
+  --subtask-handle-glow-hover: rgba(168, 85, 247, 0.58);
+}
+
 /* Give the subtask lanes more room by pulling the main column divider left;
    the completed-todo history keeps the smaller share of the page. */
 .todos-section > .history-half {
@@ -168,7 +181,10 @@
 .pending-subtask-toggle {
   position: absolute;
   left: 50%;
-  bottom: 0;
+  /* Anchored by `top` so the pill can tuck itself above the card's top
+     boundary when the lane is empty, then be pulled back down onto the edge. */
+  top: calc(100% - 30px);
+  bottom: auto;
   z-index: 12;
   width: 140px;
   height: 30px;
@@ -201,9 +217,11 @@
   height: 5px;
   margin-left: -38px;
   border-radius: 3px;
-  background: #C8B9FC;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
-  opacity: 0.95;
+  background: var(--subtask-handle, #A855F7);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring, rgba(255, 255, 255, 0.32)),
+    0 0 7px var(--subtask-handle-glow, rgba(168, 85, 247, 0.42));
+  opacity: 1;
   transition: width 0.16s ease, margin-left 0.16s ease,
     background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
 }
@@ -212,14 +230,35 @@
 .pending-subtask-toggle:focus-visible .pending-subtask-line {
   width: 90px;
   margin-left: -45px;
-  background: #B29AFC;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.38);
+  background: var(--subtask-handle-hover, #9333EA);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring-hover, rgba(255, 255, 255, 0.46)),
+    0 0 10px var(--subtask-handle-glow-hover, rgba(168, 85, 247, 0.58));
   opacity: 1;
 }
 
 .pending-subtask-toggle:active .pending-subtask-line {
   width: 84px;
   margin-left: -42px;
+}
+
+/* An empty lane has nothing to fold. The pill waits above the block's top
+   boundary, out of the card's clipped box, until a row is added. */
+.pending-subtask-toggle.line-hidden {
+  top: -30px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The first row pulls the pill out of that top boundary and back down onto the
+   card's bottom edge. */
+.pending-subtask-toggle.line-reveal {
+  animation: pending-subtask-line-pull 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pending-subtask-line-pull {
+  from { top: -30px; opacity: 0; }
+  to { top: calc(100% - 30px); opacity: 1; }
 }
 
 /* Folded, the line is the whole card: keep it reachable but quieter, so the
@@ -250,10 +289,10 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
 
 /* --------------------------------------------------------------------------
    The short handle line just below the task block's top boundary.
-   Same shape and motion as the note/AI door lines, but in the fan's purple
-   (#C8B9FC): one 64px pill with a faint light halo, widening on hover. The
-   colour deliberately differs so the finished-task card reads as its own
-   control instead of a second note/AI door.
+   Same shape and motion as the note/AI door lines, but in the saturated purple
+   of the live card's handle: one 76px pill with a light halo and a soft glow,
+   widening on hover. The colour deliberately differs so the finished-task card
+   reads as its own control instead of a second note/AI door.
    -------------------------------------------------------------------------- */
 
 .completed-subtask-toggle {
@@ -289,6 +328,24 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   z-index: 11;
 }
 
+/* Nothing finished, no handle: the line stays tucked above the block's top
+   boundary until the first finished row gives the tray something to show. */
+.completed-subtask-toggle.line-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The first finished row pulls the line back out from that top boundary. */
+.completed-subtask-toggle.line-reveal {
+  animation: completed-subtask-line-pull 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes completed-subtask-line-pull {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
 .completed-subtask-line {
   position: absolute;
   left: 50%;
@@ -297,9 +354,11 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   height: 5px;
   margin-left: -38px;
   border-radius: 3px;
-  background: #C8B9FC;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
-  opacity: 0.95;
+  background: var(--subtask-handle, #A855F7);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring, rgba(255, 255, 255, 0.32)),
+    0 0 7px var(--subtask-handle-glow, rgba(168, 85, 247, 0.42));
+  opacity: 1;
   transition: width 0.16s ease, margin-left 0.16s ease,
     background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
 }
@@ -308,8 +367,10 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
 .completed-subtask-toggle:focus-visible .completed-subtask-line {
   width: 90px;
   margin-left: -45px;
-  background: #B29AFC;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.38);
+  background: var(--subtask-handle-hover, #9333EA);
+  box-shadow:
+    0 0 0 1px var(--subtask-handle-ring-hover, rgba(255, 255, 255, 0.46)),
+    0 0 10px var(--subtask-handle-glow-hover, rgba(168, 85, 247, 0.58));
   opacity: 1;
 }
 
@@ -506,4 +567,11 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
 @media (max-width: 900px) {
   .todos-section > .history-half { flex-basis: 36%; }
   .todos-section > .current-half { flex-basis: 64%; }
+}
+
+/* The pull-out is decoration; the handles still appear in place for readers
+   who ask their system to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  .pending-subtask-toggle.line-reveal,
+  .completed-subtask-toggle.line-reveal { animation: none; }
 }

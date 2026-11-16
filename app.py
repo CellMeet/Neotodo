@@ -128,6 +128,17 @@ PLUGIN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 # the source used when a catalog entry is marked "bundled".
 THEME_PACKS_DIR = DATA_DIR / "theme-packs"
 THEME_EXPORTS_DIR = DATA_DIR / "theme-exports"
+# Icon themes replace only the small marks around the notebook: the napkin,
+# headphones, fans, fork flame and the AI badge. They are deliberately separate
+# from app themes, so switching the paper never switches the icons (and the
+# other way round). Bundled sets live in web/icon-themes; a user can add their
+# own folder to <data>/icon-themes/.
+ICON_THEMES_DIR = DATA_DIR / "icon-themes"
+ICON_THEME_SLOTS = (
+    "tissue", "fan", "fanDone", "aiRunning", "aiDone", "aiDoneFinal",
+    "achievement", "achievementGold", "checkDone", "rowBurn", "fork",
+)
+ICON_THEME_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg"}
 # The notebook and the AI console own their themes. Each one keeps its palette
 # in its own folder, so a NeoTodo pack in theme-packs can never repaint either
 # pane, and a note or AI palette can never change the app paper.
@@ -1200,6 +1211,121 @@ def normalized_theme_id(value) -> str:
     raw = str(value or "").strip().lower().replace("_", "-").replace(" ", "-")
     raw = re.sub(r"[^a-z0-9-]+", "-", raw).strip("-")[:64]
     return raw if THEME_ID_RE.fullmatch(raw) else ""
+
+
+# ---------------------------------------------------------------------------
+# Icon theme shelf
+# ---------------------------------------------------------------------------
+def ensure_icon_themes_dir() -> Path:
+    """Create the user's icon-theme shelf (bundled sets are read-only)."""
+    try:
+        ICON_THEMES_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return ICON_THEMES_DIR
+
+
+def _icon_theme_asset_rel(raw, folder: Path) -> str:
+    """Only accept an image that really lives inside the icon-theme folder."""
+    rel = str(raw or "").strip().replace("\\", "/").lstrip("/")
+    if not rel or ".." in Path(rel).parts:
+        return ""
+    suffix = Path(rel).suffix.lower()
+    if suffix not in ICON_THEME_IMAGE_EXTS:
+        return ""
+    try:
+        root = folder.resolve()
+        candidate = (folder / rel).resolve()
+        if candidate.is_relative_to(root) and candidate.is_file():
+            return rel
+    except Exception:
+        pass
+    return ""
+
+
+def normalize_icon_theme_manifest(raw, folder: Path, source: str) -> dict | None:
+    """Read ``icon-themes/<id>/theme.json``; unknown slots are ignored."""
+    if not isinstance(raw, dict):
+        return None
+    theme_id = normalized_theme_id(raw.get("id") or folder.name)
+    if not theme_id:
+        return None
+    raw_icons = raw.get("icons")
+    if not isinstance(raw_icons, dict):
+        raw_icons = {}
+    icons = {}
+    for slot in ICON_THEME_SLOTS:
+        rel = _icon_theme_asset_rel(raw_icons.get(slot), folder)
+        if rel:
+            icons[slot] = rel
+    return {
+        "id": theme_id,
+        "name": str(raw.get("name") or theme_id)[:80],
+        "englishName": str(raw.get("englishName") or raw.get("english_name") or "")[:80],
+        "version": str(raw.get("version") or "")[:32],
+        "description": str(raw.get("description") or "")[:240],
+        "author": str(raw.get("author") or "")[:80],
+        "source": source,
+        "builtin": bool(raw.get("builtin")) or source == "bundled",
+        "icons": icons,
+    }
+
+
+def _read_icon_theme_folder(folder: Path, source: str) -> dict | None:
+    try:
+        raw = json.loads((folder / "theme.json").read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return normalize_icon_theme_manifest(raw, folder, source)
+
+
+def discover_icon_themes() -> list:
+    """Bundled icon sets first, then any folders the reader added."""
+    themes: dict[str, dict] = {}
+    for source, root in (("bundled", WEB_DIR / "icon-themes"), ("user", ensure_icon_themes_dir())):
+        try:
+            folders = sorted(
+                (item for item in root.iterdir() if item.is_dir() and not item.name.startswith(".")),
+                key=lambda item: item.name.lower(),
+            )
+        except Exception:
+            folders = []
+        for folder in folders:
+            manifest = _read_icon_theme_folder(folder, source)
+            if manifest is not None:
+                # A user folder may update a bundled set under the same id.
+                themes[manifest["id"]] = manifest
+    themes.setdefault("classical", {
+        "id": "classical",
+        "name": "Classical",
+        "englishName": "Classical",
+        "version": "",
+        "description": "NeoTodo's original icons.",
+        "author": "NeoTodo",
+        "source": "bundled",
+        "builtin": True,
+        "icons": {},
+    })
+    return sorted(themes.values(), key=lambda item: (item["id"] != "classical", item["name"].lower()))
+
+
+def icon_theme_asset_path(theme_id, relative) -> Path | None:
+    """Resolve an icon-theme asset from the user shelf, then the bundle."""
+    theme_id = normalized_theme_id(theme_id)
+    if not theme_id:
+        return None
+    rel = unquote(str(relative or "")).replace("\\", "/").lstrip("/")
+    if not rel or ".." in Path(rel).parts:
+        return None
+    for folder in (ICON_THEMES_DIR / theme_id, WEB_DIR / "icon-themes" / theme_id):
+        try:
+            root = folder.resolve()
+            candidate = (folder / rel).resolve()
+            if candidate.is_relative_to(root) and candidate.is_file():
+                return candidate
+        except Exception:
+            continue
+    return None
 
 
 def normalize_theme_color(value, fallback: str = "") -> str:
@@ -2632,6 +2758,7 @@ def default_data() -> dict:
             "note_material": "paper",
             "note_theme": "white",
             "ai_theme": "auto",
+            "icon_theme": "classical",
             "note_background": "",
             "note_background_image": "",
             "note_blur": 16,
@@ -3064,7 +3191,23 @@ class Store:
             picked = sanitize_wallpaper_file_path(path)
             if path and not picked:
                 return {"ok": False, "error": "Choose an image or a film"}
-            return {"ok": True, "path": picked, "cancelled": not bool(picked)}
+            if not picked:
+                return {"ok": True, "path": "", "cancelled": True}
+            # Remember the pick before answering: /user-wallpaper only serves a
+            # path the store already knows, and the page mounts the picture the
+            # moment it hears this answer. Saving here makes the first image
+            # request allowed; otherwise it answers 404, the page drops the
+            # choice, and the reader has to pick the same file a second time.
+            with self.lock:
+                current = self.data.setdefault("settings", {})
+                current["wallpaper"] = picked
+                current["wallpaper_recent"] = sanitize_wallpaper_recent([
+                    picked,
+                    *(current.get("wallpaper_recent") or []),
+                ])
+                save_data(self.data, self.path)
+                state = self.state()
+            return {"ok": True, "path": picked, "cancelled": False, "state": state}
         with self.lock:
             name = payload.get("action")
             result = {}
@@ -3537,13 +3680,16 @@ class Store:
                     error = str(open_error)
                 result["folder"] = str(PLUGINS_DIR)
             elif name in ("open_theme_packs_folder", "open_theme_exports_folder",
-                          "open_note_themes_folder", "open_ai_themes_folder"):
+                          "open_note_themes_folder", "open_ai_themes_folder",
+                          "open_icon_themes_folder"):
                 if name == "open_theme_packs_folder":
                     folder = ensure_theme_packs_dir()
                 elif name == "open_note_themes_folder":
                     folder = ensure_pane_themes_dir("note")
                 elif name == "open_ai_themes_folder":
                     folder = ensure_pane_themes_dir("ai")
+                elif name == "open_icon_themes_folder":
+                    folder = ensure_icon_themes_dir()
                 else:
                     folder = ensure_theme_exports_dir()
                 try:
@@ -3711,6 +3857,11 @@ class Store:
                         value = incoming.get(theme_key)
                         if isinstance(value, str) and re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
                             current[theme_key] = value
+                    # An icon theme is a separate shelf: it never changes the
+                    # app paper, the note palette or the AI palette.
+                    icon_theme = normalized_theme_id(incoming.get("icon_theme"))
+                    if icon_theme and icon_theme in {pack["id"] for pack in discover_icon_themes()}:
+                        current["icon_theme"] = icon_theme
                     try:
                         current["saved_at"] = int(incoming.get("saved_at", 0))
                     except (TypeError, ValueError):
@@ -6103,6 +6254,13 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "catalog_url": THEME_CATALOG_URL,
             })
             return
+        if parsed.path == "/api/icon-themes":
+            self._json(200, {
+                "ok": True,
+                "themes": discover_icon_themes(),
+                "folder": str(ensure_icon_themes_dir()),
+            })
+            return
         if parsed.path == "/api/themes/community":
             refresh = parse_qs(parsed.query).get("refresh", [""])[0].lower() in ("1", "true", "yes")
             catalog = community_theme_catalog(refresh=refresh)
@@ -6111,6 +6269,23 @@ class ApiHandler(BaseHTTPRequestHandler):
                 for pack in discover_theme_packs()
             }
             self._json(200, {"ok": True, **catalog, "installed": installed})
+            return
+        if parsed.path.startswith("/icon-theme-assets/"):
+            rest = unquote(parsed.path[len("/icon-theme-assets/"):])
+            theme_id, _, relative = rest.partition("/")
+            candidate = icon_theme_asset_path(theme_id, relative)
+            if candidate is None:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            try:
+                body = candidate.read_bytes()
+            except Exception as read_error:
+                self._json(500, {"ok": False, "error": str(read_error)})
+                return
+            content_type = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+            if content_type.startswith("text/") or content_type in ("application/javascript", "image/svg+xml"):
+                content_type += "; charset=utf-8"
+            self._send(200, body, content_type)
             return
         if parsed.path.startswith("/theme-assets/"):
             rest = unquote(parsed.path[len("/theme-assets/"):])

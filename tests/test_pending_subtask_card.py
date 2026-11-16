@@ -104,15 +104,56 @@ class PendingSubtaskCardTests(unittest.TestCase):
 
     def test_handle_rides_the_bottom_edge(self):
         toggle = css_block(self.split_css, ".pending-subtask-toggle {")
-        # Centred on the card, lying on its bottom edge.
+        # Centred on the card and lying on its bottom edge. The strip is placed
+        # by `top`, not `bottom`, so an empty lane can tuck the pill above the
+        # card's top boundary and pull it back down when a row arrives.
         self.assertIn("left: 50%;", toggle)
-        self.assertIn("bottom: 0;", toggle)
+        self.assertIn("top: calc(100% - 30px);", toggle)
+        self.assertIn("bottom: auto;", toggle)
 
         line = css_block(self.split_css, ".pending-subtask-line {")
-        self.assertIn("background: #C8B9FC;", line)
+        # One purple for both subtask handles; the old pale lavender read as
+        # grey on the warm paper.
+        self.assertIn("background: var(--subtask-handle, #A855F7);", line)
+        self.assertIn("--subtask-handle: #A855F7;", self.split_css)
         # Above - not on - the bottom line, like the finished-tray handle.
         self.assertRegex(line, r"bottom: \d+px;")
         self.assertIn("transition: max-height", self.split_css)
+
+    def test_empty_lane_keeps_the_handle_tucked_above_the_card(self):
+        # Nothing to fold, no handle: the pill waits above the card's clipped
+        # top boundary, out of sight and out of reach.
+        hidden = css_block(self.split_css, ".pending-subtask-toggle.line-hidden {")
+        self.assertIn("top: -30px;", hidden)
+        self.assertIn("opacity: 0;", hidden)
+        self.assertIn("pointer-events: none;", hidden)
+        self.assertIn("@keyframes pending-subtask-line-pull", self.split_css)
+        self.assertIn(".pending-subtask-toggle.line-reveal", self.split_css)
+
+        # The handle belongs to the rows: the first row (or the inline add row)
+        # is what pulls it out again.
+        bind = block_after(self.app_js, "function bindPendingSubtaskToggle(", "\n}\n")
+        self.assertIn("syncSubtaskHandleLine(", bind)
+        self.assertIn('[data-add-subtask-row]', bind)
+        helper = block_after(self.app_js, "function syncSubtaskHandleLine(", "\n}\n")
+        self.assertIn('bar.classList.toggle("line-hidden", !show);', helper)
+        self.assertIn('bar.classList.add("line-reveal");', helper)
+
+    def test_finished_handle_appears_with_the_first_finished_row(self):
+        hidden = css_block(
+            self.split_css,
+            ".completed-subtask-toggle.line-hidden {",
+        )
+        self.assertIn("transform: translateY(-100%);", hidden)
+        self.assertIn("pointer-events: none;", hidden)
+        self.assertIn("@keyframes completed-subtask-line-pull", self.split_css)
+
+        bind = block_after(self.app_js, "function bindCompletedSubtasksBar(", "\n}\n")
+        self.assertIn("syncSubtaskHandleLine(bar, hasFinishedRows", bind)
+        self.assertIn('.current-subtask[data-subtask-id]', bind)
+        # A tray left open with no rows closes, so it cannot hide behind a
+        # handle that is no longer there.
+        self.assertIn("if (!hasFinishedRows && completedSubtasksOpen)", bind)
 
     def test_stretching_the_handle_opens_and_folds_the_card(self):
         stretch = block_after(self.app_js, "function bindPendingSubtaskToggle(", "\n}\n")

@@ -1103,6 +1103,58 @@ const AudioFX = (() => {
     src.stop(now + 0.38);
   }
 
+  // A row going up in Pvs fire: a short low roar with a few dry crackles.
+  // This replaces the old "fu~" breath only for the right-click delete.
+  function burn(intensity = 1) {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const src = c.createBufferSource();
+    src.buffer = airBuffer();
+    src.loop = true;
+    src.playbackRate.value = 0.68 + Math.random() * 0.12;
+    const high = c.createBiquadFilter();
+    high.type = "highpass";
+    high.frequency.value = 110;
+    const low = c.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.setValueAtTime(2200, now);
+    low.frequency.exponentialRampToValueAtTime(680, now + 0.95);
+    low.Q.value = 0.55;
+    const gain = c.createGain();
+    const volume = 0.12 * intensity;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(volume, now + 0.045);
+    gain.gain.linearRampToValueAtTime(volume * 0.58, now + 0.42);
+    gain.gain.linearRampToValueAtTime(0.0001, now + 1.18);
+    src.connect(high);
+    high.connect(low);
+    low.connect(gain);
+    gain.connect(masterOutput(c));
+    src.start(now);
+    src.stop(now + 1.2);
+    for (let i = 0; i < 7; i += 1) {
+      const at = now + 0.06 + Math.random() * 0.82;
+      const crackle = c.createBufferSource();
+      crackle.buffer = noiseBuffer();
+      crackle.playbackRate.value = 1.2 + Math.random() * 1.6;
+      const band = c.createBiquadFilter();
+      band.type = "bandpass";
+      band.Q.value = 1.35;
+      band.frequency.value = 900 + Math.random() * 2500;
+      const pop = c.createGain();
+      pop.gain.setValueAtTime(0.0001, at);
+      pop.gain.exponentialRampToValueAtTime(0.025 * intensity * (0.45 + Math.random()), at + 0.006);
+      pop.gain.exponentialRampToValueAtTime(0.0001, at + 0.065 + Math.random() * 0.06);
+      crackle.connect(band);
+      band.connect(pop);
+      pop.connect(masterOutput(c));
+      crackle.start(at, Math.random() * 0.3, 0.16);
+      crackle.stop(at + 0.17);
+    }
+    tone(60, now + 0.02, 0.85, 0.045);
+  }
+
   let lastSplash = 0;
 
   // A small wave breaking: a short filtered noise crest with a few bubbles.
@@ -1952,7 +2004,7 @@ const AudioFX = (() => {
   }
 
   return {
-    rustle, pageTurn, waterFlow, subtaskFlow, exhale, splash, writing, itemGet, bassZap,
+    rustle, pageTurn, waterFlow, subtaskFlow, exhale, burn, splash, writing, itemGet, bassZap,
     celebrationBass, cardWind, type, mechanical, carriage, confirmCarriage, unroll, paper,
     seal, chime, ding, trainWhistle, categoryTap, achievementTap, timerTap, addTap,
     completeTap, bassFade, guitarPluck, drawer, drawerStretch, leafRustle,
@@ -1976,7 +2028,7 @@ const AudioFX = (() => {
 // Images and films share the same option now; there is no separate
 // static/dynamic switch.
 const WALLPAPER_RECENT_LIMIT = 12;
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {} };
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "white", ai_theme: "auto", icon_theme: "classical", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {} };
 // The page baseline is saved in its own baseline-color.json file, outside the
 // theme and outside the notebook settings. This is only the first-paint
 // fallback until /api/state answers with the stored colour.
@@ -2123,9 +2175,23 @@ function themeModeFor(id) {
   return "custom";
 }
 
+/** A wallpaper the reader picked from their own disk is the room, not a
+    property of the palette. On the wallpaper theme that room is also the face
+    of the live subtask card, the finished card and the Doing card, and the
+    background of the top hidden box. Switching the app theme must therefore
+    never replace it with the new theme's art; Wallpaper → Manage → Back is how
+    the reader returns to the theme's own room. */
+function pickedWallpaperStaysOnThemeChange() {
+  const kind = activeWallpaper().kind;
+  return kind === "image" || kind === "video";
+}
+
 function applyThemeChoice(id) {
   const theme = THEMES[id];
   if (!theme) return false;
+  // Read the current room before the palette changes: a picked wallpaper is
+  // the reader's own room, so the theme must not replace it with its art.
+  const keepPickedWallpaper = pickedWallpaperStaysOnThemeChange();
   settings.theme = "postcard";
   settings.postcard = id;
   settings.resolved_postcard = id;
@@ -2136,7 +2202,9 @@ function applyThemeChoice(id) {
   // A theme brings its own room: the pack wallpaper when it ships one, the
   // built-in card art otherwise. The underline, add accent and selection wash
   // ride along in applyThemeChrome.
-  settings.wallpaper = pack?.wallpaper ? `theme:${id}` : `art:${id}`;
+  if (!keepPickedWallpaper) {
+    settings.wallpaper = pack?.wallpaper ? `theme:${id}` : `art:${id}`;
+  }
   applyThemeChrome(id);
   saveSettings();
   applySettings();
@@ -2261,6 +2329,21 @@ let pluginCloseTimer = 0;
 // Theme packs are installed into the user's data folder. They extend THEMES
 // with a palette, and may also carry a wallpaper, foley samples and stickers.
 let themePacks = [];
+// Icon themes are their own shelf. They swap the small marks around the
+// notebook without touching the paper, wallpaper, note palette or AI palette.
+const ICON_THEME_SLOTS = ["tissue", "fan", "fanDone", "aiRunning", "aiDone", "aiDoneFinal", "achievement", "achievementGold", "checkDone", "rowBurn", "fork"];
+const ICON_THEME_FALLBACK = Object.freeze({
+  id: "classical",
+  name: "Classical",
+  englishName: "Classical",
+  source: "bundled",
+  builtin: true,
+  icons: {},
+});
+let iconThemes = [ICON_THEME_FALLBACK];
+let iconThemeFolder = "";
+let iconImageObserver = null;
+let iconImageScanQueued = false;
 // The notebook and the console read their palettes from their own folders
 // (note-theme/ and ai-theme/). Keeping them out of theme-packs means applying a
 // NeoTodo theme can never repaint either pane.
@@ -2433,6 +2516,11 @@ let pendingSubtasksTodoId = null;
 // A stretched edge is a drag, not a click; the click that follows must not
 // flip the card a second time.
 let suppressPendingSubtaskToggleUntil = 0;
+// Each handle line only exists while its lane holds something. `null` means
+// "not measured yet", so the opening frame of the app never plays a pull-out
+// animation on a page the reader has not touched.
+let pendingHandleLineShown = null;
+let completedHandleLineShown = null;
 // Finishing a subtask pops the card open so the row can fly into it. Once the
 // row has landed the card lingers for a beat, then tucks itself away again.
 let completedSubtasksAutoCloseTimer = null;
@@ -2988,7 +3076,9 @@ function subtaskModelIconHtml(subtaskId) {
   const model = subtaskAgentModels[subtaskId] || "";
   if (!model) return `<span class="sub-agent-model" aria-hidden="true"></span>`;
   const pop = subtaskModelRecent.has(subtaskId) ? "pop" : "";
-  return `<span class="sub-agent-model has-model ${pop}"><img src="/model-icons/${modelIconId(model)}.svg" alt=""></span>`;
+  // A badge rebuilt from saved state is an old run: show the settled mark,
+  // never replay the whole emerge animation just because the page repainted.
+  return `<span class="sub-agent-model has-model ai-done-settled ${pop}"><img src="/model-icons/${modelIconId(model)}.svg" alt=""></span>`;
 }
 
 function startFanSpin(rotor) {
@@ -3038,6 +3128,21 @@ function syncAgentFanSpins() {
   });
 }
 
+// One turn cycle is ~1.2s. Let a fresh run finish it once, then hold the last
+// zombie in a tiny shake instead of looping the whole entrance forever.
+const AI_DONE_SETTLE_MS = 1250;
+
+function settleAgentDoneIcon(slot, delay = AI_DONE_SETTLE_MS) {
+  if (!slot) return;
+  clearTimeout(slot._agentDoneSettleTimer);
+  slot.classList.remove("ai-done-settled");
+  slot._agentDoneSettleTimer = setTimeout(() => {
+    if (slot.isConnected && slot.classList.contains("has-model")) {
+      slot.classList.add("ai-done-settled");
+    }
+  }, delay);
+}
+
 function updateSubtaskAgentDom(subtaskId, { running = null, model = null, pop = false } = {}) {
   const row = document.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(subtaskId)}"]`);
   if (!row) return;
@@ -3051,8 +3156,9 @@ function updateSubtaskAgentDom(subtaskId, { running = null, model = null, pop = 
       // A fresh run hides the previous provider mark until it finishes.
       const activeSlot = row.querySelector(".sub-agent-model");
       if (activeSlot) {
+        clearTimeout(activeSlot._agentDoneSettleTimer);
         activeSlot.innerHTML = "";
-        activeSlot.classList.remove("has-model", "pop");
+        activeSlot.classList.remove("has-model", "pop", "ai-done-settled");
       }
       return;
     }
@@ -3061,15 +3167,24 @@ function updateSubtaskAgentDom(subtaskId, { running = null, model = null, pop = 
   if (!slot) return;
   const nextModel = model !== null ? model : (subtaskAgentModels[subtaskId] || "");
   if (!nextModel) {
+    clearTimeout(slot._agentDoneSettleTimer);
     slot.innerHTML = "";
     slot.removeAttribute("title");
-    slot.classList.remove("pop", "has-model");
+    slot.classList.remove("pop", "has-model", "ai-done-settled");
     return;
   }
   slot.classList.add("has-model");
   slot.innerHTML = `<img src="/model-icons/${modelIconId(nextModel)}.svg" alt="">`;
   slot.classList.toggle("pop", Boolean(pop));
-  if (pop) setTimeout(() => slot.classList.remove("pop"), 950);
+  if (pop) {
+    setTimeout(() => slot.classList.remove("pop"), 950);
+    // A finished run: play the emerge gif once, then settle its last frame.
+    settleAgentDoneIcon(slot);
+  } else {
+    // Pause / restore is not a fresh finish; skip the entrance.
+    clearTimeout(slot._agentDoneSettleTimer);
+    slot.classList.add("ai-done-settled");
+  }
 }
 let agentModelsLoading = null;
 const agentLoadedIds = new Set();
@@ -5134,11 +5249,8 @@ function notesHtml() {
   const blocks = noteBlocks.map((block, index) => index === noteEditingBlock
     ? `<textarea class="note-block-editor" data-note-block-editor="${index}" spellcheck="false">${esc(block.raw || NOTE_ZERO_WIDTH)}</textarea>`
     : `<div class="note-block markdown" data-note-block="${index}">${block.raw.trim() ? renderMarkdown(block.raw) : ""}</div>`).join("");
-  const notePlaceholder = noteBlocks.length === 1 && !String(noteBlocks[0]?.raw || "").trim()
-    ? '<span class="note-empty-placeholder" aria-hidden="true">Write something ...</span>'
-    : "";
   return `${topHandle}<div class="notes-head"><div class="notes-title">${notesIcon}<span>${esc(noteTitle)}</span></div></div>
-    <div class="notes-body"><div class="note-live" id="note-live">${notePlaceholder}${blocks}</div></div>`;
+    <div class="notes-body"><div class="note-live" id="note-live">${blocks}</div></div>`;
 }
 
 function renderNotesPanel() {
@@ -5190,12 +5302,26 @@ function deleteSubtaskRows(rows) {
   const todoId = inner?.dataset.currentTodo;
   if (!todoId || !rows.length) return;
   const ids = rows.map((row) => row.dataset.subtaskId);
+  const burnUrl = iconThemeAsset(iconThemeById(settings.icon_theme), "rowBurn");
+  const finish = () => {
+    rows.forEach((row) => row.classList.add("subtask-vanishing"));
+    animateSubtaskRowsAway(rows);
+    setTimeout(() => {
+      action("delete_subtasks", { todo_id: todoId, subtask_ids: ids });
+    }, 320);
+  };
+  if (ids.includes(selectedSubtaskId)) selectedSubtaskId = null;
+  if (burnUrl) {
+    // Let the pepper reach the full burning line before the row folds away.
+    rows.forEach((row, index) => playRowBurn(row, index > 0, burnUrl));
+    setTimeout(finish, 1450);
+    return;
+  }
   rows.forEach((row, index) => {
     playVanishSmoke(row.querySelector(".sub-fan") || row, index > 0);
     row.classList.add("subtask-vanishing");
   });
   animateSubtaskRowsAway(rows);
-  if (ids.includes(selectedSubtaskId)) selectedSubtaskId = null;
   setTimeout(() => {
     action("delete_subtasks", { todo_id: todoId, subtask_ids: ids });
   }, 320);
@@ -5739,6 +5865,29 @@ function playVanishSmoke(target, silent = false) {
   }
   document.body.appendChild(layer);
   setTimeout(() => layer.remove(), 1150);
+}
+
+/** Pvs row burn: the whole row rectangle is covered by the pepper's fire. */
+function playRowBurn(row, silent = false, burnUrl = "") {
+  if (!row) return false;
+  const url = burnUrl || iconThemeAsset(iconThemeById(settings.icon_theme), "rowBurn");
+  const rect = row.getBoundingClientRect();
+  if (!url || (!rect.width && !rect.height)) {
+    playVanishSmoke(row.querySelector(".sub-fan") || row, silent);
+    return false;
+  }
+  if (!silent) AudioFX.burn();
+  const layer = document.createElement("div");
+  layer.className = "subtask-burn";
+  layer.style.left = `${rect.left}px`;
+  layer.style.top = `${rect.top}px`;
+  layer.style.width = `${rect.width}px`;
+  layer.style.height = `${rect.height}px`;
+  layer.style.backgroundImage = `url("${url}")`;
+  document.body.appendChild(layer);
+  setTimeout(() => layer.classList.add("fading"), 1600);
+  setTimeout(() => layer.remove(), 1900);
+  return true;
 }
 
 function spawnPixelSplash(row) {
@@ -8650,7 +8799,7 @@ function renderStage() {
     const addSubtaskRow = addingSubtask && addingSubtaskTodoId === current.id
       ? `<div class="current-subtask adding-subtask" data-add-subtask-row>
           <span class="sub-fan" aria-hidden="true"><svg viewBox="0 0 1024 1024"><use href="#fan"></use></svg></span>
-          <input id="subtask-name-input" class="subtask-name-input" type="text" placeholder="Start new subtask ..." autocomplete="off" spellcheck="false" aria-label="Name subtask">
+          <input id="subtask-name-input" class="subtask-name-input" type="text" autocomplete="off" spellcheck="false" aria-label="Name subtask">
         </div>`
       : "";
     const subtaskRow = (subtask) => {
@@ -8745,7 +8894,7 @@ function renderStage() {
   } else {
     const emptyRows = Array.from({ length: 7 }, () => '<div class="current-subtask current-subtask-filler" aria-hidden="true"></div>').join("");
     metaHtml = `<div class="current-inner"><div class="current-subtasks">${emptyRows}</div></div>`;
-    headTitle = `<input id="new-todo-title" class="new-todo-title" type="text" placeholder="Nothing to do..." autocomplete="off" spellcheck="false" aria-label="New task">`;
+    headTitle = `<input id="new-todo-title" class="new-todo-title" type="text" autocomplete="off" spellcheck="false" aria-label="New task">`;
   }
 
   // The old page-art was the postcard scene painted inside the theme. The same
@@ -9061,6 +9210,24 @@ function togglePendingSubtasks(force) {
   AudioFX.drawer(!willCollapse);
 }
 
+/** A purple handle is only a control while its lane holds rows. An empty lane
+    tucks the pill above the block's top boundary, out of the card's clipped
+    box; the first row pulls it back out. The element is rebuilt on every
+    render, so only the empty -> filled step plays the pull-out animation. */
+function syncSubtaskHandleLine(bar, show, slot) {
+  if (!bar) return;
+  const was = slot === "pending" ? pendingHandleLineShown : completedHandleLineShown;
+  if (slot === "pending") pendingHandleLineShown = show;
+  else completedHandleLineShown = show;
+  bar.classList.toggle("line-hidden", !show);
+  bar.tabIndex = show ? 0 : -1;
+  bar.setAttribute("aria-hidden", show ? "false" : "true");
+  bar.classList.remove("line-reveal");
+  if (!show || was !== false) return;
+  bar.classList.add("line-reveal");
+  bar.addEventListener("animationend", () => bar.classList.remove("line-reveal"), { once: true });
+}
+
 /** The handle is the card's bottom edge: hold it and the sheet stretches.
     Pulling it up folds the rows away a row at a time, pulling it down hands
     them back; the released edge snaps to the nearer end. A plain click still
@@ -9068,7 +9235,17 @@ function togglePendingSubtasks(force) {
 function bindPendingSubtaskToggle() {
   const bar = $(".pending-subtask-toggle");
   const card = $("#pending-subtask-card");
-  if (!bar || !card || bar.dataset.stretchBound === "1") return;
+  if (!bar || !card) return;
+  // The handle belongs to the rows: an empty lane keeps the pill tucked above
+  // the block's top boundary until the first row (or the inline add row)
+  // arrives and pulls it back out.
+  const lane = card.querySelector("[data-subtask-list]");
+  syncSubtaskHandleLine(
+    bar,
+    Boolean(lane?.querySelector(".current-subtask[data-subtask-id], [data-add-subtask-row]")),
+    "pending"
+  );
+  if (bar.dataset.stretchBound === "1") return;
   bar.dataset.stretchBound = "1";
   let pointerId = null;
   let startY = 0;
@@ -9133,14 +9310,22 @@ function bindPendingSubtaskToggle() {
     click, so the line can be used with either gesture. */
 function bindCompletedSubtasksBar() {
   const bar = $(".completed-subtask-toggle");
-  if (!bar || bar.dataset.gestureBound === "1") return;
+  if (!bar) return;
   // Reaching into the card cancels the auto-retract so it cannot disappear
   // while the user is reading or scrolling the finished rows.
   const drawer = $("#completed-subtask-drawer");
+  // The tray's handle only exists once something is finished. Before that the
+  // pill stays tucked above the block's top boundary, and a tray left open
+  // with no rows is closed so it cannot hide behind a handle that is gone.
+  const doneLane = drawer?.querySelector("[data-subtask-list]");
+  const hasFinishedRows = Boolean(doneLane?.querySelector(".current-subtask[data-subtask-id]"));
+  syncSubtaskHandleLine(bar, hasFinishedRows, "completed");
+  if (!hasFinishedRows && completedSubtasksOpen) setCompletedSubtasksOpen(false);
   if (drawer && drawer.dataset.autoCloseBound !== "1") {
     drawer.dataset.autoCloseBound = "1";
     drawer.addEventListener("pointerdown", clearCompletedSubtasksAutoClose, { passive: true });
   }
+  if (bar.dataset.gestureBound === "1") return;
   bar.dataset.gestureBound = "1";
   let startX = 0;
   let startY = 0;
@@ -12822,6 +13007,7 @@ async function handleAction(actionName, element) {
   if (actionName === "apply-theme-pack") { applyThemePackById(element?.dataset.themeId || ""); return; }
   if (actionName === "remove-theme-pack") { removeThemePackById(element?.dataset.themeId || ""); return; }
   if (actionName === "open-theme-packs-folder") { silentAction("open_theme_packs_folder"); return; }
+  if (actionName === "open-icon-themes-folder") { silentAction("open_icon_themes_folder"); return; }
   if (actionName === "open-note-themes-folder") { silentAction("open_note_themes_folder"); return; }
   if (actionName === "open-ai-themes-folder") { silentAction("open_ai_themes_folder"); return; }
   if (actionName === "open-theme-exports-folder") { silentAction("open_theme_exports_folder"); return; }
@@ -14068,6 +14254,111 @@ async function loadThemePacks() {
   }
 }
 
+async function loadIconThemes() {
+  try {
+    const response = await fetch("/api/icon-themes", { cache: "no-store" });
+    const data = await response.json();
+    if (!data?.ok || !Array.isArray(data.themes)) return false;
+    const byId = new Map();
+    for (const pack of data.themes) {
+      const id = String(pack?.id || "");
+      if (!id) continue;
+      byId.set(id, {
+        ...pack,
+        icons: pack.icons && typeof pack.icons === "object" ? pack.icons : {},
+      });
+    }
+    if (!byId.has("classical")) byId.set("classical", { ...ICON_THEME_FALLBACK });
+    iconThemes = [
+      byId.get("classical"),
+      ...[...byId.values()].filter((pack) => pack.id !== "classical"),
+    ];
+    iconThemeFolder = String(data.folder || "");
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function iconThemeById(id) {
+  const wanted = String(id || "classical");
+  return iconThemes.find((pack) => pack.id === wanted) || iconThemes[0] || ICON_THEME_FALLBACK;
+}
+
+function iconThemeAsset(pack, slot) {
+  const rel = String(pack?.icons?.[slot] || "");
+  if (!pack || !rel) return "";
+  const encoded = rel.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  return `/icon-theme-assets/${encodeURIComponent(pack.id)}/${encoded}`;
+}
+
+function iconThemeSlotDataName(slot) {
+  return `icon${slot.charAt(0).toUpperCase()}${slot.slice(1)}`;
+}
+
+function iconThemeSlotCssName(slot) {
+  return slot.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
+
+/** Swap the fork flame's <img> source; CSS handles the rest of the set. */
+function applyIconThemeImages() {
+  const pack = iconThemeById(settings.icon_theme);
+  const fork = iconThemeAsset(pack, "fork");
+  document.querySelectorAll("img.fork-flame, .cat-fork img, .sub-fork-link img, .h-sub-fork-link img").forEach((img) => {
+    if (!img.dataset.iconOrigSrc) img.dataset.iconOrigSrc = img.getAttribute("src") || "";
+    const next = fork || img.dataset.iconOrigSrc;
+    if (next && img.getAttribute("src") !== next) img.setAttribute("src", next);
+  });
+}
+
+function queueIconThemeImageScan() {
+  if (iconImageScanQueued) return;
+  iconImageScanQueued = true;
+  requestAnimationFrame(() => {
+    iconImageScanQueued = false;
+    applyIconThemeImages();
+  });
+}
+
+function watchIconThemeImages(enabled) {
+  if (!enabled) {
+    iconImageObserver?.disconnect();
+    iconImageObserver = null;
+    return;
+  }
+  if (iconImageObserver || !document.body) return;
+  iconImageObserver = new MutationObserver(queueIconThemeImageScan);
+  iconImageObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function applyIconTheme() {
+  const root = document.documentElement;
+  const pack = iconThemeById(settings.icon_theme);
+  let hasIcon = false;
+  root.dataset.iconTheme = pack.id;
+  for (const slot of ICON_THEME_SLOTS) {
+    const url = iconThemeAsset(pack, slot);
+    const cssName = iconThemeSlotCssName(slot);
+    const dataName = iconThemeSlotDataName(slot);
+    if (url) {
+      hasIcon = true;
+      root.style.setProperty(`--icon-${cssName}`, `url("${url}")`);
+      root.dataset[dataName] = "1";
+    } else {
+      root.style.removeProperty(`--icon-${cssName}`);
+      delete root.dataset[dataName];
+    }
+  }
+  // A pack with no image slots is just Classical: leave every original mark.
+  if (!hasIcon) root.dataset.iconTheme = "classical";
+  applyIconThemeImages();
+  // The fork flame is the one slot that is a plain <img>. Only watch for new
+  // rows when a pack actually replaces it, so a stream of terminal text never
+  // costs a DOM scan frame after frame.
+  watchIconThemeImages(Boolean(iconThemeAsset(pack, "fork")));
+  if (iconThemeAsset(pack, "fork")) queueIconThemeImageScan();
+}
+
 async function loadThemeCatalog(refresh = false) {
   if (themeCatalogBusy) return;
   themeCatalogBusy = true;
@@ -14311,6 +14602,9 @@ async function applyThemePackById(id) {
   if (communityViewOpen("themes")) renderCommunity();
   try {
     const wallpaperTheme = THEMES[id] || packTheme(pack);
+    // A picked wallpaper is the reader's room; applying a palette must not
+    // replace it, because the wallpaper-theme cards are cut from that room.
+    const keepPickedWallpaper = pickedWallpaperStaysOnThemeChange();
     // A NeoTodo theme only owns the app paper, wallpaper, sounds and stickers.
     // The notebook and the AI console keep their own choices from note-theme/
     // and ai-theme/; capture them so a pack can never overwrite either one.
@@ -14321,10 +14615,8 @@ async function applyThemePackById(id) {
     settings.resolved_postcard = id;
     if (postcardIsDark(id)) settings.dark_postcard = id;
     else settings.light_postcard = id;
-    if (pack.wallpaper) {
-      settings.wallpaper = `theme:${id}`;
-    } else {
-      settings.wallpaper = `art:${id}`;
+    if (!keepPickedWallpaper) {
+      settings.wallpaper = pack.wallpaper ? `theme:${id}` : `art:${id}`;
     }
     applyThemeChrome(id);
     const overrides = {};
@@ -15000,7 +15292,9 @@ function rasterizeVideoFrameToBitmapUrl(src) {
 /* Two kinds of surface borrow the wallpaper pane:
      - `data-subcard`      a card made of the wallpaper (pane + card stroke),
      - `data-wallpaper-surface`  a surface that only wants the wallpaper as its
-       background (the top hidden box): same baked picture, no card identity. */
+       background (the top hidden box): same baked picture, but sampled at the
+       surface's exact box (100%) instead of a card's wide crop; no card
+       identity. */
 const SUBCARD_SELECTOR = "[data-subcard], [data-wallpaper-surface]";
 const SUBCARD_PANE_CLASS = "card-wallpaper";
 const SUBCARD_PAPER_KEEP = 24;
@@ -15093,6 +15387,7 @@ function subcardPaperKey(host, wallpaper, box) {
   return [
     wallpaper.key,
     subcardName(host),
+    subcardPaperRegion(host),
     view.width, view.height, view.dpr,
     round(box.left), round(box.top), round(box.width), round(box.height),
   ].join("|");
@@ -15103,26 +15398,35 @@ function subcardPaperKey(host, wallpaper, box) {
    kept centred — so the card carries its own photograph of the wallpaper
    instead of being an exactly aligned, see-through copy of the area behind it.
    The sampled region is drawn back onto the card at full size, which is what
-   gives every card its own crop. */
+   gives every card its own crop.
+
+   The top hidden bar is deliberately NOT a card: it wears the wallpaper as its
+   own background and must line up with the room behind it, so it samples
+   exactly its box (100%) instead of the card's wider crop. */
 const SUBCARD_PAPER_REGION = 1.4;
+const SURFACE_PAPER_REGION = 1;
+
+/** How much of the wallpaper a host samples, as a multiple of its own box. */
+function subcardPaperRegion(host) {
+  return host?.dataset?.subcard ? SUBCARD_PAPER_REGION : SURFACE_PAPER_REGION;
+}
 
 /** The wallpaper pixels under a viewport box (the room uses object-fit: cover). */
-function subcardCropSource(image, box) {
+function subcardCropSource(image, box, region = SUBCARD_PAPER_REGION) {
   const view = subcardViewport();
   const imageWidth = image.naturalWidth || view.width;
   const imageHeight = image.naturalHeight || view.height;
   const scale = Math.max(view.width / imageWidth, view.height / imageHeight);
   const offsetX = (view.width - imageWidth * scale) / 2;
   const offsetY = (view.height - imageHeight * scale) / 2;
-  const region = SUBCARD_PAPER_REGION;
   const left = box.left - (box.width * region - box.width) / 2;
   const top = box.top - (box.height * region - box.height) / 2;
   const width = Math.max(1, (box.width * region) / scale);
   const height = Math.max(1, (box.height * region) / scale);
   const x = (left - offsetX) / scale;
   const y = (top - offsetY) / scale;
-  // Keep the sample inside the picture: a card near an edge must not bake a
-  // transparent strip where the 140% crop runs past the wallpaper.
+  // Keep the sample inside the picture: a surface near an edge must not bake a
+  // transparent strip where a 140% crop runs past the wallpaper.
   return {
     x: Math.min(Math.max(0, x), Math.max(0, imageWidth - width)),
     y: Math.min(Math.max(0, y), Math.max(0, imageHeight - height)),
@@ -15166,7 +15470,7 @@ function bakeSubcardPaper(host, wallpaper, box) {
   image.decoding = "async";
   image.onload = () => {
     try {
-      const source = subcardCropSource(image, box);
+      const source = subcardCropSource(image, box, subcardPaperRegion(host));
       const view = subcardViewport();
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(box.width * view.dpr));
@@ -15493,6 +15797,59 @@ function syncCardWallpapers() {
   ensureCardWallpaperClock();
 }
 
+/* The floating cards are born with the room copy (`data-fit="window"`) and pick
+   up their own baked picture a few frames later. That swap is invisible while
+   the window is still hidden, but at launch the bake finishes just after the
+   first visible frame, so the subtask card, the finished card and the Doing
+   card each visibly turn from "a window onto the room" into "its own sheet".
+   Bake the faces that are already in the page before startup reveals it, so
+   the first frame already shows every card with its own background. */
+const CARD_PREWARM_NAMES = new Set(["pending", "doing", "completed"]);
+
+function floatingCardHosts() {
+  return subcardHosts().filter((host) => {
+    if (!CARD_PREWARM_NAMES.has(subcardName(host))) return false;
+    const box = subcardBox(host);
+    return Boolean(box && box.width >= 8 && box.height >= 8);
+  });
+}
+
+function cardFacesPainted() {
+  return floatingCardHosts().every((host) => {
+    const pane = host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`);
+    return pane?.dataset.fit === "patch";
+  });
+}
+
+function prewarmCardWallpaperFaces(timeout = 1600) {
+  const wallpaper = activeWallpaper();
+  if (!wallpaper.key || !wallpaperCardsEnabled()) return Promise.resolve();
+  // The Doing card is built on a frame tick after the first render. Build it
+  // now so it joins this bake instead of switching its face after the window
+  // is already on screen.
+  try { updateDoingPeek(); } catch (error) {}
+  ensureCardWallpapers();
+  primeSubcardPapers();
+  if (cardFacesPainted()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const startedAt = performance.now();
+    const step = () => {
+      ensureCardWallpapers();
+      primeSubcardPapers();
+      // A wallpaper that failed to decode never produces a card cut; do not
+      // hold startup open for it.
+      if (!wallpaperBitmapCache.has(wallpaper.key)
+        || cardFacesPainted()
+        || performance.now() - startedAt >= timeout) {
+        resolve();
+        return;
+      }
+      setTimeout(step, 16);
+    };
+    step();
+  });
+}
+
 function sampleWallpaperTint(media, key) {
   try {
     const canvas = document.createElement("canvas");
@@ -15522,7 +15879,7 @@ function sampleWallpaperTint(media, key) {
 function bindWallpaperMedia(media, key) {
   if (media.tagName === "DIV") return;
   const sample = () => sampleWallpaperTint(media, key);
-  media.addEventListener("error", () => {
+  const dropMissingWallpaper = () => {
     if (wallpaperRenderKey() !== key) return;
     // The file was moved or deleted. Drop the choice and let the postcard
     // paper show through instead of silently using a different picture.
@@ -15531,7 +15888,29 @@ function bindWallpaperMedia(media, key) {
     applySettings();
     if (settingsTab === "theme") renderSettings();
     toast("That wallpaper could not be opened", true);
-  }, { once: true });
+  };
+  media.addEventListener("error", () => {
+    if (wallpaperRenderKey() !== key) return;
+    // A picked file is only served once the store knows its path. The room
+    // mounts the picture before the debounced settings save lands, so the very
+    // first request can answer 404. Flush the choice and ask once more before
+    // dropping it: without this retry the reader had to pick the same
+    // wallpaper twice before it appeared.
+    if (media.dataset.wallpaperRetried !== "1") {
+      media.dataset.wallpaperRetried = "1";
+      Promise.resolve(flushSettingsSave()).finally(() => {
+        if (wallpaperRenderKey() !== key) return;
+        const src = media.getAttribute("src") || "";
+        if (!src) { dropMissingWallpaper(); return; }
+        // Re-assigning the same src still asks the server again.
+        media.removeAttribute("src");
+        media.setAttribute("src", src);
+        if (media.tagName === "VIDEO") media.play().catch(() => {});
+      });
+      return;
+    }
+    dropMissingWallpaper();
+  });
   if (media.tagName === "IMG") {
     if (media.complete && media.naturalWidth) sample();
     else media.addEventListener("load", sample, { once: true });
@@ -15744,6 +16123,7 @@ function applySettings() {
   // settings card.
   applyHighlight();
   applyWallpaper();
+  applyIconTheme();
   const achievement = $("#achievement-icon-use");
   if (achievement) achievement.setAttribute("href", "#headphone");
   const topAchievement = $("#top-achievement-use");
@@ -15798,6 +16178,7 @@ function openSettings(tab = "theme") {
     // note-theme/ and ai-theme/ are plain folders: pick up any file the user
     // dropped in while the settings sheet was closed.
     loadThemePacks().then(() => { if (settingsTab === "theme") renderSettings(); });
+    loadIconThemes().then(() => { if (settingsTab === "theme") renderSettings(); });
   }
 }
 
@@ -16123,6 +16504,7 @@ function themeSettings() {
     ${glassBackgroundRow}` : ""}
     ${fieldMode === "app" ? managePanel : ""}
     ${wallpaperSettingsSection()}
+    ${iconSettingsSection()}
     ${caretRow}
     <div class="settings-section theme-settings-row">
       <div class="theme-settings-title">Time cost</div>
@@ -16384,6 +16766,39 @@ function wallpaperSettingsSection() {
       <input type="file" accept="image/*,video/*" data-wallpaper-input hidden>
     </div>
     ${managePanel}`;
+}
+
+/**
+ * Appearance → Icon theme. One row in the same shape as Theme and Wallpaper:
+ * a menu with every installed set and one action button. Picking a set only
+ * swaps the marks; it never writes the app theme or the wallpaper.
+ */
+function iconSettingsSection() {
+  const current = iconThemeById(settings.icon_theme);
+  const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const rows = iconThemes.map((pack) => {
+    const active = current.id === pack.id;
+    return `<div class="theme-menu-row ${active ? "active" : ""}">
+      <button class="theme-menu-item" type="button" role="option" aria-selected="${active ? "true" : "false"}" data-icon-theme-choice="${esc(pack.id)}">
+        <span class="theme-menu-name">${esc(pack.name || pack.id)}</span>
+        <span class="choice-check" aria-hidden="true">✓</span>
+      </button>
+    </div>`;
+  }).join("");
+  const nameControl = `<details class="theme-menu icon-theme-menu" data-theme-menu>
+    <summary class="theme-menu-trigger" aria-label="Icon theme: ${esc(current.name || current.id)}">
+      <span class="theme-menu-name">${esc(current.name || current.id)}</span>
+      ${chevron}
+    </summary>
+    <div class="theme-menu-list" role="listbox" aria-label="Icon theme">${rows}</div>
+  </details>`;
+  return `<div class="settings-section theme-settings-row icon-settings-row">
+      <div class="theme-settings-title">Icon theme</div>
+      <div class="theme-settings-controls">
+        ${nameControl}
+        <button class="theme-chip-button" type="button" data-action="open-icon-themes-folder" title="${esc(iconThemeFolder || "icon-themes")}">Folder</button>
+      </div>
+    </div>`;
 }
 
 /* ---------------------------------------------------------------------------
@@ -17977,6 +18392,16 @@ function bindEvents() {
       }
       return;
     }
+    const iconThemeChoice = event.target.closest("[data-icon-theme-choice]");
+    if (iconThemeChoice) {
+      event.preventDefault();
+      const choice = iconThemeChoice.dataset.iconThemeChoice || "classical";
+      settings.icon_theme = iconThemeById(choice).id;
+      saveSettings();
+      applyIconTheme();
+      renderSettings();
+      return;
+    }
     const postcardChoice = event.target.closest("[data-postcard-choice]");
     if (postcardChoice) {
       event.preventDefault();
@@ -18585,10 +19010,6 @@ function bindEvents() {
         // Keep one invisible character so WebKit always has a line to paint the caret on.
         event.target.value = NOTE_ZERO_WIDTH;
         event.target.setSelectionRange(1, 1);
-      }
-      const notePlaceholder = document.querySelector(".note-empty-placeholder");
-      if (notePlaceholder) {
-        notePlaceholder.hidden = noteBlocks.length !== 1 || Boolean(noteBlocks[0]?.raw);
       }
       saveActiveNoteCaret();
       const text = serializeNoteBlocks();
@@ -20014,6 +20435,7 @@ async function init() {
   if (new URLSearchParams(location.search).has("still")) document.body.classList.add("still");
   await loadInstalledPlugins();
   await loadThemePacks();
+  await loadIconThemes();
   loadSettings();
   applySettings();
   bindEvents();
@@ -20178,8 +20600,14 @@ async function init() {
   loadNoteMaterialFiles();
   // The room is painted together with the rest of the page. Waiting for the
   // wallpaper's decoded first frame here means the first visible frame can
-  // never show the bare theme paper before the picture arrives.
+  // never show the bare theme paper before the picture arrives. The card faces
+  // are baked alongside it: a card that swapped from the room copy to its own
+  // picture after the window appeared was the "still rendering" flash on
+  // launch. Both waits overlap, so the cards cost only the time the bake needs
+  // beyond the wallpaper decode.
+  const cardFacesReady = prewarmCardWallpaperFaces();
   await waitForWallpaperFrame();
+  await cardFacesReady;
   document.documentElement.classList.remove("booting");
   document.body.classList.add("app-ready");
   window.__APP_READY_MS__ = performance.now();

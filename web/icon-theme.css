@@ -1,0 +1,146 @@
+/* [shared] Icon themes ------------------------------------------------------
+   Appearance → Icon theme swaps only the small marks around the notebook.
+   The app paper, wallpaper, note palette and AI palette stay untouched.
+
+   The page keeps its original inline SVGs (so Classical needs no asset and a
+   missing slot in a pack simply stays Classical). A pack publishes an image
+   for one or more slots; app.js writes that URL into a --icon-* variable and
+   sets data-icon-<slot>="1" on <html>. The rules below paint the image and
+   hide the original glyph only for the slots the pack actually provides. */
+
+/* Napkin beside the todo page title, and the same mark in the Doing card. */
+html[data-icon-tissue="1"] .page-head .banner-icon {
+  background: var(--icon-tissue) center / contain no-repeat;
+}
+html[data-icon-tissue="1"] .page-head .banner-icon use {
+  opacity: 0;
+}
+/* Picture packs read smaller than the drawn napkin. Lift this one and let it
+   grow past the old box without moving the ruled header line. */
+html[data-icon-tissue="1"] .page-head .banner-title .banner-icon {
+  transform: translateY(-7px) scale(1.16);
+}
+html[data-icon-tissue="1"] .doing-mark svg {
+  background: var(--icon-tissue) center / contain no-repeat;
+}
+html[data-icon-tissue="1"] .doing-mark svg use {
+  opacity: 0;
+}
+
+/* Fan: live rows keep the normal fan; finished rows get their own mark. */
+html[data-icon-fan="1"] .fan-stack {
+  background: var(--icon-fan) center / contain no-repeat;
+}
+html[data-icon-fan="1"] .fan-stack > svg {
+  opacity: 0;
+}
+html[data-icon-fan="1"] .sub-fan > svg,
+html[data-icon-fan="1"] .trash-fan > svg {
+  background: var(--icon-fan) center / contain no-repeat;
+}
+html[data-icon-fan="1"] .sub-fan > svg use,
+html[data-icon-fan="1"] .trash-fan > svg use {
+  opacity: 0;
+}
+html[data-icon-fan-done="1"] .sub-fan.done .fan-stack,
+html[data-icon-fan-done="1"] .current-subtask.done .fan-stack,
+html[data-icon-fan-done="1"] .history-subtask .fan-stack {
+  background-image: var(--icon-fan-done);
+}
+
+/* AI running: there is no extra badge on the left. The puffshroom fan itself
+   becomes the spraying animation for the length of the run. */
+html[data-icon-ai-running="1"] .current-subtask.agent-running .fan-stack,
+html[data-icon-ai-running="1"] .doing-sub.agent-running .fan-stack {
+  background-image: var(--icon-ai-running);
+}
+/* AI done: the finished mark replaces the provider badge. Match the fan's
+   size instead of the old 28px dot. */
+html[data-icon-ai-done="1"] .sub-agent-model.has-model {
+  background: var(--icon-ai-done) center / contain no-repeat;
+  flex: 0 0 34px !important;
+  width: 34px !important;
+  height: 34px !important;
+  margin-right: 2px !important;
+}
+html[data-icon-ai-done="1"] .sub-agent-model.has-model img {
+  opacity: 0;
+}
+/* The emerge clip plays once after a fresh run, then app.js marks the slot as
+   settled: the last zombie stands still inside its own small shake instead of
+   replaying the whole entrance forever. */
+html[data-icon-ai-done="1"][data-icon-ai-done-final="1"] .sub-agent-model.has-model.ai-done-settled {
+  background-image: var(--icon-ai-done-final);
+  transform-origin: 50% 85%;
+  animation: icon-zombie-shake 0.85s ease-in-out infinite;
+}
+@keyframes icon-zombie-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-1px, 0) rotate(-4deg); }
+  75% { transform: translate(1px, 0) rotate(4deg); }
+}
+
+/* Achievement (achievement #1 = the built-in headphones). The gold mark used
+   by an expanded finished task has its own optional slot. */
+html[data-icon-achievement="1"] .chalice-icon,
+html[data-icon-achievement="1"] .moon-icon:not(.gold-moon),
+html[data-icon-achievement="1"] .toast-headphone {
+  background: var(--icon-achievement) center / contain no-repeat;
+}
+html[data-icon-achievement="1"] .chalice-icon use,
+html[data-icon-achievement="1"] .moon-icon:not(.gold-moon) use,
+html[data-icon-achievement="1"] .toast-headphone use {
+  opacity: 0;
+}
+html[data-icon-achievement-gold="1"] .moon-icon.gold-moon {
+  background: var(--icon-achievement-gold) center / contain no-repeat;
+}
+html[data-icon-achievement-gold="1"] .moon-icon.gold-moon use {
+  opacity: 0;
+}
+/* The top-right achievement is the hero mark: let the cherry sit larger than
+   the old headphone. The category counters use the same cherry. */
+html[data-icon-achievement="1"] .head-right .trophy-button .trophy-glyph {
+  width: 40px;
+  height: 40px;
+  font-size: 40px;
+}
+html[data-icon-achievement="1"] .cat-count .moon-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Finished subtask: the red check becomes the coin. */
+html[data-icon-check-done="1"] .sub-done-check,
+html[data-icon-check-done="1"] .h-sub-check {
+  background: var(--icon-check-done) center / contain no-repeat;
+}
+html[data-icon-check-done="1"] .sub-done-check use,
+html[data-icon-check-done="1"] .h-sub-check use {
+  opacity: 0;
+}
+
+/* Pvs right-click delete: the row itself burns away instead of breathing out
+   a puff of smoke. app.js places this layer over the old row rectangle. */
+.subtask-burn {
+  position: fixed;
+  z-index: 300;
+  pointer-events: none;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(255, 126, 22, 0.42));
+  transition: opacity 0.28s ease;
+}
+.subtask-burn.fading {
+  opacity: 0;
+}
+
+/* Fork flame. app.js swaps the image source, so dynamic rows keep the mark. */
+html[data-icon-fork="1"] img.fork-flame,
+html[data-icon-fork="1"] .cat-fork img,
+html[data-icon-fork="1"] .sub-fork-link img,
+html[data-icon-fork="1"] .h-sub-fork-link img {
+  content: var(--icon-fork);
+}

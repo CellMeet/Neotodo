@@ -88,8 +88,7 @@ html[data-theme] body .page-body .notes-half.floating-notes .note-block h2,
 html[data-theme] body .page-body .notes-half.floating-notes .note-block h3,
 html[data-theme] body .page-body .notes-half.floating-notes .note-block h4,
 html[data-theme] body .page-body .notes-half.floating-notes .notes-empty,
-html[data-theme] body .page-body .notes-half.floating-notes .note-block-placeholder,
-html[data-theme] body .page-body .notes-half.floating-notes .note-empty-placeholder {
+html[data-theme] body .page-body .notes-half.floating-notes .note-block-placeholder {
   color: var(--note-ink) !important;
   text-shadow: none !important;
 }

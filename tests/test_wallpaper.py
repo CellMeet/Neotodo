@@ -173,7 +173,16 @@ def main() -> int:
     assert "function subcardCropSource(" in app_js, "the local wallpaper crop is missing"
     assert "function subcardBox(" in app_js, "a sub-card cannot find its open box"
     assert "function bakeSubcardPaper(" in app_js, "a sub-card picture is never baked"
-    assert "SUBCARD_PAPER_REGION = 1.4" in app_js, "a sub-card is baked from exactly its 100% box"
+    assert "SUBCARD_PAPER_REGION = 1.4" in app_js, "a sub-card is no longer baked from 140% of its box"
+    # The top hidden bar is not a card: it wears the wallpaper as its own
+    # background and must match the room, so it samples exactly its box (100%).
+    assert "SURFACE_PAPER_REGION = 1" in app_js, "the top hidden bar lost its 100% wallpaper sample"
+    assert "function subcardPaperRegion(host)" in app_js, (
+        "the top hidden bar cannot choose its own 100% crop"
+    )
+    assert "subcardCropSource(image, box, subcardPaperRegion(host))" in app_js, (
+        "the baked picture ignores the surface's own crop size"
+    )
     assert "schedulePrimeSubcardPapers(0)" in app_js, "the picture is not baked ahead of opening"
     assert "subcardPaperCache" in app_js, "a baked picture is not kept"
 
@@ -287,6 +296,51 @@ def main() -> int:
         "the magic hat drawer lost the shared ink-green card stroke"
     )
     assert "var(--card-lift-page" in trash, "the magic hat drawer left the card pile"
+
+    # A picked wallpaper is the room, not a palette property. The live subtask
+    # card, the finished card, the Doing card and the top hidden box are all
+    # cut from that room, so a theme switch must leave it in place instead of
+    # replacing it with the new theme's art.
+    assert "function pickedWallpaperStaysOnThemeChange()" in app_js, (
+        "a picked wallpaper has no theme-change rule"
+    )
+    helper = app_js.split("function pickedWallpaperStaysOnThemeChange() {", 1)[1].split("\n}", 1)[0]
+    assert 'kind === "image" || kind === "video"' in helper, (
+        "the rule does not identify a picked picture or film"
+    )
+    theme_choice = app_js.split("function applyThemeChoice(id) {", 1)[1].split("\nfunction ", 1)[0]
+    assert "const keepPickedWallpaper = pickedWallpaperStaysOnThemeChange();" in theme_choice
+    assert "if (!keepPickedWallpaper) {" in theme_choice, (
+        "changing a base theme still replaces the picked wallpaper"
+    )
+    pack_choice = app_js.split("async function applyThemePackById(id) {", 1)[1].split("\nasync function ", 1)[0]
+    assert "const keepPickedWallpaper = pickedWallpaperStaysOnThemeChange();" in pack_choice
+    assert "if (!keepPickedWallpaper) {" in pack_choice, (
+        "applying a theme pack still replaces the picked wallpaper"
+    )
+
+    # Switching to a freshly picked file must work on the first pick. The room
+    # mounts /user-wallpaper the moment the picker answers, and that endpoint
+    # only serves a path the store already knows: the picker therefore records
+    # the choice before it answers, and the page retries once after flushing its
+    # own save instead of dropping the wallpaper on the first 404.
+    app_py = (ROOT / "app.py").read_text(encoding="utf-8")
+    picker = app_py.split('if payload.get("action") == "choose_wallpaper_file":', 1)[1]
+    picker = picker.split('return {"ok": True, "path": picked', 1)[0]
+    assert 'current["wallpaper"] = picked' in picker, (
+        "the picker answers before the store knows the picked wallpaper"
+    )
+    assert "save_data(self.data, self.path)" in picker, (
+        "the picked wallpaper is not saved before the page paints it"
+    )
+    media_error = app_js.split("function bindWallpaperMedia(media, key) {", 1)[1]
+    media_error = media_error.split('if (media.tagName === "IMG") {', 1)[0]
+    assert 'media.dataset.wallpaperRetried' in media_error, (
+        "a 404 on the first wallpaper request still drops the choice"
+    )
+    assert "flushSettingsSave()" in media_error, (
+        "the retry does not wait for the settings save"
+    )
     print("wallpaper choice and the sub-card standard passed")
     return 0
 
