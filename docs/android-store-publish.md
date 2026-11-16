@@ -30,8 +30,8 @@
    `libpython3.12.so` 等 so 需要是 16 KB 对齐的版本；用较新的 Chaquopy
    （16.x 及以上）并跑一次
    `zipalign -c -P 16 -v 4 app-release.apk` 验证。
-4. **自适应图标**（可选但推荐）：`res/mipmap-anydpi-v26/ic_launcher.xml`，
-   否则 Android 8+ 会把现在的方图裁成圆形。
+4. ~~自适应图标~~ 已加：`res/mipmap-anydpi-v26/ic_launcher.xml`（前景线稿 +
+   纸色背景），Android 8+ 不会再裁掉方形图标的白边。
 5. **隐私政策网址**：`store/privacy-policy.md` 已经写好，传到 GitHub Pages
    或任意可公开访问的 HTTPS 页面，两家商店都要填这个链接。
 
