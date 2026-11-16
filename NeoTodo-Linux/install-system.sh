@@ -39,7 +39,7 @@ if [ -z "$USER_HOME" ] && [ -n "${SUDO_USER:-}" ]; then
     USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6 || true)"
 fi
 [ -n "$USER_HOME" ] || USER_HOME="${HOME:-/root}"
-SHORTCUT="$USER_HOME/Desktop/NeoTodo.desktop"
+SHORTCUT="$USER_HOME/Desktop/neotodo.desktop"
 
 refresh_caches() {
     command -v update-desktop-database >/dev/null 2>&1 &&
@@ -96,7 +96,7 @@ EOF
 cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
-Name=NeoTodo
+Name=neotodo
 GenericName=Weekly Postcard Todo
 Comment=A quiet home for weekly focus and postcard memories
 Exec=$BIN
@@ -124,7 +124,7 @@ if [ -d "$USER_HOME/Desktop" ]; then
     cat > "$SHORTCUT" <<EOF
 [Desktop Entry]
 Type=Application
-Name=NeoTodo
+Name=neotodo
 GenericName=Weekly Postcard Todo
 Comment=A quiet home for weekly focus and postcard memories
 Exec=$BIN
