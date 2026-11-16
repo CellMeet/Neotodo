@@ -32,8 +32,9 @@ Snapshot source: repo commit `1a3faf0` (2026-11-16). Data lives in
 ## Requirements
 
 - macOS 11 Big Sur or newer (Apple silicon or Intel)
-- Python 3.10+ with `pip`. The python.org **universal2** installer or a
-  Homebrew `python@3.12` both work; the python.org build is the easiest to sign.
+- Python 3.10–3.13 (3.12 recommended; py2app support for 3.14 may lag).
+  Use a python.org universal2 build or a Homebrew `python@3.12`; the
+  python.org build is the easiest to sign.
 - Xcode Command Line Tools (`xcode-select --install`) for `codesign`, `sips`,
   `iconutil` and `notarytool`
 

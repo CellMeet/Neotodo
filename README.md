@@ -168,7 +168,7 @@ python3 -m pip install -r requirements.txt
 ./run-macos.sh
 ```
 
-- 📦 Requirements: macOS 11+, Python 3.10+ and PyObjC. `./build.sh` packages a native `NeoTodo.app` with py2app.
+- 📦 Requirements: macOS 11+, Python 3.10–3.13 (3.12 recommended) and PyObjC. `./build.sh` packages a native `NeoTodo.app` with py2app.
 - 🔏 Signing, notarization and the Mac App Store checklist live in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
 - 🧭 The macOS folder is a snapshot: Linux stays the tree that is edited, and `NeoTodo-MacOS/sync-sources.sh` refreshes it.
 

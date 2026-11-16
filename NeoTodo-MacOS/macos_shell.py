@@ -427,10 +427,21 @@ class NavigationDelegate(NSObject):
     def webView_createWebViewWithConfiguration_forNavigationAction_windowFeatures_(
         self, webView, configuration, navigationAction, windowFeatures
     ):
-        # target="_blank" links from notes and plugin pages are external.
+        # window.open / target="_blank": keep local pages inside the app and
+        # send anything else to the default browser.
         try:
             url = navigationAction.request().URL()
-            if url is not None and (url.scheme() or "") in ("http", "https", "mailto"):
+            if url is None:
+                return None
+            scheme = (url.scheme() or "").lower()
+            host = (url.host() or "").lower()
+            controller = self.controller
+            if scheme in ("http", "https") and host in ("127.0.0.1", "localhost"):
+                if controller is not None:
+                    AppHelper.callAfter(
+                        controller.shell.open_detached, url.absoluteString()
+                    )
+            elif scheme in ("http", "https", "mailto"):
                 NSWorkspace.sharedWorkspace().openURL_(url)
         except Exception:
             pass
