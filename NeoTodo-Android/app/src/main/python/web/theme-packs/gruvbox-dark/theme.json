@@ -1,0 +1,62 @@
+{
+  "id": "gruvbox-dark",
+  "name": "旧木箱",
+  "englishName": "Gruvbox Dark",
+  "version": "1.0.0",
+  "description": "旧木桌、暖灯泡和一本翻旧的手账：暖灰的纸配芥末黄，写字会慢下来。",
+  "author": "NeoTodo",
+  "license": "CC BY 4.0",
+  "tags": [
+    "dark",
+    "warm",
+    "gruvbox",
+    "retro"
+  ],
+  "theme": {
+    "paper": "#282828",
+    "paper2": "#1d2021",
+    "ink": "#ebdbb2",
+    "muted": "#a89984",
+    "accent": "#fabd2f",
+    "accent2": "#8ec07c",
+    "border": "#3c3836",
+    "stamp": "#d65d0e",
+    "line": "#504945",
+    "rule": "#665c54",
+    "lineAlpha": 0.85,
+    "ruleAlpha": 0.55,
+    "glow": "rgba(250,189,47,.18)",
+    "motif": "☀",
+    "quote": "Warm lamp, worn pages."
+  },
+  "chrome": {
+    "baseline": "#504945",
+    "row": "#504945",
+    "submit": "#fabd2f",
+    "highlight": "#fabd2f"
+  },
+  "note": {
+    "paper": "#282828",
+    "ink": "#ebdbb2",
+    "muted": "#a89984",
+    "rule": "#504945",
+    "accent": "#fabd2f",
+    "accent2": "#8ec07c",
+    "handle": "#d5c4a1"
+  },
+  "ai": {
+    "bg": "#1d2021",
+    "soft": "#282828",
+    "ink": "#ebdbb2",
+    "inkSoft": "#d5c4a1",
+    "muted": "#a89984",
+    "faint": "#7c6f64",
+    "line": "#3c3836",
+    "lineStrong": "#504945",
+    "accent": "#fabd2f",
+    "notice": "#fe8019",
+    "handle": "#d5c4a1"
+  },
+  "preview": "preview.svg",
+  "icon": "icon.svg"
+}

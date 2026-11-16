@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="postcard" data-postcard-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>调色板 · NeoTodo</title>
+  <script>
+    // Use the notebook's own palette before the first stylesheet paints, so the
+    // opening sheet never flashes a light fallback over a dark postcard.
+    (function () {
+      var root = document.documentElement;
+      var vars = [
+        "--pc-paper", "--pc-paper2", "--pc-ink", "--pc-muted",
+        "--pc-accent", "--pc-accent-2", "--pc-accent2",
+        "--pc-accent-rgb", "--pc-accent2-rgb", "--pc-border",
+        "--pc-line", "--pc-rule", "--pc-paper-rgb", "--pc-paper2-rgb",
+        "--pc-glow", "--pc-stamp", "--pc-paper-soft",
+        "--pc-mask-soft", "--pc-mask-mid", "--pc-mask-strong",
+        "--display", "--mono", "--script", "--note-font", "--overlay-top"
+      ];
+      try {
+        root.dataset.theme = "postcard";
+        if (window.parent !== window) {
+          var parentRoot = window.parent.document.documentElement;
+          root.dataset.postcardDark = parentRoot.dataset.postcardDark === "true" ? "true" : "false";
+          var styles = window.parent.getComputedStyle(parentRoot);
+          for (var index = 0; index < vars.length; index += 1) {
+            var value = styles.getPropertyValue(vars[index]).trim();
+            if (value) root.style.setProperty(vars[index], value);
+          }
+        }
+      } catch (error) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/page-line.css">
+  <link rel="stylesheet" href="/baseline-rules.css">
+  <link rel="stylesheet" href="plugin.css">
+</head>
+<body>
+  <main class="settings-stage">
+    <div class="settings-panel" role="dialog" aria-modal="true" aria-label="调色板">
+      <aside class="settings-nav">
+        <div class="settings-brand">
+          <img class="palette-brand-icon" src="palette.svg" alt="">
+          <span>调色板</span>
+        </div>
+        <button class="settings-nav-item active" type="button" data-pl-jump="pl-highlight">Highlight</button>
+        <button class="settings-nav-item" type="button" data-pl-jump="pl-line">Page line</button>
+        <button class="settings-nav-item" type="button" data-pl-jump="pl-layout">Layout</button>
+        <button class="settings-nav-item" type="button" data-pl-jump="pl-rows">Finished rows</button>
+        <span class="palette-nav-foot" id="pl-theme-name">Theme</span>
+      </aside>
+
+      <section class="settings-main">
+        <div class="settings-topbar">
+          <button class="settings-close" type="button" data-close aria-label="Close palette">
+            <svg class="settings-close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <div class="settings-scroll">
+          <div class="settings-view">
+            <div class="settings-head">
+              <h2>调色板</h2>
+              <p>The page dividers, the selection wash and the finished rows, painted by the same files as before.</p>
+            </div>
+
+            <div class="settings-section theme-settings-row palette-section" id="pl-highlight">
+              <div class="theme-settings-title">Selection highlight</div>
+              <div class="theme-settings-controls">
+                <input id="highlight-color" class="theme-color-input" type="color" value="#8d63b8" data-pl-highlight-color aria-label="Selection highlight colour">
+                <input id="highlight-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="#8d63b8" data-pl-highlight-hex aria-label="Selection highlight colour hex">
+                <button class="theme-chip" type="button" data-pl-highlight-auto aria-pressed="false">Auto</button>
+              </div>
+            </div>
+
+            <div class="settings-section theme-settings-row palette-section" id="pl-line">
+              <div class="theme-settings-title">Page line</div>
+              <div class="theme-settings-controls">
+                <span class="page-line-swatch" id="pl-line-swatch" aria-hidden="true"></span>
+                <input id="page-line-color" class="theme-color-input" type="color" value="#333333" data-pl-line-color aria-label="Page line colour">
+                <input id="page-line-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="#333333" data-pl-line-hex aria-label="Page line colour hex">
+                <span class="theme-value">Line</span>
+                <input id="page-line-thickness" class="theme-range" type="range" min="1" max="4" step="1" value="1" data-pl-line-thickness aria-label="Page line thickness">
+                <span id="page-line-thickness-value" class="theme-value">1 px</span>
+              </div>
+            </div>
+
+            <div class="settings-section theme-settings-row palette-section" id="pl-layout">
+              <div class="theme-settings-title">Page line layout</div>
+              <div class="theme-settings-controls">
+                <span class="theme-value">Opacity</span>
+                <input id="page-line-opacity" class="theme-range" type="range" min="0" max="1" step="0.05" value="1" data-pl-line-opacity aria-label="Page line opacity">
+                <span id="page-line-opacity-value" class="theme-value">100%</span>
+                <span class="theme-value">Row</span>
+                <input id="page-line-row" class="theme-range" type="range" min="32" max="64" step="2" value="40" data-pl-line-row aria-label="Page line row pitch">
+                <span id="page-line-row-value" class="theme-value">40 px</span>
+              </div>
+            </div>
+
+            <div class="settings-section palette-section" id="pl-rows">
+              <div class="theme-settings-row">
+                <div class="theme-settings-title">Finished rows</div>
+                <div class="theme-settings-controls">
+                  <button class="theme-chip baseline-row-choice" type="button" data-pl-baseline-mode="solid" aria-pressed="true">Solid</button>
+                  <button class="theme-chip baseline-row-choice" type="button" data-pl-baseline-mode="gradient" aria-pressed="false">Gradient</button>
+                  <button class="theme-chip baseline-row-choice" type="button" data-pl-baseline-mode="height" aria-pressed="false">Height</button>
+                  <input id="baseline-row-color" class="theme-color-input" type="color" value="#333333" data-pl-baseline-color aria-label="Row colour">
+                  <input id="baseline-row-color-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="#333333" data-pl-baseline-color-hex aria-label="Row colour hex">
+                  <input id="baseline-row-color2" class="theme-color-input" type="color" value="#a8691f" data-pl-baseline-color2 aria-label="Second row colour">
+                  <input id="baseline-row-color2-hex" class="theme-hex-input" type="text" maxlength="7" spellcheck="false" value="#a8691f" data-pl-baseline-color2-hex aria-label="Second row colour hex">
+                  <input id="baseline-row-angle" class="theme-range" type="range" min="0" max="180" step="5" value="0" data-pl-baseline-angle aria-label="Line angle">
+                  <span id="baseline-row-angle-value" class="theme-value">0°</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

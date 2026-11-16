@@ -1,0 +1,141 @@
+/* ==========================================================================
+   OVERLAY PAPER
+   --------------------------------------------------------------------------
+   One sheet for every control that floats over the working page.
+
+   The Doing card and the finished-subtasks card each used to invent their own
+   radius, border alpha, background recipe and shadow (8px / 14px / 0px
+   corners, three different drop shadows, a wallpaper tint here, an accent
+   gradient there). That is why they read as separate widgets bolted onto the
+   notebook instead of pieces of the same sheet. The subtask search drawer used
+   to be part of this set as well; it now owns an independent glass mask in the
+   plugin folder, so it is not covered by this file.
+
+   From now on an overlay may only borrow the page's own three ingredients:
+
+     paper   --pc-paper    the sheet the page is printed on
+     rule    --page-line-paint  the page's own hairline (the same line as the
+                                live subtask lane)
+     ink     --pc-ink      the text colour, with --pc-muted for quiet text
+     accent  --pc-accent   the theme's ink for small marks and washes
+
+   A component still owns its geometry (where it sits, how wide it is, its
+   row height and motion). The surface — paper, edge, corners, shadow, row
+   rules, hover wash — comes from this file and nowhere else.
+   ========================================================================== */
+
+:root {
+  --overlay-paper: var(--pc-paper, var(--paper, #f7efe3));
+  --overlay-ink: var(--pc-ink, var(--ink, #2d2922));
+  --overlay-muted: var(--pc-muted, var(--muted, #887d6c));
+  /* The cards are printed on the same sheet as the live subtask lane, so their
+     row hairlines follow page_line rather than a private theme line. */
+  --overlay-line: var(--page-line-paint, var(--pc-line, var(--line, rgba(70, 58, 40, 0.16))));
+  --overlay-accent: var(--pc-accent, var(--gold, #a8781f));
+  --overlay-accent-rgb: var(--pc-accent-rgb, 157, 111, 28);
+
+  /* One corner, one edge, one shadow for both cards. */
+  --overlay-radius: 10px;
+  --overlay-edge: rgba(var(--overlay-accent-rgb), 0.22);
+  --overlay-shadow:
+    0 18px 38px -26px rgba(30, 20, 8, 0.60),
+    0 4px 12px -8px rgba(30, 20, 8, 0.30);
+
+  /* One hover / selection wash: the theme accent fading out to the right,
+     exactly like the task rows and the completed history. */
+  --overlay-wash: linear-gradient(
+    90deg,
+    rgba(var(--overlay-accent-rgb), 0.12),
+    transparent 86%
+  );
+}
+
+html[data-postcard-dark="true"] {
+  --overlay-edge: rgba(var(--overlay-accent-rgb), 0.30);
+  --overlay-shadow:
+    0 20px 44px -24px rgba(0, 0, 0, 0.85),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+}
+
+/* ---------------------------------------------------------------- surface --- */
+
+/* The subtask search drawer is not listed here on purpose: it owns an
+   independent glass mask in plugins/subtask-search/subtask-search.css, so its
+   material never follows the page paper or this shared overlay sheet. */
+#doing-peek,
+.completed-subtask-drawer {
+  border: 1px solid var(--overlay-edge) !important;
+  border-radius: var(--overlay-radius) !important;
+  background-color: var(--overlay-paper) !important;
+  background-image: none !important;
+  color: var(--overlay-ink) !important;
+  box-shadow: var(--overlay-shadow) !important;
+}
+
+/* The edge colour and the shadow of these two cards are owned by
+   card-stack.css: one ink-green outline and a small pile of shadows. This rule
+   stays as the surface fallback; that file wins with a more specific
+   selector, so keep the two in step when changing either. */
+
+/* ------------------------------------------------------------- Doing card --- */
+
+/* The paper wins over the wallpaper tint: the card is printed on the theme's
+   sheet. The wallpaper art stays as a light watermark so the room is still
+   felt, but it can no longer repaint the card in a second palette. */
+#doing-peek::before {
+  background: var(--overlay-paper) !important;
+  opacity: 0.86 !important;
+}
+
+#doing-peek .doing-art {
+  opacity: 0.85 !important;
+}
+
+#doing-peek .doing-label,
+#doing-peek .doing-name,
+#doing-peek .doing-item.active .doing-name {
+  color: var(--overlay-ink) !important;
+}
+
+#doing-peek .doing-kicker,
+#doing-peek .doing-empty {
+  color: var(--overlay-muted) !important;
+}
+
+#doing-peek .doing-pin {
+  color: var(--overlay-accent) !important;
+}
+
+#doing-peek .doing-item,
+#doing-peek .doing-item:last-child,
+#doing-peek .doing-sub {
+  border-color: var(--overlay-line) !important;
+}
+
+#doing-peek .doing-head:hover,
+#doing-peek .doing-sub:hover {
+  background: var(--overlay-wash) !important;
+}
+
+/* -------------------------------------------------- finished-subtasks card --- */
+
+/* The drawer paints the surface; the sheet inside it stays transparent, so the
+   card is one piece of paper rather than a card sitting on a second card. */
+.completed-subtask-drawer .completed-subtask-sheet {
+  background: transparent !important;
+}
+
+.completed-subtask-drawer .current-subtask.done:hover,
+.completed-subtask-drawer .current-subtask.done.selected {
+  background: var(--overlay-wash) !important;
+}
+
+.completed-subtask-drawer .completed-subtask-empty {
+  color: var(--overlay-muted) !important;
+}
+
+/* --------------------------------------------------------- subtask search --- */
+
+/* The search drawer paints its own glass mask (see
+   plugins/subtask-search/subtask-search.css), so nothing in this shared sheet
+   is allowed to recolour its bar, field or result rows. */

@@ -1,0 +1,25 @@
+{
+  "id": "community",
+  "name": "社区",
+  "englishName": "Community",
+  "version": "1.0.0",
+  "description": "把 Settings 里的社区商店搬到自己的插件里：浏览插件、游戏和主题，安装后直接在这里打开，不用再回 Settings。打开时沿用当前应用主题。",
+  "icon": "community.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "Interface",
+  "kind": "chrome",
+  "homepage": "https://github.com/CellMeet/Neotodo/tree/main/community",
+  "repository": "https://github.com/CellMeet/Neotodo",
+  "license": "MIT",
+  "tags": ["intheme", "community", "plugins", "themes", "社区"],
+  "usage": [
+    "从 Settings → 插件 的 Available 列表安装社区插件。",
+    "点击左栏的锤子图标，直接在应用内浏览插件、游戏和主题。",
+    "安装后的插件可以在这里打开、更新或卸载；主题可以立即应用。"
+  ],
+  "colors": {
+    "accent": "#7B61FF",
+    "paper": "#f7efe3"
+  }
+}

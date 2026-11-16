@@ -15,7 +15,7 @@
 
 NeoTodo is built around a simple feeling: **you only need to see the next thing.** Instead of opening a wall of overdue rows, it gives each category one active todo at a time. Subtasks carry the details, notes and an AI crew sit one gesture away, and every finished week folds itself into a postcard you can keep.
 
-Everything lives on your disk. No account, no cloud, no subscription. The interface is hand-written HTML, CSS and JavaScript over a small Python backend, with native shells for Linux (GTK4 + WebKitGTK), Windows (Qt WebEngine) and Android (Chaquopy).
+Everything lives on your disk. No account, no cloud, no subscription. The interface is hand-written HTML, CSS and JavaScript over a small Python backend, with native shells for Linux (GTK4 + WebKitGTK), Windows (Qt WebEngine), macOS (PyObjC + WKWebView) and Android (Chaquopy).
 
 <p align="center">
   <img src="docs/preview-main.png" alt="NeoTodo light theme with categories and subtasks" width="49%">
@@ -37,12 +37,13 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 | :---: | --- | --- |
 | 🪟 | **Windows 10/11 x64** | [NeoTodo-0.0.1-Windows-x64-setup.exe](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64-setup.exe) |
 | 🐧 | **Linux x86_64** | [NeoTodo-0.0.1-Linux-x86_64.tar.gz](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Linux-x86_64.tar.gz) |
-| 🤖 | **Android** | Build the local debug APK with [`android/build.sh`](android/build.sh) |
-| 🍎 | **macOS** | Planned |
+| 🤖 | **Android (source)** | Build and sign in [`NeoTodo-Android/`](NeoTodo-Android/README.md); store steps in [`docs/android-store-publish.md`](docs/android-store-publish.md) |
+| 🍎 | **macOS 11+** | Build from source in [`NeoTodo-MacOS/`](NeoTodo-MacOS/README.md) |
 | 📱 | **iOS** | Planned |
 
 - 📦 The Windows installer bundles its own Python runtime and Qt WebEngine.
 - 🐧 The Linux package is a source package; GTK4, PyGObject and WebKitGTK must already be installed.
+- 🍎 The macOS build is a native PyObjC + WKWebView shell around the same backend; `cd NeoTodo-MacOS && ./run-macos.sh`. App Store and notarization steps are in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
 - 🤖 The Android build embeds the same Python backend and web workspace, so the desktop logic stays the single source of truth.
 
 ## 🧭 Feature tour
@@ -159,16 +160,35 @@ python windows_app.py
 
 - 📦 Requirements: Windows 10/11 x64 and PySide6. The release installer bundles both.
 
-### 🤖 Android (emulator, local)
-
-The Android build embeds the same Python backend and web workspace with Chaquopy.
+### 🍎 macOS (development)
 
 ```sh
-# 1. Build the debug APK (also copies it to ./NeoTodo-Android.apk)
-./android/build.sh
+cd NeoTodo-MacOS
+python3 -m pip install -r requirements.txt
+./run-macos.sh
+```
+
+- 📦 Requirements: macOS 11+, Python 3.10+ and PyObjC. `./build.sh` packages a native `NeoTodo.app` with py2app.
+- 🔏 Signing, notarization and the Mac App Store checklist live in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
+- 🧭 The macOS folder is a snapshot: Linux stays the tree that is edited, and `NeoTodo-MacOS/sync-sources.sh` refreshes it.
+
+### 🤖 Android (source build)
+
+The Android build embeds the same Python backend and web workspace with Chaquopy.
+The project, its vendored sources and the store kit live in
+[`NeoTodo-Android/`](NeoTodo-Android/README.md).
+
+```sh
+cd NeoTodo-Android
+
+# 1. Build the debug APK (also copies it to ../NeoTodo-Android.apk)
+./build.sh
 
 # 2. Boot the tablet emulator, install the APK and launch NeoTodo
-./android/run-emulator.sh
+./run-emulator.sh
+
+# 3. Store build: signed .aab (+ .apk) once keystore.properties exists
+./build-release.sh --apk
 ```
 
 - 📱 The windowed emulator AVD is `NeoTodo` (API 35, x86_64 tablet, port `5558`); `adb` lives in `$ANDROID_HOME/platform-tools`.
@@ -182,7 +202,8 @@ adb -s emulator-5558 shell am start -n io.github.neotodo/.MainActivity
 ```
 
 - ↩️ Back closes the topmost dialog, drawer or panel first, then sends the task to the background.
-- 🧪 The APK is a local debug build and is not uploaded to GitHub.
+- 🧪 `NeoTodo-Android.apk` is a local debug build and is not uploaded to GitHub; store builds go to `NeoTodo-Android-release.aab` / `.apk`, both git-ignored.
+- 🔏 Upload key, Play Console, Chinese stores, privacy policy and the APP filing are covered in [`docs/android-store-publish.md`](docs/android-store-publish.md).
 
 ### 🧪 Tests
 
@@ -200,6 +221,8 @@ The GitHub Actions workflow `.github/workflows/release.yml` builds:
 
 - 🪟 `NeoTodo-0.0.1-Windows-x64-setup.exe` with PyInstaller + Inno Setup
 - 🐧 `NeoTodo-0.0.1-Linux-x86_64.tar.gz` as the Linux source package
+
+The macOS app is built locally on a Mac ([`NeoTodo-MacOS/build.sh`](NeoTodo-MacOS/build.sh)); its Developer ID / Mac App Store signing steps are documented in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
 
 Push a version tag to publish a release:
 
@@ -222,7 +245,7 @@ git push origin v0.0.1
 
 - 🐧 **Linux:** `~/.local/share/neotodo/NeoTodo.json`
 - 🪟 **Windows:** `%APPDATA%\NeoTodo\NeoTodo.json`
-- 🍎 **macOS (planned):** `~/Library/Application Support/NeoTodo/NeoTodo.json`
+- 🍎 **macOS:** `~/Library/Application Support/NeoTodo/NeoTodo.json`
 - 🤖 **Android:** app-private `files/.local/share/neotodo/NeoTodo.json` (inspect with `adb shell run-as io.github.neotodo cat ...`)
 - 🧠 **AI threads:** `agents.json` beside the main data file
 - 🖼️ **Media:** `pictures/`, `music/`, `sounds/` and `note-materials/` in the same data folder
@@ -232,9 +255,9 @@ git push origin v0.0.1
 
 - [x] 🐧 Linux
 - [x] 🪟 Windows x64
-- [x] 🤖 Android (local debug build + emulator)
+- [x] 🍎 macOS (source build + `NeoTodo-MacOS/`, App Store path documented)
+- [x] 🤖 Android (source build + emulator + store signing kit)
 - [x] 🧩 Plugin community catalog + install from `.zip`
-- [ ] 🍎 macOS
 - [ ] 📱 iOS
 - [ ] 🧩 Notes and AI as independent plugins
 

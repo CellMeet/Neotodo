@@ -1,0 +1,40 @@
+{
+  "id": "head-bar",
+  "name": "Head Bar",
+  "englishName": "Head Bar",
+  "version": "2.3.2",
+  "description": "悬停时间数字时，一条海盐瓶水晶质感的灵动岛从上边框滑出。点击后工作区可选择推拉收起，或像纸张燃烧一样变黑、卷起、冒烟，最后露出壁纸；恢复时动画倒放，像时间倒流。",
+  "icon": "head-bar.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "settings": [
+    {
+      "id": "bottle",
+      "type": "choice",
+      "label": "Bottle style",
+      "detail": "海之盐蓝瓶 / 粉瓶",
+      "default": "blue",
+      "options": [
+        { "value": "blue", "label": "海之盐 · 蓝", "detail": "Maldives blue bottle" },
+        { "value": "pink", "label": "海之盐 · 粉", "detail": "Peach pink bottle" }
+      ]
+    },
+    {
+      "id": "effect",
+      "type": "choice",
+      "label": "Collapse effect",
+      "detail": "工作区收起 / 复原的方式",
+      "default": "slide",
+      "options": [
+        { "value": "slide", "label": "推拉", "detail": "Push and pull" },
+        { "value": "burn", "label": "火光烧尽", "detail": "Char, curl and smoke like burning paper, then reveal the wallpaper" }
+      ]
+    }
+  ],
+  "colors": {
+    "accent": "#4fc3ec",
+    "paper": "#1c1c1e"
+  }
+}

@@ -1,7 +1,16 @@
 # Platform sync log
 
-Linux is the source of truth. Windows and Android were updated together in a
-single platform-sync step; Android still follows that step below.
+Linux is the source of truth. Windows, macOS and Android were each brought up to
+date in their own **one-off** pass; later Linux work is not synced to them
+unless the user asks for another platform pass.
+
+Each platform folder is a snapshot, not a second trunk:
+
+| Folder | Shell | Vendored from Linux |
+| --- | --- | --- |
+| `windows_app.py` | Qt WebEngine | imports the root `app.py` directly |
+| `NeoTodo-MacOS/` | PyObjC + WKWebView | `sync-sources.sh` copies `app.py`, `startup.py`, `web/` |
+| `NeoTodo-Android/` | Java + WebView + Chaquopy | `sync-sources.sh` copies `app.py`, `startup.py`, `web/` |
 
 ## One folder per platform
 
@@ -50,31 +59,64 @@ The shell now covers the parts of the Linux app the page depends on:
 
 No Windows items are pending.
 
+## macOS: built once
+
+`NeoTodo-MacOS/` holds the saved macOS build: a native PyObjC + WKWebView shell
+(`macos_shell.py`) around a snapshot of the same `app.py`, `startup.py` and
+`web/` tree. It is not rebuilt as part of Linux work; refresh it with
+`NeoTodo-MacOS/sync-sources.sh <commit>` only when a macOS pass is requested.
+
+The shell covers the parts of the page the GTK shell owns:
+
+- The `neotodo.local` bridge: `new-window`, `open` (a real detached note/AI
+  window), `home` (dock it back) and `window/move` (native drag; `resize` is a
+  no-op because the native window has live edges).
+- Native folder and wallpaper pickers (`FOLDER_PICK_CALLBACK`,
+  `FILE_PICK_CALLBACK`) opened on the AppKit main thread.
+- The `app-painted` reveal gate with a 6 s fallback, so the window never flashes
+  WebKit's white background.
+- Native `alert` / `confirm` / `prompt` for plugin iframes, external links sent
+  to the default browser, renderer-crash reload, and Cmd+Q cleanup of forks and
+  the agent store.
+- `build.sh` builds a py2app `.app`, signs with hardened runtime, and can
+  notarize for Developer ID distribution or package a sandboxed `.pkg` for the
+  Mac App Store. The App Store blockers (agent CLI, community installs,
+  security-scoped bookmarks) are listed in `NeoTodo-MacOS/README.md`.
+
+No macOS items are pending.
+
+## Android: synced once (2026-11-16)
+
+The Gradle project moved from `android/` to **`NeoTodo-Android/`** and was brought
+up to date with the Linux tree in a single pass. The folder now vendors
+`app.py`, `startup.py` and `web/` under `app/src/main/python/` (tracked, so the
+folder builds on its own) and carries the store kit:
+
+- `build-release.sh` + `keystore.properties.example` for a signed `.aab` /
+  release `.apk`; `app/build.gradle` reads the upload key and only falls back to
+  the debug key when `keystore.properties` is missing.
+- `store/` with the 512x512 icon, the 1024x500 feature graphic, the Chinese
+  listing copy and the bilingual privacy policy.
+- `docs/android-store-publish.md` — keystore, Google Play, the Chinese stores,
+  the APP filing, target API 36 / 16 KB page size and the review pitfalls.
+
+The Linux-first features that were pending here are inside the snapshot:
+new-window support and the `neotodo.local` bridge, AI attachment pasting and the
+async chat queue, the storage box, palette and postcard plugins, plus the
+head-bar, wallpaper and note-material changes made this week.
+
 ## Pending Android sync
 
 Add Linux-first changes that still need an Android pass here.
 
-- New-window support: `web/app.js` right-click on the wordmark, `neotodo.local/new-window`
-  bridge and `--new-window` in `app.py`.
-- AI attachment pasting: `add_paths` API, amber file chips, `agent-file-pin` symbol.
-- AI async chat queue (12 parallel), draft persistence, copy-on-select,
-  interrupt handling and the scroll cache.
-- Storage box plugin: `web/plugins/storage-box/`, its `PLUGIN_REGISTRY` entry and
-  `visibleCategories()` hook in `web/app.js`, and the rail button in
-  `web/index.html`.
-- Palette plugin: `web/plugins/palette/`, its `PLUGIN_REGISTRY` entry,
-  `window.NeoTodoPalette` host bridge and the `open-palette` action in
-  `web/app.js`, the rail button in `web/index.html`, and the page controls that
-  moved out of Settings → Theme (selection highlight, page line, layout,
-  finished rows). The note surface stays under Settings → Theme → Note theme.
-- Postcard plugin: `web/plugins/postcard/`, its `PLUGIN_REGISTRY` entry,
-  `window.NeoTodoPostcards` host bridge and the `open-postcard` action in
-  `web/app.js`, the rail button in `web/index.html`, the shared `intheme` tag
-  handling in `openPluginPanel`, and the top-right button that changed from the
-  archive picture to `/robot-agent.svg` + `open-ai-settings`.
+- Nothing pending as of 2026-11-16. The next Android pass is a separate request;
+  Linux remains the tree that is edited.
 
 ## How to sync Android
 
-1. `./android/sync-sources.sh`
-2. Build and smoke-test the APK.
-3. Clear the pending entries above.
+1. `cd NeoTodo-Android && ./sync-sources.sh` (or `./sync-sources.sh v0.0.2` to
+   take a tag instead of the working tree).
+2. `./build.sh` and smoke-test the APK on a device or emulator.
+3. Bump `versionCode` / `versionName` in `app/build.gradle`, run
+   `./build-release.sh --apk`, upload to the stores.
+4. Clear the pending entries above and update the date of this pass.

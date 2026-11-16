@@ -1,0 +1,153 @@
+/* ==========================================================================
+   The AI console owns an OpenCode palette that is independent of the NeoTodo
+   postcard theme. Only its brightness follows the app (light/dark), never its
+   colours. All values live in this file, not in style.css.
+   ========================================================================== */
+
+.agent-terminal {
+  --oc-bg: #ffffff;
+  --oc-soft: #f4f4f5;
+  --oc-ink: #171718;
+  --oc-ink-soft: #4a4a52;
+  --oc-muted: #7c7c83;
+  --oc-faint: #b4b4bb;
+  --oc-line: #ececee;
+  --oc-line-strong: #c6c6cd;
+  --oc-accent: #4f7cff;
+  --oc-notice: #cf6a43;
+  --oc-input-bg: #ececee;
+  --oc-input-border: #d7d7dd;
+  --oc-input-border-focus: #c2c2ca;
+  --oc-input-text: #3d4757;
+  --oc-input-placeholder: #98a2b2;
+  --oc-plus: #47505f;
+  --oc-send-bg: #3b82f6;
+  --oc-send-ink: #ffffff;
+  --oc-user-accent: #b8872f;
+  --oc-file: #a9741a;
+  --oc-file-dim: #c19a55;
+
+  /* The console reads only the console palette. style.css still contains
+     rules that point the app's generic slots at the NeoTodo paper; remapping
+     them here keeps the AI pane independent of the app theme. */
+  --paper: var(--oc-bg);
+  --paper-2: var(--oc-soft);
+  --ink: var(--oc-ink);
+  --ink-soft: var(--oc-ink-soft);
+  --muted: var(--oc-muted);
+  --faint: var(--oc-faint);
+  --line: var(--oc-line);
+  --rule: var(--oc-line);
+  --gold: var(--oc-accent);
+  --gold-soft: var(--oc-accent);
+  --gold-bright: var(--oc-accent);
+  --pc-paper: var(--oc-bg);
+  --pc-paper2: var(--oc-soft);
+  --pc-ink: var(--oc-ink);
+  --pc-ink-soft: var(--oc-ink-soft);
+  --pc-muted: var(--oc-muted);
+  --pc-faint: var(--oc-faint);
+  --pc-line: var(--oc-line);
+  --pc-rule: var(--oc-line);
+  --pc-accent: var(--oc-accent);
+  --pc-accent-2: var(--oc-accent);
+  --pc-border: var(--oc-line-strong);
+
+  background: var(--oc-bg) !important;
+  color: var(--oc-ink) !important;
+}
+
+html[data-postcard-dark="true"] .agent-terminal {
+  /* A readable charcoal, not pure black: keeps OpenCode's dark mood without
+     crushing the hierarchy into one black slab. */
+  --oc-bg: #202126;
+  --oc-soft: #2a2b31;
+  --oc-ink: #e8e8ec;
+  --oc-ink-soft: #c7c8d0;
+  --oc-muted: #a1a2aa;
+  --oc-faint: #70717a;
+  --oc-line: #35363d;
+  --oc-line-strong: #4a4b54;
+  --oc-accent: #8ab4f8;
+  --oc-notice: #e08a63;
+  --oc-input-bg: #2b2c32;
+  --oc-input-border: #42434b;
+  --oc-input-border-focus: #55565f;
+  --oc-input-text: #e4e5ea;
+  --oc-input-placeholder: #8d8e97;
+  --oc-plus: #c6c7cf;
+  --oc-send-bg: #4f8cff;
+  --oc-send-ink: #ffffff;
+  --oc-user-accent: #c9a35f;
+  --oc-file: #efc160;
+  --oc-file-dim: #b89a5e;
+
+  background: var(--oc-bg) !important;
+  color: var(--oc-ink) !important;
+}
+
+/* The robot mark uses exactly the same ink as the provider name beside it. */
+.agent-terminal .agent-provider-icon {
+  color: var(--oc-ink) !important;
+}
+
+.agent-terminal .agent-compose {
+  background: var(--oc-input-bg) !important;
+  border-color: var(--oc-input-border) !important;
+}
+
+.agent-terminal .agent-compose:focus-within {
+  border-color: var(--oc-input-border-focus) !important;
+  box-shadow: none !important;
+}
+
+.agent-terminal .agent-send {
+  background: var(--oc-send-bg) !important;
+  color: var(--oc-send-ink) !important;
+}
+
+/* No themed focus ring, selection colour, or tap highlight in the console. */
+.agent-terminal button:focus,
+.agent-terminal button:focus-visible,
+.agent-terminal input:focus,
+.agent-terminal input:focus-visible,
+.agent-terminal textarea:focus,
+.agent-terminal textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.agent-terminal ::selection {
+  background: rgba(79, 140, 255, 0.22) !important;
+  color: var(--oc-ink) !important;
+}
+
+/* AI context menu uses the AI theme palette, not the NeoTodo postcard one.
+   The palette is published on :root by app.js (auto, light, dark or a
+   community AI theme), so the menu follows whatever the console shows. */
+html[data-theme="postcard"] .context-menu.context-agent,
+.context-menu.context-agent {
+  background: var(--oc-menu-bg, #ffffff) !important;
+  color: var(--oc-menu-ink, #171718);
+  border-color: var(--oc-menu-line, #ececee);
+  box-shadow: 0 14px 34px rgba(20, 20, 24, 0.18), 0 3px 8px rgba(20, 20, 24, 0.08);
+  font-family: "DejaVu Sans Mono", ui-monospace, monospace;
+}
+/* Every AI menu row uses the same ink, danger included. The trash icon alone
+   carries the destructive hint so the two labels never look mismatched. */
+.context-menu.context-agent .context-item,
+.context-menu.context-agent .context-item.context-danger { color: inherit !important; }
+.context-menu.context-agent .context-item:hover { background: var(--oc-menu-hover, rgba(79, 124, 255, 0.12)); }
+.context-menu.context-agent .context-icon { color: var(--oc-menu-accent, #4f7cff); }
+.context-menu.context-agent .context-danger .context-icon { color: var(--oc-menu-notice, #cf6a43); }
+.context-menu.context-agent .context-sep { background: var(--oc-menu-line, #ececee); }
+
+/* One readable ink for every line inside the AI dialog. */
+.agent-terminal .agent-line,
+.agent-terminal .agent-line-text,
+.agent-terminal .agent-reply,
+.agent-terminal .agent-notice,
+.agent-terminal .agent-process,
+.agent-terminal .agent-compose textarea,
+.agent-terminal .agent-input {
+  color: var(--oc-ink, #e8e8ec) !important;
+}

@@ -1,0 +1,25 @@
+/* ==========================================================================
+   Startup-only styles: the pre-paint background.
+   Kept in its own file so startup never inherits half of the app theme.
+   ========================================================================== */
+
+/* The boot document is transparent on purpose. It must never paint a theme
+   colour (or any other splash colour) before the page is ready: the window is
+   kept hidden until the finished page reports that it has been painted, so
+   clicking the app icon can go straight from the icon to the whole page. */
+html.booting,
+.booting body {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Detached note/AI windows reuse a capture of the current page. It always
+   shows the normal header, never the hover utility bar. */
+body.snapshot-clean .top-tools {
+  opacity: 0 !important;
+  transform: translateY(-115%) !important;
+  pointer-events: none !important;
+}
+body.snapshot-clean .top-edge {
+  display: none !important;
+}

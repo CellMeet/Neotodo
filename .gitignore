@@ -3,18 +3,22 @@ __pycache__/
 .venv/
 .DS_Store
 
-# Android build output and generated shared sources
-android/.gradle/
-android/.kotlin/
-android/build/
-android/app/build/
-android/local.properties
-android/app/src/main/python/app.py
-android/app/src/main/python/startup.py
-android/app/src/main/python/web/
+# Android build output and signing material. The vendored app.py, startup.py
+# and web/ copies under NeoTodo-Android/app/src/main/python ARE tracked, so the
+# platform folder builds on its own.
+NeoTodo-Android/.gradle/
+NeoTodo-Android/.kotlin/
+NeoTodo-Android/build/
+NeoTodo-Android/app/build/
+NeoTodo-Android/local.properties
+NeoTodo-Android/keystore.properties
+NeoTodo-Android/*.jks
+NeoTodo-Android/*.keystore
 
-# Local Android test APK — keep it off the remote
+# Local Android builds — keep the big binaries off the remote
 /NeoTodo-Android.apk
+/NeoTodo-Android-release.aab
+/NeoTodo-Android-release.apk
 
 # Local HTML scratch pages for manual probing
 /web/__*.html
@@ -22,3 +26,10 @@ android/app/src/main/python/web/
 # Local run/scratch logs
 /run*.log
 *.log
+
+# macOS local build output (NeoTodo-MacOS/build.sh)
+/NeoTodo-MacOS/build/
+/NeoTodo-MacOS/dist/
+/NeoTodo-MacOS/NeoTodo.icns
+/NeoTodo-MacOS/*.pkg
+/NeoTodo-MacOS/*.zip

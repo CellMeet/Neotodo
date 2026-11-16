@@ -1,0 +1,78 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+
+// Upload key for store builds. Copy keystore.properties.example to
+// keystore.properties (git-ignored) and point storeFile at your .jks.
+// Without the file `assembleRelease` still works and falls back to the debug key.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+def hasUploadKey = keystorePropertiesFile.exists()
+if (hasUploadKey) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+android {
+    namespace 'io.github.neotodo'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "io.github.neotodo"
+        minSdk 26
+        // Google Play asks for the latest target API for new uploads; bump to
+        // 36 (Android 16) once SDK platform 36 is installed on the build machine.
+        targetSdk 35
+        // Bump versionCode for every store upload, never reuse it.
+        versionCode 1
+        versionName "0.0.1"
+
+        ndk {
+            // arm64 for phones/tablets (store), x86_64 for the desktop emulator.
+            abiFilters "arm64-v8a", "x86_64"
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (hasUploadKey) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ""
+        }
+        release {
+            minifyEnabled false
+            // Real upload key when keystore.properties exists, debug key otherwise.
+            signingConfig(hasUploadKey ? signingConfigs.release : signingConfigs.debug)
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging false
+        }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.12"
+        buildPython "/usr/bin/python3.12"
+        pyc {
+            src = false
+        }
+    }
+}

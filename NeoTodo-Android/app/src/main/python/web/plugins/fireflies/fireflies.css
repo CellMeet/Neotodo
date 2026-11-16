@@ -1,0 +1,131 @@
+/* ==========================================================================
+   FIREFLIES — the Doing card's drifting specks, as their own chrome plugin.
+   --------------------------------------------------------------------------
+   When an agent leaves unseen results, its Doing icon collects a small cloud
+   of light:
+
+     dark  postcards — tiny fireflies and rising paper lanterns, like a quiet
+                       Lantern Festival release;
+     light postcards — a few small embers drifting up from the icon's edge.
+
+   This plugin only owns the specks. The icon's warm glow is the separate
+   `firelight` plugin, and the blue electric ball is the `lightning` plugin;
+   all three can be switched on together.
+
+   Every rule is scoped to html.fireflies-on, which fireflies.js toggles from
+   the plugin switch. Turning the plugin off removes the specks without
+   editing the notebook. The specks are seeded by fireflies.js so re-renders
+   keep the same arrangement.
+   ========================================================================== */
+
+/* The unseen icon hosts the specks. */
+html.fireflies-on .doing-mark.has-unseen,
+html.fireflies-on .doing-fan.has-unseen {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Zero-size switch probe; it only carries data-plugin for the host. */
+.fireflies-probe {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+html.fireflies-on .doing-fireflies {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+html.fireflies-on .doing-fireflies i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--fs, 3px);
+  height: var(--fs, 3px);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf0 0 18%, #ffe49a 46%, rgba(255, 190, 60, 0.26) 72%, transparent 80%);
+  box-shadow:
+    0 0 4px 1.5px rgba(255, 230, 140, 0.95),
+    0 0 11px 3px rgba(255, 180, 50, 0.55);
+  opacity: 0;
+  animation: fireflies-drift var(--fdur, 2.6s) ease-in-out var(--fdelay, 0s) infinite;
+  will-change: transform, opacity;
+}
+
+html.fireflies-on .doing-fireflies i.lantern {
+  border-radius: 50% 50% 46% 46% / 54% 54% 46% 46%;
+  background: radial-gradient(circle at 50% 36%, #fff8da 0 14%, #ffd37a 34%, #ff9b3d 66%, rgba(255, 120, 20, 0.2) 100%);
+  box-shadow:
+    0 0 6px 2.5px rgba(255, 215, 120, 1),
+    0 0 18px 7px rgba(255, 140, 30, 0.62);
+  animation-name: fireflies-lantern-rise;
+  animation-timing-function: ease-in-out;
+}
+
+html.fireflies-on .doing-fireflies i.lantern.rose {
+  background: radial-gradient(circle at 50% 36%, #fff4e2 0 14%, #ffc2a6 34%, #ff7d52 66%, rgba(255, 90, 50, 0.2) 100%);
+  box-shadow:
+    0 0 6px 2.5px rgba(255, 190, 150, 1),
+    0 0 18px 7px rgba(255, 90, 50, 0.58);
+}
+
+@keyframes fireflies-drift {
+  0% { opacity: 0; transform: translate(calc(var(--fx, 0px) - 50%), calc(var(--fy, 0px) - 50%)) scale(0.3); }
+  10% { opacity: 0.9; }
+  28% { opacity: 0.25; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 7px - 50%)) scale(0.95); }
+  44% { opacity: 1; }
+  62% { opacity: 0.3; transform: translate(calc(var(--fx, 0px) - var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 16px - 50%)) scale(1.05); }
+  80% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(calc(var(--fx2, 0px) - 50%), calc(var(--fy2, 0px) - 50%)) scale(0.4); }
+}
+
+@keyframes fireflies-lantern-rise {
+  0% { opacity: 0; transform: translate(calc(var(--fx, 0px) - 50%), calc(var(--fy, 0px) + 3px - 50%)) scale(0.35); }
+  9% { opacity: 0.95; }
+  26% { opacity: 0.9; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 9px - 50%)) scale(1); }
+  50% { opacity: 0.75; transform: translate(calc(var(--fx, 0px) - var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 21px - 50%)) scale(0.96); }
+  72% { opacity: 0.65; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 32px - 50%)) scale(0.88); }
+  100% { opacity: 0; transform: translate(calc(var(--fx2, 0px) - 50%), calc(var(--fy2, 0px) - 50%)) scale(0.55); }
+}
+
+/* Light postcards keep only the embers: a lantern cloud would crowd the warm
+   paper. The fireflies turn into small orange sparks instead. */
+html.fireflies-on[data-postcard-dark="false"] .doing-fireflies i.firefly {
+  background: radial-gradient(circle at 50% 62%, #fff8d6 0 16%, #ffb02c 46%, rgba(255, 96, 0, 0.16) 74%, transparent 82%);
+  box-shadow:
+    0 0 2px 1px rgba(255, 214, 120, 0.92),
+    0 0 6px 2px rgba(255, 118, 8, 0.36);
+  animation-name: fireflies-ember-rise;
+  animation-duration: calc(var(--fdur, 2.6s) * 1.05);
+  animation-timing-function: ease-in-out;
+}
+
+html.fireflies-on[data-postcard-dark="false"] .doing-fireflies i.lantern {
+  display: none;
+}
+
+@keyframes fireflies-ember-rise {
+  0% { opacity: 0; transform: translate(calc(var(--fx, 0px) - 50%), calc(var(--fy, 0px) + 2px - 50%)) scale(0.45); }
+  14% { opacity: 0.85; }
+  36% { opacity: 0.35; transform: translate(calc(var(--fx, 0px) + var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 7px - 50%)) scale(0.95); }
+  52% { opacity: 0.8; }
+  72% { opacity: 0.3; transform: translate(calc(var(--fx, 0px) - var(--fsway, 3px) - 50%), calc(var(--fy, 0px) - 15px - 50%)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--fx2, 0px) - 50%), calc(var(--fy2, 0px) - 50%)) scale(0.55); }
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion: no drifting specks at all.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html.fireflies-on .doing-fireflies {
+    display: none;
+  }
+}

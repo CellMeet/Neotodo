@@ -1,0 +1,196 @@
+/* ==========================================================================
+   PLUGIN THEME BRIDGE
+   --------------------------------------------------------------------------
+   Plugin pages keep their own layout and their own identity colours (the
+   pomodoro tomato, the firelight ember, the white lightning, the storage-box
+   gold, the music player's neon pink and cyan). What they borrow from the
+   notebook is the page itself:
+
+     paper / paper2      the sheet the page is printed on
+     ink / muted         the text colours
+     line                page_line, the one horizontal divider
+     border              the theme border
+     accent              the theme accent
+     outline             the shared ink-green card stroke
+     radius              the floating-card corner
+     display             the reader's chosen display font
+
+   plugin-theme.js copies the live postcard variables onto this document and
+   sets `data-nt-theme`; this file maps them onto each plugin's private
+   variables. It is loaded after the plugin stylesheet, and its `html[...]`
+   selectors tie with the plugins' `html[data-*-dark]` blocks, so the theme
+   wins by cascade order without `!important` on every variable.
+
+   The page background is replaced by the theme paper: the coloured radial
+   washes in the individual control pages were a private palette, not a
+   surface. Only pages that never received the bridge (a standalone plugin
+   file opened outside NeoTodo) keep their fallback palette.
+   ========================================================================== */
+
+html[data-nt-theme] {
+  /* The notebook's own vocabulary, published by plugin-theme.js. */
+  --nt-paper: var(--pc-paper, var(--overlay-paper, var(--paper, #f7efe3)));
+  --nt-paper2: var(--pc-paper2, var(--paper-2, #efe6d8));
+  --nt-ink: var(--pc-ink, var(--ink, #342315));
+  --nt-muted: var(--pc-muted, var(--muted, #887d6c));
+  --nt-line: var(--page-line-paint, var(--pc-line, var(--line, rgba(70, 58, 40, 0.16))));
+  --nt-border: var(--pc-border, var(--line, rgba(70, 58, 40, 0.20)));
+  --nt-accent: var(--pc-accent, var(--gold, #a8781f));
+  --nt-accent2: var(--pc-accent-2, var(--pc-accent2, var(--gold-soft, #7b5aa6)));
+  --nt-outline: var(--subcard-outline, #2f5d4e);
+  --nt-radius: var(--overlay-radius, 10px);
+  --nt-display: var(--display, "P052", "URW Bookman", "Noto Serif", serif);
+  --nt-mono: var(--mono, "DejaVu Sans Mono", monospace);
+  color-scheme: light;
+}
+
+html[data-nt-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* The page is the notebook's sheet, not a private gradient. */
+html[data-nt-theme],
+html[data-nt-theme] body {
+  background-color: var(--nt-paper) !important;
+  background-image: none !important;
+  color: var(--nt-ink);
+}
+
+/* ------------------------------------------------------------- pindou --- */
+/* 拼豆工坊 and 番茄钟 share the `pd-` prefix. The board, panels and pegs follow
+   the paper; the beads, tomato and gold achievement stay their own colour. */
+
+html[data-nt-theme] {
+  --pd-paper: var(--nt-paper);
+  --pd-paper-deep: var(--nt-paper2);
+  --pd-panel: var(--nt-paper2);
+  --pd-panel-soft: var(--nt-paper2);
+  --pd-card: var(--nt-paper2);
+  --pd-ink: var(--nt-ink);
+  --pd-muted: var(--nt-muted);
+  --pd-line: var(--nt-line);
+  --pd-line-strong: var(--nt-border);
+  --pd-accent: var(--nt-accent);
+  --pd-accent-soft: color-mix(in srgb, var(--nt-accent) 14%, transparent);
+  --pd-board: var(--nt-paper2);
+  --pd-board-edge: var(--nt-border);
+  --pd-board-inner: color-mix(in srgb, var(--nt-paper) 62%, var(--nt-paper2));
+  --pd-peg: var(--nt-line);
+  --pd-hole: var(--nt-paper);
+  --pd-display: var(--nt-display);
+  --pd-mono: var(--nt-mono);
+}
+
+/* --------------------------------------------------- completed drawer --- */
+
+html[data-nt-theme] {
+  --cd-paper: var(--nt-paper);
+  --cd-card: var(--nt-paper2);
+  --cd-ink: var(--nt-ink);
+  --cd-muted: var(--nt-muted);
+  --cd-line: var(--nt-line);
+}
+
+/* ------------------------------------------------ fireflies / firelight --- */
+
+html[data-nt-theme] {
+  --ff-paper: var(--nt-paper);
+  --ff-card: var(--nt-paper2);
+  --ff-ink: var(--nt-ink);
+  --ff-muted: var(--nt-muted);
+  --ff-line: var(--nt-line);
+
+  --fl-paper: var(--nt-paper);
+  --fl-card: var(--nt-paper2);
+  --fl-ink: var(--nt-ink);
+  --fl-muted: var(--nt-muted);
+  --fl-line: var(--nt-line);
+}
+
+/* ----------------------------------------------------------- lightning --- */
+
+html[data-nt-theme] {
+  --lg-paper: var(--nt-paper);
+  --lg-card: var(--nt-paper2);
+  --lg-ink: var(--nt-ink);
+  --lg-muted: var(--nt-muted);
+  --lg-line: var(--nt-line);
+}
+
+/* -------------------------------------------------------- storage box --- */
+
+html[data-nt-theme] {
+  --sb-paper: var(--nt-paper);
+  --sb-card: var(--nt-paper2);
+  --sb-ink: var(--nt-ink);
+  --sb-muted: var(--nt-muted);
+  --sb-line: var(--nt-line);
+}
+
+/* ------------------------------------------------------ subtask search --- */
+
+html[data-nt-theme] {
+  --ss-paper: var(--nt-paper);
+  --ss-paper-soft: var(--nt-paper2);
+  --ss-ink: var(--nt-ink);
+  --ss-muted: var(--nt-muted);
+  --ss-line: var(--nt-line);
+  --ss-graphite: var(--nt-ink);
+}
+
+/* ------------------------------------------------------- music player --- */
+
+html[data-nt-theme] {
+  --mp-paper: var(--nt-paper);
+  --mp-panel: var(--nt-paper2);
+  --mp-ink: var(--nt-ink);
+  --mp-muted: var(--nt-muted);
+  --mp-line: var(--nt-line);
+}
+
+/* ------------------------------------------------------------- headbar --- */
+
+html[data-nt-theme] {
+  --hb-paper: var(--nt-paper);
+  --hb-paper-soft: var(--nt-paper2);
+  --hb-ink: var(--nt-ink);
+  --hb-muted: var(--nt-muted);
+  --hb-line: var(--nt-line);
+}
+
+/* ------------------------------------------------------------ forktree --- */
+
+html[data-nt-theme] {
+  --ft-paper: var(--nt-paper);
+  --ft-paper2: var(--nt-paper2);
+  --ft-ink: var(--nt-ink);
+  --ft-muted: var(--nt-muted);
+  --ft-border: var(--nt-border);
+  --ft-line: var(--nt-line);
+  --ft-accent: var(--nt-accent);
+  --ft-accent-ink: var(--nt-accent2);
+  --ft-display: var(--nt-display);
+}
+
+/* ----------------------------------------------------------------- cards --- */
+/* A control page preview is a sheet from the same notebook, so it borrows the
+   card corner. It keeps its own preview chrome and identity colours; only the
+   geometry is shared. */
+
+html[data-nt-theme] .pd-stage,
+html[data-nt-theme] .cd-stage,
+html[data-nt-theme] .ff-stage,
+html[data-nt-theme] .fl-stage,
+html[data-nt-theme] .lg-stage,
+html[data-nt-theme] .sb-stage,
+html[data-nt-theme] .ss-stage,
+html[data-nt-theme] .mp-stage,
+html[data-nt-theme] .hb-stage {
+  border-radius: var(--nt-radius);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-nt-theme] * {
+    scroll-behavior: auto !important;
+  }
+}

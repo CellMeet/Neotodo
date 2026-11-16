@@ -1,0 +1,95 @@
+/* ==========================================================================
+   AI / Note long-press card.
+   These are the dedicated settings for the floating panel card. Keeping them
+   here means the card geometry, layer and preview look cannot be changed by
+   accident while editing the main notebook styles.
+   ========================================================================== */
+
+:root {
+  /* 25% smaller than the previous 0.54 / 500x330 card. */
+  --panel-card-max-scale: 0.405;
+  --panel-card-max-width: 375px;
+  --panel-card-max-height: 248px;
+  --panel-card-radius: 20px;
+  --panel-card-z: 2147483000;
+  --panel-card-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.34),
+    0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+/* The card escapes the page-body clip and owns the highest layer. */
+html body.panel-drag-mode #agent-terminal.panel-shrinking,
+html body.panel-drag-mode #notes-half.panel-shrinking {
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--panel-card-width, 100vw) !important;
+  height: var(--panel-card-height, 100vh) !important;
+  max-height: none !important;
+  z-index: var(--panel-card-z) !important;
+  border-radius: var(--panel-card-radius) !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  background-clip: padding-box !important;
+  box-shadow: var(--panel-card-shadow) !important;
+  transition: scale 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: translate, scale;
+}
+
+/* The header must never sit above the floating card. */
+body.panel-drag-mode .page-head {
+  z-index: 0 !important;
+}
+
+/* The gold dashed frame belongs to the target dock area, not the card. */
+body.panel-drag-mode .agent-split-chooser {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body.panel-drag-mode.panel-has-zone .agent-split-chooser {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+body.panel-drag-mode .agent-split-drop {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+body.panel-drag-mode .agent-split-drop.active {
+  opacity: 1 !important;
+  visibility: visible !important;
+  border: 1.5px dashed var(--gold, #c99a3f) !important;
+  background: rgba(201, 154, 63, 0.06) !important;
+}
+
+/* A single fullscreen note owns the screen: the closed AI line must not show. */
+body.single-note-left .desk-handle-ai,
+body.single-note-right .desk-handle-ai,
+body.single-note-top .desk-handle-ai,
+body.single-note-bottom .desk-handle-ai {
+  display: none !important;
+}
+
+/* During the live preview, the other sheet glides to its new half. */
+body.panel-live-preview .agent-terminal,
+body.panel-live-preview .notes-half.floating-notes {
+  transition:
+    left 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    top 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.38s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+/* While a sheet is a floating card, its old door line must not stay behind. */
+body.panel-drag-mode .notes-handle-bottom,
+body.panel-drag-mode .notes-handle-top,
+body.panel-drag-mode .desk-handle-ai {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
