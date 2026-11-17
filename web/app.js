@@ -2647,7 +2647,7 @@ function saveDoingExpandedTodoIds() {
 let doingMarkedTodoId = null;
 let doingMarkedSubtaskId = null;
 let doingPeekOpenTimer = 0;
-let doingPeekPoint = { x: 0, y: 0 };
+let doingPeekPoint = { x: 0, y: 0, target: null };
 let doingZone = null;
 let doingZoneAt = 0;
 let doingCardWidth = 380;
@@ -19907,10 +19907,17 @@ function bindEvents() {
     || document.body.classList.contains("panel-drag-mode")
     || document.body.classList.contains("agent-split-drag");
 
+  // The note and the AI card are sheets in their own right. Their surface can
+  // cover the column's hover strip (a stretched note rises over the task rows),
+  // and a pointer inside them is busy with the reader's own work: scrolling,
+  // selecting, clicking. Sliding across a sheet is not a swipe at the Doing
+  // drawer, so the drawer must not slide out from under it.
+  const doingSheetAt = (target) => Boolean(target?.closest?.("#notes-half, #agent-terminal"));
+
   const processDoingPointer = () => {
     if (!doingZone || doingPeekOpen || doingPeekSuppressed()) return;
     const { x, y } = doingPeekPoint;
-    if (!pointInDoingZone(x, y)) {
+    if (!pointInDoingZone(x, y) || doingSheetAt(doingPeekPoint.target)) {
       clearTimeout(doingPeekOpenTimer);
       doingPeekOpenTimer = 0;
       return;
@@ -19920,13 +19927,16 @@ function bindEvents() {
         doingPeekOpenTimer = 0;
         if (doingPeekSuppressed()) return;
         if (!pointInDoingZone(doingPeekPoint.x, doingPeekPoint.y)) return;
+        // The pointer may have settled on the note/AI card while the timer was
+        // waiting: the sheet owns it now, so the drawer stays closed.
+        if (doingSheetAt(doingPeekPoint.target)) return;
         openDoingPeek();
       }, 30);
     }
   };
 
   document.addEventListener("pointermove", (event) => {
-    doingPeekPoint = { x: event.clientX, y: event.clientY };
+    doingPeekPoint = { x: event.clientX, y: event.clientY, target: event.target };
     // A door-line drag owns the pointer and the frame budget: re-measuring the
     // Doing zone here (a full rect read every 350ms) would force a layout in
     // the middle of the pull, and a peek cannot open while resizing anyway.
@@ -19934,6 +19944,14 @@ function bindEvents() {
     // The card is already open while it is being pulled: measuring its column
     // again would force that same layout on the drag's frames.
     if (doingDrag) return;
+    // The pointer is on the note or the AI card: that sheet owns the gesture,
+    // even where it lies over the strip, so the drawer stays put and the zone
+    // is not even measured.
+    if (doingSheetAt(event.target)) {
+      clearTimeout(doingPeekOpenTimer);
+      doingPeekOpenTimer = 0;
+      return;
+    }
     // In a detached AI window the scroll rail lives against the same window
     // border the sub-app drawer docks to; hovering the rail must not open the
     // card. The in-page trigger range (the subtask column) is left untouched.
