@@ -14092,6 +14092,65 @@ function colorTint(value, alpha = 0.16) {
   return `rgba(${rgb}, ${alpha})`;
 }
 
+function hexToHsl(value) {
+  const hex = String(value || "").replace("#", "");
+  if (hex.length !== 6) return { h: 24, s: 0.72, l: 0.5 };
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const delta = max - min;
+  if (!delta) return { h: 24, s: 0, l };
+  const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  let h;
+  if (max === r) h = (g - b) / delta + (g < b ? 6 : 0);
+  else if (max === g) h = (b - r) / delta + 2;
+  else h = (r - g) / delta + 4;
+  return { h: h * 60, s, l };
+}
+
+function hslToHex(h, s, l) {
+  const hue = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] = hue < 60 ? [c, x, 0]
+    : hue < 120 ? [x, c, 0]
+    : hue < 180 ? [0, c, x]
+    : hue < 240 ? [0, x, c]
+    : hue < 300 ? [x, 0, c]
+    : [c, 0, x];
+  const channel = (value) => Math.round((value + m) * 255).toString(16).padStart(2, "0");
+  return `#${channel(r)}${channel(g)}${channel(b)}`;
+}
+
+/** Map the reading ink to the two utility accents.
+ *
+ * The map crosses the warm/cool line: a warm ink (red, orange, gold) answers
+ * with cool marks, and a cool ink (green, blue, violet) answers with warm
+ * marks, so the utilities always contrast the written page instead of copying
+ * it. Within that band the hue still follows the ink, and the hidden top bar
+ * sits 30° beside the title actions so the chrome becomes a sibling of the
+ * submit mark rather than a second copy. A neutral ink has no hue to map, so
+ * it is treated as a warm orange note. */
+function inkAccents(value) {
+  const { h, s } = hexToHsl(value);
+  const base = s < 0.16 ? 24 : h;
+  const warmInk = base < 75 || base > 285;
+  const spread = warmInk
+    ? base / 75
+    : (base - 75) / 210;
+  const actionHue = warmInk ? 196 + spread * 24 : 8 + spread * 22;
+  const utilityHue = warmInk ? actionHue - 30 : actionHue + 28;
+  const dark = postcardIsDark(currentPostcardId());
+  return {
+    action: hslToHex(actionHue, dark ? 0.72 : 0.66, dark ? 0.62 : 0.42),
+    utility: hslToHex(utilityHue, dark ? 0.66 : 0.6, dark ? 0.68 : 0.4),
+  };
+}
+
 function hexLuminance(value) {
   const hex = String(value || "").replace("#", "");
   if (hex.length !== 6) return 0.5;
@@ -16444,6 +16503,11 @@ function applyFontSettings() {
   // Selected rows and cards tint with the same ink, so a live font-colour drag
   // repaints the wash without waiting for the next theme pass.
   root.style.setProperty("--ink-rgb", hexToRgb(bodyInk));
+  // The title actions and the hidden top bar do not repeat the font colour:
+  // they read the mapped pair so the page keeps an accent against its ink.
+  const accents = inkAccents(bodyInk);
+  root.style.setProperty("--action-ink", accents.action);
+  root.style.setProperty("--utility-ink", accents.utility);
   applyHighlight();
 }
 

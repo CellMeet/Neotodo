@@ -17452,18 +17452,26 @@ html[data-theme="postcard"] .community-brand-copy strong { color: var(--pc-ink);
 .ai-settings-panel { width: min(760px, 94vw); }
 
 /* ==========================================================================
-   Complete / slash / add: the title's own ink
+   Mapped accent ink for the title actions and the hidden top bar
    --------------------------------------------------------------------------
-   The two actions and their separator sit on the task title, so they take the
-   same colour as the title's font instead of the theme accent: picking a body
-   font colour in Settings → Font carries the trio with it. The marks keep the
-   shapes the reader picked; only the ink and the press feedback are shared.
+   Neither group repeats the reading ink. app.js walks the colour wheel from
+   the font colour (``inkAccents``): the complete / slash / add trio takes the
+   counter-note half a turn away, and the hidden top bar takes the split-
+   complement 30° nearer, so the chrome and the task answer the page without
+   falling into one flat colour. The marks keep the shapes the reader picked;
+   only the ink and the press feedback are here.
    ========================================================================== */
 html[data-theme] .head-title-inner .current-action,
 html[data-theme] .head-title-inner .action-slash {
-  color: var(--pc-ink, var(--ink));
-  text-decoration-color: var(--pc-ink, var(--ink));
+  color: var(--action-ink, var(--pc-accent));
+  text-decoration-color: var(--action-ink, var(--pc-accent));
 }
+html[data-theme] .top-tools .sound-toggle,
+html[data-theme] .top-tools .settings-button,
+html[data-theme] .top-tools .exit-button {
+  color: var(--utility-ink, var(--pc-accent));
+}
+.top-tools .agent-settings-button { color: var(--utility-ink, var(--gold)); }
 
 /* Click feedback: the mark sinks into the paper and leaves a soft ink wash,
    and the separator dims for the length of the press so the trio answers as
