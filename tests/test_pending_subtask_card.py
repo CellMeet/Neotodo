@@ -118,7 +118,10 @@ class PendingSubtaskCardTests(unittest.TestCase):
         self.assertIn("--subtask-handle: #A855F7;", self.split_css)
         # Above - not on - the bottom line, like the finished-tray handle.
         self.assertRegex(line, r"bottom: \d+px;")
-        self.assertIn("transition: max-height", self.split_css)
+        # The card is a state, not a slide: no fold transition is installed.
+        card = css_block(self.split_css, ".pending-subtask-card {")
+        self.assertIn("transition: none;", card)
+        self.assertNotIn("transition: max-height", self.split_css)
 
     def test_empty_lane_keeps_the_handle_tucked_above_the_card(self):
         # Nothing to fold, no handle: the pill waits above the card's clipped
@@ -127,36 +130,35 @@ class PendingSubtaskCardTests(unittest.TestCase):
         self.assertIn("top: -30px;", hidden)
         self.assertIn("opacity: 0;", hidden)
         self.assertIn("pointer-events: none;", hidden)
-        self.assertIn("@keyframes pending-subtask-line-pull", self.split_css)
-        self.assertIn(".pending-subtask-toggle.line-reveal", self.split_css)
+        # The pill is never pulled out on a beat of its own.
+        self.assertNotIn("pending-subtask-line-pull", self.split_css)
 
         # The handle belongs to the rows: the first row (or the inline add row)
-        # is what pulls it out again.
+        # hands it back in place.
         bind = block_after(self.app_js, "function bindPendingSubtaskToggle(", "\n}\n")
         self.assertIn("syncSubtaskHandleLine(", bind)
         self.assertIn('[data-add-subtask-row]', bind)
         helper = block_after(self.app_js, "function syncSubtaskHandleLine(", "\n}\n")
         self.assertIn('bar.classList.toggle("line-hidden", !show);', helper)
-        self.assertIn('bar.classList.add("line-reveal");', helper)
+        self.assertNotIn('bar.classList.add("line-reveal");', helper)
 
-    def test_live_sheet_folds_on_the_near_instant_beat(self):
-        # The live card travels the whole task block, so it gets the near-instant
-        # beat instead of the old 0.3s crawl: it must unfold and fold in one
-        # short wipe, as fast as the rest of the panels.
+    def test_live_sheet_appears_on_the_same_frame(self):
+        # The live card covers the whole task block: opening or folding it is a
+        # state change, not a movement. The sheet, its paper and its rows cut
+        # in one frame, sharing no transition with the old fold.
         card = css_block(self.split_css, ".pending-subtask-card {")
-        self.assertIn("max-height 0.12s", card)
-        self.assertIn("background-color 0.12s", card)
-        # Every layer that leaves during the fold fades on the same beat, so the
-        # words and the paper edge arrive together.
+        self.assertIn("transition: none;", card)
+        self.assertNotIn("max-height 0.12s", card)
+        self.assertNotIn("background-color 0.12s", card)
         lanes = css_block(self.split_css, ".pending-subtask-card .subtask-lanes {")
-        self.assertIn("opacity 0.12s", lanes)
+        self.assertIn("transition: none;", lanes)
         edge = css_block(self.split_css, ".pending-subtask-card::after {")
-        self.assertIn("opacity 0.12s", edge)
+        self.assertIn("transition: none;", edge)
         toggle = css_block(
             self.split_css,
             ".pending-subtask-card.collapsed > .pending-subtask-toggle {",
         )
-        self.assertIn("transform 0.12s", toggle)
+        self.assertIn("transition: none;", toggle)
 
     def test_wallpaper_face_is_clipped_by_the_fold_not_recropped(self):
         # A centred cover fit re-crops the picture inside the shrinking pane, so
@@ -173,7 +175,9 @@ class PendingSubtaskCardTests(unittest.TestCase):
             "\n}\n",
         )
         self.assertIn("opacity: 0;", folded)
-        self.assertIn("opacity 0.12s", folded)
+        # The picture is part of the sheet: it leaves on the same frame.
+        self.assertIn("transition: none;", folded)
+        self.assertNotIn("opacity 0.12s", folded)
 
     def test_folded_handle_hides_in_the_top_band_and_follows_the_first_row(self):
         # A folded card has no rows on the page, so its purple line is not left

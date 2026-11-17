@@ -119,7 +119,7 @@
     power.classList.toggle("ss-off", !on);
     title.textContent = on ? "Subtask Search is on" : "Subtask Search is off";
     detail.textContent = on
-      ? "点击左栏放大镜，搜索栏会从子任务上边框滑出。"
+      ? "点击左栏放大镜，搜索栏会直接出现在子任务上方。"
       : "搜索栏已收起，重新打开即可使用。";
   }
 

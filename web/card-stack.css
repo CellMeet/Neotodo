@@ -210,6 +210,7 @@ body #pending-subtask-card.collapsed {
    at the same time. */
 body #doing-peek {
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   box-shadow: var(--card-sheet-top), var(--card-bevel-top) !important;
 }
 
@@ -217,6 +218,7 @@ body #doing-peek {
    the live sheet, one below the Doing card. */
 body .completed-subtask-drawer {
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   box-shadow: var(--card-sheet-card), var(--card-bevel-card) !important;
 }
 
@@ -231,8 +233,9 @@ body .trash-drawer {
   z-index: 155;
   isolation: isolate;
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   box-shadow:
-    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e),
     var(--card-sheet-card),
     var(--card-bevel-card) !important;
 }
@@ -243,6 +246,7 @@ body .trash-drawer {
    wallpaper fallback lift so the pile keeps its own ladder. */
 html[data-wallpaper][data-wallpaper-cards] body #pending-subtask-card {
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   box-shadow: var(--card-sheet-page) !important;
 }
 
@@ -265,16 +269,19 @@ html[data-wallpaper][data-wallpaper-cards] body #pending-subtask-card.collapsed 
    back on top of the fallback wherever the card is made of the room. */
 html[data-wallpaper][data-wallpaper-cards] body #doing-peek {
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   box-shadow: var(--card-sheet-top) !important;
 }
 
 html[data-wallpaper][data-wallpaper-cards] body #completed-subtask-drawer {
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   box-shadow: var(--card-sheet-card) !important;
 }
 
 html[data-wallpaper][data-wallpaper-cards] body #trash-drawer {
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   background-color: var(--overlay-paper, var(--paper, #f3efe2)) !important;
   box-shadow: var(--card-sheet-card) !important;
 }
@@ -286,8 +293,16 @@ html[data-wallpaper][data-wallpaper-cards] body #trash-drawer {
    the card's text, and adds no separate sheet or coloured border. */
 html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card > .card-wallpaper::after {
   background: var(--card-face-wash);
+  /* The Doing card and the finished card paint their stroke on the element's
+     own border and again on the pane's inset ring, so their live edge is two
+     line widths deep. The live subtask card cannot own a real border — a 1.5px
+     border would push its seven rows off the page's 40px pitch — and paints its
+     stroke only through this pane. Repeating the ring one width further in
+     gives the same two-step edge, so the subtask card no longer looks fainter
+     than the two cards it lies between. */
   box-shadow:
-    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 calc(var(--subcard-line-width, 1.5px) * 2) var(--subcard-outline, #2f5d4e),
     var(--card-edge-light),
     var(--card-edge-shade);
 }
@@ -295,7 +310,7 @@ html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card > .card-wallpap
 html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer > .card-wallpaper::after {
   background: var(--card-face-wash);
   box-shadow:
-    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e),
     var(--card-edge-light),
     var(--card-edge-shade);
 }
@@ -303,7 +318,7 @@ html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer > .card-wal
 html[data-wallpaper][data-wallpaper-cards] #doing-peek > .card-wallpaper::after {
   background: var(--card-face-wash);
   box-shadow:
-    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e),
     var(--card-edge-light),
     var(--card-edge-shade);
 }
@@ -311,7 +326,7 @@ html[data-wallpaper][data-wallpaper-cards] #doing-peek > .card-wallpaper::after 
 html[data-wallpaper][data-wallpaper-cards] .trash-drawer > .card-wallpaper::after {
   background: var(--card-face-wash);
   box-shadow:
-    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e),
     var(--card-edge-light),
     var(--card-edge-shade);
 }
@@ -331,6 +346,7 @@ html[data-wallpaper] body .completed-subtask-drawer .completed-subtask-sheet {
    never show through the card. */
 html[data-wallpaper] body .trash-drawer {
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   background-color: var(--overlay-paper, var(--paper, #f3efe2)) !important;
   box-shadow: var(--card-sheet-card) !important;
 }

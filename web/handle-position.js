@@ -43,6 +43,22 @@ function setDeskStripHover(on) {
   deskStripHover = Boolean(on);
 }
 
+// The closed door line has ONE static home: the empty strip just above the
+// page's bottom border. It is a fixed number for the current window height, not
+// a value read back from a sheet. Reading it back is what made the line park
+// wherever the note/AI happened to be when it closed — after a width split the
+// panes slide sideways, the close ran against a stale box, and the line stayed
+// on the old sheet edge instead of its slot. Both lines share this one static
+// value; only a window resize changes it.
+const DESK_LINE_SLOT_GAP = 34;
+const DESK_LINE_SLOT_TUCKED = 8;
+function deskLineClosedTop() {
+  return Math.max(0, Math.round(window.innerHeight - DESK_LINE_SLOT_GAP));
+}
+function deskLineTuckedTop() {
+  return Math.round(window.innerHeight + DESK_LINE_SLOT_TUCKED);
+}
+
 // Which door line is being dragged right now ("ai" | "note" | null).
 // The gesture writes that line's `top` itself, once per animation frame. If the
 // shared layout pass below also places it (it runs from split updates, strip
@@ -64,6 +80,12 @@ function healStaleDeskDrag() {
   setDeskHandleResizing(false);
 }
 
+// The horizontal slot each closed door line returns to, in page pixels. The
+// layout pass writes it on every frame (it is the neutral 25% / 75% pair, not
+// the live divider ratio), and the close reads it so a line that was riding a
+// stretched pane still slides down to its original place.
+const closedLineCenters = { ai: null, note: null };
+
 const DeskHandle = {
   elements: {},
   homes: { ai: null, note: null },
@@ -72,8 +94,9 @@ const DeskHandle = {
     this.elements.note = this.elements.note || document.querySelector(".notes-handle-bottom");
     return this.elements;
   },
-  // Remember the line's closed home before a sheet rises, so closing restores
-  // that same spot instead of recomputing a new one from the resized sheet.
+  // Record the line's box before a sheet rises. The close deliberately does
+  // NOT restore this any more (see snapHome): the closed line belongs to the
+  // page's static bottom slot, not to wherever the sheet was when it rose.
   captureHome(kind) {
     const handle = this.ensure()[kind];
     if (!handle) return;
@@ -82,18 +105,28 @@ const DeskHandle = {
     this.homes[kind] = { center: r.left + r.width / 2, top: r.top };
   },
   snapHome(kind) {
-    const home = this.homes[kind];
     const handle = this.ensure()[kind];
-    if (!home || !handle) return false;
+    if (!handle) return false;
     // A tucked line is parked under the bottom border on purpose and must stay
-    // there: snapping it back to the home it had while it was visible would put
-    // the closed strip's line back on screen, which is exactly what the closed
-    // strip no longer does. The pointer visiting the bottom strip places it.
-    // A home remembered while the line was itself hidden is equally useless.
-    if (handle.classList.contains("handle-tucked")
-      || home.top > window.innerHeight - 2) return false;
+    // there: snapping it back to a visible home would put the closed strip's
+    // line back on screen, which is exactly what the closed strip no longer
+    // does. The pointer visiting the bottom strip places it.
+    if (handle.classList.contains("handle-tucked")) return false;
+    // One static slot for every close. The old code restored `homes[kind].top`,
+    // the spot the line had when the sheet rose. With the note and AI open as a
+    // width split that home was the open sheet's own edge, so closing the note
+    // left its line on the old sheet top (or just under it) instead of the
+    // default bottom — and the next open started from that stray spot. The line
+    // now always returns to the page's fixed bottom slot; only the window size
+    // (and so the desk) can move that slot.
+    const r = handle.getBoundingClientRect();
+    // The x slot comes from the neutral pair as well: closing a note that the
+    // divider had stretched must not leave its line under that width.
+    const center = closedLineCenters[kind] != null
+      ? closedLineCenters[kind]
+      : r.left + r.width / 2;
     handle.style.setProperty("transition", "none", "important");
-    this.place(kind, home.center, home.top);
+    this.place(kind, center, deskLineClosedTop());
     void handle.offsetWidth;
     requestAnimationFrame(() => handle.style.removeProperty("transition"));
     if (kind === "note") refreshNotesSwipeLine();
@@ -151,17 +184,8 @@ function positionDeskHandles() {
   const notes = $("#notes-half");
   if (!body || !aiHandle || !notesHandle) return;
   const bodyRect = body.getBoundingClientRect();
-  const ratio = agentSplitRatio;
   const side = agentSplitSide;
   const vertical = side === "notes-top" || side === "notes-bottom";
-  const futureCenter = (which) => {
-    if (vertical) return bodyRect.left + bodyRect.width * (which === "ai" ? 0.25 : 0.75);
-    const aiLeft = side !== "notes-left";
-    if (which === "ai") {
-      return bodyRect.left + bodyRect.width * (aiLeft ? ratio / 2 : (1 + ratio) / 2);
-    }
-    return bodyRect.left + bodyRect.width * (aiLeft ? (1 + ratio) / 2 : ratio / 2);
-  };
   const aiOpen = agentTerminalOpen && !agentClosing;
   const notesOpen = !notesHidden && !notesClosing;
   const layerGeometry = (element) => {
@@ -173,16 +197,34 @@ function positionDeskHandles() {
   };
   const aiRect = aiOpen ? layerGeometry(terminal) : null;
   const notesRect = notesOpen ? layerGeometry(notes) : null;
-  const bothClosed = !aiOpen && !notesOpen;
-  const aiCenter = aiRect
-    ? aiRect.center
-    : (bothClosed && vertical ? bodyRect.left + bodyRect.width * 0.25 : futureCenter("ai"));
-  const notesCenter = notesRect
-    ? notesRect.center
-    : (bothClosed && vertical ? bodyRect.left + bodyRect.width * 0.75 : futureCenter("notes"));
+  // A closed line rests on the page's NEUTRAL slot pair: the place it slides
+  // down to when the two panes are split evenly (50/50). It must never follow
+  // the live divider ratio — dragging the divider changes the note's width, and
+  // the closed line used to slide down under that width instead of its
+  // original slot. Both lines share this rule.
+  //
+  // The pair is nudged inward from the pane centres: the AI bar sits a little
+  // further right and the note bar a little further left, so the two bars read
+  // as one pair around the middle of the page instead of hugging its outer
+  // edges. One number, both lines: raise it to pull them closer together.
+  const CLOSED_SLOT_NUDGE = 0.04; // share of the page width, per side
+  const closedCenter = (which) => {
+    const half = 0.25 - CLOSED_SLOT_NUDGE;
+    if (vertical) return bodyRect.left + bodyRect.width * (which === "ai" ? half : 1 - half);
+    const aiLeft = side !== "notes-left";
+    return bodyRect.left + bodyRect.width * (
+      which === "ai"
+        ? (aiLeft ? half : 1 - half)
+        : (aiLeft ? 1 - half : half)
+    );
+  };
+  closedLineCenters.ai = Math.round(closedCenter("ai"));
+  closedLineCenters.note = Math.round(closedCenter("note"));
+  const aiCenter = aiRect ? aiRect.center : closedLineCenters.ai;
+  const notesCenter = notesRect ? notesRect.center : closedLineCenters.note;
 
-  const closedTop = window.innerHeight - 34;
-  const tuckedTop = window.innerHeight + 8;
+  const closedTop = deskLineClosedTop();
+  const tuckedTop = deskLineTuckedTop();
   const stripHover = deskStripHover;
 
   // A closed door line is hidden by default. It used to rest 34px above the

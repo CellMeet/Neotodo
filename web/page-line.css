@@ -142,14 +142,9 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half > .curre
   border-image: none !important;
 }
 
-/* A finished row flies to the tray on a ghost pinned to the page, outside the
-   lane. The rule is not part of that trip: the tray prints its own rule when
-   the row lands, so carrying one across the page was the only animated line in
-   the completion. The ghost is plain paper and the rule arrives with the row. */
-html[data-theme="postcard"] .subtask-flight {
-  border-bottom-color: transparent !important;
-  border-image: none !important;
-}
+/* A finished row changes cards in place: its own line is printed by the
+   finished card's lane in the same repaint, so the rule never has to travel
+   across the page by itself. */
 
 /* The history lane keeps the fixed sheet grid, so its rows hand their own
    border to that grid. */

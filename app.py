@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import inspect
 import io
 import json
 import mimetypes
@@ -92,12 +93,16 @@ AI_DEFAULT_CONFIG = {
 # deleted on launch instead of being painted before the app is ready.
 LEGACY_STARTUP_FILES = (DATA_DIR / "last-page.html", DATA_DIR / "last-page.png")
 SOUNDS_DIR = DATA_DIR / "sounds"
-# The optional theme music is a single bundled loop, kept apart from the sounds
-# shelf so it never appears as a one-shot cue in the sound-style picker.
-BACKGROUND_MUSIC_DIR = WEB_DIR / "background-music"
 NOTE_MATERIALS_DIR = DATA_DIR / "note-materials"
 PICTURES_DIR = DATA_DIR / "pictures"
 MUSIC_DIR = DATA_DIR / "music"
+# Optional background music lives in its own shelf inside the reader's Music
+# folder. Keeping it in a subfolder means the music player's own playlist stays
+# clean, while the folder chip can still open exactly the files this picker
+# lists. Bundled tracks are seeded here on first use.
+BACKGROUND_MUSIC_DIR = MUSIC_DIR / "BackgroundMusic"
+BACKGROUND_MUSIC_BUNDLED_DIR = WEB_DIR / "music" / "BackgroundMusic"
+BACKGROUND_MUSIC_DEFAULT_FILE = "BackgourndMusic.mp3"
 DETACH_PREVIEW_FILE = DATA_DIR / "detach-preview.png"
 # Fork windows are separate NeoTodo instances owned by this notebook. Each one
 # owns a data file and an ephemeral port, so finishing its fake todo never
@@ -169,6 +174,10 @@ PAGE_LINE_DEFAULT = {
     "opacity": 1.0,
     "row": 40,
     "thickness": 1,
+    # The Font tab owns an on/off switch for this row. Off hides the ruled
+    # lines without touching their colour or weight, so switching back on
+    # restores the reader's last choice.
+    "enabled": True,
 }
 # The row baseline is a separate idea from the page divider: it is the hairline
 # inside the floating cards (Doing and finished subtasks). It keeps its own file
@@ -180,6 +189,20 @@ BASELINE_ROW_DEFAULT = {
     "color": BASELINE_COLOR_DEFAULT,
     "color2": "#a8691f",
     "angle": 0,
+}
+# The frame around every floating card (the live subtask sheet, Doing, the
+# finished-subtasks drawer and the trash card) is a reader-owned outline. It
+# keeps its own file so switching a theme or repainting page_line can never
+# replace the chosen colour or weight.
+CARD_LINE_FILE = DATA_DIR / "card-line.json"
+CARD_LINE_WIDTH_MIN = 1.0
+CARD_LINE_WIDTH_MAX = 4.0
+CARD_LINE_DEFAULT = {
+    "color": "#2f5d4e",
+    "width": 1.5,
+    # Off removes the frame from every floating card while the chosen colour
+    # and weight stay saved for the next time the switch is on.
+    "enabled": True,
 }
 THEME_CATALOG_CACHE = DATA_DIR / "theme-catalog.json"
 THEME_CATALOG_URL = os.environ.get(
@@ -242,6 +265,23 @@ FOLDER_PICK_CALLBACK = None
 FILE_PICK_CALLBACK = None
 
 PROJECT_FILE_LIMIT = 160
+
+
+def call_picker(callback, initial: str = ""):
+    """Call a native picker, passing the starting folder when it supports one.
+
+    Older platform shells (Windows) expose a zero-argument callback, so the
+    shared backend must not assume every picker accepts ``initial``.
+    """
+    if callback is None:
+        return None
+    try:
+        parameters = inspect.signature(callback).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    if not parameters:
+        return callback()
+    return callback(initial)
 
 
 def sound_style_id(raw) -> str:
@@ -547,6 +587,137 @@ def music_tracks() -> list:
                 track["lrc"] = lyrics
             tracks.append(track)
     return tracks
+
+
+def background_music_has_audio(folder: Path) -> bool:
+    try:
+        return any(
+            item.is_file() and item.suffix.lower() in MUSIC_EXTS
+            for item in folder.iterdir()
+        )
+    except Exception:
+        return False
+
+
+def ensure_background_music_dir() -> Path:
+    """Create the background-music shelf inside Music and seed it once.
+
+    Once the folder contains audio it is never re-seeded, so deleting a bundled
+    track or replacing it with the reader's own music sticks across launches.
+    """
+    try:
+        BACKGROUND_MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+        if background_music_has_audio(BACKGROUND_MUSIC_DIR):
+            return BACKGROUND_MUSIC_DIR
+        bundled = BACKGROUND_MUSIC_BUNDLED_DIR
+        if bundled.is_dir():
+            for src in bundled.iterdir():
+                if not src.is_file():
+                    continue
+                if src.suffix.lower() not in MUSIC_EXTS and src.suffix.lower() not in (".json", ".md", ".txt"):
+                    continue
+                dest = BACKGROUND_MUSIC_DIR / src.name
+                if not dest.exists():
+                    shutil.copy2(src, dest)
+    except Exception:
+        pass
+    return BACKGROUND_MUSIC_DIR
+
+
+def background_music_manifest() -> dict:
+    """Read the track names, preferring the reader's editable copy."""
+    ensure_background_music_dir()
+    for path in (
+        BACKGROUND_MUSIC_DIR / "tracks.json",
+        BACKGROUND_MUSIC_BUNDLED_DIR / "tracks.json",
+    ):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            continue
+    return {}
+
+
+def background_music_file(name: str) -> Path | None:
+    """Resolve a bare background-music filename."""
+    if not isinstance(name, str):
+        return None
+    name = name.strip()
+    if not name or Path(name).name != name:
+        return None
+    if Path(name).suffix.lower() not in MUSIC_EXTS:
+        return None
+    ensure_background_music_dir()
+    folders = [BACKGROUND_MUSIC_DIR]
+    if not background_music_has_audio(BACKGROUND_MUSIC_DIR):
+        folders.append(BACKGROUND_MUSIC_BUNDLED_DIR)
+    for folder in folders:
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def background_music_tracks() -> list:
+    """List the files in the background-music shelf with their display names."""
+    ensure_background_music_dir()
+    manifest = background_music_manifest()
+    rows = manifest.get("tracks")
+    if not isinstance(rows, list):
+        rows = []
+    folders = [BACKGROUND_MUSIC_DIR]
+    if not background_music_has_audio(BACKGROUND_MUSIC_DIR):
+        folders.append(BACKGROUND_MUSIC_BUNDLED_DIR)
+    tracks = []
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        file_name = str(row.get("file") or "").strip()
+        if not file_name or Path(file_name).name != file_name:
+            continue
+        path = background_music_file(file_name)
+        if path is None or file_name in seen:
+            continue
+        seen.add(file_name)
+        name = str(row.get("name") or "").strip()
+        tracks.append({
+            "file": file_name,
+            "name": name or path.stem.replace("_", " ").replace("-", " ").strip() or path.stem,
+            "credit": str(row.get("credit") or "").strip()[:120],
+            "src": f"/background-music/{quote(file_name)}",
+        })
+    for folder in folders:
+        try:
+            loose = sorted(
+                (
+                    item for item in folder.iterdir()
+                    if item.is_file() and item.suffix.lower() in MUSIC_EXTS
+                ),
+                key=lambda item: item.name.lower(),
+            )
+        except Exception:
+            loose = []
+        for path in loose:
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            tracks.append({
+                "file": path.name,
+                "name": path.stem.replace("_", " ").replace("-", " ").strip() or path.stem,
+                "credit": "",
+                "src": f"/background-music/{quote(path.name)}",
+            })
+    return tracks
+
+
+def background_music_default() -> str:
+    tracks = background_music_tracks()
+    if any(track.get("file") == BACKGROUND_MUSIC_DEFAULT_FILE for track in tracks):
+        return BACKGROUND_MUSIC_DEFAULT_FILE
+    return str(tracks[0].get("file") or "") if tracks else ""
 
 
 def ensure_plugins_dir() -> Path:
@@ -883,6 +1054,7 @@ def normalize_page_line(raw) -> dict:
         "opacity": opacity,
         "row": row,
         "thickness": thickness,
+        "enabled": raw.get("enabled") is not False,
     }
 
 
@@ -972,6 +1144,51 @@ def write_baseline_row_rule(raw) -> dict:
     except Exception:
         pass
     return rule
+
+
+def normalize_card_line(raw) -> dict:
+    """Validate the frame around the floating cards: one colour and one weight."""
+    if isinstance(raw, dict) and isinstance(raw.get("card_line"), dict):
+        raw = raw["card_line"]
+    if not isinstance(raw, dict):
+        raw = {}
+    color = raw.get("color") or raw.get("card-line") or raw.get("card_line")
+    color = color.strip() if isinstance(color, str) else ""
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+        color = CARD_LINE_DEFAULT["color"]
+    width = _page_line_number(
+        raw.get("width"),
+        CARD_LINE_DEFAULT["width"],
+        CARD_LINE_WIDTH_MIN,
+        CARD_LINE_WIDTH_MAX,
+    )
+    # The picker offers half-pixel steps; store exactly what it can show.
+    width = round(width * 2) / 2
+    return {"color": color.lower(), "width": width, "enabled": raw.get("enabled") is not False}
+
+
+def read_card_line() -> dict:
+    """Read ``card-line.json``; it is independent of every theme file."""
+    return normalize_card_line(_read_json_file(CARD_LINE_FILE))
+
+
+def write_card_line(patch) -> dict:
+    """Merge a patch into the stored card frame and persist the whole object."""
+    if isinstance(patch, dict) and isinstance(patch.get("card_line"), dict):
+        patch = patch["card_line"]
+    if not isinstance(patch, dict):
+        patch = {}
+    merged = {**read_card_line(), **patch}
+    line = normalize_card_line(merged)
+    try:
+        CARD_LINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CARD_LINE_FILE.write_text(
+            json.dumps(line, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+    return line
 
 
 def _catalog_entry(raw) -> dict | None:
@@ -3016,6 +3233,7 @@ def new_id() -> str:
 
 
 STICKER_TARGET_IDS = ("completed", "focus")
+CARD_IMAGE_TARGET_IDS = ("pending", "doing", "completed", "trash")
 
 
 def sanitize_sticker_backgrounds(raw) -> dict:
@@ -3029,6 +3247,33 @@ def sanitize_sticker_backgrounds(raw) -> dict:
             continue
         image = item.get("image")
         if not isinstance(image, str) or not image.startswith("data:image/") or len(image) > 4_000_000:
+            continue
+        try:
+            zoom = max(1.0, min(2.6, float(item.get("zoom", 1))))
+            x = max(0.0, min(100.0, float(item.get("x", 50))))
+            y = max(0.0, min(100.0, float(item.get("y", 50))))
+        except (TypeError, ValueError):
+            continue
+        clean[target_id] = {
+            "image": image,
+            "zoom": round(zoom, 3),
+            "x": round(x, 2),
+            "y": round(y, 2),
+        }
+    return clean
+
+
+def sanitize_card_images(raw) -> dict:
+    """Keep only valid per-card pictures and crop values."""
+    if not isinstance(raw, dict):
+        return {}
+    clean = {}
+    for target_id in CARD_IMAGE_TARGET_IDS:
+        item = raw.get(target_id)
+        if not isinstance(item, dict):
+            continue
+        image = item.get("image")
+        if not isinstance(image, str) or not image.startswith("data:image/") or len(image) > 8_000_000:
             continue
         try:
             zoom = max(1.0, min(2.6, float(item.get("zoom", 1))))
@@ -3083,6 +3328,7 @@ def default_data() -> dict:
             "note_background_image": "",
             "note_blur": 16,
             "sticker_backgrounds": {},
+            "card_images": {},
             "wallpaper_mode": "static",
             "wallpaper_static": "art:light",
             "wallpaper_dynamic": "",
@@ -3242,6 +3488,7 @@ def load_data(path: Path | None = None) -> dict:
             if not isinstance(settings.get("caret_color"), str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", settings["caret_color"]):
                 settings["caret_color"] = "#1b1b1b"
             settings["sticker_backgrounds"] = sanitize_sticker_backgrounds(settings.get("sticker_backgrounds"))
+            settings["card_images"] = sanitize_card_images(settings.get("card_images"))
             settings.setdefault("wallpaper_mode", "theme")
             settings.setdefault("wallpaper_static", "")
             settings.setdefault("wallpaper_dynamic", "")
@@ -3452,6 +3699,9 @@ class Store:
                 # The row baseline (subtask / Doing hairlines) is its own file
                 # and can carry a gradient or a per-row height ramp.
                 "baseline_rule": read_baseline_row_rule(),
+                # The frame around the floating cards is reader-owned too: its
+                # colour and weight live in card-line.json, never in a theme.
+                "card_line": read_card_line(),
                 # Present only in a fork window; it marks the fake todo that
                 # must never add to the parent notebook's achievements.
                 "fork": self.data.get("fork"),
@@ -3507,7 +3757,17 @@ class Store:
         if payload.get("action") == "choose_project_folder":
             if FOLDER_PICK_CALLBACK is None:
                 return {"ok": False, "error": "Folder picker is not available"}
-            path = FOLDER_PICK_CALLBACK()
+            # The native chooser remembers its last directory across calls. Open
+            # it on the clicked todo's own folder instead, so switching todos or
+            # categories never makes the previous todo's folder appear to win.
+            todo_id = str(payload.get("id") or "").strip()
+            initial = str(agent_workspace())
+            if todo_id:
+                with self.lock:
+                    _, todo = self._find_todo(todo_id)
+                    if todo:
+                        initial = str(agent_workspace(todo.get("project_folder")))
+            path = call_picker(FOLDER_PICK_CALLBACK, initial)
             return {"ok": True, "path": path or "", "cancelled": not bool(path), "state": self.state()}
         # The native picker returns a path. The file is linked into the
         # dedicated pictures/wallpapers shelf so the recent list and the folder
@@ -4067,6 +4327,21 @@ class Store:
                 except Exception as open_error:
                     error = str(open_error)
                 result["folder"] = str(MUSIC_DIR)
+            elif name == "open_background_music_folder":
+                folder = ensure_background_music_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(folder))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(folder)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(folder)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(folder)
+                result["tracks"] = background_music_tracks()
+                result["default"] = background_music_default()
             elif name == "open_pictures_folder":
                 ensure_pictures_dir()
                 try:
@@ -4248,6 +4523,8 @@ class Store:
                             current.pop("highlight", None)
                     if "sticker_backgrounds" in incoming:
                         current["sticker_backgrounds"] = sanitize_sticker_backgrounds(incoming.get("sticker_backgrounds"))
+                    if "card_images" in incoming:
+                        current["card_images"] = sanitize_card_images(incoming.get("card_images"))
                     if incoming.get("wallpaper_mode") in (*WALLPAPER_MODES, "theme"):
                         current["wallpaper_mode"] = incoming["wallpaper_mode"]
                     if isinstance(incoming.get("wallpaper_static"), str):
@@ -4316,6 +4593,14 @@ class Store:
                 raw_rule = payload.get("rule")
                 result["rule"] = write_baseline_row_rule(
                     raw_rule if isinstance(raw_rule, dict) else payload
+                )
+            elif name == "save_card_line":
+                # The floating-card frame is a standalone object: colour plus
+                # weight. A partial patch is merged so one control never
+                # resets the other.
+                raw_line = payload.get("card_line")
+                result["card_line"] = write_card_line(
+                    raw_line if isinstance(raw_line, dict) else payload
                 )
             elif name == "mark_seen":
                 if payload.get("all"):
@@ -6626,18 +6911,12 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_media(candidate)
             return
         if parsed.path.startswith("/background-music/"):
-            # The bundled theme loop is streamed with byte ranges so WebKit can
-            # loop and seek it without downloading the whole file again.
+            # Background music is streamed with byte ranges so WebKit can loop
+            # and seek it without downloading the whole file again. The picker
+            # may list reader-added files beside the bundled track.
             name = unquote(parsed.path.rsplit("/", 1)[-1])
-            if (
-                not name
-                or Path(name).name != name
-                or Path(name).suffix.lower() not in SOUND_AUDIO_EXTS
-            ):
-                self._json(404, {"ok": False, "error": "Not found"})
-                return
-            candidate = BACKGROUND_MUSIC_DIR / name
-            if not candidate.is_file():
+            candidate = background_music_file(name)
+            if candidate is None:
                 self._json(404, {"ok": False, "error": "Not found"})
                 return
             self._send_media(candidate)
@@ -6648,6 +6927,14 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "tracks": music_tracks(),
                 "folder": str(MUSIC_DIR),
                 "library": music_manifest().get("name") or "Music Library",
+            })
+            return
+        if parsed.path == "/api/background-music":
+            self._json(200, {
+                "ok": True,
+                "tracks": background_music_tracks(),
+                "folder": str(ensure_background_music_dir()),
+                "default": background_music_default(),
             })
             return
         if parsed.path == "/api/themes":
@@ -7616,7 +7903,7 @@ def run_gtk() -> None:
             window.set_decorated(False)
             window.maximize()
 
-            def pick_project_folder():
+            def pick_project_folder(initial: str = ""):
                 chosen = {"path": None}
                 done = threading.Event()
 
@@ -7630,6 +7917,17 @@ def run_gtk() -> None:
                         accept_label="Select",
                         cancel_label="Cancel",
                     )
+                    # Start in the clicked todo's own workspace. Without this the
+                    # native chooser reopens wherever the reader last picked,
+                    # which made every todo look like it shared that folder.
+                    start = Path(initial).expanduser() if initial else None
+                    if start and not start.is_dir():
+                        start = start.parent if start.parent.is_dir() else None
+                    if start:
+                        try:
+                            chooser.set_current_folder(Gio.File.new_for_path(str(start)))
+                        except Exception:
+                            pass
                     window._project_folder_dialog = chooser
 
                     def on_response(dialog, response):

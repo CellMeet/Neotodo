@@ -41,17 +41,11 @@ html[data-note-dark="true"] .subtask-search-rail-icon {
   filter: brightness(0) invert(1) drop-shadow(0 0 5px rgba(255, 255, 255, 0.20));
 }
 
-/* The task column is the drawer's clipping box. The pane slides down from the
-   top boundary and the column gives up exactly the strip it occupies. */
+/* The task column is the drawer's clipping box. The pane appears at the top
+   boundary and the column gives up exactly the strip it occupies. */
 body.subtask-search-on .current-half {
   position: relative;
   overflow: hidden;
-}
-
-/* The pop is one short beat shared by the pane and the column (see below). */
-body.subtask-search-on {
-  --ss-pop-ms: 100ms;
-  --ss-pop-ease: cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 /* Opening the field makes room for it: the whole subtask column (rows, the
@@ -61,14 +55,11 @@ body.subtask-search-on {
    the pane, so the search box never overlaps a card and is never covered by
    one. The column keeps 100% of its height minus that measured strip.
 
-   One beat for the whole drawer: the column and the pane share the exact same
-   duration and curve (--ss-pop-* below), so the field can never lead or lag
-   the rows under it while the box pops out. */
+   The drawer is a state change, not a slide: the pane and the column cut to
+   the open layout on the same frame, with no transition on either, so the
+   field is usable the moment it appears and the rows never drift under it. */
 body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {
-  transition:
-    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
-    height var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1));
-  will-change: transform;
+  transition: none;
 }
 
 body.subtask-search-open .page-body > .todos-section > .current-half > .current-inner {
@@ -78,14 +69,13 @@ body.subtask-search-open .page-body > .todos-section > .current-half > .current-
 }
 
 /* --------------------------------------------------------------------------
-   The drawer. Closed: parked just above the top edge and clipped away.
-   Open: slid down into the strip the task block gave up for it. The surface is
-   FocusWriter's recipe — blur whatever is behind the row, then lay one flat
-   wash on it — but the wash is dense enough that nothing underneath can be
-   read through it: the pane is one solid, square-cornered sheet, exactly the
-   width of the subtask rows and at least one full row tall, so it can never
-   be mistaken for a slot cut into the card below. The blur radius is the
-   setting on the plugin page.
+   The drawer. Closed: hidden outright. Open: printed into the strip the task
+   block gave up for it. The surface is FocusWriter's recipe — blur whatever is
+   behind the row, then lay one flat wash on it — but the wash is dense enough
+   that nothing underneath can be read through it: the pane is one solid,
+   square-cornered sheet, exactly the width of the subtask rows and at least
+   one full row tall, so it can never be mistaken for a slot cut into the card
+   below. The blur radius is the setting on the plugin page.
    -------------------------------------------------------------------------- */
 .subtask-search-drawer {
   --ss-field-h: 46px;
@@ -127,26 +117,19 @@ body.subtask-search-open .page-body > .todos-section > .current-half > .current-
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translate3d(0, -102%, 0);
-  will-change: transform;
-  transition:
-    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
-    opacity 80ms ease,
-    visibility 0s linear var(--ss-pop-ms, 100ms);
+  transform: none;
+  transition: none;
 }
 
-/* The open state is painted on the same frame as the column shift, with the
-   same duration and curve, so the box arrives together with its gap: no
-   stagger, no half-open pause, and the field is usable the moment it lands. */
+/* The open state is painted on the same frame as the column shift, with no
+   transition at all, so the box arrives together with its gap: no stagger, no
+   half-open pause, and the field is usable the moment it lands. */
 .subtask-search-drawer.open {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transform: translate3d(0, 0, 0);
-  transition:
-    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
-    opacity 50ms ease,
-    visibility 0s linear 0s;
+  transform: none;
+  transition: none;
 }
 
 /* --------------------------------------------------------------------------
@@ -359,7 +342,7 @@ body.subtask-search-open .page-body > .todos-section > .current-half > .current-
 }
 
 /* The row the user picked gets a brief ruled-paper highlight after the drawer
-   slides away, so the eye can find it in the live list. */
+   closes, so the eye can find it in the live list. */
 .current-subtask.subtask-search-hit {
   animation: subtask-search-hit 1.6s ease-out;
 }
@@ -432,12 +415,7 @@ html[data-postcard-dark="true"] .subtask-search-drawer {
 @media (prefers-reduced-motion: reduce) {
   .subtask-search-rail-icon,
   .subtask-search-field-icon,
-  .subtask-search-bar,
-  .subtask-search-drawer {
-    transition: none !important;
-  }
-  body.subtask-search-on .current-half > .current-inner,
-  body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {
+  .subtask-search-bar {
     transition: none !important;
   }
   .current-subtask.subtask-search-hit {

@@ -53,6 +53,20 @@ html[data-icon-fan-done="1"] .history-subtask .fan-stack {
   background-image: var(--icon-fan-done);
 }
 
+/* The Doing card's picture marks read a touch small beside the 19px subtask
+   names. Give Pvs's chomper and puffshroom more room, without changing the
+   card's rows: the chomper fills the 40px head and the mushroom still sits on
+   the same text line. */
+html[data-icon-tissue="1"] .doing-mark {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  translate: 0 -4px;
+}
+html[data-icon-tissue="1"] .doing-mark svg {
+  width: 38px;
+  height: 38px;
+}
 /* AI running: there is no extra badge on the left. The puffshroom fan itself
    becomes the spraying animation for the length of the run. */
 html[data-icon-ai-running="1"] .current-subtask.agent-running .fan-stack,
@@ -75,8 +89,13 @@ html[data-icon-ai-running="1"] .doing-sub.agent-running .doing-fan {
   width: 32px;
   flex-basis: 32px;
 }
-/* The Doing card's fan is the same picture; lift it onto the text line. */
+/* The Doing card's fan is the same picture; give it a little more room than
+   the shelf row so the mushroom reads beside the larger subtask names, and
+   lift it onto the text line. */
 html[data-icon-fan="1"] .doing-fan {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
   translate: 0 -3px;
 }
 /* AI done: the finished mark replaces the provider badge. Match the fan's
@@ -148,23 +167,6 @@ html[data-icon-check-done="1"] .h-sub-check {
 }
 html[data-icon-check-done="1"] .sub-done-check use,
 html[data-icon-check-done="1"] .h-sub-check use {
-  opacity: 0;
-}
-
-/* Pvs right-click delete: the row itself burns away instead of breathing out
-   a puff of smoke. app.js places this layer over the old row rectangle. */
-.subtask-burn {
-  position: fixed;
-  z-index: 300;
-  pointer-events: none;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  opacity: 1;
-  filter: drop-shadow(0 0 8px rgba(255, 126, 22, 0.42));
-  transition: opacity 0.28s ease;
-}
-.subtask-burn.fading {
   opacity: 0;
 }
 

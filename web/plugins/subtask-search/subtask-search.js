@@ -1,5 +1,5 @@
 /* ==========================================================================
-   SUBTASK SEARCH PLUGIN — a search drawer that slides out of the subtask edge.
+   SUBTASK SEARCH PLUGIN — a search bar that appears above the subtask edge.
    --------------------------------------------------------------------------
    This plugin owns:
      - its magnifier button in the left tool rail;
@@ -10,8 +10,8 @@
    below the field as ruled rows, newest activity first with a relative time on
    the right. Clicking one keeps the drawer open, selects the original subtask
    exactly like a click on the row does, and brings it back into view. The rail
-   button opens and closes the drawer, and the drawer slides down from the top
-   edge of the task block.
+   button opens and closes the drawer, and the drawer is printed straight into
+   the top edge of the task block: no slide, no fade, it is simply there.
 
    The field also creates work. Enter on an empty result list turns the typed
    text into a new subtask, selects it and clears the field, so a search that
@@ -49,7 +49,6 @@
   let panelOpen = false;
   let syncFrame = 0;
   let resultToken = 0;
-  let clearTimer = 0;
   let clockTimer = 0;
   let creatingSubtask = false;
   let drawerPointerDown = false;
@@ -87,12 +86,6 @@
       document.documentElement.style.setProperty("--ss-search-blur", `${px}px`);
     } catch (error) {}
     return px;
-  }
-
-  function cancelScheduledClear() {
-    if (!clearTimer) return;
-    window.clearTimeout(clearTimer);
-    clearTimer = 0;
   }
 
   function startClock() {
@@ -226,7 +219,6 @@
     const input = panel.querySelector(".subtask-search-input");
 
     input.addEventListener("input", () => {
-      cancelScheduledClear();
       query = input.value;
       renderResults();
     });
@@ -277,7 +269,6 @@
   }
 
   function clearSearch(refocus) {
-    cancelScheduledClear();
     query = "";
     const input = currentInput();
     if (input) input.value = "";
@@ -296,7 +287,6 @@
     if (typeof action !== "function") return false;
 
     creatingSubtask = true;
-    cancelScheduledClear();
     try {
       if (typeof AudioFX !== "undefined") AudioFX.mechanical();
     } catch (error) {}
@@ -329,7 +319,8 @@
   }
 
   // ------------------------------------------------------------------------
-  // Panel open/close motion. CSS owns the slide; this only flips the state.
+  // Panel open/close state. CSS prints the pane and the shifted column in the
+  // same frame with no transition; this only flips the state.
   // ------------------------------------------------------------------------
   function refreshLaneScrollers() {
     requestAnimationFrame(() => {
@@ -357,12 +348,12 @@
 
   function openPanel() {
     if (!currentPanel()) return false;
-    cancelScheduledClear();
     panelOpen = true;
     startClock();
     // Empty the rows and measure the field-only pane before the open class is
-    // painted: the column and the pane then leave on the same frame at the
-    // same height, with no extra measuring frame tugging the rows afterwards.
+    // painted: the column and the pane then cut in on the same frame at the
+    // same height, with no transition and no extra measuring frame tugging the
+    // rows afterwards.
     renderResults();
     publishPaneHeight();
     paintOpenState();
@@ -385,19 +376,13 @@
     paintOpenState();
     refreshLaneScrollers();
     if (clear) {
-      cancelScheduledClear();
       query = "";
       const input = currentInput();
       if (input) input.value = "";
-      // Keep the result rows on screen while the drawer slides away, then drop
-      // them once it is tucked above the edge.
-      clearTimer = window.setTimeout(() => {
-        clearTimer = 0;
-        renderResults();
-      }, 480);
-    } else {
-      renderResults();
     }
+    // The drawer closes in one cut, so the result rows go with it: nothing is
+    // left to fade out above the edge.
+    renderResults();
     if (focusRail) {
       try { railButton.focus({ preventScroll: true }); } catch (error) {}
     }
@@ -681,7 +666,6 @@
   // Keep the drawer in sync with the subtask stage (it is rebuilt on render).
   // ------------------------------------------------------------------------
   function resetView() {
-    cancelScheduledClear();
     creatingSubtask = false;
     drawerPointerDown = false;
     stopClock();

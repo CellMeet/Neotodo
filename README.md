@@ -96,7 +96,7 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 ### 🍅 Focus timer and achievements
 - ⏱️ **A 25-minute tomato clock.** Name the task, start the timer, and a hand-drawn tomato keeps the minutes visible.
 - 🍅 **Focus log.** Completed sessions are recorded with their task names, searchable from the tomato counter.
-- 🖼️ **Achievement stickers.** The trophy and tomato counters use picture stickers; replace them in **Settings → Stickers**.
+- 🖼️ **Card pictures.** Every floating card accepts its own picture in **Settings → Card**; achievement badges stay in **Settings → Stickers**. Each row shows the picture, its name and a Change button, and choosing a file opens a crop box so only the selected part becomes the surface.
 
 ### 🎨 Make it yours
 - 🎨 **Theme.** The **Theme** row folds out: its chips show the current app, note and AI palettes at a glance, and opening it reveals the app theme dropdown, **Manage**, and **Note theme / AI theme** tabs with preview cards — click the note or AI chip to jump straight to that tab. Pick any installed theme by name, and **Manage** to import a `.zip`, create a theme or browse the community. A theme brings its wallpaper, the underline under task text, the add / complete accent and the selected-cell wash with it, while the colour fields still let you fine-tune them. The notebook and the AI console keep their own palettes, each owning its ink and the colour of its horizontal rules. Pick a note material, note background and blur, caret shape and colour, clock visibility, time cost, title position and header icon size.

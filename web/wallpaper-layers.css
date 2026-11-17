@@ -198,6 +198,9 @@ html[data-wallpaper] #pending-subtask-card > .card-wallpaper[data-fit="patch"] >
    therefore carries no outline. */
 :root {
   --subcard-outline: #2f5d4e;
+  /* Settings → Font → Card line publishes the weight; the 1.5px fallback keeps
+     the original outline before the saved file has reached the stylesheet. */
+  --subcard-line-width: 1.5px;
 }
 
 html[data-wallpaper] [data-subcard] > .card-wallpaper::after {
@@ -206,7 +209,7 @@ html[data-wallpaper] [data-subcard] > .card-wallpaper::after {
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e);
+  box-shadow: inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e);
 }
 
 /* The card's ink sits on a picture now, so it gets a paper halo instead of a
@@ -234,10 +237,11 @@ html[data-wallpaper][data-wallpaper-cards] #pending-subtask-card,
 html[data-wallpaper][data-wallpaper-cards] #doing-peek,
 html[data-wallpaper][data-wallpaper-cards] .completed-subtask-drawer,
 html[data-wallpaper][data-wallpaper-cards] .trash-drawer {
-  /* The card's own 1px border is painted too, in the same ink green: a
+  /* The card's own border is painted too, in the same ink green: a
      transparent border here would let the room show through as a thin line
      tinted by the background along the picture's edge. */
   border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
   background-color: transparent !important;
   background-image: none !important;
   -webkit-backdrop-filter: none !important;
@@ -264,11 +268,11 @@ html[data-wallpaper] #pending-subtask-card > .pending-subtask-toggle {
 
 /* Folded down to its handle the card is gone, so its picture goes with it:
    only the purple line is left on the page's plain ruling. The pane stays
-   mounted, so unfolding reveals the same baked picture at once. */
+   mounted, so unfolding reveals the same baked picture at once. The face is
+   part of the sheet and never fades on a beat of its own. */
 html[data-wallpaper] #pending-subtask-card.collapsed > .card-wallpaper {
   opacity: 0;
-  /* The face leaves on the fold's own beat, not halfway through it. */
-  transition: opacity 0.12s ease;
+  transition: none;
 }
 
 /* The old paper veil would gray the pane out; the pane's own scrim replaces
@@ -357,4 +361,100 @@ html[data-wallpaper] .settings-nav {
   html[data-wallpaper] .completed-sheet {
     background-color: color-mix(in srgb, var(--pc-paper, #f7efe3) 82%, transparent) !important;
   }
+}
+
+/* --------------------------------------- per-card pictures (Settings → Card) --- */
+
+/* A card can carry a picture of its own, chosen and cropped in Settings → Card.
+   The pane uses the same geometry as a wallpaper card, but it is tied to that
+   one host (`data-card-picture`), so it exists even when no wallpaper is on and
+   none of the room's other surfaces change. */
+[data-card-picture] {
+  isolation: isolate;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: var(--subcard-outline, #2f5d4e) !important;
+  border-width: var(--subcard-line-width, 1.5px) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--pc-paper, #f7efe3) 62%, transparent);
+  box-shadow:
+    0 22px 30px -24px rgba(0, 0, 0, 0.55),
+    0 8px 14px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+[data-card-picture] > .card-wallpaper {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+[data-card-picture] > .card-wallpaper > .wallpaper-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: inherit;
+  transform-origin: center;
+}
+
+[data-card-picture] > :not(.card-wallpaper) {
+  position: relative;
+  z-index: 1;
+}
+
+/* One ink-green stroke, supplied by the pane exactly as on a wallpaper card. */
+[data-card-picture] > .card-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e);
+}
+
+/* The live subtask card has no element border to add to the pane's ring, while
+   the Doing card and the finished card paint their stroke twice (element edge
+   plus pane ring). Repeat the live card's ring one width further in so all
+   three cards carry the same two-step edge instead of the subtask card reading
+   fainter. The extra ring lives inside the pane, so the 40px row pitch is
+   untouched. */
+#pending-subtask-card[data-card-picture] > .card-wallpaper::after {
+  box-shadow:
+    inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 calc(var(--subcard-line-width, 1.5px) * 2) var(--subcard-outline, #2f5d4e);
+}
+
+/* The live card already draws its own stroke; the pane replaces it. */
+#pending-subtask-card[data-card-picture]::after {
+  opacity: 0 !important;
+}
+
+/* A card folded down to its handle shows only the handle, not its picture. */
+#pending-subtask-card[data-card-picture].collapsed > .card-wallpaper {
+  opacity: 0;
+  transition: none;
+}
+
+/* The Doing card's own veil would gray its picture out. */
+#doing-peek[data-card-picture]::before {
+  background: none !important;
+  opacity: 0 !important;
+}
+
+/* The finished card's content is printed on the picture, not on a second sheet. */
+[data-card-picture] .completed-subtask-sheet {
+  background: transparent !important;
+}
+
+/* The live card's handle is a direct child. Keep it pinned to the bottom edge
+   above the picture, exactly as it is on a wallpaper card. */
+#pending-subtask-card[data-card-picture] > .pending-subtask-toggle {
+  position: absolute;
+  z-index: 12;
 }

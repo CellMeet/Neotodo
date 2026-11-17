@@ -41,6 +41,7 @@ def main() -> int:
             "opacity": 0.4,
             "row": 48,
             "thickness": 2,
+            "enabled": True,
         }, line
         saved = json.loads(app.PAGE_LINE_FILE.read_text(encoding="utf-8"))
         assert saved == line, saved

@@ -128,23 +128,20 @@
   position: relative;
   box-sizing: border-box;
   /* The block is the page's fixed seven-row sheet. 100% keeps the card inside
-     the column while the search plugin shortens the block by one row. The
-     stretch animates the cap, not the height: both ends are lengths, so the
-     edge travels at a steady pace in every WebKit build. */
+     the column while the search plugin shortens the block by one row. A held
+     edge sets the cap by hand, so the sheet adds no beat of its own to that
+     gesture — and a click flips it in a single frame. */
   height: 100%;
   max-height: var(--page-task-h, 280px);
   overflow: hidden;
   border-radius: var(--overlay-radius, 10px);
   background-color: var(--overlay-paper, var(--paper));
   background-image: none;
-  /* The stretch is the control: the bottom edge travels, the top stays.
-     This card unfolds much further than the finished tray down the page, so
-     it gets the app's near-instant beat (the search pop is 100ms) instead of
-     a slow travel: the sheet, its paper and its rows all land in one short
-     wipe. Everything that fades during the fold shares this exact duration,
-     so no layer can arrive before or after the edge. */
-  transition: max-height 0.12s cubic-bezier(0.2, 1, 0.3, 1),
-    background-color 0.12s ease;
+  /* Opening and folding the card is a state change, not a movement: the
+     sheet, its paper and its rows appear or leave together on one frame. A
+     click on the handle never plays a slide; only a held edge follows the
+     pointer, because that travel is the reader's own gesture. */
+  transition: none;
 }
 
 /* The stroke is painted inside the box (a 1px border would push every row off
@@ -156,9 +153,11 @@
   z-index: 11;
   pointer-events: none;
   border: 1px solid var(--subcard-outline, #2f5d4e);
+  border-width: var(--subcard-line-width, 1.5px);
   border-radius: inherit;
-  /* Same beat as the fold: the stroke leaves with the edge, not before it. */
-  transition: opacity 0.12s ease;
+  /* The stroke is part of the sheet: it appears and leaves with the face, on
+     the same frame, never on a beat of its own. */
+  transition: none;
 }
 
 /* Folded away the card is gone: no face, no stroke, no corner. Only the handle
@@ -174,10 +173,10 @@
   opacity: 0;
 }
 
-/* The rows fade on the fold's own beat; a shorter fade made the words reach
-   their place while the paper edge was still travelling. */
+/* The rows are printed on the sheet: a folded card drops them in the same
+   frame the paper leaves, and an unfolded one hands them back at once. */
 .pending-subtask-card .subtask-lanes {
-  transition: opacity 0.12s ease;
+  transition: none;
 }
 
 .pending-subtask-card.collapsed .subtask-lanes {
@@ -258,17 +257,6 @@
   pointer-events: none;
 }
 
-/* The first row pulls the pill out of that top boundary and back down onto the
-   card's bottom edge. */
-.pending-subtask-toggle.line-reveal {
-  animation: pending-subtask-line-pull 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-@keyframes pending-subtask-line-pull {
-  from { top: -30px; opacity: 0; }
-  to { top: calc(100% - 30px); opacity: 1; }
-}
-
 /* Folded, the line is the whole card: keep it reachable but quieter, so the
    tab reads as tucked paper rather than live rows. */
 .pending-subtask-toggle.collapsed .pending-subtask-line {
@@ -287,11 +275,10 @@
    tucks it away again. `peek` is set by bindPendingSubtaskToggle(); a click on
    the line then unfolds the rows as before. Keyboard focus always keeps the
    line out, and a device without hover keeps it visible (`@media (hover)`), so
-   the control is never unreachable. */
+   the control is never unreachable. Neither the appear nor the tuck is
+   animated: the line is a state of the card, not a slide. */
 .pending-subtask-card.collapsed > .pending-subtask-toggle {
-  /* The pill rides the shrinking edge, so its tuck uses the fold's own beat. */
-  transition: transform 0.12s cubic-bezier(0.2, 1, 0.3, 1),
-    opacity 0.1s ease;
+  transition: none;
 }
 
 .pending-subtask-toggle.collapsed.peek .pending-subtask-line {
@@ -301,9 +288,7 @@
 @media (hover: hover) {
   .pending-subtask-card.collapsed
     > .pending-subtask-toggle:not(.peek):not(:focus-visible) {
-    /* The line rides the card's shrinking bottom edge up to the top band while
-       it tucks itself beyond the card's clipped top, so folding away reads as
-       the handle retreating into the subtask area, not as a blink. */
+    /* Parked beyond the card's clipped top, out of sight and out of reach. */
     transform: translateY(-44px);
     opacity: 0;
     pointer-events: none;
@@ -444,66 +429,30 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   pointer-events: none;
   transform: translateY(-14px) scale(0.985);
   transform-origin: 50% 0;
-  transition: opacity 0.18s ease,
-    transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 0s linear 0.26s;
+  /* Opening and closing the finished card is an instant state change. Its
+     handle line and its rows are never animated by a submit or by a click. */
+  transition: none;
 }
 
+/* The finished card is opened by its handle line, as one sheet: its paper, its
+   rules and its already-printed rows appear together. The submit itself never
+   opens, closes or animates this card. */
 .completed-subtask-drawer.open {
   z-index: 10;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transform: none;
-  transition: opacity 0.2s ease,
-    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 0s;
+  transition: none;
 }
 
 .completed-subtask-drawer.no-motion {
   transition: none;
 }
 
-/* While a finished row is gliding into the card, the card itself must not
-   slide: its entrance would move the landing spot under the flying row. It
-   fades in at its final box instead, and the row carries the movement. */
-.completed-subtask-drawer.flight-target,
-.completed-subtask-drawer.flight-target.open {
-  transform: none;
-  transition: opacity 0.16s ease;
-}
-
-/* The flying row is drawn on the page, not inside the cards: the drawer and its
-   lane both clip their children, so the real row would be invisible for most of
-   the trip. The trip itself only moves and clips the ghost: the width is fixed
-   at the pending row's width and the narrower landing box is reached by
-   clipping the right edge, so no frame has to lay the row out again. */
-.subtask-flight {
-  position: fixed;
-  margin: 0;
-  pointer-events: none;
-  will-change: transform, clip-path;
-  contain: layout paint;
-}
-
-/* The new finished row's rule arrives first; its fan, name and check land with
-   the flight. Keeping the row itself visible lets the rule push the finished
-   rows below it down, instead of opening an empty hole above them. */
-.current-subtask.subtask-slot-arriving > * {
-  visibility: hidden;
-}
-
-/* What travels is the row's paper: its bottom line, its fan and its name. The
-   font ink wash under a selected row stays in the pending lane — it marks where
-   the reader is working, and a wash moving with the row would paint a coloured
-   block over the page and leave it on the finished card. */
-.subtask-flight,
-.subtask-flight.selected,
-.subtask-flight::before,
-.subtask-flight::after {
-  background: none !important;
-  box-shadow: none !important;
-}
+/* A finished row changes cards in place: it is never cloned onto the page and
+   its paper is never stripped from its name. The live row answers the click,
+   then the finished card prints the row on its own paper in the same repaint. */
 
 /* The click answers before the row leaves: the fan dips into its paper and the
    row lifts a hair, so waiting for the backend never looks like a freeze. */
@@ -517,10 +466,9 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 /* The provider mark belongs to the live run, not to the submission: it leaves
-   the moment the row starts to submit and takes its slot with it. The row is
-   already in the layout the finished row will land in, so the flight carries a
-   row without an invisible icon in front and nothing shifts sideways when it
-   lands. A failed request restores the mark with the row's own state. */
+   the moment the row starts to submit and takes its slot with it, so nothing
+   shifts sideways when the finished card prints the same row without it. A
+   failed request restores the mark with the row's own state. */
 .current-subtask.subtask-completing .sub-agent-model {
   display: none;
 }
@@ -604,9 +552,9 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
   .todos-section > .current-half { flex-basis: 64%; }
 }
 
-/* The pull-out is decoration; the handles still appear in place for readers
-   who ask their system to reduce motion. */
+/* The pull-out is decoration; the handle still appears in place for readers
+   who ask their system to reduce motion. (The live card has no pull-out at
+   all: its handle is printed with its rows.) */
 @media (prefers-reduced-motion: reduce) {
-  .pending-subtask-toggle.line-reveal,
   .completed-subtask-toggle.line-reveal { animation: none; }
 }
