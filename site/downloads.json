@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "app": {
+    "name": "NeoTodo",
+    "version": "0.0.1",
+    "released": "2026-11-16",
+    "tagline": "一个任务，一页纸，一点小小的胜利。",
+    "homepage": "https://github.com/CellMeet/Neotodo",
+    "releases": "https://github.com/CellMeet/Neotodo/releases/latest",
+    "license": "MIT"
+  },
+  "platforms": [
+    {
+      "id": "windows",
+      "name": "Windows",
+      "englishName": "Windows 10 / 11 · x64",
+      "status": "available",
+      "requirements": [
+        "Windows 10 或 11（64 位）",
+        "下载 .zip，解压后双击 setup.exe 安装",
+        "安装包自带 Python 与 Qt WebEngine，无需单独配置环境"
+      ],
+      "note": "解压后双击 NeoTodo-0.0.1-Windows-x64-setup.exe，按提示完成安装；开始菜单会生成 NeoTodo 与 Uninstall NeoTodo。数据保存在 %APPDATA%\\NeoTodo，卸载不会删除。",
+      "artifacts": [
+        {
+          "name": "Windows 安装包（.zip）",
+          "file": "NeoTodo-0.0.1-Windows-x64.zip",
+          "url": "https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64.zip",
+          "kind": "zip",
+          "source": "github",
+          "size": null,
+          "sha256": ""
+        },
+        {
+          "name": "直接下载安装程序（.exe）",
+          "file": "NeoTodo-0.0.1-Windows-x64-setup.exe",
+          "url": "https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Windows-x64-setup.exe",
+          "kind": "exe",
+          "source": "github",
+          "size": null,
+          "sha256": ""
+        }
+      ]
+    },
+    {
+      "id": "linux",
+      "name": "Linux",
+      "englishName": "Linux · x86_64",
+      "status": "available",
+      "requirements": [
+        "Ubuntu 22.04 / Fedora 39 或更新",
+        "GTK4 与 WebKitGTK 6（python3-gi）",
+        "Python 3.10+"
+      ],
+      "note": "源码包：解压后运行 ./run.sh。第一次启动会在 ~/.local/share/neotodo 建立笔记本。",
+      "artifacts": [
+        {
+          "name": "Linux 源码包",
+          "file": "NeoTodo-0.0.1-Linux-x86_64.tar.gz",
+          "url": "https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Linux-x86_64.tar.gz",
+          "kind": "tar.gz",
+          "source": "github",
+          "size": null,
+          "sha256": ""
+        }
+      ]
+    },
+    {
+      "id": "android",
+      "name": "Android",
+      "englishName": "Android 8.0+",
+      "status": "build",
+      "requirements": [
+        "Android 8.0 或更新",
+        "当前版本从源码构建（Chaquopy + Gradle）",
+        "构建方法与 Linux 共用同一份 app.py 和 web/"
+      ],
+      "note": "APK 还在整理中。想先试用，可以按 README 的“Run from source”一节在本地构建。",
+      "artifacts": [
+        {
+          "name": "构建说明",
+          "file": "",
+          "url": "https://github.com/CellMeet/Neotodo/tree/main/NeoTodo-Android",
+          "kind": "link",
+          "source": "docs",
+          "size": null,
+          "sha256": ""
+        }
+      ]
+    },
+    {
+      "id": "macos",
+      "name": "macOS",
+      "englishName": "macOS 11+ · Apple Silicon / Intel",
+      "status": "build",
+      "requirements": [
+        "macOS 11 Big Sur 或更新",
+        "从源码构建：PyObjC + WKWebView 外壳",
+        "与 Linux 共用同一份 app.py 和 web/"
+      ],
+      "note": "原生外壳已经能跑起来。构建步骤在 NeoTodo-MacOS/README.md，打好的安装包会在下一个版本出现在这里。",
+      "artifacts": [
+        {
+          "name": "macOS 构建说明",
+          "file": "",
+          "url": "https://github.com/CellMeet/Neotodo/tree/main/NeoTodo-MacOS",
+          "kind": "link",
+          "source": "docs",
+          "size": null,
+          "sha256": ""
+        }
+      ]
+    },
+    {
+      "id": "ios",
+      "name": "iOS",
+      "englishName": "iOS 15+",
+      "status": "planned",
+      "requirements": [
+        "iOS 15 或更新",
+        "与桌面版共用任务和插件格式"
+      ],
+      "note": "正在制作中。",
+      "artifacts": []
+    }
+  ]
+}

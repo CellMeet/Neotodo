@@ -1,23 +1,24 @@
 /* ==========================================================================
-   The notebook has its own palette, independent of the NeoTodo app theme.
-   Paper and Glass both read only from the --note-* variables declared here.
-   Nothing in this file may take a colour from a postcard slot; the few --pc-*
-   names below are only re-pointed at the notebook palette for legacy rules.
+   The notebook has its own style, independent of the NeoTodo app theme.
+   There is exactly one: a beige sticky note ruled with white hairlines. The
+   paper material reads only the --note-* variables declared here. Nothing in
+   this file may take a colour from a postcard slot; the few --pc-* names below
+   are only re-pointed at the notebook palette for legacy rules.
    ========================================================================== */
 
 :root {
-  /* Theme slots. The notebook owns one palette: a plain white page. app.js
-     writes these same values when it applies the single built-in note theme
-     (or a file the reader put in note-theme/); the materials below only read
-     them, so no app theme or wallpaper can tint the notebook. */
-  --note-theme-paper: #ffffff;
-  --note-theme-ink: #2b2b2e;
-  --note-theme-muted: rgba(43, 43, 46, 0.58);
-  --note-theme-rule: rgba(43, 43, 46, 0.14);
-  --note-theme-accent: #6b6b73;
-  --note-theme-accent2: #8a8a92;
-  --note-handle-line: rgba(62, 62, 68, 0.70);
-  --note-handle-hover: rgba(38, 38, 44, 0.92);
+  /* Theme slots. The notebook owns one style: a beige sticky note with white
+     ruled lines. app.js writes these same values when it applies the single
+     built-in note style; the paper material only reads them, so no app theme
+     or wallpaper can tint the notebook. */
+  --note-theme-paper: #f6e8c4;
+  --note-theme-ink: #4a3a28;
+  --note-theme-muted: rgba(74, 58, 40, 0.55);
+  --note-theme-rule: rgba(255, 255, 255, 0.90);
+  --note-theme-accent: #9a7443;
+  --note-theme-accent2: #7f5f38;
+  --note-handle-line: rgba(74, 58, 40, 0.70);
+  --note-handle-hover: rgba(58, 45, 30, 0.92);
   --note-handle-halo: rgba(255, 255, 255, 0.20);
   --note-handle-halo-hover: rgba(255, 255, 255, 0.30);
 
@@ -206,9 +207,9 @@ html[data-theme] body .page-body .notes-half.floating-notes ::selection {
 /* Notebook context menu uses the notebook paper palette, not the app theme. */
 html[data-theme="postcard"] .context-menu.context-note,
 .context-menu.context-note {
-  background: var(--note-paper, #ffffff) !important;
-  color: var(--note-ink, #2b2b2e);
-  border-color: var(--note-rule, rgba(43, 43, 46, 0.14));
+  background: var(--note-paper, #f6e8c4) !important;
+  color: var(--note-ink, #4a3a28);
+  border-color: var(--note-rule, rgba(255, 255, 255, 0.90));
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16), 0 3px 8px rgba(0, 0, 0, 0.08);
   font-family: var(--note-font, "Z003", "URW Bookman", serif);
 }
@@ -238,7 +239,32 @@ html[data-theme="postcard"] .context-menu.context-note,
 .notes-half.floating-notes .note-block-editor,
 .notes-half.floating-notes .note-live,
 .notes-half.floating-notes .notes-empty {
-  color: var(--note-ink, #2b2b2e) !important;
+  color: var(--note-ink, #4a3a28) !important;
+}
+
+/* The empty first line is a ghost prompt, not content: Write something ...
+   It sits over the first editor's padding so it reads in the same italic hand
+   as the note, and never catches a click. */
+.note-live {
+  position: relative;
+}
+.note-ghost {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 0;
+  pointer-events: none;
+  color: var(--note-muted, rgba(74, 58, 40, 0.55));
+  font-family: var(--note-font, var(--display));
+  font-size: calc(17px * var(--user-scale, 1));
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+.note-ghost[hidden] {
+  display: none;
 }
 
 /* --------------------------------------------------------------------------

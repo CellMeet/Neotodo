@@ -8,10 +8,11 @@ backdrop root — which left the frost nothing to blur. Keeping the surface,
 though, brought the stutter back: the Paper material used to paint five
 full-sheet gradients, so every height frame re-rastered the whole note.
 
-The notebook therefore owns one flat white page now (note-theme.css and
-note-materials/paper.css), and a preset shelf of note palettes is gone. This
-test keeps both halves of the contract: the surface is not repainted during
-the gesture, and the Paper surface has nothing sheet-sized left to repaint.
+The notebook therefore owns one style only: a beige sticky note with white
+ruled lines (note-theme.css and note-materials/paper.css), and every other note
+palette or surface is gone. This test keeps both halves of the contract: the
+surface is not repainted during the gesture, and the Paper surface has only one
+cheap rule gradient left to repaint.
 """
 import re
 import sys
@@ -82,35 +83,43 @@ def main() -> int:
     assert "background-color:" not in stretch
     assert "background-image: none" not in stretch
 
-    # The notebook has one palette of its own: a plain white page. The old
-    # preset shelf (Parchment / Ivory / Rose / Mint) is deleted.
+    # The notebook has one style of its own: the beige `default` sticky note.
+    # The old preset shelf (Parchment / Ivory / Rose / Mint) stays deleted.
     app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
     builtins = app_js.split("const NOTE_THEME_BUILTINS = [", 1)[1].split("\n];", 1)[0]
-    assert 'id: "white"' in builtins, "the white note theme is missing"
+    assert 'id: "default"' in builtins, "the default note style is missing"
+    assert 'name: "Default"' in builtins, "the note style is not named default"
     assert "Parchment" not in builtins and "Ivory" not in builtins
     assert "Rose paper" not in builtins and '"Mint"' not in builtins
     assert builtins.count("palette:") == 1, "a second note palette came back"
-    assert 'note_theme: "white"' in app_js, "the notebook does not default to white"
+    assert 'note_theme: "default"' in app_js, "the notebook does not default to default"
 
     note_theme = (ROOT / "web" / "note-theme.css").read_text(encoding="utf-8")
-    assert "--note-theme-paper: #ffffff;" in note_theme, "the note palette is not white"
-    assert "#e8d3a6" not in note_theme, "the parchment palette is back in the note theme"
+    assert "--note-theme-paper: #f6e8c4;" in note_theme, "the note paper is not beige"
+    assert "--note-theme-rule: rgba(255, 255, 255, 0.90);" in note_theme, "the rules are not white"
+    assert "#e8d3a6" not in note_theme, "the old parchment palette is back"
 
-    # A white page is one flat fill: no sheet-sized gradient or inset wash is
-    # re-rastered on every height frame, which is what made the drag stutter.
+    # The beige page keeps one flat fill plus one repeating rule gradient. No
+    # sheet-sized wash is re-rastered on every height frame.
     paper = (ROOT / "web" / "note-materials" / "paper.css").read_text(encoding="utf-8")
-    assert "background-color: var(--note-paper, #ffffff) !important;" in paper
-    assert "background-image: none !important;" in paper
+    assert "background-color: var(--note-paper, #f6e8c4) !important;" in paper
+    assert "repeating-linear-gradient(" in paper, "the white note rules are missing"
+    assert "var(--note-rule, rgba(255, 255, 255, 0.90)) 39px 40px" in paper
     assert "radial-gradient" not in paper, "the paper wash re-rastered every drag frame"
 
+    # The first empty line is a ghost prompt, in italic.
+    assert 'aria-hidden="true">Write something ...</span>' in app_js
+    assert "noteGhostMarkup" in app_js and "syncNoteGhost" in app_js
+    assert ".note-ghost {" in note_theme and "font-style: italic;" in note_theme
+
     app_py = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert '"note_theme": "white",' in app_py, "a fresh install still starts on parchment"
-    assert '(("note_theme", "white"), ("ai_theme", "auto"))' in app_py
+    assert '"note_theme": "default",' in app_py, "a fresh install does not start on default"
+    assert 'settings["note_theme"] = "default"' in app_py
 
     # A missing or extra brace here would silently drop the drag rules.
     assert css.count("{") == css.count("}"), "the stylesheet is unbalanced"
 
-    print("the white note keeps its colour and drags smoothly")
+    print("the beige default note keeps its white rules and drags smoothly")
     return 0
 
 

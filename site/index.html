@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="NeoTodo 下载页：Windows、Linux、macOS、Android、iOS 安装包，以及一份可以直接交给应用读取的社区插件目录。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f7f1e4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#17131f" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="下载 NeoTodo">
+  <meta property="og:description" content="一个任务，一页纸，一点小小的胜利。软件安装包和社区插件都在这里。">
+  <meta property="og:image" content="https://raw.githubusercontent.com/CellMeet/Neotodo/main/icon.png">
+  <title>下载 · NeoTodo</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <script>
+    // Paint the remembered paper before the first frame, so a dark reader never
+    // sees a cream flash (the same trick the notebook uses for its postcards).
+    (function () {
+      try {
+        var saved = localStorage.getItem("neotodo.site.theme");
+        var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      } catch (error) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="paper-lines" aria-hidden="true"></div>
+
+  <a class="skip-link" href="#download">跳到下载</a>
+
+  <header class="site-head" data-head>
+    <div class="site-head-inner">
+      <a class="brand" href="#top" aria-label="NeoTodo 下载页首页">
+        <span class="brand-mark"><img src="assets/icon.svg" alt=""></span>
+        <span class="brand-copy">
+          <strong>NeoTodo</strong>
+          <small>下载 · 插件</small>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="页面导航">
+        <a href="#download">下载</a>
+        <a href="#plugins">插件</a>
+        <a href="#setup">安装说明</a>
+      </nav>
+      <div class="head-tools">
+        <a class="github-link" href="https://github.com/CellMeet/Neotodo" target="_blank" rel="noreferrer noopener" aria-label="在 GitHub 上查看 NeoTodo">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.36 1.09 2.93.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.95 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03a9.4 9.4 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.69 0 3.85-2.35 4.7-4.58 4.94.36.31.68.92.68 1.86v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z" fill="currentColor"/></svg>
+        </a>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换深浅色" aria-pressed="false">
+          <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.2A8.4 8.4 0 0 1 9.8 4a8.5 8.5 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span>本地优先 · 不用注册</p>
+        <h1 id="hero-title">把任务写在纸上，<br><em>一件一件完成。</em></h1>
+        <p class="lede">NeoTodo 是一本安静的待办笔记本：一个任务、一页纸、一点小小的胜利。下载桌面版，或者从下面的插件架拿一枚小工具。</p>
+        <div class="hero-actions">
+          <a class="btn primary" data-primary-download href="#download">下载 NeoTodo</a>
+          <a class="btn ghost" href="#plugins">逛逛插件</a>
+        </div>
+        <dl class="version-row">
+          <div><dt>版本</dt><dd data-version>0.0.1</dd></div>
+          <div><dt>更新</dt><dd data-released>—</dd></div>
+          <div><dt>插件</dt><dd><span data-plugin-count>—</span> 枚</dd></div>
+          <div><dt>许可</dt><dd>MIT</dd></div>
+        </dl>
+      </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <div class="postcard-stack">
+          <div class="postcard sheet back-two"></div>
+          <div class="postcard sheet back-one"></div>
+          <article class="postcard main">
+            <span class="postcard-stamp">WEEK 46</span>
+            <h2>这一周</h2>
+            <ul class="postcard-list">
+              <li class="done"><span class="tick">✓</span>写完下载页</li>
+              <li class="done"><span class="tick">✓</span>把插件放到服务器</li>
+              <li><span class="tick hollow"></span>给周报留一行</li>
+            </ul>
+            <span class="postcard-rule"></span>
+            <p class="postcard-sign">NeoTodo · 本地优先</p>
+          </article>
+          <span class="postcard-tape tape-a"></span>
+          <span class="postcard-tape tape-b"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="download" aria-labelledby="download-title">
+      <header class="section-head reveal">
+        <div>
+          <p class="eyebrow">Downloads</p>
+          <h2 id="download-title">选择你的系统</h2>
+          <p class="section-note">安装包、源码和校验值都在这里。推荐项已经按当前系统标好，点一下就能下载。</p>
+        </div>
+        <a class="text-link" href="downloads.json">版本清单 · downloads.json</a>
+      </header>
+      <div class="download-grid" data-download-grid>
+        <p class="loading">正在读取版本信息…</p>
+      </div>
+      <p class="load-error" data-download-error hidden></p>
+    </section>
+
+    <section class="section" id="plugins" aria-labelledby="plugins-title">
+      <header class="section-head reveal">
+        <div>
+          <p class="eyebrow">Plugin shelf</p>
+          <h2 id="plugins-title">插件架</h2>
+          <p class="section-note">目录由这台服务器提供，应用不需要更新就能看到新插件。装上以后，插件和你的任务一起留在本机。</p>
+        </div>
+        <div class="plugin-tools">
+          <label class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m15 15 4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <input type="search" data-plugin-search placeholder="搜索插件、作者或标签" aria-label="搜索插件" autocomplete="off">
+            <kbd>/</kbd>
+          </label>
+          <button class="btn small ghost" type="button" data-copy-catalog>复制目录地址</button>
+        </div>
+      </header>
+
+      <div class="chip-row reveal" data-plugin-chips role="group" aria-label="插件分类"></div>
+      <div class="plugin-grid" data-plugin-grid>
+        <p class="loading">正在读取插件目录…</p>
+      </div>
+      <p class="empty" data-plugin-empty hidden>没有找到匹配的插件。换个词，或者点上面的「全部」。</p>
+      <p class="load-error" data-plugin-error hidden></p>
+    </section>
+
+    <section class="section" id="setup" aria-labelledby="setup-title">
+      <header class="section-head reveal">
+        <div>
+          <p class="eyebrow">How to install</p>
+          <h2 id="setup-title">三步装好</h2>
+          <p class="section-note">软件和插件都不需要账号。插件可以用应用里的社区页安装，也可以下载 .zip 后手动装。</p>
+        </div>
+      </header>
+
+      <ol class="steps reveal">
+        <li>
+          <span class="step-index">01</span>
+          <div>
+            <h3>下载并打开 NeoTodo</h3>
+            <p>选上面的系统，下载安装包或源码包。Windows 双击安装；Linux 解压后运行 <code>./run.sh</code>。</p>
+          </div>
+        </li>
+        <li>
+          <span class="step-index">02</span>
+          <div>
+            <h3>打开 设置 → 社区 → 插件</h3>
+            <p>应用会读取这里的目录。找到想要的插件，点「Install」，它就会下载到本机的插件文件夹，并在左栏出现一个小按钮。</p>
+          </div>
+        </li>
+        <li>
+          <span class="step-index">03</span>
+          <div>
+            <h3>也可以在插件架直接下载 .zip</h3>
+            <p>下载后回到「社区」，点「从 .zip 安装」选中文件即可。卸载同样在社区页完成，任务和笔记不会被碰到。</p>
+          </div>
+        </li>
+      </ol>
+
+      <aside class="server-card reveal">
+        <div class="server-copy">
+          <p class="eyebrow">For the app</p>
+          <h3>让应用读这台服务器的目录</h3>
+          <p>在启动 NeoTodo 之前设置一个环境变量。之后每次打开社区页，插件列表都从这里刷新（本地会缓存 12 小时）：</p>
+        </div>
+        <div class="code-block">
+          <code data-catalog-env>NEOTODO_PLUGIN_CATALOG=https://你的域名/plugins/catalog.json</code>
+          <button type="button" data-copy-env>复制</button>
+        </div>
+        <p class="server-foot">
+          <span>当前目录：<a data-catalog-link href="plugins/catalog.json"><code data-catalog-path>plugins/catalog.json</code></a></span>
+          <span>校验：<code data-catalog-count>—</code></span>
+        </p>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="site-foot-inner">
+      <div class="foot-brand">
+        <img src="assets/icon.svg" alt="">
+        <div>
+          <strong>NeoTodo</strong>
+          <p>一个任务，一页纸，一点小小的胜利。</p>
+        </div>
+      </div>
+      <div class="foot-links">
+        <a href="https://github.com/CellMeet/Neotodo" target="_blank" rel="noreferrer noopener">GitHub</a>
+        <a href="https://github.com/CellMeet/Neotodo/releases" target="_blank" rel="noreferrer noopener">Releases</a>
+        <a href="downloads.json">版本清单</a>
+        <a href="plugins/catalog.json">插件目录</a>
+      </div>
+      <p class="foot-note">页面是纯静态的，可以直接放在阿里云 ECS、OSS 或任何静态服务器上。插件与软件的下载文件由 <code>/files/</code> 与 <code>/plugins/files/</code> 提供。</p>
+    </div>
+  </footer>
+
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <noscript><p class="noscript">这个页面需要 JavaScript 来读取版本清单和插件目录。</p></noscript>
+
+  <script src="site.js"></script>
+</body>
+</html>

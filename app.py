@@ -3073,7 +3073,7 @@ def default_data() -> dict:
             "caret_shape": "line",
             "caret_color": "#1b1b1b",
             "note_material": "paper",
-            "note_theme": "white",
+            "note_theme": "default",
             "ai_theme": "auto",
             "icon_theme": "classical",
             "note_background": "",
@@ -3209,13 +3209,14 @@ def load_data(path: Path | None = None) -> dict:
             if not isinstance(settings.get("focus_log"), list):
                 settings["focus_log"] = []
             settings["caret_blink"] = settings.get("caret_blink") is True
-            settings["note_material"] = "blur" if settings.get("note_material") == "blur" else "paper"
-            # Pane themes: a built-in id (paper/ivory/…) or a pack reference
-            # (pack:<theme-id>). Unknown values fall back to the defaults.
-            for theme_key, default_theme in (("note_theme", "white"), ("ai_theme", "auto")):
-                value = settings.get(theme_key)
-                if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
-                    settings[theme_key] = default_theme
+            settings["note_material"] = "paper"
+            # One note style only: the beige `default` sticky note. Older ids
+            # (white, pack references) and the Paper / Glass / Focus surfaces
+            # collapse back to it.
+            settings["note_theme"] = "default"
+            ai_theme = settings.get("ai_theme")
+            if not isinstance(ai_theme, str) or not re.fullmatch(r"[a-z0-9:_-]{1,80}", ai_theme):
+                settings["ai_theme"] = "auto"
             background = settings.get("note_background")
             image = settings.get("note_background_image")
             if isinstance(background, str) and background.startswith("data:"):
@@ -4204,12 +4205,11 @@ class Store:
                         current["caret_blink"] = incoming["caret_blink"]
                     if incoming.get("caret_shape") in ("line", "block"):
                         current["caret_shape"] = incoming["caret_shape"]
-                    if incoming.get("note_material") in ("paper", "blur"):
-                        current["note_material"] = incoming["note_material"]
-                    for theme_key in ("note_theme", "ai_theme"):
-                        value = incoming.get(theme_key)
-                        if isinstance(value, str) and re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
-                            current[theme_key] = value
+                    current["note_material"] = "paper"
+                    current["note_theme"] = "default"
+                    value = incoming.get("ai_theme")
+                    if isinstance(value, str) and re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
+                        current["ai_theme"] = value
                     # An icon theme is a separate shelf: it never changes the
                     # app paper, the note palette or the AI palette.
                     icon_theme = normalized_theme_id(incoming.get("icon_theme"))
@@ -7577,7 +7577,8 @@ def run_gtk() -> None:
                 if "--new-window" in sys.argv
                 else Gio.ApplicationFlags.DEFAULT_FLAGS
             )
-            super().__init__(application_id="io.github.neotodo", flags=flags)
+            app_id = os.environ.get("NEOTODO_APP_ID") or "io.github.neotodo"
+            super().__init__(application_id=app_id, flags=flags)
             self.window = None
 
         def do_activate(self):
@@ -8050,7 +8051,7 @@ def run_gtk() -> None:
             GLib.timeout_add(1200, poll_ready)
             # Only a page that never becomes ready (a broken init) falls back
             # to an early reveal, so its error message is still reachable.
-            GLib.timeout_add(5000, lambda: reveal_window("global-fallback"))
+            GLib.timeout_add(1800, lambda: reveal_window("global-fallback"))
             view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
 
         def _shutdown(self):
