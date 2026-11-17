@@ -2063,14 +2063,16 @@ const AudioFX = (() => {
   };
 })();
 
-// Optional theme music. It is deliberately not a member of SAMPLE_FILES: a
-// long looping track has its own switch in Settings → Sound, while the master
-// sound switch and volume still govern it. The bundled cue is the default
-// login theme of 《阴阳师：百闻牌》; see web/background-music/CREDITS.txt.
-const BACKGROUND_MUSIC_TRACK = {
-  src: "/background-music/oborozukiyo.mp3",
-  title: "朧月夜",
+// Optional background music. Unlike the one-shot foley cues this is a long
+// looping track, so it has its own switch and its own shelf inside Music.
+// Settings lists the files in <data>/music/BackgroundMusic/ and uses
+// tracks.json only for friendly names; the bundled seed is
+// web/music/BackgroundMusic/BackgourndMusic.mp3.
+const BACKGROUND_MUSIC_FALLBACK = {
+  file: "BackgourndMusic.mp3",
+  name: "朧月夜",
   credit: "阴阳师：百闻牌 · 神前暁",
+  src: "/background-music/BackgourndMusic.mp3",
 };
 const BackgroundMusic = (() => {
   let enabled = true;
@@ -2078,6 +2080,8 @@ const BackgroundMusic = (() => {
     const saved = localStorage.getItem("neotodo.backgroundMusic");
     if (saved !== null) enabled = saved === "1";
   } catch (error) {}
+  let savedTrack = "";
+  try { savedTrack = localStorage.getItem("neotodo.backgroundMusicTrack") || ""; } catch (error) {}
   // Fork boards and detached note/AI windows are satellites of the main
   // notebook. They stay silent so the theme never stacks across windows.
   let secondary = false;
@@ -2085,6 +2089,8 @@ const BackgroundMusic = (() => {
     const params = new URLSearchParams(location.search);
     secondary = params.get("fork") === "1" || params.has("detached");
   } catch (error) {}
+  let current = BACKGROUND_MUSIC_FALLBACK;
+  let tracks = [BACKGROUND_MUSIC_FALLBACK];
   let audio = null;
 
   // The slider is a master level; the theme rides at roughly half of it so
@@ -2093,10 +2099,34 @@ const BackgroundMusic = (() => {
     return Math.max(0, Math.min(1, AudioFX.getVolume() * 0.45));
   }
 
+  function normalizeTrack(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const file = String(raw.file || "").trim();
+    if (!file) return null;
+    const fallbackName = file.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || file;
+    return {
+      file,
+      name: String(raw.name || "").trim() || fallbackName,
+      credit: String(raw.credit || "").trim(),
+      src: String(raw.src || "").trim() || `/background-music/${encodeURIComponent(file)}`,
+    };
+  }
+
+  function trackByFile(file) {
+    const wanted = String(file || "").trim();
+    if (!wanted) return null;
+    return tracks.find((track) => track.file === wanted) || null;
+  }
+
+  function rememberTrack(file) {
+    savedTrack = String(file || "");
+    try { localStorage.setItem("neotodo.backgroundMusicTrack", savedTrack); } catch (error) {}
+  }
+
   function element() {
     if (audio) return audio;
     try {
-      audio = new Audio(BACKGROUND_MUSIC_TRACK.src);
+      audio = new Audio(current.src);
     } catch (error) {
       return null;
     }
@@ -2136,6 +2166,49 @@ const BackgroundMusic = (() => {
     applyVolume();
   }
 
+  function loadTrack(next) {
+    if (!next) return;
+    const changed = !current || next.file !== current.file;
+    current = next;
+    if (!changed) return;
+    if (audio) {
+      try { audio.pause(); } catch (error) {}
+      try {
+        audio.src = current.src;
+        audio.currentTime = 0;
+        audio.load();
+      } catch (error) {}
+    }
+    if (canPlay()) play();
+  }
+
+  function setTracks(next, defaultFile = "") {
+    const clean = [];
+    const seen = new Set();
+    for (const raw of (Array.isArray(next) ? next : [])) {
+      const track = normalizeTrack(raw);
+      if (!track || seen.has(track.file)) continue;
+      seen.add(track.file);
+      clean.push(track);
+    }
+    tracks = clean.length ? clean : [BACKGROUND_MUSIC_FALLBACK];
+    const wanted = savedTrack || String(defaultFile || "").trim() || current.file;
+    const match = trackByFile(wanted)
+      || tracks.find((track) => track.file === BACKGROUND_MUSIC_FALLBACK.file)
+      || tracks[0];
+    if (match && match.file !== savedTrack) rememberTrack(match.file);
+    loadTrack(match);
+    return tracks.slice();
+  }
+
+  function select(file) {
+    const match = trackByFile(file);
+    if (!match) return false;
+    rememberTrack(match.file);
+    loadTrack(match);
+    return true;
+  }
+
   function setEnabled(next) {
     enabled = Boolean(next);
     try { localStorage.setItem("neotodo.backgroundMusic", enabled ? "1" : "0"); } catch (error) {}
@@ -2153,7 +2226,10 @@ const BackgroundMusic = (() => {
     sync,
     applyVolume,
     toggle: () => setEnabled(!enabled),
-    track: BACKGROUND_MUSIC_TRACK,
+    setTracks,
+    select,
+    get tracks() { return tracks.slice(); },
+    get current() { return current; },
     get enabled() { return enabled; },
     get playing() { return Boolean(audio && !audio.paused); },
   };
@@ -2492,6 +2568,9 @@ let iconImageScanQueued = false;
 // set every install starts on; another folder the reader adds becomes a style.
 let soundStyles = [{ id: "classical", name: "Classical", files: [] }];
 let soundFolder = "";
+// Background music is a shelf of files, not a single bundled cue. The folder is
+// <data>/music/BackgroundMusic and the picker lists exactly what is there.
+let backgroundMusicFolder = "";
 // The notebook and the console read their palettes from their own folders
 // (note-theme/ and ai-theme/). Keeping them out of theme-packs means applying a
 // NeoTodo theme can never repaint either pane.
@@ -13322,6 +13401,27 @@ async function handleAction(actionName, element) {
     renderSettings();
     return;
   }
+  if (actionName === "select-background-music-track") {
+    if (BackgroundMusic.select(element?.dataset.bgmFile || "")) {
+      updateSoundToggle();
+      renderSettings();
+    }
+    return;
+  }
+  if (actionName === "open-background-music-folder") {
+    silentAction("open_background_music_folder").then((result) => {
+      if (result && result.ok === false && result.error) {
+        toast(result.error, true);
+        return;
+      }
+      if (Array.isArray(result?.tracks)) {
+        BackgroundMusic.setTracks(result.tracks, String(result.default || ""));
+        updateSoundToggle();
+        renderSettings();
+      }
+    });
+    return;
+  }
   if (actionName === "preview-sound") {
     AudioFX.unlock();
     if (element?.dataset.soundKey) AudioFX.audition(element.dataset.soundKey);
@@ -14669,6 +14769,19 @@ async function loadSoundStyles() {
     }
     soundStyles = styles;
     soundFolder = String(data.folder || "");
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function loadBackgroundMusicTracks() {
+  try {
+    const response = await fetch("/api/background-music", { cache: "no-store" });
+    const data = await response.json();
+    if (!data?.ok || !Array.isArray(data.tracks)) return false;
+    backgroundMusicFolder = String(data.folder || "");
+    BackgroundMusic.setTracks(data.tracks, String(data.default || ""));
     return true;
   } catch (error) {
     return false;
@@ -16656,6 +16769,7 @@ function openSettings(tab = "theme") {
     // A style is just a folder on the sounds shelf; refresh it so a folder
     // added in the file manager shows up without reopening Settings.
     loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
+    loadBackgroundMusicTracks().then(() => { if (settingsTab === "sound") renderSettings(); });
   }
 }
 
@@ -17361,6 +17475,8 @@ function soundSettings() {
   const current = activeSoundStyle();
   const bgmOn = BackgroundMusic.enabled;
   const bgmPlaying = BackgroundMusic.playing;
+  const bgmCurrent = BackgroundMusic.current;
+  const bgmTracks = BackgroundMusic.tracks;
   const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const rows = soundStyles.map((style) => {
     const active = style.id === current.id;
@@ -17378,31 +17494,38 @@ function soundSettings() {
     </summary>
     <div class="theme-menu-list" role="listbox" aria-label="Sound style">${rows}</div>
   </details>`;
-  const files = Object.entries(AudioFX.sampleFiles())
-    .map(([key, url]) => {
-      const name = String(url).split("/").pop();
-      return `<button class="sound-file" type="button" data-action="preview-sound" data-sound-key="${esc(key)}">
-        <span class="sound-file-play" aria-hidden="true">▶</span>
-        <span class="sound-file-name">${esc(name)}</span>
-      </button>`;
-    })
-    .join("");
+  const trackRows = bgmTracks.map((track) => {
+    const active = track.file === bgmCurrent.file;
+    return `<button class="bgm-track ${active ? "active" : ""}" type="button" data-action="select-background-music-track" data-bgm-file="${esc(track.file)}" aria-pressed="${active ? "true" : "false"}">
+      <span class="bgm-track-copy">
+        <span class="bgm-track-name">${esc(track.name || track.file)}</span>
+        ${track.credit ? `<span class="bgm-track-credit">${esc(track.credit)}</span>` : ""}
+      </span>
+      <span class="bgm-track-file">${esc(track.file)}</span>
+      <span class="bgm-track-check" aria-hidden="true">${active ? "✓" : ""}</span>
+    </button>`;
+  }).join("");
+  const overrideCount = Object.keys(settings.sound_overrides || {}).length;
   return `<div class="settings-section">
       <button class="settings-toggle ${on ? "active" : ""}" data-action="toggle-sound" aria-pressed="${on ? "true" : "false"}">
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>${on ? "On" : "Off"}</strong></span>
+        <span class="toggle-copy"><strong>${on ? "On" : "Off"}</strong><small>Sound effects and background music</small></span>
       </button>
       <div class="title-adjust-row">
         <label class="title-adjust-label">Volume <span id="sound-volume-value">${volume}%</span></label>
         <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-settings-volume>
       </div>
     </div>
-    <div class="settings-section">
-      <div class="settings-label">Background music <span>${esc(BackgroundMusic.track.title)} · ${esc(BackgroundMusic.track.credit)}</span></div>
+    <div class="settings-section bgm-settings">
+      <div class="bgm-settings-head">
+        <div class="settings-label">Background music <span>${esc(bgmCurrent.name || bgmCurrent.file)}</span></div>
+        <button class="theme-chip-button theme-folder-button" type="button" data-action="open-background-music-folder" title="Open the background music folder${backgroundMusicFolder ? ` · ${esc(backgroundMusicFolder)}` : ""}" aria-label="Open the background music folder">${FOLDER_GLYPH}</button>
+      </div>
       <button class="settings-toggle ${bgmOn ? "active" : ""}" data-action="toggle-background-music" aria-pressed="${bgmOn ? "true" : "false"}">
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="toggle-copy"><strong>${bgmOn ? "On" : "Off"}</strong><small>${bgmPlaying ? "Playing" : "Loops the notebook's theme track"}</small></span>
+        <span class="toggle-copy"><strong>${bgmOn ? "On" : "Off"}</strong><small>${bgmPlaying ? "Playing" : "Loops the selected file"}</small></span>
       </button>
+      <div class="bgm-track-list">${trackRows || `<div class="bgm-track-empty">Put an audio file in this folder, then reopen the Music tab.</div>`}</div>
     </div>
     <div class="settings-section theme-settings-row sound-settings-row">
       <div class="theme-settings-title">Sound style</div>
@@ -17411,14 +17534,10 @@ function soundSettings() {
         <button class="theme-chip-button theme-folder-button" type="button" data-action="open-sounds-folder" title="Open the sounds folder${soundFolder ? ` · ${esc(soundFolder)}` : ""}" aria-label="Open the sounds folder">${FOLDER_GLYPH}</button>
       </div>
     </div>
-    <div class="settings-section">
-      <div class="settings-label">Audio files <span>${esc(current.id)}</span></div>
-      ${Object.keys(settings.sound_overrides || {}).length ? `<div class="sound-pack-note">
-        <span>A theme pack is replacing ${Object.keys(settings.sound_overrides).length} sample(s).</span>
+    ${overrideCount ? `<div class="settings-section"><div class="sound-pack-note">
+        <span>A theme pack is replacing ${overrideCount} sample(s).</span>
         <button class="btn small" type="button" data-action="reset-theme-sounds">Use NeoTodo sounds</button>
-      </div>` : ""}
-      <div class="sound-settings-list">${files}</div>
-    </div>`;
+      </div></div>` : ""}`;
 }
 
 function aboutSettings() {
@@ -18505,7 +18624,7 @@ function renderSettings() {
     : settingsTab === "about" ? aboutSettings()
     : themeSettings();
   // Each page carries its name in the top row beside the close button, in the
-  // same quiet italic face the old in-page heading used. Appearance, Sound and
+  // same quiet italic face the old in-page heading used. Appearance, Music and
   // Stickers wear the calligraphic brand face instead, and drop the hairline
   // under the title so the lettering stands on its own.
   const detailPlugin = settingsTab === "plugins" && pluginDetailId ? PLUGIN_REGISTRY[pluginDetailId] : null;
@@ -18513,7 +18632,7 @@ function renderSettings() {
     : settingsTab === "font" ? "Font"
     : settingsTab === "stickers" ? "Stickers"
     : settingsTab === "plugins" ? "Plugins"
-    : settingsTab === "sound" ? "Sound"
+    : settingsTab === "sound" ? "Music"
     : settingsTab === "about" ? "About"
     : "Appearance";
   const artTitle = settingsTab === "theme" || settingsTab === "sound" || settingsTab === "stickers";
@@ -18523,7 +18642,7 @@ function renderSettings() {
       <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
       <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
       <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
-      <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Sound</button>
+      <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Music</button>
       <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
     </aside>
     <section class="settings-main">
@@ -19131,7 +19250,10 @@ function bindEvents() {
       pluginDetailId = null;
       pluginPendingUninstallId = null;
       renderSettings();
-      if (settingsTab === "sound") loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
+      if (settingsTab === "sound") {
+        loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
+        loadBackgroundMusicTracks().then(() => { if (settingsTab === "sound") renderSettings(); });
+      }
       const settingsScroll = $(".settings-scroll");
       if (settingsScroll) settingsScroll.scrollTop = 0;
       return;
@@ -20910,10 +21032,19 @@ function bindEvents() {
       renderSoundPanel();
       return;
     }
-    const play = event.target.closest("[data-sound-play]");
-    if (play) {
-      AudioFX.unlock();
-      AudioFX.audition(play.dataset.soundPlay);
+    if (event.target.closest("[data-bgm-folder]")) {
+      silentAction("open_background_music_folder").then((result) => {
+        if (result && result.ok === false && result.error) {
+          toast(result.error, true);
+          return;
+        }
+        if (Array.isArray(result?.tracks)) {
+          BackgroundMusic.setTracks(result.tracks, String(result.default || ""));
+          updateSoundToggle();
+          renderSoundPanel();
+        }
+      });
+      return;
     }
   });
   soundPanel?.addEventListener("input", (event) => {
@@ -20952,33 +21083,31 @@ function soundPanelMarkup() {
   const volume = Math.round(AudioFX.getVolume() * 100);
   const bgmOn = BackgroundMusic.enabled;
   const bgmPlaying = BackgroundMusic.playing;
-  const files = Object.entries(AudioFX.sampleFiles())
-    .map(([name, url]) => `<button class="sound-file" type="button" data-sound-play="${esc(name)}">
-      <span class="sound-file-play" aria-hidden="true">▶</span>
-      <span class="sound-file-name">${esc(String(url).split("/").pop())}</span>
-    </button>`)
-    .join("");
+  const current = BackgroundMusic.current;
   return `<div class="sound-card">
     <div class="sound-panel-head">
-      <span class="sound-panel-title">Sounds</span>
+      <span class="sound-panel-title">Music</span>
       <div class="sound-panel-head-actions">
         <button class="sound-switch ${off ? "off" : "on"}" type="button" data-sound-toggle aria-pressed="${off ? "false" : "true"}" aria-label="${off ? "Turn sounds on" : "Turn sounds off"}"><span class="sound-switch-knob"></span></button>
-        <button class="sound-close" type="button" data-sound-close aria-label="Close sound settings">×</button>
+        <button class="sound-close" type="button" data-sound-close aria-label="Close music settings">×</button>
       </div>
     </div>
     <div class="sound-volume-row">
-      <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-sound-volume aria-label="Sound volume">
+      <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-sound-volume aria-label="Music volume">
       <span class="sound-volume-value">${volume}%</span>
     </div>
     <div class="sound-music-row${bgmPlaying ? " playing" : ""}">
       <span class="sound-music-mark" aria-hidden="true">${bgmPlaying ? "♪" : "♫"}</span>
       <span class="sound-music-copy">
         <span class="sound-music-title">Background music</span>
-        <span class="sound-music-detail">${esc(BackgroundMusic.track.title)} · ${esc(BackgroundMusic.track.credit)}</span>
+        <span class="sound-music-detail">${esc(current.name || current.file)}</span>
       </span>
       <button class="sound-switch ${bgmOn ? "on" : "off"}" type="button" data-bgm-toggle aria-pressed="${bgmOn ? "true" : "false"}" aria-label="${bgmOn ? "Turn background music off" : "Turn background music on"}"><span class="sound-switch-knob"></span></button>
     </div>
-    <div class="sound-files">${files}</div>
+    <div class="sound-music-foot">
+      <span class="sound-music-file" title="${esc(current.file)}">${esc(current.file)}</span>
+      <button class="sound-folder-button" type="button" data-bgm-folder title="Open the background music folder${backgroundMusicFolder ? ` · ${esc(backgroundMusicFolder)}` : ""}" aria-label="Open the background music folder">${FOLDER_GLYPH}</button>
+    </div>
   </div>`;
 }
 
@@ -21023,6 +21152,7 @@ async function init() {
   await loadThemePacks();
   await loadIconThemes();
   await loadSoundStyles();
+  await loadBackgroundMusicTracks();
   loadSettings();
   applySettings();
   bindEvents();

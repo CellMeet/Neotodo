@@ -92,12 +92,16 @@ AI_DEFAULT_CONFIG = {
 # deleted on launch instead of being painted before the app is ready.
 LEGACY_STARTUP_FILES = (DATA_DIR / "last-page.html", DATA_DIR / "last-page.png")
 SOUNDS_DIR = DATA_DIR / "sounds"
-# The optional theme music is a single bundled loop, kept apart from the sounds
-# shelf so it never appears as a one-shot cue in the sound-style picker.
-BACKGROUND_MUSIC_DIR = WEB_DIR / "background-music"
 NOTE_MATERIALS_DIR = DATA_DIR / "note-materials"
 PICTURES_DIR = DATA_DIR / "pictures"
 MUSIC_DIR = DATA_DIR / "music"
+# Optional background music lives in its own shelf inside the reader's Music
+# folder. Keeping it in a subfolder means the music player's own playlist stays
+# clean, while the folder chip can still open exactly the files this picker
+# lists. Bundled tracks are seeded here on first use.
+BACKGROUND_MUSIC_DIR = MUSIC_DIR / "BackgroundMusic"
+BACKGROUND_MUSIC_BUNDLED_DIR = WEB_DIR / "music" / "BackgroundMusic"
+BACKGROUND_MUSIC_DEFAULT_FILE = "BackgourndMusic.mp3"
 DETACH_PREVIEW_FILE = DATA_DIR / "detach-preview.png"
 # Fork windows are separate NeoTodo instances owned by this notebook. Each one
 # owns a data file and an ephemeral port, so finishing its fake todo never
@@ -547,6 +551,137 @@ def music_tracks() -> list:
                 track["lrc"] = lyrics
             tracks.append(track)
     return tracks
+
+
+def background_music_has_audio(folder: Path) -> bool:
+    try:
+        return any(
+            item.is_file() and item.suffix.lower() in MUSIC_EXTS
+            for item in folder.iterdir()
+        )
+    except Exception:
+        return False
+
+
+def ensure_background_music_dir() -> Path:
+    """Create the background-music shelf inside Music and seed it once.
+
+    Once the folder contains audio it is never re-seeded, so deleting a bundled
+    track or replacing it with the reader's own music sticks across launches.
+    """
+    try:
+        BACKGROUND_MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+        if background_music_has_audio(BACKGROUND_MUSIC_DIR):
+            return BACKGROUND_MUSIC_DIR
+        bundled = BACKGROUND_MUSIC_BUNDLED_DIR
+        if bundled.is_dir():
+            for src in bundled.iterdir():
+                if not src.is_file():
+                    continue
+                if src.suffix.lower() not in MUSIC_EXTS and src.suffix.lower() not in (".json", ".md", ".txt"):
+                    continue
+                dest = BACKGROUND_MUSIC_DIR / src.name
+                if not dest.exists():
+                    shutil.copy2(src, dest)
+    except Exception:
+        pass
+    return BACKGROUND_MUSIC_DIR
+
+
+def background_music_manifest() -> dict:
+    """Read the track names, preferring the reader's editable copy."""
+    ensure_background_music_dir()
+    for path in (
+        BACKGROUND_MUSIC_DIR / "tracks.json",
+        BACKGROUND_MUSIC_BUNDLED_DIR / "tracks.json",
+    ):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            continue
+    return {}
+
+
+def background_music_file(name: str) -> Path | None:
+    """Resolve a bare background-music filename."""
+    if not isinstance(name, str):
+        return None
+    name = name.strip()
+    if not name or Path(name).name != name:
+        return None
+    if Path(name).suffix.lower() not in MUSIC_EXTS:
+        return None
+    ensure_background_music_dir()
+    folders = [BACKGROUND_MUSIC_DIR]
+    if not background_music_has_audio(BACKGROUND_MUSIC_DIR):
+        folders.append(BACKGROUND_MUSIC_BUNDLED_DIR)
+    for folder in folders:
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def background_music_tracks() -> list:
+    """List the files in the background-music shelf with their display names."""
+    ensure_background_music_dir()
+    manifest = background_music_manifest()
+    rows = manifest.get("tracks")
+    if not isinstance(rows, list):
+        rows = []
+    folders = [BACKGROUND_MUSIC_DIR]
+    if not background_music_has_audio(BACKGROUND_MUSIC_DIR):
+        folders.append(BACKGROUND_MUSIC_BUNDLED_DIR)
+    tracks = []
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        file_name = str(row.get("file") or "").strip()
+        if not file_name or Path(file_name).name != file_name:
+            continue
+        path = background_music_file(file_name)
+        if path is None or file_name in seen:
+            continue
+        seen.add(file_name)
+        name = str(row.get("name") or "").strip()
+        tracks.append({
+            "file": file_name,
+            "name": name or path.stem.replace("_", " ").replace("-", " ").strip() or path.stem,
+            "credit": str(row.get("credit") or "").strip()[:120],
+            "src": f"/background-music/{quote(file_name)}",
+        })
+    for folder in folders:
+        try:
+            loose = sorted(
+                (
+                    item for item in folder.iterdir()
+                    if item.is_file() and item.suffix.lower() in MUSIC_EXTS
+                ),
+                key=lambda item: item.name.lower(),
+            )
+        except Exception:
+            loose = []
+        for path in loose:
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            tracks.append({
+                "file": path.name,
+                "name": path.stem.replace("_", " ").replace("-", " ").strip() or path.stem,
+                "credit": "",
+                "src": f"/background-music/{quote(path.name)}",
+            })
+    return tracks
+
+
+def background_music_default() -> str:
+    tracks = background_music_tracks()
+    if any(track.get("file") == BACKGROUND_MUSIC_DEFAULT_FILE for track in tracks):
+        return BACKGROUND_MUSIC_DEFAULT_FILE
+    return str(tracks[0].get("file") or "") if tracks else ""
 
 
 def ensure_plugins_dir() -> Path:
@@ -4067,6 +4202,21 @@ class Store:
                 except Exception as open_error:
                     error = str(open_error)
                 result["folder"] = str(MUSIC_DIR)
+            elif name == "open_background_music_folder":
+                folder = ensure_background_music_dir()
+                try:
+                    if sys.platform == "win32":
+                        os.startfile(str(folder))
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", str(folder)], start_new_session=True)
+                    else:
+                        subprocess.Popen(["xdg-open", str(folder)], start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as open_error:
+                    error = str(open_error)
+                result["folder"] = str(folder)
+                result["tracks"] = background_music_tracks()
+                result["default"] = background_music_default()
             elif name == "open_pictures_folder":
                 ensure_pictures_dir()
                 try:
@@ -6626,18 +6776,12 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_media(candidate)
             return
         if parsed.path.startswith("/background-music/"):
-            # The bundled theme loop is streamed with byte ranges so WebKit can
-            # loop and seek it without downloading the whole file again.
+            # Background music is streamed with byte ranges so WebKit can loop
+            # and seek it without downloading the whole file again. The picker
+            # may list reader-added files beside the bundled track.
             name = unquote(parsed.path.rsplit("/", 1)[-1])
-            if (
-                not name
-                or Path(name).name != name
-                or Path(name).suffix.lower() not in SOUND_AUDIO_EXTS
-            ):
-                self._json(404, {"ok": False, "error": "Not found"})
-                return
-            candidate = BACKGROUND_MUSIC_DIR / name
-            if not candidate.is_file():
+            candidate = background_music_file(name)
+            if candidate is None:
                 self._json(404, {"ok": False, "error": "Not found"})
                 return
             self._send_media(candidate)
@@ -6648,6 +6792,14 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "tracks": music_tracks(),
                 "folder": str(MUSIC_DIR),
                 "library": music_manifest().get("name") or "Music Library",
+            })
+            return
+        if parsed.path == "/api/background-music":
+            self._json(200, {
+                "ok": True,
+                "tracks": background_music_tracks(),
+                "folder": str(ensure_background_music_dir()),
+                "default": background_music_default(),
             })
             return
         if parsed.path == "/api/themes":

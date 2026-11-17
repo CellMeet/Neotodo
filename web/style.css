@@ -14771,6 +14771,128 @@ html[data-theme="postcard"] .doing-peek.open {
   opacity: 0.62;
 }
 
+/* Background music is a folder of files, listed with a friendly name on the
+   left and the concrete file name on the right. No preview buttons: clicking a
+   row is the switch. */
+.bgm-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.bgm-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(34vh, 260px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-top: 1px solid var(--pc-line, rgba(104, 76, 38, 0.16));
+  padding-top: 6px;
+}
+.bgm-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) 16px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bgm-track:hover {
+  background: color-mix(in srgb, var(--pc-accent, #b8872f) 10%, transparent);
+}
+.bgm-track.active {
+  background: color-mix(in srgb, var(--pc-accent, #b8872f) 15%, transparent);
+}
+.bgm-track-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bgm-track-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.bgm-track-credit {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  opacity: 0.58;
+}
+.bgm-track-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-family: var(--mono, "DejaVu Sans Mono", monospace);
+  font-size: 10px;
+  opacity: 0.7;
+}
+.bgm-track-check {
+  font-size: 11px;
+  text-align: center;
+  color: var(--pc-accent, var(--gold));
+}
+.bgm-track-empty {
+  padding: 10px 6px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.sound-music-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 2px;
+}
+.sound-music-file {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, "DejaVu Sans Mono", monospace);
+  font-size: 9.5px;
+  opacity: 0.6;
+}
+.sound-folder-button {
+  flex: 0 0 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--pc-line, rgba(104, 76, 38, 0.16));
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.sound-folder-button:hover {
+  border-color: var(--pc-accent, var(--gold));
+  background: color-mix(in srgb, var(--pc-accent, #b8872f) 10%, transparent);
+}
+.sound-folder-button .theme-folder-glyph {
+  width: 12px;
+  height: 12px;
+}
+
 .sound-files {
   display: flex;
   flex-direction: column;
