@@ -153,13 +153,14 @@ def main() -> int:
     assert "encodeURIComponent(svg)" not in app_js, "a canvas copy still builds a raw SVG data URL"
 
     # The marker is the contract: the floating surfaces are sub-cards, the
-    # categories spine is printed on the room, and the top hidden box only
-    # borrows the wallpaper (its background) without becoming a card.
+    # categories spine is printed on the room, and the top hidden box is not a
+    # surface at all. It is bare icons over the header, so no pane can paint a
+    # separate (and possibly stale or black) copy of the wallpaper behind them.
     assert 'data-subcard="categories"' not in index_html, "the categories spine is a card again"
     assert '<aside class="index">' in index_html, "the categories spine lost its plain host"
     assert 'data-subcard="top-tools"' not in index_html, "the top hidden box became a card"
-    assert 'data-wallpaper-surface="top-tools"' in index_html, (
-        "the top hidden box lost its wallpaper background"
+    assert 'data-wallpaper-surface="top-tools"' not in index_html, (
+        "the top hidden box paints its own wallpaper copy again"
     )
     assert '.dataset.subcard = "doing"' in app_js, "the Doing card is not a sub-card"
     assert 'data-subcard="completed"' in app_js, "the finished-subtasks card is not a sub-card"

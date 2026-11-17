@@ -57,6 +57,25 @@
   <!-- Icon themes paint over the original marks; loaded last so a wallpaper or
        theme stylesheet cannot hide a pack's image. -->
   <link rel="stylesheet" href="/icon-theme.css">
+  <!-- The boot scripts are parser-blocking and load one after another from
+       the local server. Asking the head to fetch them while the stylesheets
+       and body are still parsing means the parser finds them already in the
+       memory cache instead of paying a fresh round trip per script on the
+       path to the first frame. Keep this list in step with the script tags
+       at the end of the page. -->
+  <link rel="preload" as="script" href="/handle-position.js">
+  <link rel="preload" as="script" href="/ai-handle.js">
+  <link rel="preload" as="script" href="/note-handle.js">
+  <link rel="preload" as="script" href="/app.js">
+  <link rel="preload" as="script" href="/plugins/forktree/fork-store.js">
+  <link rel="preload" as="script" href="/plugins/firelight/firelight.js">
+  <link rel="preload" as="script" href="/plugins/fireflies/fireflies.js">
+  <link rel="preload" as="script" href="/plugins/lightning/lightning.js">
+  <link rel="preload" as="script" href="/plugins/storage-box/storage-box.js">
+  <link rel="preload" as="script" href="/plugins/head-bar/head-bar.js">
+  <link rel="preload" as="script" href="/plugins/subtask-search/subtask-search.js">
+  <link rel="preload" as="script" href="/plugins/music-player/music-player.js">
+  <link rel="preload" as="script" href="/tool-rail-scroll.js">
   <!-- BOOT_DATA -->
   <script>
     document.documentElement.classList.add("booting");
@@ -70,6 +89,26 @@
       const noteSize = Number(s.note_font_size) || 14;
       root.style.setProperty("--user-scale", String(Math.min(1.25, Math.max(0.875, bodySize / 16))));
       root.style.setProperty("--note-user-scale", String(Math.min(2, Math.max(0.7, noteSize / 14))));
+      // Start fetching and decoding the room's picture now, while app.js is
+      // still binding the board. A large wallpaper used to be requested only
+      // after the first render, so the hidden window waited for its decode on
+      // top of the page work. The same URL is reused by the live layer, so
+      // this is a head start, not a second copy.
+      const wallpaper = String(s.wallpaper || "").trim();
+      if (wallpaper && !wallpaper.startsWith("art:") && !wallpaper.startsWith("theme:")
+        && /\.(jpe?g|png|webp|gif|avif)$/i.test(wallpaper)) {
+        const src = /[\\/]/.test(wallpaper)
+          ? `/user-wallpaper?path=${encodeURIComponent(wallpaper)}`
+          : `/user-pictures/${encodeURIComponent(wallpaper).replace(/[!'()*]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+        const warm = new Image();
+        // Keep the probe referenced: an unreferenced Image is collected before
+        // it finishes and the head start is wasted. The live layer reuses the
+        // same URL, so this only warms the cache.
+        window.__neotodoWallpaperWarm = warm;
+        warm.decoding = "async";
+        warm.src = src;
+        if (warm.decode) warm.decode().catch(() => {});
+      }
     } catch (error) {}
   </script>
 </head>
@@ -841,8 +880,8 @@
   </div>
 
   <div class="top-edge" id="top-edge" aria-hidden="true"></div>
-  <div class="top-tools" id="top-tools" data-wallpaper-surface="top-tools" aria-label="Application tools">
-    <button id="sound-toggle" class="sound-toggle" type="button" aria-label="Toggle sounds">
+  <div class="top-tools" id="top-tools" aria-label="Application tools">
+    <button id="sound-toggle" class="sound-toggle" type="button" aria-label="Toggle sounds" aria-expanded="false">
       <svg class="sound-icon" aria-hidden="true"><use href="#music"></use></svg>
     </button>
     <button id="agent-settings-button" class="agent-settings-button" type="button" data-action="open-ai-settings" aria-label="AI 与 Agent 设置" title="AI / Agent">
@@ -875,9 +914,6 @@
     </button>
     <button class="tool-button community-button plugin-hidden" type="button" data-action="open-community-shop" data-plugin="community" aria-label="社区">
       <img class="community-glyph" src="/plugins/community/community.svg" alt="">
-    </button>
-    <button class="tool-button forktree-button" type="button" data-action="open-forktree" data-plugin="forktree" aria-label="Forktree 分支地图">
-      <img class="forktree-glyph" src="/plugins/forktree/forktree.svg" alt="">
     </button>
     <button class="tool-button storage-box-button" type="button" data-plugin="storage-box" aria-label="收纳箱">
       <img class="storage-box-glyph" src="/plugins/storage-box/storage-box.svg" alt="">
@@ -943,11 +979,12 @@
       } catch (error) {}
     }
   </script>
-  <script src="/handle-position.js"></script>
-  <script src="/ai-handle.js"></script>
-  <script src="/note-handle.js"></script>
-  <script src="/plugins/forktree/fork-store.js"></script>
-  <script src="/app.js"></script>
+  <script>performance.mark("scripts-before")</script>
+  <script src="/handle-position.js"></script><script>performance.mark("after-handle-position")</script>
+  <script src="/ai-handle.js"></script><script>performance.mark("after-ai-handle")</script>
+  <script src="/note-handle.js"></script><script>performance.mark("after-note-handle")</script>
+  <script src="/plugins/forktree/fork-store.js"></script><script>performance.mark("after-fork-store")</script>
+  <script src="/app.js"></script><script>performance.mark("after-app")</script>
   <script src="/plugins/firelight/firelight.js"></script>
   <script src="/plugins/fireflies/fireflies.js"></script>
   <script src="/plugins/lightning/lightning.js"></script>
@@ -955,6 +992,6 @@
   <script src="/plugins/head-bar/head-bar.js"></script>
   <script src="/plugins/subtask-search/subtask-search.js"></script>
   <script src="/plugins/music-player/music-player.js"></script>
-  <script src="/tool-rail-scroll.js"></script>
+  <script src="/tool-rail-scroll.js"></script><script>performance.mark("after-plugins")</script>
 </body>
 </html>

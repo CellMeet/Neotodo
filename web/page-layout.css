@@ -32,11 +32,16 @@
   --page-desk-h: calc(100% - var(--page-desk-top) - var(--page-desk-bottom));
   --page-desk-half-h: calc(var(--page-desk-h) / 2);
 
-  /* A sheet may request a taller size, but it can never grow into the task
-     region: the desk height is the hard ceiling. The two sheets never share a
-     size: the AI card reads its own variable, the note reads its own, and
-     neither can move the other. */
-  --page-sheet-h: min(var(--agent-terminal-height, var(--page-desk-h)), var(--page-desk-h));
+  /* A sheet may request a taller size than the desk. Neither the task block
+     nor the page body is a ceiling any more: a sheet pulled over them can
+     cover the title row and the logo bar up to the window top (the rise is
+     published by handle-position.js). The two sheets never share a size: the
+     AI card reads its own variable, the note reads its own, and neither can
+     move the other. */
+  --page-sheet-h: min(
+    var(--agent-terminal-height, var(--page-desk-h)),
+    calc(100% + var(--page-rise-h, 0px))
+  );
   --page-note-h: min(var(--notes-sheet-height, var(--page-desk-h)), var(--page-desk-h));
 
   /* Explicit paint order for the page regions. The desk border is painted
@@ -170,9 +175,9 @@ body.detached-mode .page-body > #agent-terminal {
 
 /* ---------------------------------------------------------- desk panes --- */
 
-/* Both sheets are bottom-anchored cards inside the desk. Their height is
-   capped by the desk, so the 220px minimum used by the resizers can never
-   push a sheet up through the baseline. */
+/* Both sheets are bottom-anchored cards. A deliberate stretch may reach above
+   the page baseline, over the title row and the logo bar, but never past the
+   window top: `--page-rise-h` is the room above the page body. */
 .page-body > #notes-half,
 .page-body > #agent-terminal {
   position: absolute;
@@ -181,7 +186,7 @@ body.detached-mode .page-body > #agent-terminal {
   bottom: var(--page-desk-bottom);
   left: 0;
   height: var(--page-sheet-h);
-  max-height: var(--page-desk-h);
+  max-height: calc(100% + var(--page-rise-h, 0px));
   margin: 0;
   min-height: 0;
 }
@@ -207,6 +212,18 @@ body.agent-terminal-open:not(.agent-notes-split) .page-body > #notes-half:not(.n
   height: min(max(120px, calc(50% - 140px)), calc(var(--page-desk-h) - 12px));
   max-height: calc(var(--page-desk-h) - 12px);
   z-index: var(--page-layer-note-float) !important;
+}
+
+/* ------------------------------------------------------- risen over head --- */
+
+/* A sheet whose box starts above the page body covers the title row and the
+   logo bar. The page and its body then stop clipping at their own edges:
+   overflow is what would cut the risen part off. The class is set from the
+   rendered boxes (handle-position.js), so closing the sheet or dropping it
+   back under the page body restores the desk's clipping on the same frame. */
+html body.sheet-risen .page,
+html body.sheet-risen .page-body {
+  overflow: visible !important;
 }
 
 /* ------------------------------------------------------------- splitting --- */

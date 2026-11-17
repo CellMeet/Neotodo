@@ -178,9 +178,9 @@ the same plugin ids. `python3 tools/validate_community.py` checks them.
   Community item; bundled plugins are added from Settings → Plugins →
   Available.
 - `subtask-search` — 子任务搜索 / Subtask Search
-- `forktree` — 分支地图 / Forktree. Clicking a card posts
-  `{ type: "neotodo-forktree-open", target }`; the host closes the plugin and
-  opens that category / todo / subtask.
+- `forktree` — 分支地图 / Forktree. Opened from Settings → Plugins (no rail
+  icon). Clicking a card posts `{ type: "neotodo-forktree-open", target }`; the
+  host closes the plugin and opens that category / todo / subtask.
 - `completed-drawer` — 完成抽屉 / Completed Drawer
 - `storage-box` — 收纳箱 / Storage Box. The bottom-left rail box opens a strip
   under the Categories rule. Click a category to store it, click the strip to

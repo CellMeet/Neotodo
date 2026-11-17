@@ -92,7 +92,14 @@
       panel,
       desk,
       startTop: panelRect && desk ? Math.max(0, panelRect.top - desk.top) : 0,
-      minHeight: desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120,
+      // One ruled row is the shortest the card may get, measured from the page
+      // floor it is anchored to (see handle-position.js).
+      row: pageRuledRow(),
+      // The window top, and the row under the logo bar that fills it in one
+      // cut when the edge gets there.
+      rise: pageRiseEdge(desk),
+      lastRest: null,
+      compressed: false,
       x0: x,
       y0: y,
       lastDx: 0,
@@ -104,19 +111,28 @@
     };
   };
 
+  // The card is bottom-anchored, so only its top edge is written and `height`
+  // follows from the page floor: the foot never leaves it. The edge roams the
+  // whole window now -- the row under the logo bar is the magnet that fills it
+  // to the top, and the last row is the floor a drop springs back from. Whole
+  // pixels, because fractional top/height made the blurred paper edges of a
+  // split sheet re-raster on every event instead of landing on the grid.
   const applyResize = (dy) => {
     const g = session;
     if (!g || !g.panel || !g.desk) return;
-    const maxTop = Math.max(0, g.desk.height - g.minHeight);
-    // Whole pixels: fractional top/height made the blurred paper edges of a
-    // split sheet re-raster on every event instead of landing on the grid.
-    const top = Math.round(Math.max(0, Math.min(maxTop, g.startTop + dy)));
-    if (top === g.lastTop) return;
-    g.lastTop = top;
-    const height = Math.round(g.desk.height - top);
-    g.panel.style.setProperty("top", `${top}px`, "important");
+    const rest = doorRestTop(g.desk.height, g.row);
+    const edge = doorEdgeTop(g.startTop + dy, rest, g.row, g.rise);
+    g.lastRest = rest;
+    g.compressed = edge.compressed;
+    // A negative edge starts above the page body: the page stops clipping so
+    // the title row and the logo bar can be covered.
+    if (edge.top < 0) setSheetRisen(true);
+    if (edge.top === g.lastTop) return;
+    g.lastTop = edge.top;
+    const height = Math.max(1, Math.round(g.desk.height - edge.top));
+    g.panel.style.setProperty("top", `${edge.top}px`, "important");
     g.panel.style.setProperty("height", `${height}px`, "important");
-    const handleTop = Math.round(g.desk.top + top + 6);
+    const handleTop = Math.round(g.desk.top + edge.top + 6);
     if (handleTop !== g.lastHandleTop) {
       g.lastHandleTop = handleTop;
       handle.style.setProperty("top", `${handleTop}px`, "important");
@@ -174,6 +190,12 @@
       cancelAnimationFrame(resizeFrame);
       resizeFrame = 0;
       applyResize(pendingDy);
+    }
+    // The drop releases the floor's spring: an edge that was compressed past
+    // the last ruled row settles on it in this same task, so the box that is
+    // saved is the resting one and not the rubber band.
+    if (g.resizing && g.compressed && g.lastRest != null) {
+      applyResize(g.lastRest - g.startTop);
     }
     setDeskHandleResizing(false);
     delete document.body.dataset.deskHandleDrag;

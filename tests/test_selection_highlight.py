@@ -1,11 +1,12 @@
 """The selection highlight colour is a reader-owned setting.
 
 `settings.highlight` holds one #rrggbb colour (or nothing at all). Nothing means
-"Auto": the active theme's accent paints the wash behind the active row and the
-focused menu entry. The colour is validated on the way into the store and the
-page publishes it as `--select-wash-rgb`, so the wash changes while the theme's
-ink, checks and icons stay untouched. The data directory is redirected to a
-temporary folder.
+"Auto": the Categories accent paints the wash behind the active row and the
+focused menu entry, so the highlight belongs to the hidden top bar / left index
+family instead of being mixed from the font ink. The colour is validated on the
+way into the store and the page publishes it as `--select-wash-rgb`, so the wash
+changes while checks and icons keep the theme. The data directory is redirected
+to a temporary folder.
 """
 import sys
 import tempfile
@@ -52,18 +53,22 @@ def main() -> int:
         assert "data-pl-highlight-auto" in palette_html
         assert "resetHighlight()" in app_js
         assert 'setProperty("--select-wash-rgb"' in app_js
+        assert 'setProperty("--ink-rgb"' in app_js
+        assert "bodyInkColor" in app_js
+        assert "inkAccents(bodyInkColor()).utility" in app_js
         assert 'root.dataset.select' in app_js
 
-        # The wash is scoped to the saved colour, so Auto keeps every theme's
-        # existing accent highlighting exactly as it was.
+        # The wash still honours a saved colour, but Auto now derives from the
+        # Categories accent (the mapped utility ink), not the font ink.
         style = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
         assert "html[data-select] .current-subtask.selected" in style
         assert "html[data-select] .context-item:hover" in style
         assert "rgba(var(--select-wash-rgb)" in style
+        assert "var(--ink-rgb" in style
     finally:
         import shutil
         shutil.rmtree(root, ignore_errors=True)
-    print("the selection highlight keeps a reader-owned colour outside the accent")
+    print("the selection highlight follows the Categories accent unless a colour is saved")
     return 0
 
 

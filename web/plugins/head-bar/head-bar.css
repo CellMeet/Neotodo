@@ -205,10 +205,11 @@ body[data-head-bar-style="pink"] .head-bar-island {
 }
 
 /* The clock zone owns this strip: the old hidden top bar must not unfold the
-   settings/music icons while the pointer is over the time digits. */
+   settings/music icons while the pointer is over the time digits. The bar has
+   no travel any more, so it is simply not painted here. */
 body.head-bar-hover .top-tools {
   opacity: 0 !important;
-  transform: translateY(-115%) !important;
+  transform: none !important;
   pointer-events: none !important;
 }
 

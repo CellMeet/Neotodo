@@ -1,10 +1,11 @@
-"""Subtask Search is one action: jump to the row and select it.
+"""Subtask Search is one action: jump to the row and select it, then it is gone.
 
 The plugin lists matches under the field. Clicking a result must not only
 scroll the original subtask row into view: it must take the app's own row
 selection path (the same handler a pointer click uses), so the note follows
 without a second click. The drawer keeps its own frosted glass material, with
-square corners, deep-black magnifiers and a width inside the ruled block. Its
+square corners, deep-black magnifiers and a width inside the ruled block. It is
+printed straight into the top of the task block instead of sliding out, and its
 blur radius is a plugin setting, tuned on the control page and shared with the
 live drawer.
 """
@@ -81,21 +82,25 @@ def main() -> int:
     )[1].split("\n}", 1)[0]
     assert "height: calc(100% - var(--ss-open-h, 48px));" in push
     assert "transform: translate3d(0, var(--ss-open-h, 48px), 0);" in push
-    # The pane and the whole column pop on one short beat: the same duration
-    # and curve on both, so the search field can never lead or lag the rows
-    # under it while the drawer opens.
-    assert "--ss-pop-ms: 100ms;" in css
-    assert "--ss-pop-ease: cubic-bezier(0.33, 1, 0.68, 1);" in css
+    # The pane and the whole column are a state change, not a slide: neither
+    # has a transition, and the pane is never parked off-screen waiting to
+    # travel. Opening prints both into place on the same frame.
+    assert "--ss-pop-ms" not in css
+    assert "--ss-pop-ease" not in css
+    assert "will-change: transform;" not in drawer
+    assert "transform: none;" in drawer
     inner = css.split(
         "body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {",
         1,
     )[1].split("\n}", 1)[0]
-    assert "transition:" in inner
-    assert "transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease" in inner
-    assert "height var(--ss-pop-ms, 100ms) var(--ss-pop-ease" in inner
+    assert "transition: none;" in inner
     open_drawer = css.split(".subtask-search-drawer.open {", 1)[1].split("\n}", 1)[0]
-    assert "transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease" in open_drawer
-    assert "0.5s" not in open_drawer and "0.46s" not in open_drawer
+    assert "transition: none;" in open_drawer
+    assert "translate3d" not in drawer
+    assert "translate3d" not in open_drawer
+    # Closing cuts the rows with the pane instead of holding them for a slide.
+    assert "clearTimer" not in plugin
+    assert "}, 480);" not in plugin
     assert "function publishPaneHeight()" in plugin
     assert "function schedulePaneHeight()" in plugin
     assert "panel.offsetHeight" in plugin
@@ -139,7 +144,7 @@ def main() -> int:
     assert "blur(var(--ss-search-blur, 26px))" in preview
     assert "ss-blur-range" in preview
 
-    print("the search result selects its subtask, and the frosted blur is adjustable")
+    print("the search box appears in one cut, selects its subtask, and keeps its blur setting")
     return 0
 
 

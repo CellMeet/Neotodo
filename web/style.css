@@ -14,6 +14,14 @@
   --red: #b65c50;
   --line: rgba(70, 58, 40, 0.16);
   --mono: "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "Noto Sans CJK SC", "Noto Sans CJK JP", monospace;
+  /* One hand for every pending-subtask name. The sidebar, the expanded history
+     rows, the Doing card and the Categories index all read these tokens, so a
+     type change never leaves one list with its own smaller, thinner font. */
+  --subtask-name-font: var(--mono);
+  --subtask-name-size: 19px;
+  --subtask-name-weight: 600;
+  --subtask-name-style: italic;
+  --subtask-name-leading: 1.2;
   /* The opened postcard is the frame every overlay sheet lines up with. Its
      height is declared once here so the sheets can start on its top edge. */
   --postcard-height: min(560px, 80vh);
@@ -1489,6 +1497,10 @@ body.still *, body.still *::before, body.still *::after { animation: none !impor
   color: var(--muted);
   font-size: 13px;
 }
+/* A lane can hold hundreds of subtasks while seven are on screen. Rows past
+   the first batch stay in the DOM (search and selection still find them) but
+   are not laid out until the reader scrolls near them. */
+.current-subtask.subtask-row-deferred { display: none; }
 .current-subtask .st { color: var(--muted); font-weight: 700; font-size: 12px; }
 .current-subtask.pending { color: var(--ink); }
 .current-subtask.pending .st { color: var(--gold); }
@@ -4641,14 +4653,14 @@ html[data-theme="postcard"] .category-item:hover {
 }
 html[data-theme="postcard"] .category-item.selected {
   color: #fff3ff;
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.2), transparent 88%);
+  background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.2), transparent 88%);
 }
 html[data-theme="postcard"] .category-item.selected::before {
-  background: var(--pc-accent);
-  box-shadow: 0 0 9px rgba(var(--pc-accent-rgb), 0.5);
+  background: var(--pc-ink);
+  box-shadow: 0 0 9px rgba(var(--ink-rgb, 51, 43, 45), 0.35);
 }
 html[data-theme="postcard"] .cat-dot { background: var(--pc-accent); opacity: 0.45; filter: none; box-shadow: none; }
-html[data-theme="postcard"] .category-item.selected .cat-dot { background: var(--pc-accent); opacity: 0.95; }
+html[data-theme="postcard"] .category-item.selected .cat-dot { background: var(--pc-ink); opacity: 0.95; }
 html[data-theme="postcard"] .cat-count { color: var(--pc-accent); }
 html[data-theme="postcard"] .page {
   background-color: transparent;
@@ -4684,7 +4696,7 @@ html[data-theme="postcard"] .history-row .h-name {
 html[data-theme="postcard"] .history-row .h-date { color: var(--muted); }
 html[data-theme="postcard"] .history-row.cursor { background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.18), transparent 74%); }
 html[data-theme="postcard"] .history-row.cursor::after { border-bottom-color: rgba(var(--pc-accent-rgb), 0.65); }
-html[data-theme="postcard"] .history-row.selected { background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.13), transparent 80%); }
+html[data-theme="postcard"] .history-row.selected { background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.13), transparent 80%); }
 html[data-theme="postcard"] .history-subtask .h-sub-name,
 html[data-theme="postcard"] .log-subtask .log-sub-name{ color: var(--ink-soft); }
 html[data-theme="postcard"] .history-empty { color: var(--muted); }
@@ -5062,7 +5074,7 @@ html[data-theme="postcard"] .notes-half.floating-notes {
   background: var(--notes-mask);
 }
 html[data-theme="postcard"] .current-subtask.selected {
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.15), transparent 86%);
+  background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.15), transparent 86%);
 }
 html[data-theme="postcard"] .sub-complete { color: var(--pc-accent); }
 html[data-theme="postcard"] .sub-complete:hover { color: #fff3ff; }
@@ -5104,7 +5116,11 @@ html[data-theme="postcard"] .current-subtask.done .sub-name { color: var(--faint
   flex-direction: column;
   gap: 2px;
   padding-right: 4px;
+  /* The sheet scrolls with the wheel, but its right edge stays clean: no
+     native progress bar against the paper. */
+  scrollbar-width: none;
 }
+.note-live::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
 .note-block {
   position: relative;
   min-height: 28px;
@@ -5315,7 +5331,7 @@ html[data-theme="postcard"] .category-item.selected {
   color: var(--pc-ink);
   background: rgba(0, 0, 0, 0.055);
 }
-html[data-theme="postcard"] .category-item.selected::before { background: var(--pc-accent); }
+html[data-theme="postcard"] .category-item.selected::before { background: var(--pc-ink); }
 html[data-theme="postcard"] .cat-dot { background: var(--pc-accent); opacity: 0.55; filter: none; }
 html[data-theme="postcard"] .category-item.selected .cat-dot { opacity: 0.95; }
 html[data-theme="postcard"] .cat-count { color: var(--pc-accent); }
@@ -6459,15 +6475,20 @@ html[data-theme] .page-body .notes-half.floating-notes .notes-head { border-bott
   box-shadow: 0 8px 24px rgba(40, 25, 10, 0.16);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-115%);
-  transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2, 0.85, 0.2, 1);
+  /* The bar is a state change, not a slide: it never travels out of the top
+     border. It steps into place in one frame, and the header row it covers is
+     taken off the paper on that same frame (body.top-tools-open below), so the
+     reader sees one swap instead of a rolling bar. */
+  transform: none;
+  transition: none;
 }
 .top-edge:hover ~ .top-tools,
 .top-tools:hover,
 .top-tools.top-open {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0);
+  transform: none;
+  transition: none;
 }
 .top-tools .sound-toggle,
 .top-tools .settings-button,
@@ -6924,8 +6945,14 @@ html[data-theme="postcard"] .title-adjust-row input[type="range"] { accent-color
 .sub-complete svg { width: 21px; height: 21px; }
 
 /* Subtask type matches completed task type; expanded history subtasks are slightly smaller but not thin. */
-.current-subtask .sub-name { font-size: calc(19px * var(--user-scale, 1)); font-weight: 500; }
-.history-subtask .h-sub-name { font-size: calc(17px * var(--user-scale, 1)); font-weight: 500; }
+.current-subtask .sub-name {
+  font-family: var(--subtask-name-font);
+  font-size: calc(var(--subtask-name-size) * var(--user-scale, 1));
+  font-weight: var(--subtask-name-weight);
+  font-style: var(--subtask-name-style);
+  line-height: var(--subtask-name-leading);
+}
+.history-subtask .h-sub-name { font-family: var(--subtask-name-font); font-size: calc(17px * var(--user-scale, 1)); font-weight: var(--subtask-name-weight); font-style: var(--subtask-name-style); }
 .h-sub-fan { width: 19px; height: 19px; flex: 0 0 19px; display: flex; align-items: flex-end; justify-content: center; }
 .h-sub-fan svg { width: 19px; height: 19px; display: block; }
 
@@ -7625,12 +7652,15 @@ body.notes-hidden .notes-handle-bottom { opacity: 1; pointer-events: auto; }
 /* Nudge the exit door down slightly. */
 .top-tools .exit-button .exit-icon { transform: translateY(2px); }
 
-/* Category rows keep the body face. */
+/* Category rows share the pending-subtask hand: the same tokens the sidebar,
+   the expanded history rows and the Doing card read, so the index never drifts
+   back to its own thinner face. */
 .category-item .cat-name {
-  font-family: inherit;
-  font-style: normal;
-  font-weight: inherit;
-  font-size: inherit;
+  font-family: var(--subtask-name-font);
+  font-style: var(--subtask-name-style);
+  font-weight: var(--subtask-name-weight);
+  font-size: calc(var(--subtask-name-size) * var(--user-scale, 1));
+  line-height: var(--subtask-name-leading);
   letter-spacing: 0;
 }
 .index-head > span {
@@ -7850,8 +7880,13 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
   height: 52px;
 }
 
-/* Keep the tavern/app shell invisible until final settings are applied. */
+/* Keep the tavern/app shell invisible until final settings are applied.
+   `app-layout` is the same gate as `app-ready`, but it is set right after the
+   first render while the window is still fully transparent: the finished page
+   can lay out and paint while the wallpaper/card textures finish, instead of
+   that whole paint being charged after them, on the reveal frame. */
 .app-shell { visibility: hidden; }
+body.app-layout .app-shell,
 body.app-ready .app-shell { visibility: visible; }
 .booting .notes-handle-bottom{ visibility: hidden; }
 
@@ -8622,41 +8657,6 @@ html[data-theme="postcard"] .action-slash::before {
   transform: translate(-50%, -50%) rotate(20deg);
 }
 
-/* A wisp of smoke rises from the fan when an empty subtask disappears. */
-.subtask-smoke {
-  position: fixed;
-  z-index: 95;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-.subtask-smoke i {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: var(--size, 10px);
-  height: var(--size, 10px);
-  border-radius: 50%;
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.35);
-  animation: subtask-smoke-rise 0.95s ease-out var(--delay, 0ms) forwards;
-}
-@keyframes subtask-smoke-rise {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
-  18% { opacity: 0.7; }
-  55% { opacity: 0.38; }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -20px))) scale(1.9); }
-}
-/* Only the content disappears; the ruled line belongs to the static paper. */
-.current-subtask.subtask-vanishing {
-  pointer-events: none;
-  background: transparent !important;
-}
-.current-subtask.subtask-vanishing > * {
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
 /* Keep notification text dark like the trophy toast, including error toasts. */
 .toast,
 .toast.error{ color: #1b1208; }
@@ -8777,18 +8777,16 @@ html[data-theme="postcard"] .history-row > .h-date {
   pointer-events: none;
   overflow: hidden;
   scrollbar-width: none;
-  transition:
-    transform 0.38s cubic-bezier(0.22, 0.8, 0.24, 1),
-    opacity 0.26s ease;
+  /* The card arrives in one cut: opening the Doing peek is not a travel.
+     It is either on its border and ready, or not there at all. */
+  transition: none;
 }
 .doing-peek::-webkit-scrollbar { display: none; }
 .doing-peek.open {
   transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
-  transition:
-    transform 0.38s cubic-bezier(0.22, 0.8, 0.24, 1),
-    opacity 0.26s ease;
+  transition: none;
 }
 /* The drawer lives on the desk's left or right border (app.js owns its box).
    A left-docked card waits outside its own border and slides in from the
@@ -8980,8 +8978,12 @@ body.doing-dragging { cursor: grabbing; user-select: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
-  line-height: 1.2;
+  /* Bound to the subtask sidebar's hand instead of the drawer's own size. */
+  font-family: var(--subtask-name-font);
+  font-size: calc(var(--subtask-name-size) * var(--user-scale, 1));
+  font-weight: var(--subtask-name-weight);
+  font-style: var(--subtask-name-style);
+  line-height: var(--subtask-name-leading);
 }
 .doing-empty {
   padding: 8px 2px 3px;
@@ -9338,7 +9340,7 @@ html[data-theme="postcard"] .banner-title .banner-icon {
 .current-subtask.selected,
 .history-subtask.selected {
   background-color: transparent !important;
-  background-image: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-image: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.20), rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.04) 80%) !important;
   background-origin: border-box !important;
   background-clip: padding-box !important;
   background-repeat: no-repeat !important;
@@ -9349,7 +9351,7 @@ html[data-theme="postcard"] .history-row.selected,
 html[data-theme="postcard"] .current-subtask.selected,
 html[data-theme="postcard"] .history-subtask.selected {
   background-color: transparent !important;
-  background-image: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-image: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.20), rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.04) 80%) !important;
   background-origin: border-box !important;
   background-clip: padding-box !important;
   background-repeat: no-repeat !important;
@@ -9388,9 +9390,8 @@ body.categories-collapsed .index > * { transition: none !important; }
 }
 .doing-peek,
 .doing-peek.open {
-  transition:
-    transform 0.08s cubic-bezier(0.22, 0.8, 0.24, 1),
-    opacity 0.06s ease;
+  /* The peek has no opening or closing slide: the card is simply there. */
+  transition: none;
 }
 .notes-half.floating-notes {
   transition: transform 0.14s cubic-bezier(0.22, 0.8, 0.24, 1), opacity 0.1s ease !important;
@@ -9827,7 +9828,7 @@ html[data-theme="postcard"] .current-subtask { padding-left: 29px; }
   background-color: var(--overlay-paper, var(--paper, #f3efe2));
   color: var(--pc-ink, var(--ink, #342315));
   box-shadow:
-    inset 0 0 0 1.5px var(--subcard-outline, #2f5d4e),
+    inset 0 0 0 var(--subcard-line-width, 1.5px) var(--subcard-outline, #2f5d4e),
     var(--card-lift-page, 0 18px 44px rgba(54, 34, 14, 0.25));
   opacity: 0;
   pointer-events: none;
@@ -10564,6 +10565,21 @@ html[data-theme="postcard"] .postcard-choice.active {
 /* Font tab rows mirror the Theme tab: name menu, size number, colour swatch. */
 .font-settings-row { align-items: center; }
 .font-settings-controls { gap: 8px; }
+/* Baseline and Card line each carry their own switch at the head of the
+   controls. Turning a switch off dims and parks the colour/width beside it, so
+   the row reads as one unit: the line is on and adjustable, or off and still. */
+.theme-settings-controls.font-settings-controls .font-line-toggle {
+  margin-inline-end: 4px;
+}
+.font-settings-row.is-off .theme-settings-controls > :not(.font-line-toggle) {
+  opacity: 0.38;
+}
+.font-settings-row.is-off .theme-settings-controls > input {
+  pointer-events: none;
+}
+.font-settings-row.is-off input:disabled {
+  filter: grayscale(1);
+}
 .font-menu { flex: 0 1 auto; min-width: 0; }
 .font-menu .theme-menu-trigger { min-width: 112px; max-width: 172px; }
 .font-menu .theme-menu-list { width: 196px; }
@@ -11010,6 +11026,16 @@ html[data-theme="postcard"] .settings-close::before{
   background: var(--pc-paper, #ffffff);
   box-shadow: 0 16px 34px rgba(32, 24, 12, 0.18);
 }
+/* A dark palette used to open this dropdown as a second black hole: the
+   notebook's near-black paper plus a pure-black rule. Lift the shelf with the
+   same theme accent wash as a selected option, and print its frame in the
+   theme border. Only palette colours are used here, never the font ink. */
+html[data-postcard-dark="true"] .theme-menu-list {
+  border-color: var(--pc-border, rgba(255, 255, 255, 0.16));
+  background:
+    linear-gradient(rgba(var(--pc-accent-rgb, 141, 99, 184), 0.13), rgba(var(--pc-accent-rgb, 141, 99, 184), 0.13)),
+    var(--pc-paper, #151517);
+}
 .theme-menu-label {
   padding: 4px 8px 6px;
   color: var(--pc-muted, var(--muted));
@@ -11019,7 +11045,7 @@ html[data-theme="postcard"] .settings-close::before{
   text-transform: uppercase;
 }
 .theme-menu-row { display: flex; align-items: center; border-radius: 5px; }
-.theme-menu-row.active { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.13); }
+.theme-menu-row.active { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.13); }
 .theme-menu-item {
   flex: 1 1 auto;
   min-width: 0;
@@ -11036,7 +11062,11 @@ html[data-theme="postcard"] .settings-close::before{
   text-align: left;
   cursor: pointer;
 }
-.theme-menu-item:hover { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.09); }
+/* The row under the pointer is the preview of the chosen option, so it wears
+   the selection wash (the same colour as the active row and the checked
+   subtask), not the theme accent: hovering a teal-washed list must not flash
+   the blue/gold accent the reader only sees in chrome. */
+.theme-menu-item:hover { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.09); }
 .theme-menu-row.active .theme-menu-item { font-weight: 600; }
 .theme-menu-row .choice-check {
   margin-left: auto;
@@ -11295,9 +11325,9 @@ html[data-theme="postcard"] .settings-close::before{
   .custom-theme-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Theme-aware selected surfaces instead of a fixed grey wash. */
+/* Selected surfaces tint with the Categories accent instead of the theme accent. */
 .current-theme-row {
-  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.07);
+  background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.07);
 }
 html[data-theme="postcard"] .postcard-choice:hover {
   background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.08);
@@ -11503,12 +11533,12 @@ html[data-theme="postcard"] .action-slash {
   opacity: 0.9;
 }
 
-/* Selected category wash follows the postcard accent. */
+/* Selected category wash follows the Categories accent. */
 html[data-theme="postcard"] .category-item:hover {
-  background: rgba(var(--pc-accent-rgb), 0.08);
+  background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.08);
 }
 html[data-theme="postcard"] .category-item.selected {
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.22), rgba(var(--pc-accent-rgb), 0.03) 88%);
+  background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.22), rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.03) 88%);
 }
 
 /* About links and the italic closing note. */
@@ -12709,88 +12739,6 @@ html[data-postcard-dark="true"] .agent-terminal {
 }
 .agent-user-copy:focus { outline: none; }
 .agent-user-copy.copied { opacity: 1; color: #3fbf87; }
-
-/* OpenCode-style copy toast: it rises above the copied line, holds for a
-   moment, then simply vanishes. A slim cyan block sits on each side as the
-   accent; the card itself has no outline and keeps square corners. */
-.agent-copy-flash {
-  position: fixed;
-  z-index: 9999;
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 15px;
-  border: 0;
-  border-radius: 0;
-  background: var(--oc-soft, #f4f4f5);
-  color: var(--oc-ink, #171718);
-  font-family: var(--oc-mono, ui-monospace, monospace);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.5;
-  white-space: nowrap;
-  pointer-events: none;
-  -webkit-user-select: none;
-  user-select: none;
-  opacity: 1;
-  overflow: hidden;
-}
-.agent-copy-flash::before,
-.agent-copy-flash::after{
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--agent-copy-accent, var(--oc-accent, #17929f));
-}
-.agent-copy-flash::before { left: 0; }
-.agent-copy-flash::after { right: 0; }
-
-/* Notes and every other NeoTodo page copy text the same way the console does.
-   One upright "Copied to clipboard" badge, squared off, with a theme-coloured
-   block on each side. It wears the notebook's own paper, ink and accent rather
-   than the console palette, so the page answer never looks like an AI message.
-   It sits two fingers below the top edge, centred over the notebook. */
-.page-copy-flash {
-  position: fixed;
-  /* Above a plugin's glass stage (10060), so an in-theme sheet's copy answer
-     still reaches the notebook's top edge. */
-  z-index: 10080;
-  top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 20px 5px;
-  border: 0;
-  border-radius: 0;
-  background: var(--pc-paper, var(--paper, #f3efe2));
-  color: var(--pc-ink, var(--ink, #342315));
-  box-shadow: 0 10px 26px rgba(60, 40, 20, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.55);
-  font-family: var(--display, "Noto Serif", serif);
-  font-style: normal;
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  pointer-events: none;
-  -webkit-user-select: none;
-  user-select: none;
-  opacity: 1;
-  overflow: hidden;
-}
-.page-copy-flash::before,
-.page-copy-flash::after{
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--pc-accent, var(--gold, #a8781f));
-}
-.page-copy-flash::before { left: 0; }
-.page-copy-flash::after { right: 0; }
 
 /* Every written line in the console can be selected and copied: replies,
    the thinking process, tool noise and notices alike. Only the head chrome
@@ -15323,65 +15271,192 @@ html[data-theme="postcard"] .head-right .trophy-glyph {
 .head-right .tomato-counter.ach-click-spin .ach-sticker{ animation: none; }
 }
 
-/* Settings → Stickers: one card per header achievement. The preview is a copy
-   of the real badge at the same size, so the crop reads exactly as it will on
-   the header; the choices stay Replace / Default. */
-.sticker-settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
-  margin-top: 4px;
-}
-.sticker-setting-card {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--pc-border, rgba(104, 76, 38, 0.22));
-  border-radius: 12px;
-  background: var(--pc-paper-soft, rgba(255, 255, 255, 0.28));
-}
-/* Fallback box; the inline width/height copies the header badge exactly. */
-.sticker-setting-preview {
-  display: block;
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  width: 109px;
-  height: 56px;
-  overflow: hidden;
-  border: 2px solid #fffdf8;
-  border-radius: 17px;
-  outline: 1px solid rgba(30, 40, 50, 0.28);
-  background: #fffdf8;
-  box-shadow: 0 3px 9px rgba(60, 40, 20, 0.16);
-}
-.sticker-setting-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.sticker-setting-body {
-  flex: 1 1 auto;
-  min-width: 0;
+/* Settings → Card / Stickers: one row per surface picture, separated by the
+   same hairline the Appearance rows use. The picture leads, the name follows,
+   and the actions stay at the right edge like Wallpaper → Change / Manage. */
+.card-settings-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
 }
-.sticker-setting-name {
+.card-setting-item {
+  padding: 12px 0;
+}
+.card-setting-item + .card-setting-item {
+  border-top: 1px solid var(--pc-line, var(--line));
+}
+.card-setting-item:first-child { padding-top: 2px; }
+.card-setting-item:last-child { padding-bottom: 2px; }
+.card-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.card-setting-preview {
+  flex: 0 0 auto;
+  display: block;
+  width: 116px;
+  height: 66px;
+  overflow: hidden;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 10px;
+  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.08);
+  box-shadow: 0 3px 9px rgba(60, 40, 20, 0.12);
+}
+.card-setting-preview.is-badge {
+  width: 100px;
+  height: 56px;
+  border: 2px solid #fffdf8;
+  border-radius: 17px;
+  outline: 1px solid rgba(30, 40, 50, 0.22);
+  background: #fffdf8;
+}
+.card-setting-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.card-setting-preview-art svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.card-setting-blank {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.36), transparent 55%),
+    linear-gradient(0deg, rgba(var(--pc-accent-rgb, 141, 99, 184), 0.16), rgba(var(--pc-accent-rgb, 141, 99, 184), 0.05));
+}
+.card-setting-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--pc-ink, var(--ink));
   font-family: var(--display);
   font-size: 14px;
-  color: var(--pc-ink, var(--ink));
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.sticker-setting-actions {
+.card-setting-actions {
+  flex: 0 0 auto;
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 6px;
+  align-items: center;
+  gap: 6px;
 }
-html[data-theme="postcard"] .sticker-setting-card { background: rgba(255, 255, 255, 0.26); }
+.card-setting-actions .theme-chip-button {
+  min-width: 64px;
+  justify-content: center;
+}
+/* Crop picture: the reader drags a box while choosing the file. The stage sits
+   above Settings, dims the rest of the page and keeps the selection inside the
+   picture. */
+.crop-dialog-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(12, 9, 6, 0.68);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+.crop-dialog {
+  width: min(920px, 94vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 18px;
+  border: 1px solid var(--pc-line, var(--line));
+  border-radius: 10px;
+  background: var(--pc-paper, var(--paper));
+  color: var(--pc-ink, var(--ink));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+.crop-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.crop-dialog-head strong {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+}
+.crop-dialog-head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--pc-muted, var(--muted));
+  font-family: var(--mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+.crop-dialog-head .plain-x { margin-left: auto; }
+.crop-dialog-canvas {
+  position: relative;
+  align-self: center;
+  max-width: 100%;
+  max-height: 62vh;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #111;
+  cursor: crosshair;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.crop-dialog-canvas > img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(820px, 86vw);
+  max-height: 62vh;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.crop-selection {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px solid #fffdf8;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.48);
+  cursor: move;
+}
+.crop-handle {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border: 2px solid #fffdf8;
+  border-radius: 50%;
+  background: var(--pc-accent, #b8872f);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+}
+.crop-handle.nw { left: 0; top: 0; transform: translate(-50%, -50%); cursor: nwse-resize; }
+.crop-handle.ne { right: 0; top: 0; transform: translate(50%, -50%); cursor: nesw-resize; }
+.crop-handle.sw { left: 0; bottom: 0; transform: translate(-50%, 50%); cursor: nesw-resize; }
+.crop-handle.se { right: 0; bottom: 0; transform: translate(50%, 50%); cursor: nwse-resize; }
+.crop-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.crop-dialog-actions .theme-chip-button {
+  min-width: 84px;
+  justify-content: center;
+}
+.crop-dialog-actions .crop-use-button {
+  border-color: var(--pc-accent, #6b4a2a);
+  box-shadow: inset 0 0 0 1px var(--pc-accent, #6b4a2a);
+}
+@media (max-width: 560px) {
+  .card-setting-row { flex-wrap: wrap; }
+  .card-setting-name { order: 1; }
+  .card-setting-actions { order: 2; width: 100%; justify-content: flex-end; }
+}
 
 /* Balance the two header marks: a slightly smaller headphone and a larger
    tomato so they read as the same visual size. */
@@ -15590,13 +15665,41 @@ html[data-theme="postcard"] .head-right #tomato-count {
   right: max(37.5%, 300px) !important;
   height: 56px !important;
 }
+/* The band is cut around a risen AI card by handle-position.js, so the card
+   keeps the pointer in the strip it covers. A door-line drag owns the pointer
+   outright: the band must not flash the utility bar while a sheet is pulled
+   up through it. */
+body[data-desk-handle-resizing="1"] .top-edge {
+  pointer-events: none !important;
+}
 .top-tools {
-  /* Opening is triggered by a hover, so the box must appear the instant the
-     pointer lands on the band. Keep the slide shorter than a blink instead of
-     making the user wait for the old 0.11s easing tail. */
-  transition:
-    opacity 0.04s linear,
-    transform 0.06s cubic-bezier(0.2, 0.9, 0.25, 1) !important;
+  /* The box does not slide down out of the border. It is either there or it is
+     not, on the same frame the header row leaves. */
+  transition: none !important;
+  /* The bar is not a surface of its own. The header keeps painting its paper
+     and its bottom rule; the old wordmark, clock and counters leave and these
+     icons step into the same strip. A fill here read as a second, detached
+     bar — and because --paper is the dark desk colour in the dark palettes,
+     it arrived as a black strip over the light header. No fill, no edge, no
+     shadow: only the tools. */
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+/* Belt and braces: even if a wallpaper pane is ever mounted here again, it
+   must not paint a second surface behind the tools. */
+.top-tools > .card-wallpaper { display: none !important; }
+
+/* The top hidden bar takes the header's place instead of covering it. While it
+   is out, the old row — the NeoTodo wordmark, the clock and the achievement
+   counters — is removed in one cut, then the settings icons are the only thing
+   left on the top border. No fade, no travel: the swap is a state change. */
+body.top-tools-open .notebook-head .nt-brand,
+body.top-tools-open .notebook-head #header-clock,
+body.top-tools-open .notebook-head .head-right {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: none !important;
 }
 
 /* Doing card: keep a real card border on the right edge too. */
@@ -15865,7 +15968,8 @@ html[data-theme="postcard"] .doing-peek {
   text-align: left;
   cursor: pointer;
 }
-.note-material-option:hover { background: color-mix(in srgb, var(--pc-accent, var(--gold)) 10%, transparent); color: var(--pc-ink, var(--ink)); }
+/* Note-material rows preview the same "you are here" wash as the chosen row. */
+.note-material-option:hover { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.10); color: var(--pc-ink, var(--ink)); }
 .note-material-option.active { color: var(--pc-ink, var(--ink)); font-weight: 700; }
 .note-material-check {
   flex: 0 0 14px;
@@ -16172,10 +16276,13 @@ html[data-postcard-dark="true"] .nt-sparks i {
 /* ==========================================================================
    Selection highlight — the reader's own "you are here" wash
    --------------------------------------------------------------------------
-   Every theme marks the active subtask and the hovered menu entry with the
-   accent tint. Settings → Theme → Selection highlight can replace that wash
-   without touching the accent ink, so text, checks and icons keep the theme.
-   Auto leaves `--select-wash-rgb` unset and the theme accent paints as before.
+   Every theme marks the active subtask and the hovered menu entry with a wash.
+   Auto tints it with the Categories accent — the same mapped utility ink as
+   the hidden top bar and the left index — so the wash and the index belong to
+   one family instead of being mixed from the font ink. Settings → Theme →
+   Selection highlight can replace that wash without touching the ink, checks or
+   icons. Auto still publishes `--select-wash-rgb`, so a live font-colour drag
+   repaints the wash immediately.
    ========================================================================== */
 
 /* Active/finished rows share the one faded wash the app already uses. */
@@ -16191,7 +16298,9 @@ html[data-select] .history-subtask.selected {
   background-size: 100% 100% !important;
 }
 
-/* Category spine: the selected category and its hover preview. */
+/* Category spine: hover is the only wash left. The selected row's fill is
+   flattened by the "Categories: the current category is inked, not filled"
+   block at the end of this file. */
 html[data-select] .category-item.selected {
   background: linear-gradient(90deg, rgba(var(--select-wash-rgb), 0.22), rgba(var(--select-wash-rgb), 0.03) 88%) !important;
 }
@@ -16220,6 +16329,40 @@ html[data-select] .note-bg-choice.active,
 html[data-select] .theme-mode-card.active,
 html[data-select] .note-material-current {
   background: rgba(var(--select-wash-rgb), 0.10) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Selection rail — the Categories' side rule on the selected row
+   --------------------------------------------------------------------------
+   The index marks the current category with a short 2px rule on its leading
+   edge. The selected task, subtask and Doing card row now carry the same rule
+   over their wash, in the reader's selection colour, so the "you are here"
+   mark reads the same everywhere. The rule is inset from the row's own top and
+   bottom rules and belongs to the row itself: a floating card clips it with its
+   rounded, overflow-hidden box, so it can never spill onto the page or over the
+   card's stroke. */
+.history-row.selected,
+.current-subtask.selected,
+.history-subtask.selected,
+.doing-head.marked,
+.doing-sub.marked {
+  position: relative;
+}
+.history-row.selected::before,
+.current-subtask.selected::before,
+.history-subtask.selected::before,
+.doing-head.marked::before,
+.doing-sub.marked::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 0 1px 1px 0;
+  background: rgb(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)));
+  box-shadow: 0 0 8px rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.45);
+  pointer-events: none;
 }
 
 /* ==========================================================================
@@ -17620,8 +17763,10 @@ html[data-theme="postcard"] .community-brand-copy strong { color: var(--pc-ink);
   text-align: left;
   cursor: pointer;
 }
-.theme-unit-row:hover { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.09); }
-.theme-unit-row.active { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.13); }
+/* Unit rows (Theme / Note theme / AI theme) are options in the same menu, so
+   their hover preview borrows the selection wash too. */
+.theme-unit-row:hover { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.09); }
+.theme-unit-row.active { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.13); }
 .theme-unit-copy {
   flex: 1 1 auto;
   min-width: 0;
@@ -17652,3 +17797,181 @@ html[data-theme="postcard"] .community-brand-copy strong { color: var(--pc-ink);
    stage and panel, but sheds the nav column and keeps its width a little
    tighter than the full Settings window. */
 .ai-settings-panel { width: min(760px, 94vw); }
+
+/* ==========================================================================
+   Mapped accent ink for the title actions and the hidden top bar
+   --------------------------------------------------------------------------
+   Neither group repeats the reading ink. app.js walks the colour wheel from
+   the font colour (``inkAccents``): the complete / slash / add trio takes the
+   counter-note half a turn away, and the hidden top bar takes the split-
+   complement 30° nearer, so the chrome and the task answer the page without
+   falling into one flat colour. The marks keep the shapes the reader picked;
+   only the ink and the press feedback are here.
+   ========================================================================== */
+html[data-theme] .head-title-inner .current-action,
+html[data-theme] .head-title-inner .action-slash {
+  color: var(--action-ink, var(--pc-accent));
+  text-decoration-color: var(--action-ink, var(--pc-accent));
+}
+html[data-theme] .top-tools .sound-toggle,
+html[data-theme] .top-tools .settings-button,
+html[data-theme] .top-tools .exit-button {
+  color: var(--utility-ink, var(--pc-accent));
+}
+.top-tools .agent-settings-button { color: var(--utility-ink, var(--gold)); }
+
+/* Click feedback: the mark sinks into the paper and leaves a soft ink wash,
+   and the separator dims for the length of the press so the trio answers as
+   one piece of type. */
+html[data-theme] .head-title-inner .current-action.icon-action {
+  position: relative;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.12s ease;
+}
+html[data-theme] .head-title-inner .current-action.icon-action::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.4);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+html[data-theme] .head-title-inner .current-action.icon-action:hover::after {
+  opacity: 0.09;
+  transform: scale(1);
+}
+html[data-theme] .head-title-inner .current-action.icon-action:hover {
+  transform: translateY(-1px);
+}
+html[data-theme] .head-title-inner .current-action.icon-action:active {
+  transform: scale(0.88);
+}
+html[data-theme] .head-title-inner .current-action.icon-action:active::after {
+  opacity: 0.18;
+  transform: scale(0.78);
+  transition-duration: 0.05s;
+}
+html[data-theme] .head-title-inner .action-slash {
+  transition: opacity 0.12s ease;
+}
+html[data-theme] .head-title-inner .current-actions:active .action-slash {
+  opacity: 0.5;
+}
+
+
+/* ==========================================================================
+   The Categories index reads the hidden top bar's ink
+   --------------------------------------------------------------------------
+   The left index used the page ink, so it competed with the task title for the
+   same colour. It now takes the mapped utility ink that colours the hidden top
+   bar's marks (app.js publishes it as --utility-ink) in every state, so the
+   index and the chrome always share one accent; hover and selection still speak
+   through the weight, the left rule and the dot instead of recolouring the
+   text.
+   ========================================================================== */
+html[data-theme] .index-head > span,
+html[data-theme] .category-item,
+html[data-theme] .category-item:hover,
+html[data-theme] .category-item.selected {
+  color: var(--utility-ink, var(--pc-ink));
+}
+
+/* The selected row's own accents (left rule and dot) use the same Categories
+   ink as the name, so the whole selection reads as one colour. */
+html[data-theme] .category-item.selected::before {
+  background: var(--utility-ink, var(--pc-ink));
+  box-shadow: 0 0 9px color-mix(in srgb, var(--utility-ink, var(--pc-ink)) 45%, transparent);
+}
+html[data-theme] .category-item.selected .cat-dot {
+  background: var(--utility-ink, var(--pc-ink));
+}
+
+
+/* ==========================================================================
+   Categories: the current category is inked, not filled
+   --------------------------------------------------------------------------
+   The spine used to lay a gradient wash under the selected category on top of
+   its bold name and left rule. Two highlights for one state made the index read
+   like a column of pressed buttons, so the fill is gone in every theme and in
+   both selection-highlight modes; the row still says where you are through its
+   weight, the left rule and the square dot. The quiet hover preview stays, but
+   a selected row no longer darkens under the pointer either.
+   ========================================================================== */
+html[data-theme] .category-list .category-item.selected,
+html[data-theme] .category-list .category-item.selected:hover,
+html[data-select] .category-list .category-item.selected,
+html[data-select] .category-list .category-item.selected:hover {
+  background: transparent !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* ==========================================================================
+   The squash mark on a submitted todo
+   --------------------------------------------------------------------------
+   A completed todo that carried subtasks keeps its one-click expander, but the
+   mark is the reader's squash instead of the gold headphone. The sprite is
+   taller than it is wide, so it gets its own taller slot: the coin grows with
+   the picture and the row still keeps its 40px rhythm. */
+.history-row .h-trophy.h-trophy-squash {
+  width: 30px;
+  height: 34px;
+  flex: 0 0 30px;
+}
+.history-row .h-trophy .subtask-done-icon,
+.log-line .log-trophy .subtask-done-icon {
+  display: block;
+  width: auto;
+  height: 34px;
+  max-width: 30px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.history-row .h-trophy-action,
+.log-line .log-trophy-action { line-height: 0; }
+.log-line .log-trophy.log-trophy-squash {
+  width: 30px;
+  height: 34px;
+  flex: 0 0 30px;
+}
+
+/* The finished-subtask sunshroom follows its name: it sits on the same text
+   line instead of hovering above it, and it closes the dead gap on its right
+   so the mushroom reads as part of the name rather than a separate column. */
+.history-subtask .h-sub-fan {
+  margin-right: -4px;
+  transform: translateY(3px);
+}
+
+/* The category counter's cherry sits at the right end of the category row.
+   It is a little larger than the counter text now, matching the enlarged
+   marks around the notebook; 28px still clears the 34px category row. */
+.category-item .cat-count .moon-icon,
+.category-item .cat-count .chalice-icon {
+  width: 28px !important;
+  height: 28px !important;
+  vertical-align: -0.2em;
+}
+
+/* Twenty finished subtasks arm the complete action: gold ink and a breathing
+   underline say the whole board can be submitted in one click, even with rows
+   left in the pending lane. */
+.current-action.quick-submit {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  animation: quick-submit-breathe 2.4s ease-in-out infinite;
+}
+@keyframes quick-submit-breathe {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .current-action.quick-submit { animation: none; opacity: 1; }
+}

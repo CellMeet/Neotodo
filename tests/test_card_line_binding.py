@@ -38,11 +38,10 @@ def main() -> int:
     assert "border-width: var(--page-line-thickness) !important;" in page
     # A finished subtask opened in the history lane is the same row.
     assert 'html[data-theme="postcard"] .history-subtask {' in page
-    # The flying row leaves the lane without carrying the lane's rule: a line
-    # travelling through the air was the only animated line in the completion.
-    # The drawer prints the rule when the row lands, so the ghost is plain.
-    flight_rule = page.split('html[data-theme="postcard"] .subtask-flight {', 1)[1].split("}", 1)[0]
-    assert "border-bottom-color: transparent !important;" in flight_rule
+    # A finished row changes cards in place, so it never travels as a ghost
+    # that has to drop the lane's rule. The finished card prints the row and its
+    # line in the same repaint.
+    assert ".subtask-flight" not in page
 
     print("finished and Doing card rows share the page_line paint and weight")
     return 0

@@ -157,6 +157,55 @@ class ProjectFilesActionTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         reveal.assert_called_once_with(app.agent_workspace())
 
+    def _add_second_todo(self, folder: Path):
+        folder.mkdir()
+        category = self.store.action({"action": "add_category", "name": "Other"})
+        created = self.store.action({
+            "action": "add_todo",
+            "category_id": category["created"],
+            "name": "Other todo",
+        })
+        return created["created"], folder
+
+    def test_each_todo_keeps_its_own_project_folder(self):
+        other_id, other = self._add_second_todo(self.root / "other-project")
+        self.store.action({"action": "bind_project_folder", "id": self.todo_id, "path": str(self.root)})
+        self.store.action({"action": "bind_project_folder", "id": other_id, "path": str(other)})
+        todos = {
+            todo["id"]: todo
+            for category in self.store.state()["categories"]
+            for todo in category["todos"]
+        }
+        self.assertEqual(todos[self.todo_id]["project_folder"], str(self.root.resolve()))
+        self.assertEqual(todos[other_id]["project_folder"], str(other.resolve()))
+
+    def test_folder_picker_starts_at_the_clicked_todo_folder(self):
+        other_id, other = self._add_second_todo(self.root / "other-project")
+        self.store.action({"action": "bind_project_folder", "id": self.todo_id, "path": str(self.root)})
+        self.store.action({"action": "bind_project_folder", "id": other_id, "path": str(other)})
+        seen = {}
+
+        def picker(initial=""):
+            seen["initial"] = initial
+            return ""
+
+        with mock.patch.object(app, "FOLDER_PICK_CALLBACK", picker):
+            result = self.store.action({"action": "choose_project_folder", "id": other_id})
+        self.assertTrue(result["ok"])
+        self.assertEqual(seen["initial"], str(other.resolve()))
+
+    def test_folder_picker_without_an_initial_argument_still_works(self):
+        called = []
+
+        def picker():
+            called.append(True)
+            return ""
+
+        with mock.patch.object(app, "FOLDER_PICK_CALLBACK", picker):
+            result = self.store.action({"action": "choose_project_folder", "id": self.todo_id})
+        self.assertTrue(result["ok"])
+        self.assertTrue(called)
+
 
 class RevealInFileManagerTests(unittest.TestCase):
     """The napkin never draws its own file list: the desktop selects the folder."""

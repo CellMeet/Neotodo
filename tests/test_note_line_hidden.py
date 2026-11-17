@@ -24,17 +24,24 @@ def main() -> int:
     app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
 
     # A closed line is hidden on both sides of the workspace, whatever the
-    # other pane is doing; only a strip visit lifts it into its slot.
+    # other pane is doing; only a strip visit lifts it into its slot. Both
+    # numbers come from the one static slot pair, never from a sheet box.
     assert "const aiTucked = !aiOpen && !stripHover;" in handle_position
     assert "const notesTucked = !notesOpen && !stripHover;" in handle_position
-    assert "const closedTop = window.innerHeight - 34;" in handle_position
-    assert "const tuckedTop = window.innerHeight + 8;" in handle_position
+    assert "const closedTop = deskLineClosedTop();" in handle_position
+    assert "const tuckedTop = deskLineTuckedTop();" in handle_position
+    assert "function deskLineClosedTop()" in handle_position
+    assert "function deskLineTuckedTop()" in handle_position
 
     # Closing must not snap the line back to the home it had while visible:
-    # that would park the closed line on screen again.
+    # that would park the closed line on screen again, and after a width split
+    # it parked it on the old sheet edge. A tucked line stays tucked, and a
+    # visible closed line returns to the static slot (x from the neutral pair).
     assert 'handle.classList.contains("handle-tucked")' in handle_position
-    assert "if (handle.classList.contains(\"handle-tucked\")" in handle_position
-    assert "home.top > window.innerHeight - 2" in handle_position
+    assert "this.place(kind, home.center, home.top);" not in handle_position
+    assert "const center = closedLineCenters[kind] != null" in handle_position
+    assert "this.place(kind, center, deskLineClosedTop());" in handle_position
+    assert "home.top > window.innerHeight - 2" not in handle_position
 
     # The note's hover pass only ever opens. The downward branch and its close
     # helper are gone.

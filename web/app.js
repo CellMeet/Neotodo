@@ -425,7 +425,13 @@ GENERATED_PALETTES.forEach((palette, index) => {
 Object.assign(THEMES, GENERATED_THEMES);
 
 const MOON = '<svg class="moon-icon" aria-hidden="true"><use href="#headphone"></use></svg>';
-const GOLD_MOON = '<svg class="moon-icon gold-moon" aria-hidden="true"><use href="#headphone-gold"></use></svg>';
+// A submitted todo that carried subtasks keeps the squash mark where the gold
+// headphone used to sit: the picture opens the same finished-subtask list. It
+// is the one mark that says "this task's board was submitted with it".
+const SUBTASK_DONE_ICON = '<img class="subtask-done-icon" src="/stickers/squash-done.gif" alt="" aria-hidden="true" draggable="false">';
+// Twenty finished subtasks let the todo be submitted in one click. The
+// backend uses the same number (SUBTASK_QUICK_SUBMIT).
+const SUBTASK_QUICK_SUBMIT = 20;
 
 const PIANO_KEYS = ["A3", "C4", "Ds4", "Fs4", "A4", "C5", "Ds5", "Fs5"];
 const pianoAudios = PIANO_KEYS.map((name) => {
@@ -2087,7 +2093,9 @@ const BackgroundMusic = (() => {
   let secondary = false;
   try {
     const params = new URLSearchParams(location.search);
-    secondary = params.get("fork") === "1" || params.has("detached");
+    secondary = params.get("fork") === "1"
+      || params.get("silent") === "1"
+      || params.has("detached");
   } catch (error) {}
   let current = BACKGROUND_MUSIC_FALLBACK;
   let tracks = [BACKGROUND_MUSIC_FALLBACK];
@@ -2156,6 +2164,21 @@ const BackgroundMusic = (() => {
     try { audio.pause(); } catch (error) {}
   }
 
+  // A quit has to take the track with it. Pausing alone leaves WebKit's media
+  // pipeline alive, so the window's last buffers can still be heard after the
+  // reader asked the app to leave. Releasing the source tears that pipeline
+  // down; a later play() builds a fresh element from `current.src`.
+  function stop() {
+    if (!audio) return;
+    const node = audio;
+    audio = null;
+    try { node.pause(); } catch (error) {}
+    try {
+      node.removeAttribute("src");
+      node.load();
+    } catch (error) {}
+  }
+
   function applyVolume() {
     if (audio) audio.volume = targetVolume();
   }
@@ -2216,13 +2239,17 @@ const BackgroundMusic = (() => {
       AudioFX.unlock();
       sync();
     } else {
-      pause();
+      // Pausing alone can leave WebKit's media pipeline holding the last
+      // buffers of the track, so "Off" could still be audible. Release the
+      // source like the quit hook does; the next play() rebuilds it.
+      stop();
     }
     return enabled;
   }
 
   return {
     start: play,
+    stop,
     sync,
     applyVolume,
     toggle: () => setEnabled(!enabled),
@@ -2235,6 +2262,22 @@ const BackgroundMusic = (() => {
   };
 })();
 
+// Silence every track the notebook owns before its window goes away. The quit
+// button and the page's own teardown both call this, so a slow agent/fork
+// shutdown can never leave the background music playing after the reader quit.
+// The backend also calls the same hook (and mutes the WebView) the moment a
+// quit begins, before it waits on anything.
+function silenceNotebookAudio() {
+  try { BackgroundMusic.stop(); } catch (error) {}
+  // Plugins keep their own <audio> elements (the music player, chimes). They
+  // pause themselves on pagehide too, but this covers a quit that never gets
+  // to fire the page's teardown.
+  document.querySelectorAll("audio").forEach((node) => {
+    try { node.pause(); } catch (error) {}
+  });
+}
+window.neotodoSilenceAudio = silenceNotebookAudio;
+
 // `wallpaper` is the single wallpaper choice: a picture or film in the
 // dedicated `pictures/wallpapers` shelf (or a legacy absolute path), a built-in
 // postcard (`art:<id>`) or a theme-pack picture (`theme:<pack-id>`). The shelf
@@ -2245,7 +2288,7 @@ const WALLPAPER_RECENT_LIMIT = 6;
 // The little folder that opens a shelf on disk. Drawn inline so it borrows the
 // current theme ink instead of carrying the SVG file's own dark fill.
 const FOLDER_GLYPH = `<svg class="theme-folder-glyph" viewBox="0 0 1025 1024" aria-hidden="true"><path d="M961.793 446.344 961.793 446.344 202.079 446.344c-28.215 0-52.07 18.43-60.285 43.93l0 0L75.51 694.483 75.51 129.847l0 0 316.499 0 0 0 0.07 0c0 69.927 56.645 126.57 126.575 126.57l0 0 316.499 0 0 126.572 63.28 0L898.433 256.417c0-34.927-28.35-63.287-63.28-63.287L518.579 193.13c-34.925 0-63.285-28.355-63.285-63.282l0 0c0-34.93-28.285-63.287-63.285-63.287l0 0L75.51 66.561c-34.927 0-63.285 28.357-63.285 63.287l0 759.571c0 34.93 28.357 63.28 63.285 63.28l759.573 0c28.215 0 52.07-18.425 60.285-43.93l0.07 0 129.5-399.137C1024.937 474.704 996.722 446.416 961.793 446.344zM838.368 889.418 75.51 889.418l123.285-379.787 762.853 0L838.368 889.418z" fill="currentColor"/></svg>`;
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, show_brand: true, show_achievements: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "default", ai_theme: "auto", icon_theme: "classical", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {}, sound_style: "classical" };
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, show_brand: true, show_achievements: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "paper", note_theme: "default", ai_theme: "auto", icon_theme: "classical", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, card_images: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {}, sound_style: "classical" };
 // The page baseline is saved in its own baseline-color.json file, outside the
 // theme and outside the notebook settings. This is only the first-paint
 // fallback until /api/state answers with the stored colour.
@@ -2259,6 +2302,14 @@ const BASELINE_ROW_DEFAULT = {
   color: BASELINE_COLOR_DEFAULT,
   color2: "#a8691f",
   angle: 0,
+};
+// The frame around the floating cards is a reader-owned outline. It keeps its
+// own card-line.json file, so a theme switch or a page_line edit can never
+// replace the chosen colour or weight.
+const CARD_LINE_DEFAULT = {
+  color: "#2f5d4e",
+  width: 1.5,
+  enabled: true,
 };
 // Achievement stickers. Built-in achievements and achievement-tagged plugins
 // each get one picture; a plugin without the "achievement" tag never appears
@@ -2278,6 +2329,16 @@ function stickerTargetAvailable(target) {
 function availableStickerTargets() {
   return STICKER_TARGETS.filter(stickerTargetAvailable);
 }
+// Card pictures. Every floating sub-card may carry a picture of its own
+// instead of borrowing the wallpaper; Settings → Card lists one row per card.
+// The ids match `data-subcard` on the live hosts, so the same map can be read
+// by the renderer and by the settings preview.
+const CARD_TARGETS = [
+  { id: "pending", name: "Subtask card", selector: "#pending-subtask-card" },
+  { id: "doing", name: "Doing card", selector: "#doing-peek" },
+  { id: "completed", name: "Completed card", selector: "#completed-subtask-drawer" },
+  { id: "trash", name: "Trash card", selector: "#trash-drawer" },
+];
 const NOTE_BG_PRESETS = {
   forest: "/notes-forest.jpg",
   mist: "/notes-mist.jpg",
@@ -2460,8 +2521,8 @@ function applyThemeChrome(id) {
       color2: normalizeBaselineColorInput(chrome.row2 || "") || row,
     }, { immediate: true });
   }
-  // An empty highlight means "follow this theme's accent"; the custom wash of
-  // the previous theme must never leak into the new one.
+  // An empty highlight means "follow the Categories accent"; the custom wash
+  // of the previous theme must never leak into the new one.
   settings.highlight = normalizeHighlightColorInput(chrome.highlight || "");
   applyHighlight();
 }
@@ -2743,26 +2804,9 @@ let pendingSubtasksTodoId = null;
 // A stretched edge is a drag, not a click; the click that follows must not
 // flip the card a second time.
 let suppressPendingSubtaskToggleUntil = 0;
-// Each handle line only exists while its lane holds something. `null` means
-// "not measured yet", so the opening frame of the app never plays a pull-out
-// animation on a page the reader has not touched.
-let pendingHandleLineShown = null;
-let completedHandleLineShown = null;
-// Finishing a subtask pops the card open so the row can fly into it. Once the
-// row has landed the card lingers for a beat, then tucks itself away again.
-let completedSubtasksAutoCloseTimer = null;
-const COMPLETED_DRAWER_DWELL_MS = 300;
-const COMPLETED_ROW_FLIGHT_MS = 340;
-// The tray opens with the new rule already printed, and the rows below are
-// pushed down in one composited move. The finished row crosses the page while
-// that short push finishes, so its line is always waiting when it lands.
-const COMPLETED_DRAWER_OPEN_MS = 40;
-const COMPLETED_DRAWER_DROP_MS = 120;
-const COMPLETED_ROWS_PUSH_MS = 160;
-// While a finished row is in the air, its flight owns the frame budget: heavy
-// card work (baking wallpaper panes, rebuilding the Doing card) waits for the
-// landing instead of stealing the animation's first frames.
-let completionFlightUntil = 0;
+// The finished card is a review sheet, not part of the submit animation: a
+// completed subtask leaves the live lane at once and the card stays tucked away
+// until the reader opens it with its handle line.
 let historyCursor = -1;
 let lastTypeSoundAt = 0;
 let lastTetrisKeyAt = 0;
@@ -2819,10 +2863,14 @@ let doingExpandedTodoIds = (() => {
 function saveDoingExpandedTodoIds() {
   try { localStorage.setItem(DOING_EXPANDED_KEY, JSON.stringify([...doingExpandedTodoIds])); } catch (error) {}
 }
+// The row that was just unfolded. Only that item's fresh subtasks play the
+// short ripple, and only once: the card is rebuilt whenever any of its state
+// changes, so a plain CSS animation would replay every time a row is repainted.
+let doingUnfoldTodoId = null;
 let doingMarkedTodoId = null;
 let doingMarkedSubtaskId = null;
 let doingPeekOpenTimer = 0;
-let doingPeekPoint = { x: 0, y: 0 };
+let doingPeekPoint = { x: 0, y: 0, target: null };
 let doingZone = null;
 let doingZoneAt = 0;
 let doingCardWidth = 380;
@@ -3023,7 +3071,11 @@ function clearUnseenAgentSubtask(subtaskId) {
   if (!subtaskId || !unseenAgentSubtasks.has(subtaskId)) return;
   unseenAgentSubtasks.delete(subtaskId);
   saveUnseenAgentSubtasks();
-  if (doingPeekOpen) updateDoingPeek(true);
+  // Opening a subtask puts its finished-run light out. That light is one class
+  // on one row, so repaint the markers instead of rebuilding the whole Doing
+  // card: the rebuild used to run before the note was drawn, which is the beat
+  // that made clicking a card row feel late.
+  if (doingPeekOpen) syncDoingRowMarks();
 }
 
 function pruneUnseenAgentSubtasks() {
@@ -3454,6 +3506,10 @@ function updateSubtaskAgentDom(subtaskId, { running = null, model = null, pop = 
 let agentModelsLoading = null;
 const agentLoadedIds = new Set();
 const agentLoadingIds = new Set();
+// One shared read per agent. The AI sheet asks for its session from the render
+// pass and from the first-paint wait, so both callers must await the same
+// request instead of starting two.
+const agentSessionLoads = new Map();
 const agentLive = {};
 const agentPollTimers = new Map();
 const agentAttachments = {};
@@ -3881,6 +3937,7 @@ const PAGE_LINE_DEFAULT = {
   opacity: 1,
   row: 40,
   thickness: 1,
+  enabled: true,
 };
 
 /** Normalise the stored page line; a hand-edited file can never break CSS. */
@@ -3902,7 +3959,7 @@ function pageLine() {
   const thickness = Number.isFinite(thicknessRaw)
     ? Math.max(1, Math.min(4, thicknessRaw))
     : PAGE_LINE_DEFAULT.thickness;
-  return { color, opacity, row, thickness };
+  return { color, opacity, row, thickness, enabled: source.enabled !== false };
 }
 
 /** The one colour every page divider is painted with. */
@@ -3916,7 +3973,10 @@ function applyPageLine() {
   const root = document.documentElement;
   root.style.setProperty("--page-line-color", line.color);
   root.style.setProperty("--page-line-opacity", String(line.opacity));
-  root.style.setProperty("--page-line-paint", pageLinePaint(line));
+  // The Font tab switch hides the ruled lines by painting them transparent,
+  // never by dropping the line's weight: the seven task rows and the desk keep
+  // their exact layout, so switching back on cannot reflow the page.
+  root.style.setProperty("--page-line-paint", line.enabled ? pageLinePaint(line) : "transparent");
   root.style.setProperty("--page-line-row", `${line.row}px`);
   root.style.setProperty("--page-line-thickness", `${line.thickness}px`);
   root.style.setProperty("--page-task-h", `calc(${line.row}px * 7)`);
@@ -4017,6 +4077,23 @@ function syncPageLineControls(line = pageLine()) {
   if (thickness) thickness.value = String(line.thickness);
   const thicknessValue = $("#page-line-thickness-value");
   if (thicknessValue) thicknessValue.textContent = `${line.thickness} px`;
+  // The Font tab carries the same two controls under the name Baseline.
+  const fontColor = $("#font-baseline-color");
+  if (fontColor) fontColor.value = line.color;
+  const fontHex = $("#font-baseline-hex");
+  if (fontHex) fontHex.value = line.color;
+  const fontWidth = $("#font-baseline-width");
+  if (fontWidth) fontWidth.value = String(line.thickness);
+  const fontWidthValue = $("#font-baseline-width-value");
+  if (fontWidthValue) fontWidthValue.textContent = `${line.thickness} px`;
+  const toggle = $("#font-baseline-toggle");
+  if (toggle) {
+    toggle.classList.toggle("on", line.enabled);
+    toggle.classList.toggle("off", !line.enabled);
+    toggle.setAttribute("aria-pressed", line.enabled ? "true" : "false");
+    toggle.setAttribute("aria-label", line.enabled ? "Turn Baseline off" : "Turn Baseline on");
+    toggle.closest(".font-settings-row")?.classList.toggle("is-off", !line.enabled);
+  }
   syncPageLineSwatch(line);
 }
 
@@ -4132,6 +4209,72 @@ function syncBaselineRowControls(rule = baselineRowRule()) {
 }
 
 // ---------------------------------------------------------------------------
+// Card line — the frame around every floating card: the live subtask sheet,
+// the Doing card, the finished-subtasks drawer and the trash card. The colour
+// and weight live in card-line.json, never in a theme, so one choice marks the
+// whole pile and page_line keeps owning the rows inside the cards.
+// ---------------------------------------------------------------------------
+
+/** Normalise the stored card frame; a hand-edited file can never break CSS. */
+function cardLine() {
+  const raw = state.data?.card_line;
+  const source = raw && typeof raw === "object" ? raw : {};
+  const color = /^#[0-9a-f]{6}$/i.test(String(source.color || ""))
+    ? String(source.color).toLowerCase()
+    : CARD_LINE_DEFAULT.color;
+  const widthRaw = Math.round((Number(source.width) || CARD_LINE_DEFAULT.width) * 2) / 2;
+  const width = Math.max(1, Math.min(4, widthRaw));
+  return { color, width, enabled: source.enabled !== false };
+}
+
+/** Publish the frame on :root; the card stylesheets are the only readers. */
+function applyCardLine() {
+  const line = cardLine();
+  const root = document.documentElement;
+  // Off paints the frame transparent instead of zeroing its weight: every card
+  // keeps the box its stylesheet already reserved, so nothing moves and the
+  // saved colour and weight are back the moment the switch is on again.
+  root.style.setProperty("--subcard-outline", line.enabled ? line.color : "transparent");
+  root.style.setProperty("--subcard-line-width", `${line.width}px`);
+}
+
+let cardLineSaveTimer = null;
+
+/** Repaint at once, then write the object to card-line.json. */
+function saveCardLine(patch, { immediate = false } = {}) {
+  const line = { ...cardLine(), ...patch };
+  if (state.data) state.data.card_line = line;
+  applyCardLine();
+  clearTimeout(cardLineSaveTimer);
+  const send = () => {
+    cardLineSaveTimer = null;
+    silentAction("save_card_line", { card_line: line });
+  };
+  if (immediate) send();
+  else cardLineSaveTimer = setTimeout(send, 180);
+}
+
+/** Keep the Font → Card line controls in step without rebuilding Settings. */
+function syncCardLineControls(line = cardLine()) {
+  const picker = $("#font-card-line-color");
+  if (picker) picker.value = line.color;
+  const hex = $("#font-card-line-hex");
+  if (hex) hex.value = line.color;
+  const width = $("#font-card-line-width");
+  if (width) width.value = String(line.width);
+  const widthValue = $("#font-card-line-width-value");
+  if (widthValue) widthValue.textContent = `${line.width} px`;
+  const toggle = $("#font-card-line-toggle");
+  if (toggle) {
+    toggle.classList.toggle("on", line.enabled);
+    toggle.classList.toggle("off", !line.enabled);
+    toggle.setAttribute("aria-pressed", line.enabled ? "true" : "false");
+    toggle.setAttribute("aria-label", line.enabled ? "Turn Card line off" : "Turn Card line on");
+    toggle.closest(".font-settings-row")?.classList.toggle("is-off", !line.enabled);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Selection highlight — the wash behind the row or menu item you are in.
 // Every theme marks the active subtask and the hovered menu entry with an
 // accent tint. "Auto" keeps that theme-derived wash; a saved colour replaces
@@ -4149,7 +4292,7 @@ function normalizeHighlightColorInput(raw) {
   return "";
 }
 
-/** The saved highlight colour, or "" when the theme still owns the wash. */
+/** The saved highlight colour, or "" when the Categories accent owns the wash. */
 function highlightColor() {
   return normalizeHighlightColorInput(settings.highlight);
 }
@@ -4177,18 +4320,22 @@ function syncHighlightFields(color, source = "") {
   }
 }
 
+/** The ink the page writes in: the reader's font colour, or the theme's own. */
+function bodyInkColor() {
+  const theme = THEMES[currentPostcardId()] || THEMES.light;
+  return fontHexColor(settings.body_font_color) || theme?.ink || "#332b2d";
+}
+
 /** Publish the wash colour. Called on every theme pass and while the picker drags. */
 function applyHighlight() {
   const root = document.documentElement;
-  const color = highlightColor();
-  if (color) {
-    root.dataset.select = "custom";
-    root.style.setProperty("--select-wash-rgb", hexToRgb(color));
-  } else {
-    // Hand the wash back to the active theme's accent.
-    delete root.dataset.select;
-    root.style.removeProperty("--select-wash-rgb");
-  }
+  const custom = highlightColor();
+  // Auto follows the Categories accent — the same mapped utility ink that
+  // paints the hidden top bar and the left index — instead of mixing a wash
+  // from the font ink, which muddied the paper. A saved colour still wins.
+  const color = custom || inkAccents(bodyInkColor()).utility;
+  root.dataset.select = custom ? "custom" : "auto";
+  root.style.setProperty("--select-wash-rgb", hexToRgb(color));
 }
 
 function aiThemeIsDark() {
@@ -4433,7 +4580,11 @@ async function requestState() {
   const response = await fetch("/api/state", { cache: "no-store" });
   return response.json();
 }
-async function action(name, payload = {}) {
+// `repaint: false` is the instant path: the caller has already printed its
+// change on the page (a new subtask row), so the reply must not rebuild the
+// board behind it. The whole stage write that used to answer every save is what
+// made Enter feel late — the row appeared, then the page coughed a frame later.
+async function action(name, payload = {}, { repaint = true } = {}) {
   const response = await fetch("/api/action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -4446,6 +4597,12 @@ async function action(name, payload = {}) {
   if (!result.ok) {
     toast(result.error || "Something went wrong", true);
     setStatus("Needs attention");
+    return result;
+  }
+  if (!repaint) {
+    // The reveal flags belong to renderStage(); leaving them set would replay
+    // the splash for this row on some later, unrelated repaint.
+    setStatus("Saved");
     return result;
   }
   if (name === "add_subtask" && result.ok) {
@@ -4485,13 +4642,13 @@ async function silentAction(name, payload = {}) {
   }
 }
 
-// The napkin hands the working-folder question to the desktop itself: a click
-// opens the system file manager on the folder's parent with the folder
+// The card's "Show in file manager" action hands the folder to the desktop
+// itself: the system file manager opens on the folder's parent with the folder
 // selected, exactly like clicking that folder once in the window. NeoTodo draws
-// no file list of its own. Right-click (or long-press) keeps a small card for
-// changing or unlinking the folder, because only the native picker can choose.
+// no file list of its own. The card stays the place that chooses or replaces
+// the folder because only the native picker can choose.
 function revealProjectFolder(todo = null) {
-  const targetTodo = todo || activeNoteTarget()?.todo || null;
+  const targetTodo = liveTodoRecord(todo || activeNoteTarget()?.todo || null);
   closeProjectFolderCard();
   AudioFX.unlock();
   playPianoKey();
@@ -4501,13 +4658,20 @@ function revealProjectFolder(todo = null) {
       return;
     }
     // Unlinked todos still have a real workspace (NeoTodo's own folder); say so
-    // once, and point at the right-click card that binds a project instead.
+    // once, and point at the napkin card that binds a project instead.
     setStatus(
       targetTodo?.project_folder
         ? "Opened in your file manager"
-        : "NeoTodo's own folder · right-click the napkin to link a project",
+        : "NeoTodo's own folder · click the napkin to link a project",
     );
   });
+}
+
+// The napkin at the page header belongs to the live todo. When there is no
+// pending todo left, fall back to the note the reader selected so a finished
+// todo can still be re-pointed at another folder.
+function projectFolderHeaderTodo() {
+  return currentTodo() || activeNoteTarget()?.todo || null;
 }
 
 function projectFolderCardRoot() {
@@ -4641,9 +4805,22 @@ function toggleProjectFolderDir(path, holder) {
   });
 }
 
-function openProjectFolderCard() {
-  const target = activeNoteTarget();
-  const todo = target?.todo || null;
+// A card can outlive one state refresh (for example while an action response
+// replaces `state.data`). Re-resolve the record by id so the panel always shows
+// the folder that is stored now, never the copy that was captured earlier.
+function liveTodoRecord(todo) {
+  if (!todo?.id) return todo || null;
+  return findTodo(String(todo.id)) || todo;
+}
+
+// `todoOverride === undefined` means "use the note the reader is looking at".
+// The page-header napkin passes its own todo explicitly so a done row left
+// selected in the history reel can never capture the folder the header names.
+function openProjectFolderCard(todoOverride = undefined) {
+  const target = todoOverride === undefined
+    ? activeNoteTarget()
+    : { todo: todoOverride, subtask: null, kind: "todo", completed: Boolean(todoOverride?.done) };
+  const todo = liveTodoRecord(target?.todo);
   const linkedFolder = String(todo?.project_folder || "");
   // Todos without a linked folder still have a real workspace: the agent
   // falls back to NeoTodo's own folder (or the crew runner's folder). Show
@@ -4654,17 +4831,19 @@ function openProjectFolderCard() {
   const linked = Boolean(linkedFolder);
   const category = selectedCategory();
   const count = Number(todo?.project_file_count) || 0;
-  const locked = Boolean(todo && (target?.completed || todo.done));
   const categoryLine = category
     ? `<div class="project-folder-context">Category · ${esc(category.name)}</div>`
     : "";
   const subtaskLine = target?.kind === "subtask" && target.subtask
     ? `<div class="project-folder-context">Subtask · ${esc(target.subtask.name)}</div>`
     : "";
+  // Folder binding is per todo, not per category. Say it in the card that owns
+  // the Choose / Change folder button: every todo can point at a different
+  // project folder, and the choice can be replaced at any time.
   const hint = linked
-    ? "Subtask AI reads and writes in this folder. A plain click on the napkin shows it in your file manager."
+    ? "This todo's AI reads and writes in this folder. Each todo keeps its own folder, and you can change it at any time."
     : todo
-      ? "No folder linked, so subtask AI works in NeoTodo's own folder. Choose a folder to point it at your project."
+      ? "Each todo keeps its own folder. Choose one to point this todo's AI at your project; until then it uses NeoTodo's own folder."
       : "Pick the folder the next todo's AI should work in. Until then, AI uses NeoTodo's own folder.";
   AudioFX.paper();
   projectFolderEntries = [];
@@ -4693,10 +4872,10 @@ function openProjectFolderCard() {
           : '<div class="project-folder-empty">The next todo will start its AI here.</div>'}
       ` : '<div class="project-folder-empty">Could not resolve a working folder for this todo.</div>'}
       <div class="project-folder-actions">
-        ${locked ? "" : `<button class="btn small primary" type="button" data-project-folder-pick>${linked ? "Change folder" : "Choose folder"}</button>`}
+        <button class="btn small primary" type="button" data-project-folder-pick>${linked ? "Change folder" : "Choose folder"}</button>
         ${todo && folder ? '<button class="btn small" type="button" data-project-folder-open>Show in file manager</button>' : ""}
         <span class="project-folder-spacer"></span>
-        ${linked && !locked ? '<button class="btn small danger" type="button" data-project-folder-clear>Unlink</button>' : ""}
+        ${linked ? '<button class="btn small danger" type="button" data-project-folder-clear>Unlink</button>' : ""}
         <button class="btn small" type="button" data-project-folder-close>Close</button>
       </div>
     </div>
@@ -4725,26 +4904,28 @@ function openProjectFolderCard() {
   });
   document.querySelector("[data-project-folder-open]")?.addEventListener("click", () => {
     if (!todo) return;
-    silentAction("open_project_folder", { id: todo.id }).then((result) => {
-      if (result?.ok === false) toast(result.error || "Could not open the folder", true);
-    });
+    revealProjectFolder(todo);
   });
   document.querySelector("[data-project-folder-clear]")?.addEventListener("click", async () => {
     if (!todo) return;
-    await clearProjectFolder();
-    openProjectFolderCard();
+    await clearProjectFolder(todo);
+    openProjectFolderCard(todo);
   });
   if (folder && todo) loadProjectFolderFiles(todo.id);
 }
 
 function pickProjectFolder(todo = null) {
-  const targetTodo = todo || activeNoteTarget()?.todo || null;
-  if (targetTodo && targetTodo.done) return;
+  const targetTodo = liveTodoRecord(todo || activeNoteTarget()?.todo || null);
   // Even with no current todo (for example while the new-todo input is empty)
   // the picker opens; the chosen folder waits for the todo that is created next.
+  closeProjectFolderCard();
   AudioFX.unlock();
   playPianoKey();
-  silentAction("choose_project_folder").then(async (picked) => {
+  silentAction("choose_project_folder", targetTodo ? { id: targetTodo.id } : {}).then(async (picked) => {
+    if (picked?.ok === false) {
+      toast(picked.error || "Could not open the folder picker", true);
+      return;
+    }
     if (!picked?.path) return;
     if (!targetTodo) {
       pendingProjectFolder = picked.path;
@@ -4754,8 +4935,13 @@ function pickProjectFolder(todo = null) {
     }
     const bound = await action("bind_project_folder", { id: targetTodo.id, path: picked.path });
     if (bound?.ok) {
-      setStatus(`Project folder linked · ${(bound.files || []).length} files`);
-      openProjectFolderCard();
+      // The native chooser already showed the picked directory; do not replace
+      // it with the in-app card. A short status line confirms the binding.
+      const folderName = String(picked.path).replace(/\/+$/, "").split("/").pop() || picked.path;
+      closeProjectFolderCard();
+      setStatus(`Project folder linked · ${folderName} · ${(bound.files || []).length} files`);
+    } else if (bound?.error) {
+      toast(bound.error, true);
     }
   });
 }
@@ -4770,11 +4956,10 @@ async function attachPendingProjectFolder(result) {
   }
 }
 
-async function clearProjectFolder() {
-  const target = activeNoteTarget();
-  if (!target?.todo) return;
-  if (target.completed || target.todo.done) return;
-  await action("clear_project_folder", { id: target.todo.id });
+async function clearProjectFolder(todo = undefined) {
+  const targetTodo = liveTodoRecord(todo === undefined ? activeNoteTarget()?.todo : todo);
+  if (!targetTodo) return;
+  await action("clear_project_folder", { id: targetTodo.id });
 }
 
 function isLegacyForkCategory(category) {
@@ -4946,7 +5131,7 @@ function selectCategoryRow(row) {
   AudioFX.categoryTap();
   render();
   if (archiveOpen) closeArchive();
-  silentAction("select_category", { id: row.dataset.categoryId });
+  silentAction("select_category", { slim: true, id: row.dataset.categoryId });
   saveViewState();
   // render() patches the rows in place, so the same button is still here.
   const live = categoryRows().find((item) => item.dataset.categoryId === row.dataset.categoryId);
@@ -5034,12 +5219,17 @@ function activeNoteTarget() {
   return current ? { todo: current, subtask: null, kind: "todo", completed: false } : null;
 }
 
+// The fire-and-forget writes: a note, the settings, the quit request. None of
+// their callers reads the board back — the page already owns what it just sent.
+// Asking for the slim acknowledgement keeps the server from echoing the whole
+// notebook on every debounced keystroke, and on the note flush that a category
+// switch performs before it repaints.
 async function persistAction(name, payload = {}) {
   try {
     const response = await fetch("/api/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: name, ...payload }),
+      body: JSON.stringify({ action: name, slim: true, ...payload }),
     });
     return await response.json();
   } catch (error) {
@@ -5506,7 +5696,7 @@ function notesHtml() {
   const category = selectedCategory();
   const active = activeNoteTarget();
   const notesIconSvg = `<svg class="notes-icon" aria-hidden="true"><use href="#${themeSymbol("notes")}"></use></svg>`;
-  const notesIcon = `<button class="notes-icon-button" type="button" data-action="reveal-project-folder" aria-label="Open working folder in your file manager">${notesIconSvg}</button>`;
+  const notesIcon = `<button class="notes-icon-button" type="button" data-action="reveal-project-folder" title="Choose or change this todo's working folder" aria-label="Choose or change this todo's working folder">${notesIconSvg}</button>`;
   // The note header carries only the current todo/subtask name. Folder details
   // live on the page-header napkin, not beside the title, and the sheet has no
   // ornament drawn on it.
@@ -5533,11 +5723,31 @@ function notesHtml() {
     <div class="notes-body"><div class="note-live" id="note-live">${noteGhostMarkup()}${blocks}</div></div>`;
 }
 
+// The sheet each note panel is already showing. Keep it on the element, not on
+// a piece of state: renderStage() keeps the same panel mounted now, and a
+// refresh must be able to tell "the same note" from "another note".
+const notesRenderCache = new WeakMap();
+
 function renderNotesPanel() {
   const panel = $("#notes-half");
   if (!panel) return;
-  const before = $("#note-live")?.scrollTop || 0;
-  panel.innerHTML = notesHtml();
+  const targetKey = noteTargetKey(activeNoteTarget());
+  const html = notesHtml();
+  // The same note prints the same sheet. A click that only moves the
+  // selection between rows of the same note (or back to a row that was just
+  // read) must not throw the page and the live textarea away: rebuilding the
+  // note on every card click was the stutter the pointer waited through.
+  const cached = notesRenderCache.get(panel);
+  if (cached && cached.html === html) {
+    saveViewState();
+    return;
+  }
+  // A different note (a category switch, another row) opens at its first line.
+  // The same note keeps the reader's place while its sheet is refreshed.
+  const sameTarget = Boolean(cached) && cached.key === targetKey;
+  notesRenderCache.set(panel, { html, key: targetKey });
+  const before = sameTarget ? ($("#note-live")?.scrollTop || 0) : 0;
+  panel.innerHTML = html;
   setupNotesPanel();
   const scroller = $("#note-live");
   if (scroller) scroller.scrollTop = before;
@@ -5577,36 +5787,102 @@ function selectionTouchesSubtaskNames(selection) {
     .some((span) => range.intersectsNode(span));
 }
 
+/** Keep the seven ruled lines of a lane after a row left it. The lane is
+    always seven unit rows tall, so the freed row hands its line to a filler. */
+function refillSubtaskLane(list) {
+  if (!list) return;
+  const missing = Math.max(0, TASK_VISIBLE_ROWS - list.children.length);
+  for (let index = 0; index < missing; index += 1) {
+    const filler = document.createElement("div");
+    filler.className = "current-subtask current-subtask-filler";
+    filler.setAttribute("aria-hidden", "true");
+    list.appendChild(filler);
+  }
+}
+
+/** The bold "next" name belongs to the first unfinished row in the lane. When
+    that row is the one that just left, the next one inherits the mark. */
+function syncNextSubtaskRow() {
+  document.querySelectorAll(".current-subtasks").forEach((list) => {
+    let marked = false;
+    list.querySelectorAll(".current-subtask.pending[data-subtask-id]").forEach((row) => {
+      const next = !marked;
+      row.classList.toggle("next", next);
+      if (next) marked = true;
+    });
+  });
+}
+
 function deleteSubtaskRows(rows) {
   const inner = $(".current-inner");
   const todoId = inner?.dataset.currentTodo;
   if (!todoId || !rows.length) return;
-  const ids = rows.map((row) => row.dataset.subtaskId);
-  const burnUrl = iconThemeAsset(iconThemeById(settings.icon_theme), "rowBurn");
-  const finish = () => {
-    rows.forEach((row) => row.classList.add("subtask-vanishing"));
-    animateSubtaskRowsAway(rows);
-    setTimeout(() => {
-      action("delete_subtasks", { todo_id: todoId, subtask_ids: ids });
-    }, 320);
-  };
-  if (ids.includes(selectedSubtaskId)) selectedSubtaskId = null;
-  if (burnUrl) {
-    // Let the pepper reach the burning line, then fold the row away quickly.
-    // The gif's inflation is trimmed to ~260ms, so the row starts folding
-    // right after the fire lands instead of waiting out a long wind-up.
-    rows.forEach((row, index) => playRowBurn(row, index > 0, burnUrl));
-    setTimeout(finish, 520);
-    return;
+  const ids = rows.filter(Boolean).map((row) => row.dataset.subtaskId).filter(Boolean);
+  if (!ids.length) return;
+  const category = selectedCategory();
+  const todo = category?.todos?.find((item) => item.id === todoId);
+  const wasSelected = ids.includes(selectedSubtaskId);
+  if (wasSelected) selectedSubtaskId = null;
+  // Deleting a subtask has no effect of its own and nothing to wait for: the
+  // rows leave the lane, their lines pass to the fillers and the local copy
+  // loses them in this same frame. The save travels behind the gesture.
+  //
+  // What used to stutter here was the reply, not the request: `action()` ran a
+  // full stage render when the answer landed, so the page rebuilt the board,
+  // the note and the console about 100ms after the click, with the repaint
+  // that followed. The board is already the answer, so it is left alone.
+  if (todo) {
+    todo.subtasks = (todo.subtasks || []).filter((item) => (
+      item.done || !ids.includes(String(item.id))
+    ));
   }
-  rows.forEach((row, index) => {
-    playVanishSmoke(row.querySelector(".sub-fan") || row, index > 0);
-    row.classList.add("subtask-vanishing");
+  const lists = new Set();
+  rows.forEach((row) => {
+    if (!row?.isConnected) return;
+    const list = row.closest(".current-subtasks");
+    if (list) lists.add(list);
+    row.remove();
   });
-  animateSubtaskRowsAway(rows);
-  setTimeout(() => {
-    action("delete_subtasks", { todo_id: todoId, subtask_ids: ids });
-  }, 320);
+  lists.forEach(refillSubtaskLane);
+  syncNextSubtaskRow();
+  if (wasSelected) {
+    // The note and the console were reading the row that just left: hand the
+    // page back to the todo instead of keeping a deleted subtask in the sheet.
+    updateHistorySelection();
+    renderNotesPanel();
+  }
+  requestAnimationFrame(() => {
+    const live = $(".current-inner");
+    if (live) applyBaselineRowHeights(live);
+    syncTaskScrollers();
+    // The Doing card lists the same rows, but it is only rebuilt while it is on
+    // screen: a tucked card is rebuilt by its own signature the next time it
+    // opens, so a delete behind it costs nothing.
+    if (doingPeekOpen) updateDoingPeek();
+  });
+  silentAction("delete_subtasks", { todo_id: todoId, subtask_ids: ids }).then((result) => {
+    if (result && result.ok !== false) {
+      setStatus("Saved");
+      // The deleted row is already in the trash card's data; only a card that
+      // is on screen has to print it.
+      if (trashOpen) renderTrashDrawer();
+      return;
+    }
+    // The lane closed the rows on the click. The reply, not the click, decides
+    // whether that was true, so a refusal or a lost request puts the saved
+    // board back.
+    setStatus("Needs attention");
+    if (result?.error) toast(result.error, true);
+    if (result) {
+      render();
+      return;
+    }
+    requestState().then((fresh) => {
+      if (!fresh) return;
+      state.data = fresh;
+      render();
+    }).catch(() => {});
+  });
 }
 
 function deleteSelectedSubtasks(selection) {
@@ -6114,6 +6390,10 @@ function subtaskCaretIndex(span, event) {
 
 function selectCurrentSubtaskNote(row) {
   if (!row) return;
+  // A search hit can point at a row that is past the laid-out batch. Bring it
+  // (and the rows between) back before selecting so the scroll and the
+  // highlight can measure a real box.
+  revealDeferredSubtaskRow(row);
   AudioFX.categoryTap();
   saveActiveNoteCaret();
   flushNoteSave();
@@ -6124,52 +6404,6 @@ function selectCurrentSubtaskNote(row) {
   updateHistorySelection();
   updateSubtaskSelection();
   renderNotesPanel();
-}
-
-function playVanishSmoke(target, silent = false) {
-  if (!target) return;
-  const rect = target.getBoundingClientRect();
-  if (!rect.width && !rect.height) return;
-  if (!silent) AudioFX.exhale();
-  const layer = document.createElement("div");
-  layer.className = "subtask-smoke";
-  layer.style.left = `${rect.left + rect.width / 2}px`;
-  layer.style.top = `${rect.top + rect.height * 0.42}px`;
-  for (let i = 0; i < 7; i += 1) {
-    const puff = document.createElement("i");
-    const angle = (Math.PI * 2 * i) / 7 + Math.random() * 0.7;
-    const distance = 7 + Math.random() * 17;
-    puff.style.setProperty("--dx", `${(Math.cos(angle) * distance).toFixed(1)}px`);
-    puff.style.setProperty("--dy", `${(-14 - Math.random() * 26).toFixed(1)}px`);
-    puff.style.setProperty("--size", `${(8 + Math.random() * 9).toFixed(1)}px`);
-    puff.style.setProperty("--delay", `${i * 35}ms`);
-    layer.appendChild(puff);
-  }
-  document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 1150);
-}
-
-/** Pvs row burn: the whole row rectangle is covered by the pepper's fire. */
-function playRowBurn(row, silent = false, burnUrl = "") {
-  if (!row) return false;
-  const url = burnUrl || iconThemeAsset(iconThemeById(settings.icon_theme), "rowBurn");
-  const rect = row.getBoundingClientRect();
-  if (!url || (!rect.width && !rect.height)) {
-    playVanishSmoke(row.querySelector(".sub-fan") || row, silent);
-    return false;
-  }
-  if (!silent) AudioFX.burn();
-  const layer = document.createElement("div");
-  layer.className = "subtask-burn";
-  layer.style.left = `${rect.left}px`;
-  layer.style.top = `${rect.top}px`;
-  layer.style.width = `${rect.width}px`;
-  layer.style.height = `${rect.height}px`;
-  layer.style.backgroundImage = `url("${url}")`;
-  document.body.appendChild(layer);
-  setTimeout(() => layer.classList.add("fading"), 580);
-  setTimeout(() => layer.remove(), 860);
-  return true;
 }
 
 function spawnPixelSplash(row) {
@@ -6239,49 +6473,13 @@ function spawnPixelSplash(row) {
   setTimeout(() => layer.remove(), 1450);
 }
 
-function animateSubtaskRowsAway(rows) {
-  if (!rows.length) return;
-  const all = [...document.querySelectorAll(".current-subtask")];
-  const first = Math.min(...rows.map((row) => all.indexOf(row)));
-  const below = all.slice(first + 1).filter((row) => !rows.includes(row));
-  const before = new Map(below.map((row) => [row, row.getBoundingClientRect().top]));
-  rows.forEach((row) => { row.style.display = "none"; });
-  below.forEach((row) => {
-    const oldTop = before.get(row);
-    const newTop = row.getBoundingClientRect().top;
-    const delta = oldTop - newTop;
-    if (!delta) return;
-    row.style.transition = "none";
-    row.style.transform = `translateY(${delta}px)`;
-    void row.offsetHeight;
-    row.style.transition = "transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)";
-    row.style.transform = "translateY(0)";
-    setTimeout(() => {
-      if (!row.isConnected) return;
-      row.style.transition = "";
-      row.style.transform = "";
-    }, 320);
-  });
-}
-
 function vanishSubtaskRow(row, after) {
   if (!row) return;
-  const burnUrl = iconThemeAsset(iconThemeById(settings.icon_theme), "rowBurn");
-  if (burnUrl) {
-    // Backspace / Enter on an empty inline subtask gets the same fast pepper
-    // fire as a right-click delete, instead of the old smoke puff.
-    playRowBurn(row, false, burnUrl);
-    setTimeout(() => {
-      row.classList.add("subtask-vanishing");
-      animateSubtaskRowsAway([row]);
-      if (after) setTimeout(after, 280);
-    }, 520);
-    return;
-  }
-  playVanishSmoke(row.querySelector(".sub-fan") || row);
-  row.classList.add("subtask-vanishing");
-  animateSubtaskRowsAway([row]);
-  if (after) setTimeout(after, 320);
+  // Same rule as a right-click delete: the row drops out with no effect. The
+  // caller's save runs on the next tick so it never repaints from inside the
+  // key handler that removed the row.
+  row.style.display = "none";
+  if (after) setTimeout(after, 0);
 }
 
 function startSubtaskRename(span, event) {
@@ -6321,8 +6519,10 @@ function startSubtaskRename(span, event) {
     input.disabled = true;
     input.blur();
     if (selectedSubtaskId === subtaskId) selectedSubtaskId = null;
+    // The empty rename row goes through the same delete as the fan and the
+    // keyboard: it leaves the lane at once and saves behind the gesture.
     vanishSubtaskRow(row, () => {
-      action("delete_subtask", { todo_id: todoId, subtask_id: subtaskId });
+      deleteSubtaskRows([row]);
     });
   };
   input.addEventListener("keydown", (event) => {
@@ -6644,6 +6844,14 @@ function updateAgentSplitLayout() {
   agentSplitRatio = clamp(agentSplitRatio, vertical ? 0.4 : 0.28, vertical ? 0.6 : 0.72);
   const resizing = document.body.classList.contains("agent-split-resizing")
     || deskHandleResizing();
+  // Nothing to lay out: the sheet is closed and no split geometry is on the
+  // page. Reading `.page-body` here measured the whole desk, which forced a
+  // full layout of every subtask row during startup just to compute a width
+  // that no split uses. Keep the fast path for the closed console so the
+  // first render does not pay for a measurement it immediately discards.
+  if (!active && !resizing && !document.body.classList.contains("agent-notes-split")) {
+    return;
+  }
   // Remembering the horizontal side is a synchronous localStorage write. During
   // a divider drag that would hit the disk once per frame; the drag handler
   // stores it once, on pointerup instead.
@@ -6792,65 +7000,17 @@ async function copyToClipboard(text) {
   }
 }
 
-function flashAgentCopy(rect) {
-  // One toast at a time: a fast second copy replaces the first card instead of
-  // stacking two of them over the line.
-  document.querySelectorAll(".agent-copy-flash").forEach((old) => old.remove());
-  const node = document.createElement("span");
-  node.className = "agent-copy-flash";
-  node.innerHTML = `<span class="agent-copy-flash-text">Copied to clipboard</span>`;
-  // Match the console's own palette so the toast reads on paper and on the
-  // dark sheet alike. The cyan side blocks are owned by the stylesheet.
-  const terminal = $("#agent-terminal");
-  const styles = terminal ? getComputedStyle(terminal) : null;
-  const bg = styles?.getPropertyValue("--oc-soft").trim() || "#f4f4f5";
-  const ink = styles?.getPropertyValue("--oc-ink").trim() || "#171718";
-  node.style.background = bg;
-  node.style.color = ink;
-  document.body.appendChild(node);
-  // OpenCode puts its copy toast above the copied line, and so do we. The
-  // toast is clamped to the viewport so a selection near an edge stays
-  // readable.
-  const size = node.getBoundingClientRect();
-  const viewportW = window.innerWidth || document.documentElement.clientWidth || 0;
-  let left = Math.round(rect.left + rect.width / 2 - size.width / 2);
-  let top = Math.round(rect.top - size.height - 8);
-  if (top < 8) top = 8;
-  if (left < 8) {
-    left = 8;
-  } else if (viewportW && left + size.width > viewportW - 8) {
-    left = Math.max(8, viewportW - size.width - 8);
-  }
-  node.style.left = `${left}px`;
-  node.style.top = `${top}px`;
-  // Show, hold, then drop it: no fade in either direction.
-  setTimeout(() => node.remove(), 1000);
-}
-
 /* Notes and the other notebook pages copy themselves the same way the
-   console does: select written text and it lands on the clipboard. One
-   "Copied to clipboard" badge answers from the top centre, squared off with a
-   theme accent block on each side. Symbols, icons, shapes and rules are not
-   text, so a selection made of them is left alone. */
+   console does: select written text and it lands on the clipboard. Symbols,
+   icons, shapes and rules are not text, so a selection made of them is left
+   alone. A copy is silent: no badge, no toast, because the selection already
+   says what happened. */
 let lastPageCopiedText = "";
-
-function flashPageCopy() {
-  // One badge at a time, like the console toast.
-  document.querySelectorAll(".page-copy-flash").forEach((old) => old.remove());
-  const node = document.createElement("span");
-  node.className = "page-copy-flash";
-  node.textContent = "Copied to clipboard";
-  // The stylesheet owns the look: notebook paper and ink with a theme accent
-  // on each side, deliberately distinct from the console's copy toast.
-  document.body.appendChild(node);
-  // Show, hold, then drop it: no fade in either direction.
-  setTimeout(() => node.remove(), 1100);
-}
 
 // The sheet a selection has to live in for the copy effect: the notebook
 // pages, Categories, the drawers, and every popup the notebook opens over
 // them (Settings, Community, AI settings, the postcard viewer, the timer and
-// the sound panel). The console keeps its own toast.
+// the sound panel). The console reads its own selection separately.
 const PAGE_COPY_ZONE = "#stage, #notes-half, #category-list, #archive-drawer, #trash-drawer, #modal-root, #timer-root, #sound-panel";
 
 // Fields in these sheets are written text too; the inline rename fields on
@@ -6884,14 +7044,13 @@ function pageCopiedText() {
   if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
   if (!node?.closest) return "";
   if (!node.closest(PAGE_COPY_ZONE)) return "";
-  if (node.closest("#agent-terminal, .context-menu, .page-copy-flash")) return "";
+  if (node.closest("#agent-terminal, .context-menu")) return "";
   if (node.closest("input, textarea, select, button, svg, [contenteditable='true'], [aria-hidden='true']")) return "";
   return text;
 }
 
 // "intheme" plugins run in their own same-origin frame, so the notebook binds
-// the same gesture handlers inside that document. The badge still belongs to
-// the notebook and paints over the plugin sheet.
+// the same gesture handlers inside that document.
 function frameCopiedText(win) {
   const doc = win?.document;
   if (!doc) return "";
@@ -6968,7 +7127,6 @@ function bindFrameCopy(frame) {
     copyFrameText(text).then((ok) => {
       if (!ok) return;
       lastText = text;
-      flashPageCopy();
     });
   };
 
@@ -6980,11 +7138,6 @@ function bindFrameCopy(frame) {
     if (event.key === "Shift" || event.key.startsWith("Arrow") || (event.key === "a" && (event.ctrlKey || event.metaKey))) {
       setTimeout(copySelection, 0);
     }
-  });
-  doc.addEventListener("copy", () => {
-    setTimeout(() => {
-      if (frameCopiedText(win)) flashPageCopy();
-    }, 0);
   });
 }
 
@@ -7002,7 +7155,6 @@ function bindPageCopy() {
     copyToClipboard(text).then((ok) => {
       if (!ok) return;
       lastPageCopiedText = text;
-      flashPageCopy();
     });
   };
 
@@ -7016,13 +7168,6 @@ function bindPageCopy() {
     if (event.key === "Shift" || event.key.startsWith("Arrow") || (event.key === "a" && (event.ctrlKey || event.metaKey))) {
       setTimeout(copySelection, 0);
     }
-  });
-  // A Ctrl+C, a native menu copy or the note's own menu copy still answers
-  // with the same badge, even when the text was already on the clipboard.
-  document.addEventListener("copy", () => {
-    setTimeout(() => {
-      if (pageCopiedText()) flashPageCopy();
-    }, 0);
   });
 }
 
@@ -7064,11 +7209,9 @@ function bindAgentMessages() {
     if (!node?.closest?.("#agent-terminal")) return;
     if (node.closest("input, textarea, [contenteditable='true']")) return;
     if (text === lastAutoCopiedText) return;
-    const rect = range.getBoundingClientRect();
     copyToClipboard(text).then((ok) => {
       if (!ok) return;
       lastAutoCopiedText = text;
-      flashAgentCopy(rect);
     });
   };
 
@@ -7097,12 +7240,12 @@ function bindAgentMessages() {
   });
 
   // The composer is a real field, so window.getSelection() stays collapsed
-  // there. Read the field's own selection range instead and show the same
-  // toast, so text typed by the user copies just like the replies do.
+  // there. Read the field's own selection range instead, so text typed by the
+  // user copies just like the replies do.
   const input = $("#agent-input");
   if (input && input.dataset.agentCopyBound !== "1") {
     input.dataset.agentCopyBound = "1";
-    const copyFieldSelection = (point) => {
+    const copyFieldSelection = () => {
       const start = input.selectionStart;
       const end = input.selectionEnd;
       if (start == null || end == null || start === end) {
@@ -7114,9 +7257,6 @@ function bindAgentMessages() {
       copyToClipboard(text).then((ok) => {
         if (!ok) return;
         lastAutoCopiedText = text;
-        // A mouse selection anchors the toast at the pointer; keyboard
-        // selections fall back to the field itself.
-        flashAgentCopy(point || input.getBoundingClientRect());
       });
     };
     // A drag can leave the field before the button comes up, so the release
@@ -7126,11 +7266,10 @@ function bindAgentMessages() {
       lastAutoCopiedText = "";
       fieldDragging = true;
     });
-    document.addEventListener("pointerup", (event) => {
+    document.addEventListener("pointerup", () => {
       if (!fieldDragging) return;
       fieldDragging = false;
-      const point = { left: event.clientX, top: event.clientY, width: 0 };
-      setTimeout(() => copyFieldSelection(point), 0);
+      setTimeout(() => copyFieldSelection(), 0);
     });
     input.addEventListener("keyup", (event) => {
       const selectKey = event.key === "Shift"
@@ -7573,9 +7712,10 @@ function renderAgentTerminal() {
   // The card is created by the stage markup, so its inline theme palette has
   // to be repainted whenever a fresh element appears.
   if (typeof settings !== "undefined" && settings) applyAiTheme();
+  performance.mark('rt-a');
   panel.classList.toggle("open", agentTerminalOpen);
   panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
-  if (!agentTerminalOpen) { updateAgentSplitLayout(); return; }
+  if (!agentTerminalOpen) { updateAgentSplitLayout();performance.mark('rt-b'); return; }
   bindAgentCompose();
   bindAgentSplitHandle();
 
@@ -7848,33 +7988,43 @@ function startAgentPoll(agentId) {
 
 async function loadAgentSession(agentId) {
   if (agentLoadedIds.has(agentId)) return;
-  agentLoadingIds.add(agentId);
-  renderAgentTerminal();
-  try {
-    const data = await agentPost({ action: "get", agent_id: agentId });
-    if (data.ok) {
-      agentSessions[agentId] = data.agent || { messages: [] };
-      if (data.model) agentSessions[agentId].model = data.model;
-      if (data.mode) agentSessions[agentId].mode = data.mode;
-      if (Array.isArray(data.models) && data.models.length) agentModels = data.models;
-      if (data.default_model) agentDefaultModel = data.default_model;
-      agentLive[agentId] = data.live || {};
-      if (Array.isArray(data.files)) agentAttachments[agentId] = data.files;
-      agentLoadedIds.add(agentId);
-      if (data.live?.started) {
-        // A run started in another window is already working; the panel
-        // follows it like any run started from this window.
-        if (!agentBusyIds.has(agentId)) {
-          agentBusyIds.add(agentId);
-          noteAgentRunStarted(agentId);
+  const running = agentSessionLoads.get(agentId);
+  if (running) return running;
+  const task = (async () => {
+    agentLoadingIds.add(agentId);
+    renderAgentTerminal();
+    try {
+      const data = await agentPost({ action: "get", agent_id: agentId });
+      if (data.ok) {
+        agentSessions[agentId] = data.agent || { messages: [] };
+        if (data.model) agentSessions[agentId].model = data.model;
+        if (data.mode) agentSessions[agentId].mode = data.mode;
+        if (Array.isArray(data.models) && data.models.length) agentModels = data.models;
+        if (data.default_model) agentDefaultModel = data.default_model;
+        agentLive[agentId] = data.live || {};
+        if (Array.isArray(data.files)) agentAttachments[agentId] = data.files;
+        agentLoadedIds.add(agentId);
+        if (data.live?.started) {
+          // A run started in another window is already working; the panel
+          // follows it like any run started from this window.
+          if (!agentBusyIds.has(agentId)) {
+            agentBusyIds.add(agentId);
+            noteAgentRunStarted(agentId);
+          }
+          startAgentPoll(agentId);
         }
-        startAgentPoll(agentId);
       }
+    } catch (error) {
+    } finally {
+      agentLoadingIds.delete(agentId);
+      if (agentTerminalOpen && activeAgent().id === agentId) renderAgentTerminal();
     }
-  } catch (error) {
+  })();
+  agentSessionLoads.set(agentId, task);
+  try {
+    return await task;
   } finally {
-    agentLoadingIds.delete(agentId);
-    if (agentTerminalOpen && activeAgent().id === agentId) renderAgentTerminal();
+    agentSessionLoads.delete(agentId);
   }
 }
 
@@ -7898,9 +8048,18 @@ function scrollAgentMessagesToBottom() {
   [40, 120, 260, 450, 700].forEach((delay) => setTimeout(pin, delay));
 }
 
+// A selection pass updates the history reel and then the subtask rows; both
+// tell the conversation to follow the new target. The conversation is the same
+// sheet either way, so it repaints once, after the click's own frame: the row
+// and the note must answer the pointer before the AI console is re-laid-out.
+let agentTerminalSyncTimer = 0;
+
 function syncAgentTerminal() {
-  if (!agentTerminalOpen) return;
-  renderAgentTerminal();
+  if (!agentTerminalOpen || agentTerminalSyncTimer) return;
+  agentTerminalSyncTimer = setTimeout(() => {
+    agentTerminalSyncTimer = 0;
+    if (agentTerminalOpen) renderAgentTerminal();
+  }, 0);
 }
 
 function openAgentTerminal(silent = false) {
@@ -8748,159 +8907,44 @@ function restoreAgentScroll(snapshot) {
   }
 }
 
-// The finished card never shows the provider mark: that mark answers "who
-// worked on this row", and the row is leaving the run behind. The click has
-// already removed it from the row (see `.subtask-completing` in
-// subtask-split.css), so the flight must not bring it back: the ghost drops the
-// mark and its slot entirely and starts in the same layout the tray row lands
-// in. Nothing slides sideways between the click and the landing.
+/* Swap the page's own content without touching the chrome that survives a
+   category switch.
 
-// The finished row leaves a card that clips its own children: the drawer and
-// the lane inside it cut the path off at the card edge, so a transform on the
-// real row is invisible for most of the trip and the row merely seems to
-// appear in the tray. Draw the flight on a ghost pinned to the page instead,
-// then reveal the real row when the ghost lands.
+   The stage used to be replaced with one `innerHTML` write on every render.
+   That re-created the note sheet (with its live textarea and caret), the AI
+   card, the split handles and every card on the page, so moving between
+   categories looked like a page reload even though only the task board had
+   changed. The title and the board still have to be printed again; everything
+   beside them now stays mounted, and the note sheet is filled by
+   renderNotesPanel() afterwards. */
+function paintStageBoard(stage, headMarkup, boardMarkup) {
+  const body = stage.querySelector(":scope > .page-body");
+  const head = stage.querySelector(":scope > .page-head");
+  const board = body?.querySelector(":scope > .todos-section");
+  if (!body || !head || !board
+    || !body.querySelector(":scope > #notes-half")
+    || !body.querySelector(":scope > #agent-terminal")) return false;
+  // The title carries the current todo's name (or the new-task input), so it is
+  // reprinted. Comparing first keeps an unrelated render from rebuilding the
+  // input the reader may be typing in.
+  if (head.outerHTML !== headMarkup) head.outerHTML = headMarkup;
+  board.innerHTML = boardMarkup;
+  return true;
+}
+
+// A finished row is one sheet, never a picture without its paper.
 //
-// The ghost keeps the pending row's width for the whole trip and the narrower
-// landing box is reached by clipping its right edge. Animating `width` (the
-// old flight) forced a layout of the row on every frame, which is what made
-// the trip stutter on a busy page; a transform plus an inset clip only paints.
-function flyCompletedRow(row, originRect, landedRect, duration, sourceRow = null, delay = 0) {
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
-    // The slot's row was already held back for a flight that is not going to
-    // happen.
-    row.classList.remove("subtask-slot-arriving");
-    return;
-  }
-  const ghost = (sourceRow || row).cloneNode(true);
-  ghost.classList.add("subtask-flight");
-  // The press feedback belongs to the click, not to the trip: the flying card
-  // is the row at rest, so the fan arrives at its normal size. The selection
-  // wash is the lane's emphasis, not the row's paper: carrying it would drag a
-  // coloured block across the page and hand it to the finished card.
-  ghost.classList.remove("subtask-completing", "selected", "agent-running");
-  // The provider mark belongs to the AI run, not to the finished paper, and the
-  // click already took it (with its slot) out of the clicked row. The flying
-  // copy must not bring either back: no badge in the air, and the fan and name
-  // start exactly where the tray row will print them. The press pop is likewise
-  // the click's, not the trip's: the row in the air rests at full size.
-  ghost.querySelectorAll(".sub-agent-model").forEach((mark) => mark.remove());
-  ghost.querySelectorAll(".fan-pop").forEach((node) => node.classList.remove("fan-pop"));
-  ghost.removeAttribute("data-subtask-id");
-  ghost.setAttribute("aria-hidden", "true");
-  ghost.tabIndex = -1;
-  ghost.style.left = `${originRect.left}px`;
-  ghost.style.top = `${originRect.top}px`;
-  ghost.style.width = `${originRect.width}px`;
-  ghost.style.height = `${originRect.height}px`;
-  ghost.style.zIndex = "240";
-  // The page rule belongs to the row's lane, and the finished card prints its
-  // own rule when the row lands. A line travelling through the air was the one
-  // part of the flight that read as an animated rule, so the ghost is plain
-  // paper: nothing under it moves.
-  ghost.style.setProperty("border-bottom-color", "transparent", "important");
-  ghost.style.setProperty("border-image", "none", "important");
-  // The arriving line is already in the tray; only the row's content is held
-  // back for the flight. This keeps the new rule under the row that is being
-  // pushed down, instead of leaving a blank gap in the finished card.
-  row.classList.add("subtask-slot-arriving");
-  document.body.appendChild(ghost);
-  const dx = landedRect.left - originRect.left;
-  const dy = landedRect.top - originRect.top;
-  const clipRight = Math.max(0, originRect.width - landedRect.width);
-  const clipBottom = Math.max(0, originRect.height - landedRect.height);
-  let settled = false;
-  const settle = () => {
-    if (settled) return;
-    settled = true;
-    ghost.remove();
-    // A repaint may have replaced the row while it was in the air.
-    if (!row.isConnected) return;
-    row.classList.remove("subtask-slot-arriving");
-    // The row travels with the paper it had as a pending row. Landing is where
-    // it becomes finished: the check is written in, and the row presses into
-    // the tray instead of simply appearing there.
-    const check = row.querySelector(".sub-done-check");
-    if (check) {
-      check.classList.add("check-in");
-      setTimeout(() => check.classList.remove("check-in"), 420);
-    }
-    try {
-      row.animate(
-        [{ transform: "scale(1.01)" }, { transform: "none" }],
-        { duration: 150, easing: "cubic-bezier(.2,.8,.2,1)" }
-      );
-    } catch (error) {}
-  };
-  try {
-    const flight = ghost.animate(
-      [
-        { transform: "translate(0, 0)", clipPath: "inset(0 0 0 0)" },
-        {
-          transform: `translate(${dx}px, ${dy}px)`,
-          clipPath: `inset(0 ${clipRight}px ${clipBottom}px 0)`,
-        },
-      ],
-      { duration, delay, easing: "cubic-bezier(.22,.68,.16,1)" }
-    );
-    flight.onfinish = settle;
-    flight.oncancel = settle;
-  } catch (error) {
-    settle();
-  }
-}
-
-// A completion opens the finished tray from the top. The new row's rule is
-// already printed at the card's edge; the rows below are pushed down in one
-// composited move, and the arriving row's content waits for the flight. No
-// height is animated: a row that grows frame by frame repaints every hairline
-// at fractional offsets, which is what read as a burst of extra lines.
-function openCompletedDrawerForRow(drawer, row, animateEntrance) {
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
-  if (!drawer) return;
-  if (animateEntrance) {
-    try {
-      drawer.animate(
-        [
-          { transform: "translateY(-10px) scale(0.995)" },
-          { transform: "none" },
-        ],
-        { duration: COMPLETED_DRAWER_DROP_MS, easing: "cubic-bezier(.2,.8,.2,1)" }
-      );
-    } catch (error) {}
-  }
-  if (!row) return;
-  row.classList.add("subtask-slot-arriving");
-  const list = row.parentElement;
-  const lane = row.closest(".subtask-lane");
-  if (!list || !lane) return;
-  const rowH = row.offsetHeight || 40;
-  // Start with the whole block one row higher: the new rule sits under the
-  // card's top edge, where the old first row used to be, and both slide home
-  // together. Only a transform is animated, so the rules move as one layer
-  // instead of being re-laid out and re-antialiased on every frame.
-  list.style.transform = `translateY(-${rowH}px)`;
-  list.style.willChange = "transform";
-  try {
-    const push = list.animate(
-      [
-        { transform: `translateY(-${rowH}px)` },
-        { transform: "translateY(0)" },
-      ],
-      { duration: COMPLETED_ROWS_PUSH_MS, easing: "cubic-bezier(.2,.8,.2,1)" }
-    );
-    const clear = () => {
-      list.style.transform = "";
-      list.style.willChange = "";
-    };
-    push.onfinish = clear;
-    push.oncancel = clear;
-  } catch (error) {
-    list.style.transform = "";
-    list.style.willChange = "";
-  }
-}
-
+// Completion used to lift the clicked row onto a page-level ghost and carry it
+// across to the tray. That ghost deliberately dropped its background, its rule
+// and the provider mark while keeping the fan and the name, so for the length
+// of the trip the words were on the page with no card under them: the reported
+// "the submitted subtask's background card disappears".
+//
+// A completed subtask now simply leaves the live lane, and the finished card is
+// not opened by the completion at all. Its row, paper and rule are printed in
+// the repaint that already put the card away, so the reader can open the card
+// later and find the same unbroken sheet; nothing about the completion is
+// animated.
 function renderStage() {
   const stage = $("#stage");
   const liveAgentTerminal = stage.querySelector("#agent-terminal");
@@ -8910,22 +8954,13 @@ function renderStage() {
   stage.querySelectorAll(".subtask-lane[data-lane]").forEach((lane) => {
     previousLaneScroll.set(lane.dataset.lane, lane.scrollTop);
   });
-  // Snapshot the old subtask rows so a freshly finished one can glide across
-  // to the completed lane, and the rows around it can settle into place. The
-  // rising row's own paper is kept too: the flight is drawn with the row as it
-  // looked when it was clicked, so it keeps its identity the whole way.
+  // A completed subtask leaves the live lane in this same repaint. The finished
+  // card is not part of the submit: it stays tucked away and is opened later
+  // with its handle line. No row is cloned, carried or animated.
   const risingSubtaskId = justCompletedSubtaskId;
-  const previousSubtaskRects = new Map();
-  let risingSubtaskPaper = null;
-  if (risingSubtaskId) {
-    stage.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
-      previousSubtaskRects.set(row.dataset.subtaskId, row.getBoundingClientRect());
-      if (row.dataset.subtaskId === risingSubtaskId) risingSubtaskPaper = row.cloneNode(true);
-    });
-  }
   const category = selectedCategory();
   if (!category) {
-    stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" aria-label="Open working folder in your file manager"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div><div class="page-head-title current-head-title quiet"><span class="page-title-name">No categories yet.</span></div></div>
+    stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" title="Choose or change this todo's working folder" aria-label="Choose or change this todo's working folder"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div><div class="page-head-title current-head-title quiet"><span class="page-title-name">No categories yet.</span></div></div>
       <div class="page-body">
         <section class="todos-section">
           <div class="current-half"></div>
@@ -8935,7 +8970,8 @@ function renderStage() {
         ${agentTerminalMarkup()}
         ${agentSplitUiMarkup()}
       </div>`;
-    keepAgentTerminal(stage, liveAgentTerminal);
+    performance.mark('rs-d');
+  keepAgentTerminal(stage, liveAgentTerminal);
     renderAgentTerminal();
     restoreAgentScroll(liveAgentScroll);
     refreshTaskBoard();
@@ -8951,6 +8987,18 @@ function renderStage() {
   const todos = category.todos || [];
   const done = doneTodos(category);
   const current = todos.find((todo) => !todo.done) || null;
+  // A repaint of the same todo keeps the rows the reader already scrolled to
+  // in layout; a different task starts from the first batch again.
+  const priorTodoId = stage.querySelector(".current-inner[data-current-todo]")?.dataset.currentTodo || "";
+  const priorRowsShown = Math.max(
+    0,
+    ...[...stage.querySelectorAll("[data-subtask-list]")].map((list) => (
+      list.querySelectorAll(":scope > .current-subtask[data-subtask-id]:not(.subtask-row-deferred)").length
+    )),
+  );
+  const keptSubtaskRows = priorTodoId && priorTodoId === (current?.id || "")
+    ? priorRowsShown
+    : SUBTASK_ROW_BATCH;
   // A fork window is its own OS window. Its title bar should name the todo,
   // never the NeoTodo process/app name that the borderless main window hides.
   if (state.data?.fork) {
@@ -8963,7 +9011,6 @@ function renderStage() {
 
   // The completed-subtask card belongs to the task that was on screen when it
   // was opened. A different task always starts with the card tucked away.
-  const completedWasOpen = completedSubtasksOpen;
   if (!current) {
     completedSubtasksOpen = false;
     completedSubtasksTodoId = null;
@@ -8971,25 +9018,15 @@ function renderStage() {
     completedSubtasksTodoId = current.id;
     completedSubtasksOpen = false;
   }
-  // Finishing a subtask pops the drawer open so the row has somewhere to land.
-  // While the inline add row is open or a brand-new row is being revealed, keep
-  // it tucked away: the card floats over the right half of the live lane and
-  // would cover part of that row, making it look cut short.
+  // Finishing a subtask never opens the finished card: the row simply leaves
+  // the live lane, and the card stays available behind its handle line. While
+  // the inline add row is open, keep the card tucked away anyway: it floats over
+  // the right half of the live lane and would cover part of that row.
   const newSubtaskView = Boolean(addingSubtask || revealNewSubtask || lastAddedSubtaskId);
   if (!completedDrawerOn) completedSubtasksOpen = false;
-  else if (risingSubtaskId && !newSubtaskView) completedSubtasksOpen = true;
-  // This also covers a completion that was still in flight when the new row was
-  // saved: the drawer must never open on top of a just-added subtask.
   if (newSubtaskView) completedSubtasksOpen = false;
-  // A finished row only travels after its card has dropped into view and the
-  // new top slot has unfolded. When the card was already open there is no
-  // entrance to wait for, but the slot still opens under the row in flight.
-  const completedDrawerOpening = Boolean(risingSubtaskId && completedSubtasksOpen && !completedWasOpen);
-  const reduceMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
-  const completionDelayMs = completedDrawerOpening && !reduceMotion ? COMPLETED_DRAWER_OPEN_MS : 0;
-  // A folded card has no visible rows: a completion that has to fly into the
-  // finished tray, or an inline row that has to be typed into, always hands
-  // the card back first.
+  // A folded card has no visible rows: a completion, or an inline row that has
+  // to be typed into, always hands the card back first.
   if (risingSubtaskId || newSubtaskView) pendingSubtasksCollapsed = false;
   // The finished tray and the Doing drawer are independent sheets. Both may
   // rest on the column's right border at once; the Doing drawer is the upper
@@ -9014,7 +9051,7 @@ function renderStage() {
   if (historyCursor < 0 && done.length) historyCursor = 0;
   if (historyCursor >= done.length) historyCursor = done.length - 1;
 
-  const historyRows = done.map((todo, index) => {
+  performance.mark('rs-a');const historyRows = done.map((todo, index) => {
     const cursor = !selectedSubtaskId && !selectedHistoryId && index === historyCursor;
     const selected = !selectedSubtaskId && todo.id === selectedHistoryId;
     const hasSubs = (todo.subtasks || []).length > 0;
@@ -9035,7 +9072,7 @@ function renderStage() {
         }).join("")}</div>`
       : "";
     const trophy = hasSubs
-      ? `<button class="h-trophy h-trophy-action" data-history-expand="${index}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${GOLD_MOON}</button>`
+      ? `<button class="h-trophy h-trophy-action h-trophy-squash" data-history-expand="${index}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${SUBTASK_DONE_ICON}</button>`
       : `<span class="h-trophy">${completedIcon()}</span>`;
     return `<div class="history-row ${cursor ? "cursor" : ""} ${selected ? "selected" : ""}" data-history-index="${index}" data-todo-id="${esc(todo.id)}">
       ${trophy}
@@ -9049,43 +9086,26 @@ function renderStage() {
   const historyFillers = Array.from({ length: historyFillerCount }, () => '<div class="history-row history-filler" aria-hidden="true"></div>').join("");
   const history = `<div class="history-reel no-motion" id="history-reel"><div class="history-rows" id="history-rows">${historyRows}${historyFillers}</div></div>`;
 
+  performance.mark('rs-b');
   let metaHtml = "";
   let headTitle;
   if (current) {
     const subList = orderedSubtasks(current);
     const pendingList = subList.filter((subtask) => !subtask.done);
     const doneList = subList.filter((subtask) => subtask.done);
+    // Twenty finished rows arm the one-click submit: the complete action keeps
+    // its place but says the pending tail will be finished with the todo.
+    const quickSubmitReady = pendingList.length > 0 && doneList.length >= SUBTASK_QUICK_SUBMIT;
+    const submitLabel = quickSubmitReady
+      ? `Submit todo · ${doneList.length} subtasks done, the rest will be marked done`
+      : "Complete todo";
     const addSubtaskRow = addingSubtask && addingSubtaskTodoId === current.id
-      ? `<div class="current-subtask adding-subtask" data-add-subtask-row>
-          <span class="sub-fan" aria-hidden="true"><svg viewBox="0 0 1024 1024"><use href="#fan"></use></svg></span>
-          <input id="subtask-name-input" class="subtask-name-input" type="text" autocomplete="off" spellcheck="false" aria-label="Name subtask">
-        </div>`
+      ? ADD_SUBTASK_ROW_HTML
       : "";
-    const subtaskRow = (subtask) => {
-      const next = pendingSub && subtask.id === pendingSub.id;
-      const selected = subtask.id === selectedSubtaskId;
-      const fan = subtask.done
-        ? `<span class="sub-fan done" aria-hidden="true"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>`
-        : `<button class="sub-fan sub-fan-action" data-action="complete-subtask" data-todo-id="${esc(current.id)}" data-subtask-id="${esc(subtask.id)}" aria-label="Finish ${esc(subtask.name)}"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"/><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></button>`;
-      const agentId = `subtask:${subtask.id}`;
-      const agentRunning = agentIsRunning(agentId);
-      // The provider mark answers "who is working / who just worked", so it
-      // belongs to the live row only. A finished row keeps the empty slot (it
-      // is hidden when empty) so the landing layout already matches the flight.
-      const modelBadge = subtask.done || agentRunning
-        ? `<span class="sub-agent-model" aria-hidden="true"></span>`
-        : subtaskModelIconHtml(subtask.id);
-      const forkBranch = forkedSubtaskBranch(current.id, subtask.id);
-      const forkLink = forkBranch
-        ? `<button class="sub-fork-link" type="button" data-fork-branch="${esc(forkBranch.id)}" title="打开 Fork 子应用" aria-label="打开 Fork 子应用"><img src="/fork-link-flame.svg" alt=""></button>`
-        : "";
-      return `<div class="current-subtask ${subtask.done ? "done" : "pending"} ${next ? "next" : ""} ${selected ? "selected" : ""} ${agentRunning ? "agent-running" : ""}" data-subtask-id="${esc(subtask.id)}">
-        ${modelBadge}${fan}
-        <span class="sub-name">${esc(subtask.name)}</span>
-        ${subtask.done ? `<svg class="sub-done-check" aria-hidden="true"><use href="#check-red"></use></svg>` : ""}
-        ${forkLink}
-      </div>`;
-    };
+    const subtaskRow = (subtask) => currentSubtaskRowHtml(current, subtask, {
+      next: Boolean(pendingSub && subtask.id === pendingSub.id),
+      selected: subtask.id === selectedSubtaskId,
+    });
     const fillerRow = '<div class="current-subtask current-subtask-filler" aria-hidden="true"></div>';
     const pendingFillers = Array.from(
       { length: Math.max(0, 7 - pendingList.length - (addSubtaskRow ? 1 : 0)) },
@@ -9109,7 +9129,12 @@ function renderStage() {
     // handle line rides the sheet's bottom edge: pulled up it stretches the
     // card away until the line sits under the top line of the block and the
     // page's own ruling shows through, pulled down it hands the rows back.
-    const pendingCard = (lanes) => `<div class="pending-subtask-card card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" data-subcard="pending" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
+    //
+    // `data-draggable` is the same marker the Doing card carries: the sheet is
+    // a movable surface, and the marker says so for scripts. Like the Doing
+    // card it is a marker, not printed text; the stretchable handle line is
+    // what explains the pull to the reader.
+    const pendingCard = (lanes) => `<div class="pending-subtask-card card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" data-subcard="pending" data-draggable="true" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
         ${lanes}
         <button class="pending-subtask-toggle ${pendingSubtasksCollapsed ? "collapsed" : ""}" type="button" data-action="toggle-pending-subtasks" aria-expanded="${pendingSubtasksCollapsed ? "false" : "true"}" aria-controls="pending-subtask-card" aria-label="${pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks"}">
           <span class="pending-subtask-line" aria-hidden="true"></span>
@@ -9147,7 +9172,7 @@ function renderStage() {
       <div class="head-title-inner">
         <span class="page-title-name">${esc(current.name)}</span>
         <div class="current-actions">
-          <button class="current-action icon-action" data-action="complete" data-id="${esc(current.id)}" aria-label="Complete todo"><svg aria-hidden="true"><use href="#complete-action"></use></svg></button>
+          <button class="current-action icon-action ${quickSubmitReady ? "quick-submit" : ""}" data-action="complete" data-id="${esc(current.id)}" aria-label="${submitLabel}" title="${submitLabel}"><svg aria-hidden="true"><use href="#complete-action"></use></svg></button>
           <span class="action-slash" aria-hidden="true">/</span>
           <button class="current-action icon-action" data-action="add-subtask" data-id="${esc(current.id)}" aria-label="Add subtask"><svg aria-hidden="true"><use href="#add-action"></use></svg></button>
         </div>
@@ -9162,40 +9187,47 @@ function renderStage() {
   // The old page-art was the postcard scene painted inside the theme. The same
   // art now lives in the independent wallpaper layer, so the page itself only
   // renders the theme's colours and typography.
-  stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" aria-label="Open working folder in your file manager"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div>${headTitle}</div>
+  const headMarkup = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" title="Choose or change this todo's working folder" aria-label="Choose or change this todo's working folder"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div>${headTitle}</div>`;
+  const boardMarkup = `<div class="history-half">${history}</div><div class="current-half">${metaHtml}</div>`;
+  // The common path patches the mounted page. A first paint (or a page built by
+  // an older layout) has no shell yet and falls back to one full write.
+  performance.mark('rs-c');
+  let paintedNotes = null;
+  performance.mark('rs-c2');
+  if (!paintStageBoard(stage, headMarkup, boardMarkup)) {
+    paintedNotes = notesHtml();performance.mark('rs-c3');
+    stage.innerHTML = `${headMarkup}
     <div class="page-body">
-      <section class="todos-section">
-        <div class="history-half">${history}</div>
-        <div class="current-half">${metaHtml}</div>
-      </section>
-      <section class="notes-half floating-notes ${notesHidden ? "notes-hidden" : ""}" id="notes-half">${notesHtml()}</section>
+      <section class="todos-section">${boardMarkup}</section>
+      <section class="notes-half floating-notes ${notesHidden ? "notes-hidden" : ""}" id="notes-half">${paintedNotes}</section>
       ${agentTerminalMarkup()}
       ${agentSplitUiMarkup()}
     </div>`;
+    performance.mark('rs-c4');const freshNotes = $("#notes-half");
+    if (freshNotes) {
+      notesRenderCache.set(freshNotes, {
+        html: paintedNotes,
+        key: noteTargetKey(activeNoteTarget()),
+      });
+    }
+  }
 
-  keepAgentTerminal(stage, liveAgentTerminal);
+  performance.mark('rs-d');deferSubtaskRows(stage, keptSubtaskRows);bindDeferredSubtaskRows(stage);keepAgentTerminal(stage, liveAgentTerminal);performance.mark('rs-d2');
   // With the AI sheet closed its element was carried over untouched, so this
   // call only re-applies the same palette and, in updateAgentSplitLayout(),
-  // reads the freshly written page to re-position the split handles. That read
-  // is a full synchronous layout. During a completion flight it is exactly the
-  // frame the row needs, so let the row land first; the sheet is invisible.
-  if (risingSubtaskId && !agentTerminalOpen) {
-    setTimeout(() => {
-      if (stage.isConnected) renderAgentTerminal();
-    }, completionDelayMs + COMPLETED_ROW_FLIGHT_MS + 120);
-  } else {
-    renderAgentTerminal();
-  }
+  // reads the freshly written page to re-position the split handles. It runs in
+  // the same pass as the repaint: nothing in a completion waits for it now.
+  renderAgentTerminal();performance.mark('rs-e');
   restoreAgentScroll(liveAgentScroll);
-  refreshTaskBoard();
+  refreshTaskBoard();performance.mark('rs-f');
   // The height-ramp row rule gives each row its own stop. New rows need it now
   // that the stage HTML has been replaced.
-  applyBaselineRowHeights(stage);
+  applyBaselineRowHeights(stage);performance.mark('rs-g');
   bindCompletedSubtasksBar();
   bindPendingSubtaskToggle();
   // Put the reader's scroll back before anything is measured. The rebuilt lane
   // starts at the top; restoring it a frame later moved every row a second
-  // time, after the gap had already begun to close, which read as a stutter.
+  // time, after the repaint had already shown the settled list.
   if (risingSubtaskId) {
     stage.querySelectorAll(".subtask-lane[data-lane]").forEach((lane) => {
       if (lane.dataset.lane === "done") {
@@ -9206,87 +9238,29 @@ function renderStage() {
       if (previous) lane.scrollTop = previous;
     });
   }
-  // How long the finished row spends in the air this pass. Anything heavy that
-  // would rebuild a card or re-measure the page waits for it to land.
-  let completionFlightMs = 0;
+  // A completed subtask leaves the live lane in this repaint and that is all.
+  // The finished card is not opened, pushed or animated: it stays tucked behind
+  // its handle line until the reader asks for it. Only its stored position is
+  // refreshed, so opening it later starts on the new row.
   if (risingSubtaskId) {
     justCompletedSubtaskId = null;
-    // The finished row now lives in the right-hand lane. Fly it from where it
-    // was in the pending lane, then let the other rows close the gap.
-    const flipped = stage.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(risingSubtaskId)}"]`);
-    const originRect = previousSubtaskRects.get(risingSubtaskId);
-    // The tray always shows a new completion at its top. The landing box is
-    // measured before the card starts moving, while the new slot is still at
-    // its final size and the card is at its final transform.
-    const doneLane = flipped?.closest(".completed-subtask-drawer .subtask-lane");
+    const doneLane = stage.querySelector('.completed-subtask-drawer .subtask-lane[data-lane="done"]');
     if (doneLane) doneLane.scrollTop = 0;
-    const drawer = flipped?.closest(".completed-subtask-drawer");
-    const drawerOpen = Boolean(drawer?.classList.contains("open"));
-    const landedRect = flipped?.getBoundingClientRect();
-    let flightDelay = 0;
-    if (flipped && originRect && landedRect && landedRect.width > 1
-      && (Math.abs(originRect.left - landedRect.left) > 2 || Math.abs(originRect.top - landedRect.top) > 2)) {
-      // The card opens and its new top slot unfolds first; the finished row
-      // waits over its old place, then crosses into the made room. The line
-      // under the row is not part of the trip: the tray prints it on landing.
-      flightDelay = completionDelayMs;
-      completionFlightMs = flightDelay + COMPLETED_ROW_FLIGHT_MS;
-      completionFlightUntil = performance.now() + completionFlightMs + 60;
-      openCompletedDrawerForRow(drawer, flipped, completedDrawerOpening);
-      flyCompletedRow(
-        flipped, originRect, landedRect, COMPLETED_ROW_FLIGHT_MS,
-        risingSubtaskPaper, flightDelay
-      );
-    }
-    // The card must not slide again while its row is in the air.
-    if (drawerOpen && completionFlightMs) {
-      const pin = () => drawer.classList.add("flight-target");
-      if (flightDelay) setTimeout(pin, flightDelay);
-      else pin();
-      setTimeout(() => drawer.classList.remove("flight-target"), completionFlightMs + 60);
-    }
-    // The row has landed in the card: let it sit for 0.3s, then retract the
-    // card instead of waiting for the user to click the handle line.
-    if (completedSubtasksOpen) {
-      scheduleCompletedSubtasksAutoClose(completionFlightMs + COMPLETED_DRAWER_DWELL_MS);
-    }
-    // Close the gap the finished row left behind when the row leaves, not
-    // while the tray is still opening. `backwards` keeps the rows where they
-    // were for the wait, so the space stays open under the waiting row.
-    if (previousSubtaskRects.size) {
-      stage.querySelectorAll(".current-subtask[data-subtask-id]").forEach((row) => {
-        if (row.dataset.subtaskId === risingSubtaskId) return;
-        if (row.closest(".completed-subtask-drawer")) return;
-        const beforeRect = previousSubtaskRects.get(row.dataset.subtaskId);
-        if (!beforeRect) return;
-        const delta = beforeRect.top - row.getBoundingClientRect().top;
-        if (Math.abs(delta) < 2) return;
-        try {
-          row.animate(
-            [{ transform: `translateY(${delta}px)` }, { transform: "none" }],
-            {
-              duration: 320,
-              delay: flightDelay,
-              fill: "backwards",
-              easing: "cubic-bezier(.2,.8,.2,1)",
-            }
-          );
-        } catch (error) {}
-      });
-    }
   }
-  setupNotesPanel();
-  positionTimerRoot();
-  if (!doingPeekOpen) refreshDoingZone();
+  setupNotesPanel();performance.mark('rs-h');
+  // The note sheet was carried over with the rest of the chrome, so its content
+  // is refreshed in place. With a fresh panel the fallback above already printed
+  // it and cached the sheet; calling this again would rebuild the note for
+  // nothing.
+  if (paintedNotes === null) renderNotesPanel();performance.mark('rs-i');
+  positionTimerRoot();performance.mark('rs-j');
+  if (!doingPeekOpen) refreshDoingZone();performance.mark('rs-k');
   requestAnimationFrame(() => {
     refreshNotesSwipeLine();
     // Keep the Doing sub-card built while it is tucked away: its wallpaper is
     // baked from the card's open box, so the first peek only slides a card that
-    // is already finished instead of drawing one on the way out. When a
-    // finished row is in the air, let it land first: rebuilding this card
-    // inside the flight's first frames was stealing them.
-    if (completionFlightMs) setTimeout(updateDoingPeek, completionFlightMs + 40);
-    else updateDoingPeek();
+    // is already finished instead of drawing one on the way out.
+    updateDoingPeek();
   });
   const freshReel = $("#history-reel");
   if (freshReel) freshReel.scrollTop = historyScrollTop ?? 0;
@@ -9297,7 +9271,8 @@ function renderStage() {
     const inner = $(".current-inner");
     if (inner) {
       inner.querySelectorAll(".subtask-lane[data-lane]").forEach((lane) => {
-        // A new completion lands at the top of the tray, so show it there.
+        // A new completion is stored at the top of the finished card, so
+        // opening the card later starts on it.
         if (risingSubtaskId && lane.dataset.lane === "done") {
           lane.scrollTop = 0;
           return;
@@ -9383,36 +9358,14 @@ function renderStage() {
     });
   }
   // The stage owns the finished-subtasks card, so a fresh render mounts a
-  // fresh live wallpaper pane inside it. A finishing row is in the air right
-  // now, though: mount only the landing card's pane (its picture is already
-  // baked) and let the rest of the page's cards catch up after the landing.
-  if (completionFlightMs) {
-    syncCardWallpaper($("#completed-subtask-drawer"), { bakedOnly: true });
-    setTimeout(syncCardWallpapers, completionFlightMs + 40);
-  } else {
-    syncCardWallpapers();
-  }
-}
-
-function clearCompletedSubtasksAutoClose() {
-  if (completedSubtasksAutoCloseTimer === null) return;
-  clearTimeout(completedSubtasksAutoCloseTimer);
-  completedSubtasksAutoCloseTimer = null;
-}
-
-/** Retract the card on its own after a finished row has landed in it. */
-function scheduleCompletedSubtasksAutoClose(delay = COMPLETED_DRAWER_DWELL_MS) {
-  clearCompletedSubtasksAutoClose();
-  completedSubtasksAutoCloseTimer = setTimeout(() => {
-    completedSubtasksAutoCloseTimer = null;
-    if (!completedSubtasksOpen) return;
-    toggleCompletedSubtasks(false);
-  }, delay);
+  // fresh live wallpaper pane inside it. Every card gets its paper in this same
+  // pass: a card is never left showing its rows and names on the bare page
+  // while a completion settles.
+  syncCardWallpapers();
 }
 
 /** Apply the completed drawer's open state to the current DOM. */
 function setCompletedSubtasksOpen(open) {
-  if (!open) clearCompletedSubtasksAutoClose();
   // The finished tray and the Doing drawer are separate cards. Opening the
   // tray leaves the Doing drawer exactly where it is: the drawer sits on top,
   // so the two can be used side by side without one dismissing the other.
@@ -9425,10 +9378,13 @@ function setCompletedSubtasksOpen(open) {
   bar.setAttribute("aria-label", completedSubtasksOpen ? "Hide completed subtasks" : "Show completed subtasks");
   drawer.classList.toggle("open", completedSubtasksOpen);
   drawer.setAttribute("aria-hidden", completedSubtasksOpen ? "false" : "true");
-  // Mount / pause the live wallpaper pane with the card itself.
-  syncCardWallpapers();
+  // Mount / pause this card's wallpaper pane with the card itself. The page
+  // pass walked every card (and scheduled every bake) on the click; the card
+  // that just opened only needs its own face.
+  syncCardWallpaper(drawer);
+  schedulePrimeSubcardPapers();
   if (!completedSubtasksOpen) return;
-  settleCardWallpapers(460);
+  settleCardWallpaper(drawer, 460);
   const lane = drawer.querySelector(".subtask-lane");
   if (!lane) return;
   lane.scrollTop = 0;
@@ -9437,8 +9393,6 @@ function setCompletedSubtasksOpen(open) {
 
 /** Click/swipe the handle line: pull the finished rows down, or tuck them away. */
 function toggleCompletedSubtasks(force) {
-  // A manual toggle always wins over the pending auto-close.
-  clearCompletedSubtasksAutoClose();
   const willOpen = typeof force === "boolean" ? force : !completedSubtasksOpen;
   if (willOpen === completedSubtasksOpen) return;
   setCompletedSubtasksOpen(willOpen);
@@ -9477,20 +9431,15 @@ function togglePendingSubtasks(force) {
 
 /** A purple handle is only a control while its lane holds rows. An empty lane
     tucks the pill above the block's top boundary, out of the card's clipped
-    box; the first row pulls it back out. The element is rebuilt on every
-    render, so only the empty -> filled step plays the pull-out animation. */
-function syncSubtaskHandleLine(bar, show, slot) {
+    box; the first row hands it back. The element is rebuilt on every render,
+    so the handle is simply printed with its rows: it never pulls itself out,
+    on either card. */
+function syncSubtaskHandleLine(bar, show) {
   if (!bar) return;
-  const was = slot === "pending" ? pendingHandleLineShown : completedHandleLineShown;
-  if (slot === "pending") pendingHandleLineShown = show;
-  else completedHandleLineShown = show;
   bar.classList.toggle("line-hidden", !show);
   bar.tabIndex = show ? 0 : -1;
   bar.setAttribute("aria-hidden", show ? "false" : "true");
   bar.classList.remove("line-reveal");
-  if (!show || was !== false) return;
-  bar.classList.add("line-reveal");
-  bar.addEventListener("animationend", () => bar.classList.remove("line-reveal"), { once: true });
 }
 
 /** The handle is the card's bottom edge: hold it and the sheet stretches.
@@ -9507,8 +9456,7 @@ function bindPendingSubtaskToggle() {
   const lane = card.querySelector("[data-subtask-list]");
   syncSubtaskHandleLine(
     bar,
-    Boolean(lane?.querySelector(".current-subtask[data-subtask-id], [data-add-subtask-row]")),
-    "pending"
+    Boolean(lane?.querySelector(".current-subtask[data-subtask-id], [data-add-subtask-row]"))
   );
   // Folded, the purple line waits above the block's top boundary. The first row
   // of the column is its handle: entering that band slides the line back out
@@ -9615,20 +9563,16 @@ function bindPendingSubtaskToggle() {
 function bindCompletedSubtasksBar() {
   const bar = $(".completed-subtask-toggle");
   if (!bar) return;
-  // Reaching into the card cancels the auto-retract so it cannot disappear
-  // while the user is reading or scrolling the finished rows.
+  // The tray stays open by the reader's choice: nothing retracts it on a
+  // timer, so reaching into it never has to cancel anything.
   const drawer = $("#completed-subtask-drawer");
   // The tray's handle only exists once something is finished. Before that the
   // pill stays tucked above the block's top boundary, and a tray left open
   // with no rows is closed so it cannot hide behind a handle that is gone.
   const doneLane = drawer?.querySelector("[data-subtask-list]");
   const hasFinishedRows = Boolean(doneLane?.querySelector(".current-subtask[data-subtask-id]"));
-  syncSubtaskHandleLine(bar, hasFinishedRows, "completed");
+  syncSubtaskHandleLine(bar, hasFinishedRows);
   if (!hasFinishedRows && completedSubtasksOpen) setCompletedSubtasksOpen(false);
-  if (drawer && drawer.dataset.autoCloseBound !== "1") {
-    drawer.dataset.autoCloseBound = "1";
-    drawer.addEventListener("pointerdown", clearCompletedSubtasksAutoClose, { passive: true });
-  }
   if (bar.dataset.gestureBound === "1") return;
   bar.dataset.gestureBound = "1";
   let startX = 0;
@@ -9911,8 +9855,9 @@ const PALETTE_THEME_VARS = [
   // The single horizontal divider every page region is printed with.
   "--page-line-paint", "--page-line-thickness", "--page-line-row",
   "--page-task-h",
-  // The floating-card recipe: one ink-green stroke, one corner, one lift.
-  "--subcard-outline", "--overlay-paper", "--overlay-radius",
+  // The floating-card recipe: one reader-chosen stroke and weight, one corner,
+  // one lift.
+  "--subcard-outline", "--subcard-line-width", "--overlay-paper", "--overlay-radius",
   "--card-lift-page", "--card-lift-card",
   // Legacy aliases kept for plugin pages that read the notebook's base names.
   "--paper", "--ink", "--muted", "--line",
@@ -10255,11 +10200,11 @@ function mergePluginManifests(manifests) {
   installedUserPlugins = users;
 }
 
-async function loadInstalledPlugins() {
+async function loadInstalledPlugins(preloaded = null) {
   try {
-    const response = await fetch("/api/plugins", { cache: "no-store" });
-    if (!response.ok) return;
-    const result = await response.json();
+    const response = preloaded ? null : await fetch("/api/plugins", { cache: "no-store" });
+    if (response && !response.ok) return;
+    const result = preloaded || await response.json();
     if (!result?.ok || !Array.isArray(result.plugins)) return;
     mergePluginManifests(result.plugins);
     renderPluginRail();
@@ -10446,7 +10391,7 @@ function paletteSnapshot() {
   const rule = baselineRowRule();
   return {
     highlight: highlightColor(),
-    highlightFallback: readableAccent(theme, theme.accent) || "#8d63b8",
+    highlightFallback: bodyInkColor(),
     pageLine: line,
     pageLinePaint: pageLinePaint(line),
     baselineRule: rule,
@@ -11394,7 +11339,7 @@ function renderCompletedLogContent() {
         </div>`).join("")}</div>`
       : "";
     const trophy = subtasks.length
-      ? `<button class="log-trophy log-trophy-action" data-log-expand="${esc(item.key)}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${GOLD_MOON}</button>`
+      ? `<button class="log-trophy log-trophy-action log-trophy-squash" data-log-expand="${esc(item.key)}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${SUBTASK_DONE_ICON}</button>`
       : `<span class="log-trophy">${completedIcon()}</span>`;
     return `<div class="log-line">
       ${trophy}
@@ -11803,7 +11748,14 @@ function showCurrentSubtaskMenu(x, y, subtaskId, editable = null) {
       return;
     }
     if (subtask.done || !row) return;
-    if (!(await copyToClipboard(subtask.name))) return;
+    // Cut is a delete first and a clipboard write second: the row has to leave
+    // the page on the click, not after the clipboard answers. If the copy
+    // fails, nothing was cut and the row comes back.
+    row.style.display = "none";
+    if (!(await copyToClipboard(subtask.name))) {
+      row.style.display = "";
+      return;
+    }
     deleteSubtaskRows([row]);
   };
 
@@ -11821,7 +11773,7 @@ function showHistoryMenu(x, y, index) {
   const todo = doneTodos(selectedCategory())[Number(index)];
   if (!todo) return;
   openContextMenu(x, y, [
-    { label: "Copy name", run: async () => { if (await copyPlainText(todo.name)) flashPageCopy(); } },
+    { label: "Copy name", run: async () => { await copyPlainText(todo.name); } },
     { label: "Edit note", run: () => editHistoryNote(todo.id) },
     { label: "Completed · name locked", disabled: true },
   ]);
@@ -11835,7 +11787,7 @@ function showHistorySubtaskMenu(x, y, todoId, subtaskId) {
     ...(pluginEnabled("forktree")
       ? [{ label: "Fork", icon: FORK_ICON, run: () => forkSubtask(todo, subtask) }]
       : []),
-    { label: "Copy name", run: async () => { if (await copyPlainText(subtask.name)) flashPageCopy(); } },
+    { label: "Copy name", run: async () => { await copyPlainText(subtask.name); } },
     { label: "Edit note", run: () => selectHistorySubtaskNote(todoId, subtaskId) },
   ]);
 }
@@ -12139,6 +12091,289 @@ function orderedSubtasks(todo) {
     .map((item) => item.subtask);
 }
 
+/** One live subtask row. renderStage() and the in-place lane painter print the
+    same markup, so a row added with Enter and a row printed by a repaint are
+    the same row. */
+window.__rowMs = 0, window.__rowCount = 0;
+function currentSubtaskRowHtml(todo, subtask, { next = false, selected = false } = {}) {
+  const __t0 = performance.now();
+  try { return currentSubtaskRowHtmlInner(todo, subtask, { next, selected }); }
+  finally { window.__rowMs += performance.now() - __t0; window.__rowCount++; }
+}
+function currentSubtaskRowHtmlInner(todo, subtask, { next = false, selected = false } = {}) {
+  const fan = subtask.done
+    ? `<span class="sub-fan done" aria-hidden="true"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>`
+    : `<button class="sub-fan sub-fan-action" data-action="complete-subtask" data-todo-id="${esc(todo.id)}" data-subtask-id="${esc(subtask.id)}" aria-label="Finish ${esc(subtask.name)}"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"/><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></button>`;
+  const agentRunning = agentIsRunning(`subtask:${subtask.id}`);
+  // The provider mark answers "who is working / who just worked", so it
+  // belongs to the live row only. A finished row keeps the empty slot (it is
+  // hidden when empty) so its paper and name print in their final layout,
+  // without a badge-sized gap that never belonged to the card.
+  const modelBadge = subtask.done || agentRunning
+    ? `<span class="sub-agent-model" aria-hidden="true"></span>`
+    : subtaskModelIconHtml(subtask.id);
+  const forkBranch = forkedSubtaskBranch(todo.id, subtask.id);
+  const forkLink = forkBranch
+    ? `<button class="sub-fork-link" type="button" data-fork-branch="${esc(forkBranch.id)}" title="打开 Fork 子应用" aria-label="打开 Fork 子应用"><img src="/fork-link-flame.svg" alt=""></button>`
+    : "";
+  return `<div class="current-subtask ${subtask.done ? "done" : "pending"} ${next ? "next" : ""} ${selected ? "selected" : ""} ${agentRunning ? "agent-running" : ""}" data-subtask-id="${esc(subtask.id)}">
+    ${modelBadge}${fan}
+    <span class="sub-name">${esc(subtask.name)}</span>
+    ${subtask.done ? `<svg class="sub-done-check" aria-hidden="true"><use href="#check-red"></use></svg>` : ""}
+    ${forkLink}
+  </div>`;
+}
+
+/** The inline "add subtask" row. Clicking the plus mounts this one element in
+    the live lane instead of rebuilding the stage, so the caret is in it on the
+    frame the pointer lands. */
+const ADD_SUBTASK_ROW_HTML = `<div class="current-subtask adding-subtask" data-add-subtask-row>
+  <span class="sub-fan" aria-hidden="true"><svg viewBox="0 0 1024 1024"><use href="#fan"></use></svg></span>
+  <input id="subtask-name-input" class="subtask-name-input" type="text" autocomplete="off" spellcheck="false" aria-label="Name subtask">
+</div>`;
+
+/* Only the first rows of a long lane are laid out. The sheet shows seven at a
+   time, so printing and measuring hundreds of offscreen rows was the largest
+   single cost of a launch (and of adding one subtask). The remaining rows are
+   still in the DOM — search, selection and the data model keep working — and
+   are handed to layout a batch at a time as the lane scrolls toward them. */
+const SUBTASK_ROW_BATCH = 16;
+
+function deferSubtaskRows(scope = document, keepCount = SUBTASK_ROW_BATCH) {
+  const keep = Math.max(SUBTASK_ROW_BATCH, Number(keepCount) || 0);
+  scope.querySelectorAll?.("[data-subtask-list]").forEach((list) => {
+    const rows = [...list.querySelectorAll(":scope > .current-subtask[data-subtask-id]")];
+    rows.forEach((row, index) => {
+      row.classList.toggle("subtask-row-deferred", index >= keep);
+    });
+  });
+  return scope;
+}
+
+/** Put a selected row (and the rows before it) back into layout. */
+function revealDeferredSubtaskRow(row) {
+  const list = row?.closest?.("[data-subtask-list]");
+  if (!list || !row.classList.contains("subtask-row-deferred")) return;
+  const rows = [...list.querySelectorAll(":scope > .current-subtask[data-subtask-id]")];
+  const index = rows.indexOf(row);
+  rows.forEach((item, position) => {
+    if (position <= index + SUBTASK_ROW_BATCH) item.classList.remove("subtask-row-deferred");
+  });
+}
+
+function revealMoreDeferredSubtaskRows(lane) {
+  const list = lane?.querySelector?.("[data-subtask-list]");
+  if (!list) return false;
+  let revealed = false;
+  // Keep a short runway below the scrollport instead of one batch at a time:
+  // dragging the scrollbar to the end must feel like a list, not a page that
+  // grows one screen per gesture.
+  for (let round = 0; round < 6; round += 1) {
+    if (lane.scrollTop + lane.clientHeight < lane.scrollHeight - 320) break;
+    const hidden = [...list.querySelectorAll(":scope > .current-subtask.subtask-row-deferred")];
+    if (!hidden.length) break;
+    hidden.slice(0, SUBTASK_ROW_BATCH).forEach((row) => row.classList.remove("subtask-row-deferred"));
+    revealed = true;
+  }
+  if (revealed) syncAgentFanSpins();
+  return revealed;
+}
+
+function bindDeferredSubtaskRows(stage) {
+  if (!stage || stage.dataset.deferredRowsBound === "1") return;
+  stage.dataset.deferredRowsBound = "1";
+  // Scroll does not bubble, so catch it in the capture phase on the stage.
+  stage.addEventListener("scroll", (event) => {
+    const lane = event.target;
+    if (!lane?.classList?.contains("subtask-lane")) return;
+    if (lane.scrollTop + lane.clientHeight < lane.scrollHeight - 120) return;
+    if (revealMoreDeferredSubtaskRows(lane)
+      && lane.scrollTop + lane.clientHeight >= lane.scrollHeight - 120) {
+      requestAnimationFrame(() => revealMoreDeferredSubtaskRows(lane));
+    }
+  }, { passive: true, capture: true });
+}
+
+const SUBTASK_FILLER_HTML = '<div class="current-subtask current-subtask-filler" aria-hidden="true"></div>';
+
+/** The list the live rows are printed into: the pending lane, or the single
+    lane used when the finished drawer plugin is off. */
+function subtaskLiveList() {
+  return document.querySelector('#pending-subtask-card [data-subtask-list="pending"]')
+    || document.querySelector('#pending-subtask-card [data-subtask-list="all"]')
+    || null;
+}
+
+function subtaskLaneBaselineScope(list) {
+  return list?.closest(".card") || list?.parentElement || list || null;
+}
+
+/** Mount the inline row in the lane that is already on screen and focus it. */
+function mountAddSubtaskRow() {
+  const list = subtaskLiveList();
+  if (!list) return null;
+  if (pendingSubtasksCollapsed) setPendingSubtasksCollapsed(false);
+  let input = list.querySelector("#subtask-name-input");
+  if (!input) {
+    list.insertAdjacentHTML("afterbegin", ADD_SUBTASK_ROW_HTML);
+    input = list.querySelector("#subtask-name-input");
+    // The card is seven rows tall: the add row takes the last filler's place
+    // instead of growing the sheet.
+    const fillers = list.querySelectorAll(".current-subtask-filler");
+    if (fillers.length) fillers[fillers.length - 1].remove();
+    applyBaselineRowHeights(subtaskLaneBaselineScope(list));
+  }
+  const lane = list.closest(".subtask-lane");
+  if (lane) lane.scrollTop = 0;
+  if (input) {
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+  return input;
+}
+
+/** Repaint only the live lane: its rows, the inline add row and its fillers.
+    Adding one subtask must not rebuild the stage, because that repaints every
+    card on the page while the reader is looking at one row. */
+function paintSubtaskLane({ splashId = "" } = {}) {
+  const todo = currentTodo();
+  const list = subtaskLiveList();
+  if (!todo || !list) return null;
+  const all = orderedSubtasks(todo);
+  const rows = list.dataset.subtaskList === "all" ? all : all.filter((subtask) => !subtask.done);
+  const next = all.find((subtask) => !subtask.done) || null;
+  const adding = addingSubtask && addingSubtaskTodoId === todo.id;
+  const fillerCount = Math.max(0, 7 - rows.length - (adding ? 1 : 0));
+  const keptRows = Math.max(
+    SUBTASK_ROW_BATCH,
+    list.querySelectorAll(":scope > .current-subtask[data-subtask-id]:not(.subtask-row-deferred)").length,
+  );
+  list.innerHTML = `${adding ? ADD_SUBTASK_ROW_HTML : ""}${rows.map((subtask) => currentSubtaskRowHtml(todo, subtask, {
+    next: Boolean(next && subtask.id === next.id),
+    selected: subtask.id === selectedSubtaskId,
+  })).join("")}${SUBTASK_FILLER_HTML.repeat(fillerCount)}`;
+  deferSubtaskRows(list, keptRows);
+  applyBaselineRowHeights(subtaskLaneBaselineScope(list));
+  syncAgentFanSpins();
+  if (adding) {
+    const input = list.querySelector("#subtask-name-input");
+    if (input) {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
+  const lane = list.closest(".subtask-lane");
+  if (lane) lane._slimUpdate?.();
+  if (splashId) {
+    const fresh = list.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(String(splashId))}"]`);
+    if (fresh) {
+      revealDeferredSubtaskRow(fresh);
+      revealCurrentSubtaskRow(splashId);
+      requestAnimationFrame(() => {
+        AudioFX.splash();
+        spawnPixelSplash(fresh);
+      });
+    }
+  }
+  return list;
+}
+
+/** Enter in the inline row. The row prints on the same frame as the key; the
+    save travels behind it and only swaps its local id for the stored one, so
+    neither the row nor the caret waits for the round trip or for a full stage
+    repaint. The local copy carries the subtask too: a later render must print
+    the board the reader is already looking at, not the one before Enter. */
+async function commitNewSubtask(todoId, name) {
+  const todo = currentTodo();
+  const list = todo && String(todo.id) === String(todoId) ? subtaskLiveList() : null;
+  // Without a mounted lane there is nothing to patch: take the old road.
+  if (!todo || !list) {
+    action("add_subtask", { todo_id: todoId, name });
+    return;
+  }
+  // A local id keeps the row addressable (and in recency order) while the save
+  // is in flight; the reply's real id replaces it in place.
+  const provisionalId = `pending-${Date.now().toString(36)}`;
+  todo.subtasks = [{
+    id: provisionalId,
+    name,
+    done: false,
+    created_at: new Date().toISOString(),
+    completed_at: null,
+    time_cost: null,
+  }, ...(todo.subtasks || [])];
+  // This path printed the row itself: a later stage pass must not replay the
+  // reveal/splash for a row the reader already sees.
+  revealNewSubtask = false;
+  celebrateNewSubtask = false;
+  lastAddedSubtaskId = null;
+  // The row is a convenience; the save is the promise. A paint that fails must
+  // never take the typed name down with it.
+  try {
+    paintSubtaskLane();
+    const lane = list.closest(".subtask-lane");
+    if (lane) lane.scrollTop = 0;
+  } catch (error) {}
+  let result = null;
+  try {
+    result = await action(
+      "add_subtask",
+      { todo_id: todoId, name, slim: true },
+      { repaint: false },
+    );
+  } catch (error) {
+    result = null;
+  }
+  const target = findTodo(String(todoId)) || todo;
+  if (result?.ok) {
+    const created = String(result.created || "");
+    const row = (target?.subtasks || []).find((item) => item.id === provisionalId);
+    if (row && created) row.id = created;
+    // A reply that lands after the reader moved on must not paint this lane
+    // over the task now on screen: the local copy is already saved above.
+    const stillHere = list.isConnected && list === subtaskLiveList()
+      && String(currentTodo()?.id || "") === String(todoId);
+    if (stillHere) {
+      try {
+        paintSubtaskLane({ splashId: created });
+      } catch (error) {
+        renderStage();
+      }
+    }
+    if (doingPeekOpen) updateDoingPeek(true);
+    return;
+  }
+  // The save failed: the provisional row leaves the lane and its local copy,
+  // and the text goes back into the inline row so it can be retried.
+  if (target) {
+    target.subtasks = (target.subtasks || []).filter((item) => item.id !== provisionalId);
+  }
+  addingSubtask = true;
+  addingSubtaskTodoId = todoId;
+  if (list.isConnected) {
+    paintSubtaskLane();
+    const input = list.querySelector("#subtask-name-input");
+    if (input) {
+      // If the reader already started the next row while this save was in
+      // flight, keep their words: only an empty row gets the failed name back.
+      if (!input.value) {
+        input.value = name;
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    } else {
+      // The lane moved on (the todo was completed or replaced), so there is no
+      // row to retry in: clear the flag instead of leaving it pointing at a
+      // board that is no longer mounted.
+      addingSubtask = false;
+      addingSubtaskTodoId = null;
+    }
+  } else {
+    addingSubtask = false;
+    addingSubtaskTodoId = null;
+    renderStage();
+  }
+}
+
 /** Reorder the visible subtask rows, optionally revealing a finished one. */
 function reorderCurrentSubtaskRows(revealId = "") {
   const todo = currentTodo();
@@ -12176,6 +12411,7 @@ function revealCurrentSubtaskRow(subtaskId) {
   const inner = $(".current-inner");
   const row = inner?.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(String(subtaskId))}"]`);
   if (!inner || !row) return;
+  revealDeferredSubtaskRow(row);
   const scroller = row.closest(".subtask-lane") || inner;
   const rowRect = row.getBoundingClientRect();
   const scrollerRect = scroller.getBoundingClientRect();
@@ -12232,7 +12468,12 @@ function doingPeekMarkup(entries) {
 }
 
 function doingPeekStateKey(entries) {
-  return `${currentPostcardId()}|${wallpaperRenderKey()}|${doingDockSide}|${[...doingExpandedTodoIds].join(",")}|${state.selectedCategoryId || ""}|${[...unseenAgentSubtasks].sort().join(",")}|${Object.keys(runningAgentStamps).sort().join(",")}|${entries.map(({ todo }) =>
+  // The selected category is deliberately absent: it only moves the `active`
+  // marker between rows (a class flip in updateDoingPeek), never the rows
+  // themselves. Keeping it here rebuilt the whole hidden card — rows and baked
+  // wallpaper — on every category switch, which was a visible chunk of the
+  // switch's cost.
+  return `${currentPostcardId()}|${wallpaperRenderKey()}|${doingDockSide}|${[...doingExpandedTodoIds].join(",")}|${[...unseenAgentSubtasks].sort().join(",")}|${Object.keys(runningAgentStamps).sort().join(",")}|${entries.map(({ todo }) =>
     `${todo.id}:${todoHasRunningAgent(todo) ? 1 : 0}:${todo.name}:${(todo.subtasks || []).length}:${orderedSubtasks(todo).filter((subtask) => !subtask.done).map((subtask) => subtask.id).join(",")}`
   ).join(";")}`;
 }
@@ -12672,6 +12913,56 @@ function animateDoingReorder(previousTops, nextList) {
   });
 }
 
+/** Unfold one row's subtasks: the sheet grows to its new height while the rows
+    inside land in a short ripple. Only the row that was just opened animates,
+    so a polling repaint never replays it, and the queue is capped so a long
+    list still lands in well under a third of a second. The caller then skips
+    the reorder glide: the growing sheet already carries every lower row. */
+function animateDoingUnfold(list, todoId) {
+  if (!list || !todoId) return false;
+  const item = list.querySelector(`.doing-item[data-doing-item="${CSS.escape(String(todoId))}"]`);
+  const subs = item?.querySelector(".doing-subs");
+  const rows = subs ? [...subs.querySelectorAll(".doing-sub")] : [];
+  if (!subs || !rows.length || typeof subs.animate !== "function") return false;
+  // Reduced motion keeps the old instant cut: no sheet travel, no ripple.
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return true;
+  const height = subs.getBoundingClientRect().height;
+  if (height <= 0) return false;
+  subs.style.overflow = "hidden";
+  // The list is growing under the pointer's click: keep the browser from
+  // re-anchoring its scroll while the sheet travels.
+  list.style.overflowAnchor = "none";
+  const grow = subs.animate(
+    [{ height: "0px" }, { height: `${height}px` }],
+    { duration: 190, easing: "cubic-bezier(0.2, 0.85, 0.25, 1)" }
+  );
+  const release = () => {
+    subs.style.overflow = "";
+    list.style.overflowAnchor = "";
+  };
+  grow.onfinish = release;
+  grow.oncancel = release;
+  // Rows ripple from the head down; the cap keeps ten subtasks from turning
+  // the unfold into a long queue.
+  const step = rows.length > 7 ? 14 : 20;
+  rows.forEach((row, index) => {
+    if (typeof row.animate !== "function") return;
+    row.animate(
+      [
+        { opacity: 0, transform: "translateY(-7px)" },
+        { opacity: 1, transform: "translateY(0px)" },
+      ],
+      {
+        duration: 150,
+        delay: Math.min(index * step, 110),
+        easing: "cubic-bezier(0.2, 0.85, 0.25, 1)",
+        fill: "backwards",
+      }
+    );
+  });
+  return true;
+}
+
 /** The fan beside a subtask turns while its agent works, using the same
     startFanSpin() ramp as the subtask column, so both wheels run at one pace.
     A tucked-away card keeps its wheels still. */
@@ -12684,11 +12975,44 @@ function syncDoingFanSpins(list, active = doingPeekOpen) {
   });
 }
 
+/** Repaint the Doing card's markers in place: the marked todo, the marked
+    subtask and the finished-run lights. These are classes on rows that are
+    already on the card, so a click that only moves the marker must not rebuild
+    the card's markup (the rebuild was the beat the pointer waited through,
+    both for a Doing row and for a subtask row whose light just went out). */
+function syncDoingRowMarks() {
+  if (!doingPeekOpen) return;
+  const panel = $("#doing-peek");
+  if (!panel) return;
+  const entries = doingEntries();
+  const byTodo = new Map(entries.map((entry) => [String(entry.todo.id), entry]));
+  panel.querySelectorAll(".doing-item[data-doing-item]").forEach((item) => {
+    const id = String(item.dataset.doingItem || "");
+    const entry = byTodo.get(id);
+    const marked = doingMarkedTodoId === id;
+    item.classList.toggle("marked", marked);
+    item.querySelector(":scope > .doing-head")?.classList.toggle("marked", marked);
+    const mark = item.querySelector("[data-doing-expand]");
+    if (mark && entry) mark.classList.toggle("has-unseen", todoHasUnseenAgentSubtasks(entry.todo));
+    item.querySelectorAll(".doing-sub[data-doing-subtask]").forEach((row) => {
+      const subtaskId = row.dataset.doingSubtask;
+      const unseen = unseenAgentSubtasks.has(subtaskId);
+      row.classList.toggle("marked", doingMarkedSubtaskId === subtaskId);
+      row.classList.toggle("has-unseen", unseen);
+      row.querySelector(":scope > .doing-fan")?.classList.toggle("has-unseen", unseen);
+    });
+  });
+}
+
 function updateDoingPeek(force = false) {
   // A pull owns the card: a polling tick that changes the state signature
   // mid-drag must not rebuild the rows (which relayouts the card under the
   // pointer). The first pass after the drop catches up.
-  if (doingDrag) return;
+  if (doingDrag) {
+    // That pass must not replay an unfold the pointer interrupted.
+    doingUnfoldTodoId = null;
+    return;
+  }
   const entries = doingEntries();
   pruneUnseenAgentSubtasks();
   let panel = $("#doing-peek");
@@ -12697,6 +13021,7 @@ function updateDoingPeek(force = false) {
     if (doingDrag) endDoingDrag(false);
     if (panel) panel.remove();
     doingPeekOpen = false;
+    doingUnfoldTodoId = null;
     document.body.classList.remove("doing-peek-open");
     document.body.classList.remove("doing-dock-left");
     // Keep doingExpandedTodoIds: a render can briefly arrive without entries
@@ -12727,6 +13052,16 @@ function updateDoingPeek(force = false) {
   document.body.classList.toggle("doing-dock-left", doingDockSide === "left");
   // The Doing card keeps its own card border; it never shows a scroll thumb.
   panel.querySelector(":scope > .slim-scrollbar")?.remove();
+  // Which board the reader is looking at is only an `active` marker on its row.
+  // Patch that class in place so a category switch never has to rebuild the
+  // card (and repaint its baked wallpaper) just to move a highlight.
+  panel.querySelectorAll(".doing-item[data-doing-item]").forEach((item) => {
+    const head = item.querySelector(":scope > .doing-head[data-category-id]");
+    item.classList.toggle(
+      "active",
+      Boolean(head) && head.dataset.categoryId === state.selectedCategoryId,
+    );
+  });
   const key = doingPeekStateKey(entries);
   if (force || key !== doingPeekSignature) {
     const previousList = panel.querySelector(".doing-list");
@@ -12743,7 +13078,11 @@ function updateDoingPeek(force = false) {
     if (keptPane) panel.insertBefore(keptPane, panel.firstChild);
     const nextList = panel.querySelector(".doing-list");
     if (nextList) nextList.scrollTop = previousScroll;
-    animateDoingReorder(previousTops, nextList);
+    const unfolded = animateDoingUnfold(nextList, doingUnfoldTodoId);
+    doingUnfoldTodoId = null;
+    // A growing sheet carries the rows below it by itself; gliding them at the
+    // same time would move them twice.
+    if (!unfolded) animateDoingReorder(previousTops, nextList);
   }
   panel.classList.toggle("open", doingPeekOpen);
   syncDoingPinState(panel);
@@ -12774,7 +13113,8 @@ function openDoingPeek() {
   if (!panel) return;
   doingPeekOpen = true;
   document.body.classList.add("doing-peek-open");
-  positionDoingPeek();
+  // updateDoingPeek() laid the card on its box in this same pass; opening is
+  // only the state cut, so the box is not measured a second time.
   clearDoingDragOffset(panel);
   panel.classList.add("open");
   syncDoingFanSpins(panel.querySelector(".doing-list"), true);
@@ -12822,17 +13162,29 @@ function activateDoingCategory(categoryId) {
   selectedSubtaskId = null;
   notesPreview = false;
   render();
-  silentAction("select_category", { id: categoryId });
+  silentAction("select_category", { slim: true, id: categoryId });
 }
 
 function jumpToDoingTodo(todoId, categoryId) {
   AudioFX.categoryTap();
   doingMarkedTodoId = todoId;
-  if (doingExpandedTodoIds.has(todoId)) doingExpandedTodoIds.delete(todoId);
-  else doingExpandedTodoIds.add(todoId);
+  const willUnfold = !doingExpandedTodoIds.has(todoId);
+  if (willUnfold) doingExpandedTodoIds.add(todoId);
+  else doingExpandedTodoIds.delete(todoId);
+  // The row's name is an expander too; a fresh unfold ripples here as well.
+  doingUnfoldTodoId = willUnfold ? todoId : null;
   saveDoingExpandedTodoIds();
-  updateDoingPeek(true);
-  if (categoryId && categoryId !== state.selectedCategoryId) activateDoingCategory(categoryId);
+  // A click moves the marker and (maybe) folds one row. The marker is a class
+  // flip; the fold is caught by the card's own signature check below, so the
+  // card is never rebuilt just to light a row.
+  syncDoingRowMarks();
+  updateDoingPeek();
+  if (categoryId && categoryId !== state.selectedCategoryId) {
+    activateDoingCategory(categoryId);
+    // The active row follows the new board; the signature has the category in
+    // it, so this is a cheap no-op unless the board actually moved.
+    updateDoingPeek();
+  }
 }
 
 function jumpToDoingSubtask(todoId, categoryId, subtaskId) {
@@ -12850,7 +13202,7 @@ function jumpToDoingSubtask(todoId, categoryId, subtaskId) {
     selectedSubtaskId = null;
     notesPreview = false;
     render();
-    silentAction("select_category", { id: categoryId });
+    silentAction("select_category", { slim: true, id: categoryId });
   }
   selectedSubtaskId = subtaskId;
   selectedHistoryId = null;
@@ -12868,7 +13220,11 @@ function jumpToDoingSubtask(todoId, categoryId, subtaskId) {
     const offset = scroller.scrollTop + (rowRect.top - scrollerRect.top) - scroller.clientHeight / 2 + rowRect.height / 2;
     scroller.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
   });
-  updateDoingPeek(true);
+  // The card's rows only change their marker and their finished-run light:
+  // both are class flips. The note and the board are what the click displays,
+  // so the card follows without a rebuild.
+  syncDoingRowMarks();
+  updateDoingPeek();
 }
 
 // A card in the Forktree map posts its category/todo/subtask back here. The
@@ -12902,7 +13258,7 @@ function openForkTreeTarget(target = {}) {
   selectedSubtaskId = null;
   notesPreview = false;
   render();
-  silentAction("select_category", { id: category.id });
+  silentAction("select_category", { slim: true, id: category.id });
 
   if (!todo) return;
 
@@ -12937,8 +13293,8 @@ function openForkTreeTarget(target = {}) {
 
   if (!subtaskId) return;
   if (subtask?.done && pluginEnabled("completed-drawer")) {
-    // Opening the card by hand (from a finished row) keeps it open.
-    clearCompletedSubtasksAutoClose();
+    // Opening the card by hand (from a finished row) leaves it open; the
+    // submit itself never opens or retracts it.
     setCompletedSubtasksOpen(true);
     AudioFX.drawer(true);
   }
@@ -13062,36 +13418,20 @@ function compressBackgroundImage(file) {
   });
 }
 
-function compressStickerImage(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const image = new Image();
-      image.onload = () => {
-        // Stickers are viewed at roughly 80px, so a compact copy is plenty
-        // while still leaving room to zoom into a face or a detail.
-        const max = 720;
-        let width = image.naturalWidth || image.width;
-        let height = image.naturalHeight || image.height;
-        if (!width || !height) { resolve(null); return; }
-        const scale = Math.min(1, max / Math.max(width, height));
-        width = Math.max(1, Math.round(width * scale));
-        height = Math.max(1, Math.round(height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        context.fillStyle = "#fffdf8";
-        context.fillRect(0, 0, width, height);
-        context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.84));
-      };
-      image.onerror = () => resolve(null);
-      image.src = reader.result;
-    };
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
+function cropPictureToDataUrl(image, rect, maxEdge) {
+  const sourceWidth = Math.max(1, Math.round(rect.width));
+  const sourceHeight = Math.max(1, Math.round(rect.height));
+  const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#fffdf8";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, rect.x, rect.y, rect.width, rect.height, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.84);
 }
 
 function currentCategoryById(id) {
@@ -13390,9 +13730,17 @@ async function handleAction(actionName, element) {
   if (actionName === "clear-agent") { clearAgent(); return; }
   if (actionName === "open-settings") { openSettings(); return; }
   if (actionName === "close-ai-settings") { closeAiSettings(); return; }
-  if (actionName === "reveal-project-folder") { revealProjectFolder(); return; }
+  if (actionName === "reveal-project-folder") {
+    // A plain click must behave like every other file picker in the desktop:
+    // open the native GTK folder chooser right away. The in-app card stays a
+    // right-click fallback for showing, copying or unlinking the folder; it is
+    // never inserted into the normal choose/change flow.
+    const noteTrigger = element?.closest?.(".notes-icon-button");
+    pickProjectFolder(noteTrigger ? (activeNoteTarget()?.todo || null) : projectFolderHeaderTodo());
+    return;
+  }
   if (actionName === "manage-project-folder") { openProjectFolderCard(); return; }
-  if (actionName === "choose-project-folder") { revealProjectFolder(); return; }
+  if (actionName === "choose-project-folder") { pickProjectFolder(); return; }
   if (actionName === "clear-project-folder") { clearProjectFolder(); return; }
   if (actionName === "toggle-sound") { AudioFX.toggle(); updateSoundToggle(); renderSettings(); return; }
   if (actionName === "toggle-background-music") {
@@ -13504,22 +13852,29 @@ async function handleAction(actionName, element) {
     toast("Wallpaper cleared");
     return;
   }
-  if (actionName === "choose-sticker-image") {
-    const id = element?.dataset.stickerId || "";
-    if (!availableStickerTargets().some((target) => target.id === id)) return;
-    const input = document.querySelector(`[data-sticker-input="${CSS.escape(id)}"]`);
-    input?.click();
+  if (actionName === "choose-card-picture") {
+    const key = element?.dataset.cardKey || "";
+    if (!cardPictureEntry(key)) return;
+    document.querySelector(`[data-card-input="${CSS.escape(key)}"]`)?.click();
     return;
   }
-  if (actionName === "reset-sticker-image") {
-    const id = element?.dataset.stickerId || "";
-    if (settings.sticker_backgrounds && id in settings.sticker_backgrounds) {
-      delete settings.sticker_backgrounds[id];
+  if (actionName === "reset-card-picture") {
+    const key = element?.dataset.cardKey || "";
+    const entry = cardPictureEntry(key);
+    if (!entry) return;
+    if (entry.kind === "sticker") {
+      if (settings.sticker_backgrounds && entry.id in settings.sticker_backgrounds) {
+        delete settings.sticker_backgrounds[entry.id];
+        saveSettings();
+        applyStickerBackgrounds();
+      }
+    } else if (settings.card_images && entry.id in settings.card_images) {
+      delete settings.card_images[entry.id];
       saveSettings();
-      applyStickerBackgrounds();
-      renderSettings();
-      toast("Default sticker restored");
+      applySettings();
     }
+    renderSettings();
+    toast(entry.kind === "sticker" ? "Default sticker restored" : "Default card restored");
     return;
   }
   if (actionName === "open-note-materials-folder") { silentAction("open_note_materials_folder"); return; }
@@ -13533,6 +13888,22 @@ async function handleAction(actionName, element) {
     settings.show_clock = !settings.show_clock;
     saveSettings();
     applySettings();
+    renderSettings();
+    return;
+  }
+  // Font → Baseline / Card line switches. The switch owns the line itself: off
+  // hides it on the page and parks the colour and width controls, on restores
+  // both the line and its controls from the saved page-line.json /
+  // card-line.json values.
+  if (actionName === "toggle-font-baseline") {
+    const on = pageLine().enabled !== false;
+    savePageLine({ enabled: !on }, { immediate: true });
+    renderSettings();
+    return;
+  }
+  if (actionName === "toggle-font-card-line") {
+    const on = cardLine().enabled !== false;
+    saveCardLine({ enabled: !on }, { immediate: true });
     renderSettings();
     return;
   }
@@ -13627,7 +13998,7 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "reset-highlight-color") {
-    // Empty means "let the active theme's accent paint the wash again".
+    // Empty means "let the Categories accent paint the wash again".
     settings.highlight = "";
     saveSettings();
     applySettings();
@@ -13697,6 +14068,10 @@ async function handleAction(actionName, element) {
   }
   if (actionName === "close-timer") { closeFocusTimer(); return; }
   if (actionName === "quit-app") {
+    // Stop the music before the round-trip: the window may take a while to
+    // close while agents and forks shut down, and a quit must not keep
+    // playing the background track during that wait.
+    silenceNotebookAudio();
     persistAction("quit").then(() => {
       try { window.close(); } catch (error) {}
     });
@@ -13797,16 +14172,29 @@ async function handleAction(actionName, element) {
     const category = selectedCategory();
     const todo = category?.todos.find((item) => item.id === element.dataset.id);
     if (!todo) return;
-    if ((todo.subtasks || []).some((subtask) => !subtask.done)) {
-      toast("Complete the subtasks below first", true);
+    const subtasks = todo.subtasks || [];
+    const finished = subtasks.filter((subtask) => subtask.done).length;
+    const pending = subtasks.length - finished;
+    // The board's finish line: once this many subtasks are done the todo can be
+    // submitted in one click, and the rows left behind finish with it. Below
+    // that line the reader still has to close the pending rows first.
+    const quickSubmit = pending > 0 && finished >= SUBTASK_QUICK_SUBMIT;
+    if (pending > 0 && !quickSubmit) {
+      toast(`Finish the pending subtasks first, or ${SUBTASK_QUICK_SUBMIT} of them to submit now`, true);
       return;
     }
-    const ok = await confirmDialog({ kicker: "A small completion", title: "Complete todo", message: `Are you sure “${todo.name}” is complete? This cannot be undone.`, confirmLabel: "Complete" });
-    if (!ok) return;
+    if (!quickSubmit) {
+      const ok = await confirmDialog({ kicker: "A small completion", title: "Complete todo", message: `Are you sure “${todo.name}” is complete? This cannot be undone.`, confirmLabel: "Complete" });
+      if (!ok) return;
+    }
     const previousTrophy = Number(state.data?.trophy_count) || 0;
     trophyDisplayHold = previousTrophy;
     const result = await action("complete_todo", { id: todo.id });
     if (result.ok) {
+      const swept = Number(result.auto_completed) || 0;
+      if (swept > 0) {
+        toast(`Submitted · ${swept} more subtask${swept === 1 ? "" : "s"} marked done`);
+      }
       finishedToast();
       startTrophyCelebration(previousTrophy);
       celebrate();
@@ -13841,13 +14229,12 @@ async function handleAction(actionName, element) {
     justCompletedSubtaskId = subtaskId;
     // The row is leaving the pending lane, so its selection leaves with it: the
     // accent wash marks where the reader is working, and keeping the id would
-    // hand that wash to the finished row in the tray (the flight crosses the
-    // page, then the row lands already highlighted). If the request fails, the
+    // hand that wash to the finished row in the card. If the request fails, the
     // row never left and the selection comes back.
     const wasSelected = selectedSubtaskId === subtaskId;
     if (wasSelected) selectedSubtaskId = null;
     // The request and the stage repaint take a beat; answer the click at once
-    // so the row never looks frozen while it waits to fly.
+    // so the row never looks frozen while it waits for the new card.
     const completingRow = element.closest(".current-subtask");
     completingRow?.classList.add("subtask-completing");
     // Safety: if the reply never repaints this row, put it back at rest.
@@ -13858,9 +14245,9 @@ async function handleAction(actionName, element) {
       saveSubtaskAgentModels();
       updateSubtaskAgentDom(subtaskId, { model: "" });
       AudioFX.itemGet();
-      // The land animation and the written-in check belong to the flight (see
-      // flyCompletedRow). Playing them on the row that the repaint is about to
-      // replace only forced an extra style pass before the repaint.
+      // The finished row is printed by the repaint that renderStage() runs with
+      // justCompletedSubtaskId set. There is no second element to animate here:
+      // the row's paper and its name arrive together in the finished card.
     } else {
       document.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(subtaskId)}"]`)?.classList.remove("subtask-completing");
       if (wasSelected) selectedSubtaskId = subtaskId;
@@ -14125,6 +14512,23 @@ function loadSettings() {
     }
   }
   settings.sticker_backgrounds = stickerBackgrounds;
+  // Card pictures use the same { image, zoom, x, y } shape as stickers. Only
+  // the four card ids are kept, so a retired card cannot leave a stray image.
+  const cardImages = {};
+  if (settings.card_images && typeof settings.card_images === "object") {
+    for (const target of CARD_TARGETS) {
+      const item = settings.card_images[target.id];
+      if (!item || typeof item !== "object") continue;
+      if (typeof item.image !== "string" || !item.image.startsWith("data:image/") || item.image.length > 8_000_000) continue;
+      cardImages[target.id] = {
+        image: item.image,
+        zoom: Math.min(2.6, Math.max(1, Number(item.zoom) || 1)),
+        x: Math.min(100, Math.max(0, Number(item.x ?? 50))),
+        y: Math.min(100, Math.max(0, Number(item.y ?? 50))),
+      };
+    }
+  }
+  settings.card_images = cardImages;
   const pictureName = (value, pattern) => typeof value === "string" && pattern.test(value) && !value.includes("/") && !value.includes("\\") && !value.includes("..") ? value : "";
   // One wallpaper choice: a picture the reader picked (an absolute path), a
   // legacy bare file name from the old pictures folder, a built-in postcard
@@ -14256,6 +14660,65 @@ function hexToRgb(value) {
 function colorTint(value, alpha = 0.16) {
   const rgb = hexToRgb(value);
   return `rgba(${rgb}, ${alpha})`;
+}
+
+function hexToHsl(value) {
+  const hex = String(value || "").replace("#", "");
+  if (hex.length !== 6) return { h: 24, s: 0.72, l: 0.5 };
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const delta = max - min;
+  if (!delta) return { h: 24, s: 0, l };
+  const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  let h;
+  if (max === r) h = (g - b) / delta + (g < b ? 6 : 0);
+  else if (max === g) h = (b - r) / delta + 2;
+  else h = (r - g) / delta + 4;
+  return { h: h * 60, s, l };
+}
+
+function hslToHex(h, s, l) {
+  const hue = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] = hue < 60 ? [c, x, 0]
+    : hue < 120 ? [x, c, 0]
+    : hue < 180 ? [0, c, x]
+    : hue < 240 ? [0, x, c]
+    : hue < 300 ? [x, 0, c]
+    : [c, 0, x];
+  const channel = (value) => Math.round((value + m) * 255).toString(16).padStart(2, "0");
+  return `#${channel(r)}${channel(g)}${channel(b)}`;
+}
+
+/** Map the reading ink to the two utility accents.
+ *
+ * The map crosses the warm/cool line: a warm ink (red, orange, gold) answers
+ * with cool marks, and a cool ink (green, blue, violet) answers with warm
+ * marks, so the utilities always contrast the written page instead of copying
+ * it. Within that band the hue still follows the ink, and the hidden top bar
+ * sits 30° beside the title actions so the chrome becomes a sibling of the
+ * submit mark rather than a second copy. A neutral ink has no hue to map, so
+ * it is treated as a warm orange note. */
+function inkAccents(value) {
+  const { h, s } = hexToHsl(value);
+  const base = s < 0.16 ? 24 : h;
+  const warmInk = base < 75 || base > 285;
+  const spread = warmInk
+    ? base / 75
+    : (base - 75) / 210;
+  const actionHue = warmInk ? 196 + spread * 24 : 8 + spread * 22;
+  const utilityHue = warmInk ? actionHue - 30 : actionHue + 28;
+  const dark = postcardIsDark(currentPostcardId());
+  return {
+    action: hslToHex(actionHue, dark ? 0.72 : 0.66, dark ? 0.62 : 0.42),
+    utility: hslToHex(utilityHue, dark ? 0.66 : 0.6, dark ? 0.68 : 0.4),
+  };
 }
 
 function hexLuminance(value) {
@@ -14700,10 +15163,9 @@ function registerThemePacks(packs) {
   }
 }
 
-async function loadThemePacks() {
+async function loadThemePacks(preloaded = null) {
   try {
-    const response = await fetch("/api/themes", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/themes", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.packs)) return false;
     themePacks = data.packs;
     paneThemes = {
@@ -14721,10 +15183,9 @@ async function loadThemePacks() {
   }
 }
 
-async function loadIconThemes() {
+async function loadIconThemes(preloaded = null) {
   try {
-    const response = await fetch("/api/icon-themes", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/icon-themes", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.themes)) return false;
     const byId = new Map();
     for (const pack of data.themes) {
@@ -14747,10 +15208,9 @@ async function loadIconThemes() {
   }
 }
 
-async function loadSoundStyles() {
+async function loadSoundStyles(preloaded = null) {
   try {
-    const response = await fetch("/api/sound-styles", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/sound-styles", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.styles)) return false;
     const seen = new Set();
     const styles = [];
@@ -14775,10 +15235,9 @@ async function loadSoundStyles() {
   }
 }
 
-async function loadBackgroundMusicTracks() {
+async function loadBackgroundMusicTracks(preloaded = null) {
   try {
-    const response = await fetch("/api/background-music", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/background-music", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.tracks)) return false;
     backgroundMusicFolder = String(data.folder || "");
     BackgroundMusic.setTracks(data.tracks, String(data.default || ""));
@@ -15406,6 +15865,306 @@ function stickerImageStyle(config) {
   return `object-position:${config.x}% ${config.y}%;transform:scale(${config.zoom.toFixed(3)});transform-origin:center;`;
 }
 
+/* ---------------------------------------------------------------------------
+   CARD PICTURES
+   ---------------------------------------------------------------------------
+   A card picture is a small, already-cropped picture that belongs to one card.
+   It uses the sticker shape — a data URL plus a zoom and a focal point — so
+   the reader can choose which part of a big picture lands on the card.
+   ------------------------------------------------------------------------- */
+
+function cardImageSettingsFor(id) {
+  if (!settings.card_images || typeof settings.card_images !== "object") {
+    settings.card_images = {};
+  }
+  return settings.card_images[id] || null;
+}
+
+/** Resolve a Settings row key (`card:pending`, `sticker:completed`). */
+function cardPictureEntry(key) {
+  const [kind, ...rest] = String(key || "").split(":");
+  const id = rest.join(":");
+  if (!kind || !id) return null;
+  if (kind === "sticker") {
+    if (!availableStickerTargets().some((target) => target.id === id)) return null;
+    return { kind, id, config: stickerSettingsFor(id) };
+  }
+  if (kind !== "card") return null;
+  if (!CARD_TARGETS.some((target) => target.id === id)) return null;
+  return { kind, id, config: cardImageSettingsFor(id) };
+}
+
+/* ---------------------------------------------------------------------------
+   CROP PICTURE
+   ---------------------------------------------------------------------------
+   A picture is cropped while it is chosen: the reader drags a box over the
+   part of the photo they want, and only that box is stored. The old flow —
+   choose first, then nudge zoom and position sliders — made the card feel like
+   a viewport onto a photo instead of a card cut from it.
+   ------------------------------------------------------------------------- */
+
+let cardCropDialogState = null;
+
+function closeCardCropDialog() {
+  const state = cardCropDialogState;
+  if (!state) return;
+  cardCropDialogState = null;
+  document.removeEventListener("keydown", state.onKey, true);
+  state.element?.remove();
+  if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
+}
+
+function openCardCropDialog(key, file) {
+  const entry = cardPictureEntry(key);
+  if (!entry || !file) return;
+  closeCardCropDialog();
+  let objectUrl = "";
+  try { objectUrl = URL.createObjectURL(file); } catch (error) { objectUrl = ""; }
+  if (!objectUrl) { toast("Could not read that picture", true); return; }
+  const image = new Image();
+  image.onload = () => {
+    if (!image.naturalWidth || !image.naturalHeight) {
+      URL.revokeObjectURL(objectUrl);
+      toast("Could not read that picture", true);
+      return;
+    }
+    showCardCropDialog(entry, image, objectUrl);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    toast("Could not read that picture", true);
+  };
+  image.src = objectUrl;
+}
+
+function showCardCropDialog(entry, sourceImage, objectUrl) {
+  const element = document.createElement("div");
+  element.className = "crop-dialog-stage";
+  element.dataset.cropDialog = "1";
+  element.innerHTML = `<div class="crop-dialog" role="dialog" aria-modal="true" aria-label="Crop picture">
+    <div class="crop-dialog-head">
+      <div>
+        <strong>Crop picture</strong>
+        <small>Drag a box over the part you want to keep.</small>
+      </div>
+      <button class="plain-x" type="button" data-crop-cancel aria-label="Cancel">×</button>
+    </div>
+    <div class="crop-dialog-canvas" data-crop-canvas>
+      <img data-crop-image src="${esc(objectUrl)}" alt="" draggable="false">
+      <div class="crop-selection" data-crop-selection>
+        <span class="crop-handle nw" data-crop-handle="nw"></span>
+        <span class="crop-handle ne" data-crop-handle="ne"></span>
+        <span class="crop-handle sw" data-crop-handle="sw"></span>
+        <span class="crop-handle se" data-crop-handle="se"></span>
+      </div>
+    </div>
+    <div class="crop-dialog-actions">
+      <button class="theme-chip-button" type="button" data-crop-cancel>Cancel</button>
+      <button class="theme-chip-button crop-use-button" type="button" data-crop-confirm>Use picture</button>
+    </div>
+  </div>`;
+  document.body.appendChild(element);
+  const canvas = element.querySelector("[data-crop-canvas]");
+  const image = element.querySelector("[data-crop-image]");
+  const selectionNode = element.querySelector("[data-crop-selection]");
+  const state = {
+    element,
+    entry,
+    image,
+    objectUrl,
+    selection: null,
+    drag: null,
+    touched: false,
+    onKey: null,
+  };
+  cardCropDialogState = state;
+
+  const bounds = () => {
+    const rect = image.getBoundingClientRect();
+    return { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+  };
+  const paint = () => {
+    const selection = state.selection;
+    if (!selection) return;
+    selectionNode.style.left = `${selection.x}px`;
+    selectionNode.style.top = `${selection.y}px`;
+    selectionNode.style.width = `${selection.w}px`;
+    selectionNode.style.height = `${selection.h}px`;
+  };
+  const resetSelection = () => {
+    const box = bounds();
+    state.selection = {
+      x: box.width * 0.1,
+      y: box.height * 0.1,
+      w: box.width * 0.8,
+      h: box.height * 0.8,
+    };
+    paint();
+  };
+  const beginSelection = () => {
+    resetSelection();
+    requestAnimationFrame(() => { if (!state.touched && !state.drag) resetSelection(); });
+  };
+  const localPoint = (event) => {
+    const rect = image.getBoundingClientRect();
+    const box = bounds();
+    return {
+      x: Math.min(box.width, Math.max(0, event.clientX - rect.left)),
+      y: Math.min(box.height, Math.max(0, event.clientY - rect.top)),
+    };
+  };
+  const setFromCorners = (ax, ay, bx, by) => {
+    const box = bounds();
+    const x1 = Math.max(0, Math.min(box.width, ax));
+    const x2 = Math.max(0, Math.min(box.width, bx));
+    const y1 = Math.max(0, Math.min(box.height, ay));
+    const y2 = Math.max(0, Math.min(box.height, by));
+    state.selection = {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      w: Math.abs(x2 - x1),
+      h: Math.abs(y2 - y1),
+    };
+  };
+
+  if (image.complete) beginSelection();
+  else image.addEventListener("load", beginSelection, { once: true });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 && event.pointerType === "mouse") return;
+    event.preventDefault();
+    state.touched = true;
+    const point = localPoint(event);
+    const handle = event.target.closest?.("[data-crop-handle]");
+    const inside = event.target.closest?.("[data-crop-selection]");
+    if (handle) {
+      state.drag = { mode: "resize", handle: handle.dataset.cropHandle, start: point, origin: { ...state.selection } };
+    } else if (inside) {
+      state.drag = { mode: "move", start: point, origin: { ...state.selection } };
+    } else {
+      state.drag = { mode: "new", start: point, origin: { ...state.selection } };
+      setFromCorners(point.x, point.y, point.x, point.y);
+      paint();
+    }
+    try { canvas.setPointerCapture?.(event.pointerId); } catch (error) {}
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    const drag = state.drag;
+    if (!drag) return;
+    event.preventDefault();
+    const point = localPoint(event);
+    if (drag.mode === "new") {
+      setFromCorners(drag.start.x, drag.start.y, point.x, point.y);
+    } else if (drag.mode === "move") {
+      const box = bounds();
+      const dx = point.x - drag.start.x;
+      const dy = point.y - drag.start.y;
+      state.selection = {
+        x: Math.min(box.width - drag.origin.w, Math.max(0, drag.origin.x + dx)),
+        y: Math.min(box.height - drag.origin.h, Math.max(0, drag.origin.y + dy)),
+        w: drag.origin.w,
+        h: drag.origin.h,
+      };
+    } else {
+      const box = bounds();
+      const min = 16;
+      const origin = drag.origin;
+      let left = origin.x;
+      let top = origin.y;
+      let right = origin.x + origin.w;
+      let bottom = origin.y + origin.h;
+      if (drag.handle.includes("w")) left = Math.min(right - min, Math.max(0, point.x));
+      if (drag.handle.includes("e")) right = Math.max(left + min, Math.min(box.width, point.x));
+      if (drag.handle.includes("n")) top = Math.min(bottom - min, Math.max(0, point.y));
+      if (drag.handle.includes("s")) bottom = Math.max(top + min, Math.min(box.height, point.y));
+      state.selection = { x: left, y: top, w: right - left, h: bottom - top };
+    }
+    paint();
+  });
+
+  const endDrag = () => {
+    const drag = state.drag;
+    state.drag = null;
+    if (!drag) return;
+    if (drag.mode === "new" && (state.selection.w < 15 || state.selection.h < 15)) {
+      state.selection = drag.origin;
+      paint();
+    }
+  };
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+
+  const confirm = () => {
+    const box = bounds();
+    const selection = state.selection;
+    if (!selection || selection.w < 8 || selection.h < 8) {
+      toast("Drag a box over the part of the picture to keep", true);
+      return;
+    }
+    const rect = image.getBoundingClientRect();
+    const scaleX = image.naturalWidth / Math.max(1, rect.width);
+    const scaleY = image.naturalHeight / Math.max(1, rect.height);
+    const crop = {
+      x: Math.max(0, Math.min(image.naturalWidth - 1, selection.x * scaleX)),
+      y: Math.max(0, Math.min(image.naturalHeight - 1, selection.y * scaleY)),
+      width: Math.max(1, selection.w * scaleX),
+      height: Math.max(1, selection.h * scaleY),
+    };
+    crop.width = Math.min(crop.width, image.naturalWidth - crop.x);
+    crop.height = Math.min(crop.height, image.naturalHeight - crop.y);
+    crop.x = Math.round(crop.x);
+    crop.y = Math.round(crop.y);
+    crop.width = Math.max(1, Math.round(crop.width));
+    crop.height = Math.max(1, Math.round(crop.height));
+    const data = cropPictureToDataUrl(image, crop, entry.kind === "sticker" ? 720 : 1400);
+    if (!data) { toast("Could not crop that picture", true); return; }
+    const config = { image: data, zoom: 1, x: 50, y: 50 };
+    if (entry.kind === "sticker") {
+      settings.sticker_backgrounds[entry.id] = config;
+      saveSettings();
+      applyStickerBackgrounds();
+    } else {
+      settings.card_images[entry.id] = config;
+      saveSettings();
+      applySettings();
+    }
+    closeCardCropDialog();
+    renderSettings();
+    toast(entry.kind === "sticker" ? "Sticker picture updated" : "Card picture updated");
+  };
+
+  element.addEventListener("click", (event) => {
+    if (event.target === element) { closeCardCropDialog(); return; }
+    if (event.target.closest?.("[data-crop-cancel]")) { closeCardCropDialog(); return; }
+    if (event.target.closest?.("[data-crop-confirm]")) confirm();
+  });
+
+  const onKey = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeCardCropDialog();
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      confirm();
+    }
+  };
+  state.onKey = onKey;
+  document.addEventListener("keydown", onKey, true);
+}
+
+/** The picture the card currently paints, used for an unset settings preview. */
+function cardWallpaperPreviewSource() {
+  const wallpaper = activeWallpaper();
+  if (wallpaper.kind === "image") return wallpaperUrl(wallpaper.file);
+  if (wallpaper.kind === "theme") return themeAssetUrl(wallpaper.packId, wallpaper.file);
+  return "";
+}
+
 function applyStickerBackgrounds() {
   for (const target of STICKER_TARGETS) {
     const image = document.querySelector(target.selector);
@@ -15811,11 +16570,13 @@ function rasterizeVideoFrameToBitmapUrl(src) {
    <video>.
    ------------------------------------------------------------------------- */
 
-/* Two kinds of surface borrow the wallpaper pane:
+/* Two kinds of surface may borrow the wallpaper pane:
      - `data-subcard`      a card made of the wallpaper (pane + card stroke),
-     - `data-wallpaper-surface`  a surface that only wants the wallpaper as its
-       background (the top hidden box): same baked picture, sampled at the
-       host's exact box (100%); no card identity. */
+     - `data-wallpaper-surface`  a non-card surface that only wants the
+       wallpaper as its background: same baked picture, sampled at the host's
+       exact box, no card identity. The top hidden box is deliberately not one:
+       it is bare icons over the header, so no pane can paint a second surface
+       (or go black) behind it. */
 const SUBCARD_SELECTOR = "[data-subcard], [data-wallpaper-surface]";
 const SUBCARD_PANE_CLASS = "card-wallpaper";
 const SUBCARD_PAPER_KEEP = 24;
@@ -15924,8 +16685,8 @@ function subcardPaperKey(host, wallpaper, box) {
    never sample the card below them, which was what made the upper sheets look
    progressively darker.
 
-   The top hidden bar is also sampled at 100%: it wears the wallpaper as its
-   own background and must line up with the room behind it. */
+   The top hidden bar samples nothing: it carries no pane, so the header's own
+   surface stays the only background behind its icons. */
 const SUBCARD_PAPER_REGION = 1;
 const SURFACE_PAPER_REGION = 1;
 
@@ -16056,18 +16817,12 @@ function bakeSubcardPaper(host, wallpaper, box) {
 
 /** Bake every marked sub-card for the current still wallpaper. */
 function primeSubcardPapers() {
-  // A finished row is flying into the tray: baking card pictures is canvas
-  // work, and it must not take the animation's frames. It runs right after
-  // the landing instead.
-  const flightLeft = completionFlightUntil - performance.now();
-  if (flightLeft > 0) {
-    schedulePrimeSubcardPapers(flightLeft + 40);
-    return;
-  }
   const wallpaper = activeWallpaper();
   if (!wallpaper.key) return;
-  // A film is baked from its middle frame, so it goes through the same path.
-  if (!wallpaperBitmapCache.get(wallpaper.key)?.ready) return;
+  // A still picture is cut straight from the room's own <img>, so the cards do
+  // not wait for the extra full-size bitmap copy. A film or a theme drawing has
+  // no room <img> and only becomes available when that bitmap settles.
+  if (!subcardSampleObjectFor(wallpaper)) return;
   subcardHosts().forEach((host) => {
     const box = subcardBox(host);
     if (!box || box.width < 8 || box.height < 8) return;
@@ -16112,7 +16867,47 @@ function wallpaperCardsEnabled() {
   return settings.wallpaper_cards !== false;
 }
 
+/** The card's own picture, if the reader picked one in Settings → Card. */
+function cardPictureFor(host) {
+  const id = subcardName(host);
+  if (!id) return null;
+  const config = settings.card_images?.[id];
+  return config?.image ? config : null;
+}
+
+function cardPictureStamp(config) {
+  return `picture|${config.image.length}|${config.zoom}|${config.x}|${config.y}`;
+}
+
+/** Paint one card from its own picture. The card is marked so the shared
+    no-wallpaper styles know it carries a pane of its own. */
+function mountCardPicture(host, config) {
+  const stamp = cardPictureStamp(config);
+  let layer = host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`);
+  if (layer && layer.dataset.pictureStamp === stamp) {
+    host.dataset.cardPicture = "1";
+    return;
+  }
+  layer?.remove();
+  layer = document.createElement("div");
+  layer.className = `${SUBCARD_PANE_CLASS} card-picture`;
+  layer.dataset.subcardPane = "1";
+  layer.dataset.pictureStamp = stamp;
+  layer.dataset.fit = "patch";
+  layer.dataset.placed = "1";
+  layer.setAttribute("aria-hidden", "true");
+  layer.innerHTML = `<img class="wallpaper-media" src="${esc(config.image)}" alt="" draggable="false" style="${stickerImageStyle(config)}">`;
+  host.dataset.cardPicture = "1";
+  host.insertBefore(layer, host.firstChild);
+}
+
 function mountCardWallpaper(host) {
+  const picture = cardPictureFor(host);
+  if (picture) {
+    mountCardPicture(host, picture);
+    return;
+  }
+  if (host?.dataset?.cardPicture) delete host.dataset.cardPicture;
   const wallpaper = activeWallpaper();
   if (!wallpaper.key || (!wallpaperCardsEnabled() && host?.dataset?.subcard)) {
     host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`)?.remove();
@@ -16147,19 +16942,32 @@ function mountCardWallpaper(host) {
 
 function ensureCardWallpapers() {
   const wallpaper = activeWallpaper();
-  if (!wallpaper.key) {
-    document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach((layer) => layer.remove());
-    return;
-  }
   // A host can lose its marker (a surface that goes back to its own paper);
   // its wallpaper pane must go with it. Turning the wallpaper theme off also
   // returns the cards' own paper, while the top box keeps its borrowed picture.
   const cardsOn = wallpaperCardsEnabled();
   document.querySelectorAll(`.${SUBCARD_PANE_CLASS}`).forEach((layer) => {
     const host = layer.parentElement;
+    const picture = cardPictureFor(host);
+    if (picture) {
+      mountCardPicture(host, picture);
+      return;
+    }
+    if (host?.dataset?.cardPicture) delete host.dataset.cardPicture;
+    if (!wallpaper.key) {
+      layer.remove();
+      return;
+    }
     if (!wallpaperSurfaceHost(host) || (!cardsOn && host?.dataset?.subcard)) layer.remove();
   });
   subcardHosts().forEach((host) => {
+    // A reader-picked card picture is independent of the wallpaper switches.
+    if (cardPictureFor(host)) {
+      mountCardWallpaper(host);
+      return;
+    }
+    if (host.dataset.cardPicture) delete host.dataset.cardPicture;
+    if (!wallpaper.key) return;
     if (!cardsOn && host.dataset.subcard) return;
     // A baked picture is the card's own surface before it ever slides out.
     // With a film, only the floating cards take a still: the categories spine
@@ -16282,8 +17090,16 @@ function settleCardWallpapers(duration = 440) {
    Doing card opens and expands on the same border as the finished-subtasks
    card; rebuilding or re-aligning the other card's pane on every Doing update
    was what made the finished card look shoved aside. */
-function syncCardWallpaper(host, { bakedOnly = false } = {}) {
+function syncCardWallpaper(host) {
   if (!host) return;
+  // A card's own picture wins over every wallpaper rule and never waits for a
+  // bake: it is already a finished image.
+  const picture = cardPictureFor(host);
+  if (picture) {
+    mountCardPicture(host, picture);
+    return;
+  }
+  if (host.dataset.cardPicture) delete host.dataset.cardPicture;
   const wallpaper = activeWallpaper();
   if (!wallpaper.key) {
     host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`)?.remove();
@@ -16291,12 +17107,6 @@ function syncCardWallpaper(host, { bakedOnly = false } = {}) {
   }
   const box = subcardBox(host);
   const baked = Boolean(subcardPaperFor(host, wallpaper, box));
-  // During a completion flight a film card must not mount a second <video>:
-  // the baked still is enough until the row lands.
-  if (bakedOnly && !baked) {
-    host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`)?.remove();
-    return;
-  }
   if (!baked && wallpaper.moving && !cardIsLive(host)) return;
   mountCardWallpaper(host);
   host.querySelectorAll(`:scope > .${SUBCARD_PANE_CLASS}`).forEach(placeCardWallpaper);
@@ -16389,14 +17199,43 @@ function floatingCardHosts() {
   });
 }
 
-function cardFacesPainted() {
-  return floatingCardHosts().every((host) => {
-    const pane = host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`);
-    return pane?.dataset.fit === "patch";
-  });
+/** The patch <img> a floating card is showing, once it has pixels. */
+function cardFaceMedia(host) {
+  const pane = host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`);
+  const patch = Boolean(pane && pane.dataset.fit === "patch");
+  if (!patch) return null;
+  const media = pane.firstElementChild;
+  if (!media) return null;
+  if (media.tagName !== "IMG") return media;
+  return media.complete && media.naturalWidth ? media : null;
 }
 
-function prewarmCardWallpaperFaces(timeout = 1600) {
+/** True only when the card's own picture has also been decoded.
+    A mounted patch image still has a decode step of its own; revealing the
+    window at that moment showed the wallpaper first and let each card paint its
+    face a few frames later. The first visible frame must carry the decoded
+    faces too. */
+function cardFacePainted(host) {
+  const media = cardFaceMedia(host);
+  if (!media) return false;
+  if (media.tagName !== "IMG") return true;
+  if (media.dataset.faceDecoded === "1") return true;
+  try {
+    const pending = media.decode?.();
+    if (pending && typeof pending.then === "function") {
+      pending.then(() => { media.dataset.faceDecoded = "1"; }, () => { media.dataset.faceDecoded = "1"; });
+      return false;
+    }
+  } catch (error) {}
+  media.dataset.faceDecoded = "1";
+  return true;
+}
+
+function cardFacesPainted() {
+  return floatingCardHosts().every(cardFacePainted);
+}
+
+function prewarmCardWallpaperFaces(timeout = 280) {
   const wallpaper = activeWallpaper();
   if (!wallpaper.key || !wallpaperCardsEnabled()) return Promise.resolve();
   // The Doing card is built on a frame tick after the first render. Build it
@@ -16453,7 +17292,13 @@ function sampleWallpaperTint(media, key) {
 
 function bindWallpaperMedia(media, key) {
   if (media.tagName === "DIV") return;
-  const sample = () => sampleWallpaperTint(media, key);
+  const sample = () => {
+    sampleWallpaperTint(media, key);
+    // The room picture is the card's sampling object too. As soon as it has
+    // pixels, the cards can be cut from it; waiting for the bitmap pass would
+    // leave the wallpaper painted and the cards a beat behind it on launch.
+    if (wallpaperRenderKey() === key) primeSubcardPapers();
+  };
   const dropMissingWallpaper = () => {
     if (wallpaperRenderKey() !== key) return;
     // The file was moved or deleted. Drop the choice and let the postcard
@@ -16620,6 +17465,15 @@ function applyFontSettings() {
   for (const slot of ["--ink", "--ink-soft", "--pc-ink", "--pc-ink-soft"]) {
     root.style.setProperty(slot, bodyInk);
   }
+  // Selected rows and cards tint with the same ink, so a live font-colour drag
+  // repaints the wash without waiting for the next theme pass.
+  root.style.setProperty("--ink-rgb", hexToRgb(bodyInk));
+  // The title actions and the hidden top bar do not repeat the font colour:
+  // they read the mapped pair so the page keeps an accent against its ink.
+  const accents = inkAccents(bodyInk);
+  root.style.setProperty("--action-ink", accents.action);
+  root.style.setProperty("--utility-ink", accents.utility);
+  applyHighlight();
 }
 
 function applySettings() {
@@ -16639,6 +17493,9 @@ function applySettings() {
   // The row-rule file now only covers the finished-subtasks drawer; it still
   // repaints immediately so a theme switch cannot leave a stale card hairline.
   applyBaselineRowRule();
+  // The card frame is independent of the theme, but it is republished on every
+  // settings pass so a first paint or a restored file marks the pile at once.
+  applyCardLine();
   applyStickerBackgrounds();
   root.dataset.font = settings.font;
   root.dataset.noteFont = settings.note_font;
@@ -16704,9 +17561,9 @@ function applySettings() {
   // Sizes and inks land after the postcard slots so a reader-picked body ink
   // is not immediately replaced by the theme's own --pc-ink.
   applyFontSettings();
-  // The reader's own highlight wash: the theme accent by default, or their
-  // saved colour behind the active row, the focused menu entry and the chosen
-  // settings card.
+  // The reader's own highlight wash: the Categories accent by default, or
+  // their saved colour behind the active row, the focused menu entry and the
+  // chosen settings card.
   applyHighlight();
   applyWallpaper();
   applyIconTheme();
@@ -16715,6 +17572,23 @@ function applySettings() {
   const topAchievement = $("#top-achievement-use");
   if (topAchievement) topAchievement.setAttribute("href", "#headphone");
   updateArchiveIcon();
+}
+
+// The Appearance page reads two folders that the reader may have changed while
+// the sheet was closed. Load both shelves together and reprint the page once,
+// instead of one full Settings pass per folder.
+function refreshThemeShelves() {
+  return Promise.all([loadThemePacks(), loadIconThemes()]).then(() => {
+    if (settingsTab === "theme") renderSettings();
+  });
+}
+
+// Music reads its sound styles and the background-music shelf. Same rule: one
+// fetch pass, one reprint, so switching to Music settles in one page write.
+function refreshSoundShelves() {
+  return Promise.all([loadSoundStyles(), loadBackgroundMusicTracks()]).then(() => {
+    if (settingsTab === "sound") renderSettings();
+  });
 }
 
 function openSettings(tab = "theme") {
@@ -16730,10 +17604,10 @@ function openSettings(tab = "theme") {
     return;
   }
   // Older links and shortcuts still say "appearance"; Theme is the tab now.
-  // Typography became Font and Pictures became Stickers.
+  // Typography became Font, and Pictures became Card.
   settingsTab = tab === "appearance" ? "theme"
     : tab === "typography" ? "font"
-    : tab === "pictures" ? "stickers"
+    : tab === "pictures" ? "card"
     : tab;
   // One sheet at a time: opening Settings folds the Community window away.
   closeCommunity();
@@ -16763,13 +17637,11 @@ function openSettings(tab = "theme") {
   if (settingsTab === "theme") {
     // note-theme/ and ai-theme/ are plain folders: pick up any file the user
     // dropped in while the settings sheet was closed.
-    loadThemePacks().then(() => { if (settingsTab === "theme") renderSettings(); });
-    loadIconThemes().then(() => { if (settingsTab === "theme") renderSettings(); });
+    refreshThemeShelves();
   } else if (settingsTab === "sound") {
     // A style is just a folder on the sounds shelf; refresh it so a folder
     // added in the file manager shows up without reopening Settings.
-    loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
-    loadBackgroundMusicTracks().then(() => { if (settingsTab === "sound") renderSettings(); });
+    refreshSoundShelves();
   }
 }
 
@@ -17120,6 +17992,8 @@ function themeSettings() {
 function fontSettings() {
   const bodySize = Number(settings.body_font_size) || 16;
   const noteSize = Number(settings.note_font_size) || 14;
+  const baseline = pageLine();
+  const cardline = cardLine();
   const fallbackBodyInk = THEMES[currentPostcardId()]?.ink || "#2d2922";
   const fallbackNoteInk = selectedNoteTheme()?.palette?.ink || "#2b2b2e";
   const bodyInk = fontHexColor(settings.body_font_color) || fallbackBodyInk;
@@ -17172,10 +18046,43 @@ function fontSettings() {
         ${manageButton(kind)}
       </div>
     </div>`;
+  // The baseline is the ruled line under the text. It is the same page_line
+  // colour and weight the Palette plugin paints, so both doors stay in step.
+  // The switch is the only door to the two controls: off hides the ruled line
+  // and parks the colour and width until the reader turns it on again.
+  const lineSwitch = (id, action, on, label) => `<button class="sound-switch theme-setting-switch font-line-toggle ${on ? "on" : "off"}" id="${id}" type="button" data-action="${action}" aria-pressed="${on ? "true" : "false"}" aria-label="${on ? `Turn ${label} off` : `Turn ${label} on`}" title="${on ? `Turn ${label} off` : `Turn ${label} on`}"><span class="sound-switch-knob"></span></button>`;
+  const locked = (on) => (on ? "" : " disabled");
+  const baselineRow = `<div class="settings-section theme-settings-row font-settings-row font-baseline-row ${baseline.enabled ? "" : "is-off"}">
+      <div class="theme-settings-title">Baseline</div>
+      <div class="theme-settings-controls font-settings-controls">
+        ${lineSwitch("font-baseline-toggle", "toggle-font-baseline", baseline.enabled, "Baseline")}
+        <input class="theme-color-input font-color-input" id="font-baseline-color" type="color" value="${baseline.color}" aria-label="Baseline colour"${locked(baseline.enabled)}>
+        <input class="theme-hex-input font-hex-input" id="font-baseline-hex" type="text" maxlength="7" spellcheck="false" value="${baseline.color}" aria-label="Baseline colour hex"${locked(baseline.enabled)}>
+        <span class="font-manage-label">width:</span>
+        <input class="theme-range" id="font-baseline-width" type="range" min="1" max="4" step="1" value="${baseline.thickness}" aria-label="Baseline width"${locked(baseline.enabled)}>
+        <span class="theme-value" id="font-baseline-width-value">${baseline.thickness} px</span>
+      </div>
+    </div>`;
+  // Card line is the frame around the floating cards. It sits directly under
+  // Baseline and uses the same two controls, so both edges of the sheet are
+  // adjusted in one place. Its own switch removes the frame from every card.
+  const cardLineRow = `<div class="settings-section theme-settings-row font-settings-row font-card-line-row ${cardline.enabled ? "" : "is-off"}">
+      <div class="theme-settings-title">Card line</div>
+      <div class="theme-settings-controls font-settings-controls">
+        ${lineSwitch("font-card-line-toggle", "toggle-font-card-line", cardline.enabled, "Card line")}
+        <input class="theme-color-input font-color-input" id="font-card-line-color" type="color" value="${cardline.color}" aria-label="Card line colour"${locked(cardline.enabled)}>
+        <input class="theme-hex-input font-hex-input" id="font-card-line-hex" type="text" maxlength="7" spellcheck="false" value="${cardline.color}" aria-label="Card line colour hex"${locked(cardline.enabled)}>
+        <span class="font-manage-label">width:</span>
+        <input class="theme-range" id="font-card-line-width" type="range" min="1" max="4" step="0.5" value="${cardline.width}" aria-label="Card line width"${locked(cardline.enabled)}>
+        <span class="theme-value" id="font-card-line-width-value">${cardline.width} px</span>
+      </div>
+    </div>`;
   return `${row("body", "Body font", settings.font)}
     ${fontManageOpen.body ? managePanel("body") : ""}
     ${row("note", "Note font", settings.note_font)}
-    ${fontManageOpen.note ? managePanel("note") : ""}`;
+    ${fontManageOpen.note ? managePanel("note") : ""}
+    ${baselineRow}
+    ${cardLineRow}`;
 }
 
 async function loadNoteMaterialFiles() {
@@ -17380,7 +18287,7 @@ function wallpaperSettingsSection() {
       <div class="theme-settings-title">Wallpaper</div>
       <div class="theme-settings-controls">
         ${nameControl}
-        <button class="theme-chip-button" type="button" data-action="choose-wallpaper">Choose</button>
+        <button class="theme-chip-button" type="button" data-action="choose-wallpaper">Change</button>
         <button class="theme-chip-button ${wallpaperManageOpen ? "active" : ""}" type="button" data-action="toggle-wallpaper-manage" aria-expanded="${wallpaperManageOpen ? "true" : "false"}">Manage</button>
       </div>
       <input type="file" accept="image/*,video/*" data-wallpaper-input hidden>
@@ -17422,50 +18329,73 @@ function iconSettingsSection() {
 }
 
 /* ---------------------------------------------------------------------------
-   STICKERS
+   CARDS AND STICKERS
    ---------------------------------------------------------------------------
-   Stickers are the little pictures on the achievements in the head bar: the
-   built-in trophy, plus each achievement-tagged plugin that is currently on
-   (the Pomodoro tomato, once its plugin has been switched on).
-   Unlike a wallpaper these are stored inside the notebook, so a sticker is
-   part of NeoTodo rather than a link to a file.
+   Every floating card can carry its own picture, and the achievement badges
+   in the head bar have one too: the built-in trophy, plus each
+   achievement-tagged plugin that is currently on (the Pomodoro tomato, once
+   its plugin has been switched on). They share one settings list because they
+   are the same idea — a small picture stored inside the notebook, cropped to
+   the surface it decorates rather than linked from a folder.
    ------------------------------------------------------------------------- */
 
-/**
- * The real header sticker's layout box. Settings paints its preview at the
- * same size, so the reader judges the crop on the badge it will actually sit
- * on instead of on a blown-up card. offsetWidth/offsetHeight ignore the tilt
- * and hover scale, and return 0 while the plugin slot is hidden.
- */
-function headerStickerBox(target) {
-  const sticker = document.querySelector(target.selector)?.closest(".ach-sticker");
-  if (!sticker?.offsetWidth || !sticker?.offsetHeight) return null;
-  return { width: sticker.offsetWidth, height: sticker.offsetHeight };
+/** One small picture in a Card row: the chosen crop, or what the card shows now. */
+function cardPicturePreview(kind, id, config) {
+  let source = "";
+  let fitted = false;
+  if (kind === "sticker") {
+    const target = STICKER_TARGETS.find((item) => item.id === id);
+    source = config?.image || target?.fallback || "";
+    fitted = Boolean(config?.image);
+  } else {
+    source = config?.image || cardWallpaperPreviewSource();
+    fitted = Boolean(config?.image);
+    // An art wallpaper has no URL; paint the same SVG the room uses so an
+    // unset card still previews what it will look like.
+    const wallpaper = activeWallpaper();
+    if (!fitted && wallpaper.kind === "art") {
+      const theme = THEMES[wallpaper.artId] || THEMES.light;
+      return `<span class="card-setting-preview card-setting-preview-art">${theme.art(theme)}</span>`;
+    }
+  }
+  const media = source
+    ? `<img src="${esc(source)}" alt=""${fitted ? ` style="${stickerImageStyle(config)}"` : ""}>`
+    : `<span class="card-setting-blank" aria-hidden="true"></span>`;
+  return `<span class="card-setting-preview ${kind === "sticker" ? "is-badge" : ""}">${media}</span>`;
+}
+
+/** One row: picture on the left, name in the middle, actions on the right. */
+function cardSettingsRow(key, kind, id, name, config) {
+  return `<div class="card-setting-item" data-card-row="${esc(key)}">
+    <div class="card-setting-row">
+      ${cardPicturePreview(kind, id, config)}
+      <span class="card-setting-name">${esc(name)}</span>
+      <span class="card-setting-actions">
+        <button class="theme-chip-button" type="button" data-action="choose-card-picture" data-card-key="${esc(key)}">Change</button>
+        ${config ? `<button class="theme-chip-button" type="button" data-action="reset-card-picture" data-card-key="${esc(key)}">Default</button>` : ""}
+      </span>
+    </div>
+    <input type="file" accept="image/*" data-card-input="${esc(key)}" hidden>
+  </div>`;
+}
+
+function cardSettings() {
+  const rows = CARD_TARGETS.map((target) => cardSettingsRow(
+    `card:${target.id}`, "card", target.id, target.name, cardImageSettingsFor(target.id),
+  ));
+  return `<div class="settings-section card-settings-section">
+      <div class="card-settings-list">${rows.join("")}</div>
+    </div>`;
 }
 
 function stickersSettings() {
   // Achievement plugins appear only while they own a header slot. The Pomodoro
   // tomato, for example, joins the list once its plugin is turned on.
-  const targets = availableStickerTargets();
-  const cards = targets.map((target) => {
-    const config = stickerSettingsFor(target.id);
-    const preview = config?.image || target.fallback;
-    const box = headerStickerBox(target);
-    const previewSize = box ? ` style="width:${box.width}px;height:${box.height}px"` : "";
-    return `<div class="sticker-setting-card" data-sticker-card="${target.id}">
-      <span class="sticker-setting-preview"${previewSize}><img src="${esc(preview)}" alt="" style="${stickerImageStyle(config)}"></span>
-      <div class="sticker-setting-body">
-        <strong class="sticker-setting-name">${esc(target.name)}</strong>
-        <div class="sticker-setting-actions">
-          <button class="btn small" type="button" data-action="choose-sticker-image" data-sticker-id="${target.id}">${config?.image ? "Replace" : "Choose picture"}</button>
-          ${config?.image ? `<button class="btn small" type="button" data-action="reset-sticker-image" data-sticker-id="${target.id}">Default</button>` : ""}
-        </div>
-      </div>
-      <input type="file" accept="image/*" data-sticker-input="${target.id}" hidden>
-    </div>`;
-  }).join("");
-  return `<div class="settings-section">
-      <div class="sticker-settings-grid">${cards}</div>
+  const rows = availableStickerTargets().map((target) => cardSettingsRow(
+    `sticker:${target.id}`, "sticker", target.id, target.name, stickerSettingsFor(target.id),
+  ));
+  return `<div class="settings-section card-settings-section">
+      <div class="card-settings-list">${rows.join("")}</div>
     </div>`;
 }
 
@@ -18612,44 +19542,80 @@ function renderSettings() {
   } else if (settingsTab === "typography") {
     settingsTab = "font";
   } else if (settingsTab === "pictures") {
-    // Pictures used to hold the wallpaper and the stickers. The wallpaper
-    // moved into Theme; the tab itself is Stickers now.
-    settingsTab = "stickers";
+    // Pictures used to hold the wallpaper, the cards and the stickers. The
+    // wallpaper moved into Theme; the picture shelf now lives in Card.
+    settingsTab = "card";
   }
   const previousScroll = $(".settings-scroll")?.scrollTop || 0;
   const view = settingsTab === "font" ? fontSettings()
+    : settingsTab === "card" ? cardSettings()
     : settingsTab === "stickers" ? stickersSettings()
     : settingsTab === "plugins" ? pluginsSettings()
     : settingsTab === "sound" ? soundSettings()
     : settingsTab === "about" ? aboutSettings()
     : themeSettings();
   // Each page carries its name in the top row beside the close button, in the
-  // same quiet italic face the old in-page heading used. Appearance, Music and
-  // Stickers wear the calligraphic brand face instead, and drop the hairline
-  // under the title so the lettering stands on its own.
+  // same quiet italic face the old in-page heading used. Appearance, Music,
+  // Card and Stickers wear the calligraphic brand face instead, and drop the
+  // hairline under the title so the lettering stands on its own.
   const detailPlugin = settingsTab === "plugins" && pluginDetailId ? PLUGIN_REGISTRY[pluginDetailId] : null;
   const pageTitle = detailPlugin ? detailPlugin.title
     : settingsTab === "font" ? "Font"
+    : settingsTab === "card" ? "Card"
     : settingsTab === "stickers" ? "Stickers"
     : settingsTab === "plugins" ? "Plugins"
     : settingsTab === "sound" ? "Music"
     : settingsTab === "about" ? "About"
     : "Appearance";
-  const artTitle = settingsTab === "theme" || settingsTab === "sound" || settingsTab === "stickers";
-  panel.innerHTML = `<aside class="settings-nav">
-      <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
-      <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Appearance</button>
-      <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
-      <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
-      <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
-      <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Music</button>
-      <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
-    </aside>
-    <section class="settings-main">
-      <div class="settings-topbar ${artTitle ? "settings-topbar-art" : ""}"><span class="settings-page-title ${artTitle ? "settings-page-title-art" : ""}">${esc(pageTitle)}</span><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
-      <div class="settings-scroll"><div class="settings-view">${view}</div></div>
-    </section>`;
-  if (settingsTab === "theme") syncPageLineControls();
+  const artTitle = settingsTab === "theme" || settingsTab === "sound" || settingsTab === "card" || settingsTab === "stickers";
+  // A tab change is a page swap, not a window rebuild. The left rail and the
+  // top row survive it, so changing pages no longer throws away (and recreates)
+  // the whole Settings panel: the nav keeps its focus and hover, the brand and
+  // the close button never flicker, and only the view under the title is
+  // reprinted. The full write is left for the first paint, when there is no
+  // shell to patch yet.
+  const nav = panel.querySelector(":scope > .settings-nav");
+  const main = panel.querySelector(":scope > .settings-main");
+  const topbar = main?.querySelector(":scope > .settings-topbar");
+  const viewHost = main?.querySelector(":scope > .settings-scroll > .settings-view");
+  if (nav && topbar && viewHost) {
+    nav.querySelectorAll("[data-settings-tab]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.settingsTab === settingsTab);
+    });
+    const title = topbar.querySelector(".settings-page-title");
+    if (title) {
+      title.textContent = pageTitle;
+      title.classList.toggle("settings-page-title-art", artTitle);
+    }
+    topbar.classList.toggle("settings-topbar-art", artTitle);
+    // The same view is often printed twice by a toggle and by the shelf fetch
+    // that follows it. Strings compare cheaply, and skipping the identical
+    // write keeps a sound or theme refresh from blinking the page the reader
+    // just switched to.
+    if (viewHost._settingsView !== view) {
+      viewHost.innerHTML = view;
+      viewHost._settingsView = view;
+    }
+  } else {
+    panel.innerHTML = `<aside class="settings-nav">
+        <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
+        <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Appearance</button>
+        <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
+        <button class="settings-nav-item ${settingsTab === "card" ? "active" : ""}" data-settings-tab="card">Card</button>
+        <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
+        <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
+        <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Music</button>
+        <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
+      </aside>
+      <section class="settings-main">
+        <div class="settings-topbar ${artTitle ? "settings-topbar-art" : ""}"><span class="settings-page-title ${artTitle ? "settings-page-title-art" : ""}">${esc(pageTitle)}</span><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
+        <div class="settings-scroll"><div class="settings-view">${view}</div></div>
+      </section>`;
+    const freshView = panel.querySelector(".settings-view");
+    if (freshView) freshView._settingsView = view;
+  }
+  if (settingsTab === "theme" || settingsTab === "font") syncPageLineControls();
+  if (settingsTab === "font") syncCardLineControls();
   const nextScroll = $(".settings-scroll");
   if (nextScroll && previousScroll) nextScroll.scrollTop = previousScroll;
 }
@@ -18925,6 +19891,8 @@ function bindEvents() {
     if (!name || !todoId) return; // an empty add row simply stays where it is
     addingSubtask = false;
     addingSubtaskTodoId = null;
+    // Enter owns the instant path; a click-away keeps the plain save so the
+    // lane is never repainted under the pointer that is about to select a row.
     action("add_subtask", { todo_id: todoId, name });
   }, true);
 
@@ -18981,8 +19949,11 @@ function bindEvents() {
       event.preventDefault();
       event.stopPropagation();
       const todoId = doingExpand.dataset.doingExpand;
-      if (doingExpandedTodoIds.has(todoId)) doingExpandedTodoIds.delete(todoId);
-      else doingExpandedTodoIds.add(todoId);
+      const willUnfold = !doingExpandedTodoIds.has(todoId);
+      if (willUnfold) doingExpandedTodoIds.add(todoId);
+      else doingExpandedTodoIds.delete(todoId);
+      // Only a fresh unfold ripples; folding a row back stays a plain cut.
+      doingUnfoldTodoId = willUnfold ? todoId : null;
       saveDoingExpandedTodoIds();
       AudioFX.categoryTap();
       updateDoingPeek();
@@ -19251,8 +20222,7 @@ function bindEvents() {
       pluginPendingUninstallId = null;
       renderSettings();
       if (settingsTab === "sound") {
-        loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
-        loadBackgroundMusicTracks().then(() => { if (settingsTab === "sound") renderSettings(); });
+        refreshSoundShelves();
       }
       const settingsScroll = $(".settings-scroll");
       if (settingsScroll) settingsScroll.scrollTop = 0;
@@ -19576,6 +20546,48 @@ function bindEvents() {
       syncPageLineSwatch(pageLine());
       return;
     }
+    if (event.target.id === "font-baseline-color" || event.target.id === "font-baseline-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) return;
+      savePageLine({ color });
+      if (event.target.id === "font-baseline-color") {
+        const hex = $("#font-baseline-hex");
+        if (hex) hex.value = color;
+      } else {
+        const picker = $("#font-baseline-color");
+        if (picker) picker.value = color;
+      }
+      syncPageLineSwatch(pageLine());
+      return;
+    }
+    if (event.target.id === "font-baseline-width") {
+      const value = Math.round(Number(event.target.value) || 1);
+      savePageLine({ thickness: value });
+      const label = $("#font-baseline-width-value");
+      if (label) label.textContent = `${value} px`;
+      syncPageLineSwatch(pageLine());
+      return;
+    }
+    if (event.target.id === "font-card-line-color" || event.target.id === "font-card-line-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) return;
+      saveCardLine({ color });
+      if (event.target.id === "font-card-line-color") {
+        const hex = $("#font-card-line-hex");
+        if (hex) hex.value = color;
+      } else {
+        const picker = $("#font-card-line-color");
+        if (picker) picker.value = color;
+      }
+      return;
+    }
+    if (event.target.id === "font-card-line-width") {
+      const value = Math.round((Number(event.target.value) || 1) * 2) / 2;
+      saveCardLine({ width: value });
+      const label = $("#font-card-line-width-value");
+      if (label) label.textContent = `${value} px`;
+      return;
+    }
     if (event.target.id === "baseline-color" || event.target.id === "baseline-color-hex") {
       const color = normalizeBaselineColorInput(event.target.value);
       if (!color) return;
@@ -19790,6 +20802,38 @@ function bindEvents() {
       syncPageLineControls();
       return;
     }
+    if (event.target.id === "font-baseline-color" || event.target.id === "font-baseline-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) {
+        event.target.value = pageLine().color;
+        return;
+      }
+      savePageLine({ color }, { immediate: true });
+      syncPageLineControls();
+      return;
+    }
+    if (event.target.id === "font-baseline-width") {
+      const value = Math.round(Number(event.target.value) || 1);
+      savePageLine({ thickness: value }, { immediate: true });
+      syncPageLineControls();
+      return;
+    }
+    if (event.target.id === "font-card-line-color" || event.target.id === "font-card-line-hex") {
+      const color = normalizeBaselineColorInput(event.target.value);
+      if (!color) {
+        event.target.value = cardLine().color;
+        return;
+      }
+      saveCardLine({ color }, { immediate: true });
+      syncCardLineControls();
+      return;
+    }
+    if (event.target.id === "font-card-line-width") {
+      const value = Math.round((Number(event.target.value) || 1) * 2) / 2;
+      saveCardLine({ width: value }, { immediate: true });
+      syncCardLineControls();
+      return;
+    }
     if (event.target.id === "baseline-color" || event.target.id === "baseline-color-hex") {
       const color = normalizeBaselineColorInput(event.target.value);
       if (!color) {
@@ -19831,7 +20875,7 @@ function bindEvents() {
       const color = normalizeHighlightColorInput(event.target.value);
       if (!color) {
         // Leave invalid text behind instead of pretending it was saved.
-        event.target.value = highlightColor() || (THEMES[currentPostcardId()] || THEMES.light).accent || "#8d63b8";
+        event.target.value = highlightColor() || bodyInkColor();
         return;
       }
       settings.highlight = color;
@@ -19881,22 +20925,13 @@ function bindEvents() {
       uploadWallpaperFile(event.target);
       return;
     }
-    if (event.target.matches("[data-sticker-input]")) {
-      const id = event.target.dataset.stickerInput;
+    if (event.target.matches("[data-card-input]")) {
+      const key = event.target.dataset.cardInput;
+      const entry = cardPictureEntry(key);
       const file = event.target.files?.[0];
       event.target.value = "";
-      if (!file) return;
-      if (!availableStickerTargets().some((target) => target.id === id)) return;
-      compressStickerImage(file).then((data) => {
-        if (!data) { toast("Could not read that picture", true); return; }
-        // The picture is the whole setting now; a fresh upload is centred
-        // rather than inheriting an old crop from a previous build.
-        settings.sticker_backgrounds[id] = { image: data, zoom: 1, x: 50, y: 50 };
-        saveSettings();
-        applyStickerBackgrounds();
-        renderSettings();
-        toast("Sticker picture updated");
-      });
+      if (!entry || !file) return;
+      openCardCropDialog(key, file);
       return;
     }
     if (event.target.id === "note-bg-input") {
@@ -19924,14 +20959,15 @@ function bindEvents() {
     const agentField = event.target.closest?.(
       "#agent-terminal input, #agent-terminal textarea, #agent-terminal [contenteditable='true']",
     );
-    // A plain click on the napkin opens the folder in the desktop's own file
-    // manager. The card that binds, copies or unlinks that folder stays one
-    // right-click away so the feature never has to move into Settings.
-    const folderTrigger = event.target.closest?.(".project-folder-trigger, .notes-icon-button");
+    // A plain click on the napkin opens the working-folder card, whose primary
+    // button chooses or changes this todo's folder. The card also keeps the
+    // "show in file manager" and unlink actions one click away.
+    const headerTrigger = event.target.closest?.(".project-folder-trigger");
+    const folderTrigger = headerTrigger || event.target.closest?.(".notes-icon-button");
     if (folderTrigger) {
       event.preventDefault();
       event.stopPropagation();
-      openProjectFolderCard();
+      openProjectFolderCard(headerTrigger ? projectFolderHeaderTodo() : undefined);
       return;
     }
     if (detachedMode && !agentField) {
@@ -20061,12 +21097,7 @@ function bindEvents() {
           label: "Copy",
           disabled: !selectionText(),
           run: async () => {
-            if (!(await copyText(selectionText()))) return;
-            // The console answers every copy with the same toast, so a copy
-            // taken from the composer's menu reads like one taken from a reply.
-            // The note answers with the big page badge instead.
-            if (editable.closest("#agent-terminal")) flashAgentCopy(editable.getBoundingClientRect());
-            else if (editable.closest("#notes-half")) flashPageCopy();
+            await copyText(selectionText());
           },
         },
         { label: "Paste", run: paste },
@@ -20140,10 +21171,17 @@ function bindEvents() {
     || document.body.classList.contains("panel-drag-mode")
     || document.body.classList.contains("agent-split-drag");
 
+  // The note and the AI card are sheets in their own right. Their surface can
+  // cover the column's hover strip (a stretched note rises over the task rows),
+  // and a pointer inside them is busy with the reader's own work: scrolling,
+  // selecting, clicking. Sliding across a sheet is not a swipe at the Doing
+  // drawer, so the drawer must not slide out from under it.
+  const doingSheetAt = (target) => Boolean(target?.closest?.("#notes-half, #agent-terminal"));
+
   const processDoingPointer = () => {
     if (!doingZone || doingPeekOpen || doingPeekSuppressed()) return;
     const { x, y } = doingPeekPoint;
-    if (!pointInDoingZone(x, y)) {
+    if (!pointInDoingZone(x, y) || doingSheetAt(doingPeekPoint.target)) {
       clearTimeout(doingPeekOpenTimer);
       doingPeekOpenTimer = 0;
       return;
@@ -20153,13 +21191,16 @@ function bindEvents() {
         doingPeekOpenTimer = 0;
         if (doingPeekSuppressed()) return;
         if (!pointInDoingZone(doingPeekPoint.x, doingPeekPoint.y)) return;
+        // The pointer may have settled on the note/AI card while the timer was
+        // waiting: the sheet owns it now, so the drawer stays closed.
+        if (doingSheetAt(doingPeekPoint.target)) return;
         openDoingPeek();
       }, 30);
     }
   };
 
   document.addEventListener("pointermove", (event) => {
-    doingPeekPoint = { x: event.clientX, y: event.clientY };
+    doingPeekPoint = { x: event.clientX, y: event.clientY, target: event.target };
     // A door-line drag owns the pointer and the frame budget: re-measuring the
     // Doing zone here (a full rect read every 350ms) would force a layout in
     // the middle of the pull, and a peek cannot open while resizing anyway.
@@ -20167,6 +21208,14 @@ function bindEvents() {
     // The card is already open while it is being pulled: measuring its column
     // again would force that same layout on the drag's frames.
     if (doingDrag) return;
+    // The pointer is on the note or the AI card: that sheet owns the gesture,
+    // even where it lies over the strip, so the drawer stays put and the zone
+    // is not even measured.
+    if (doingSheetAt(event.target)) {
+      clearTimeout(doingPeekOpenTimer);
+      doingPeekOpenTimer = 0;
+      return;
+    }
     // In a detached AI window the scroll rail lives against the same window
     // border the sub-app drawer docks to; hovering the rail must not open the
     // card. The in-page trigger range (the subtask column) is left untouched.
@@ -20194,6 +21243,9 @@ function bindEvents() {
     if (doingPeekOpen) positionDoingPeek();
     refreshDefaultSheetHeight();
     updateAgentSplitLayout();
+    // The closed console skips the split pass above, but a risen AI card still
+    // needs the top band re-cut to its new box.
+    syncTopEdgeOverlap();
     positionAgentScrollRail();
     if (agentModelMenuOpen || agentModeMenuOpen) positionAgentMenus();
   });
@@ -20247,6 +21299,10 @@ function bindEvents() {
       // A deliberate height is part of the workspace shape; remember it now so
       // quitting right after the resize still restores this page.
       saveViewState();
+      // With only the console open the split pass above stands down, so the
+      // door line and the top bar's cut would keep the old edge. Hand both the
+      // new box now that the drag is over.
+      positionDeskHandles();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once: true });
@@ -20381,7 +21437,10 @@ function bindEvents() {
     }
   }, true);
 
-  window.addEventListener("pagehide", () => { flushSettingsSave(); persistAgentDrafts(); saveViewState(); });
+  // Closing the notebook must not leave the background track playing behind a
+  // closed window. Silence every track before the page is torn down.
+  window.addEventListener("pagehide", () => { silenceNotebookAudio(); flushSettingsSave(); persistAgentDrafts(); saveViewState(); });
+  window.addEventListener("beforeunload", silenceNotebookAudio);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") { flushSettingsSave(); persistAgentDrafts(); saveViewState(); }
     else {
@@ -20493,7 +21552,9 @@ function bindEvents() {
           addingSubtask = false;
           addingSubtaskTodoId = null;
           AudioFX.mechanical();
-          action("add_subtask", { todo_id: todoId, name });
+          // The row is printed before the request leaves; the save lands behind
+          // the gesture instead of rebuilding the board a beat later.
+          commitNewSubtask(todoId, name);
         } else if (!name) {
           const row = event.target.closest("[data-add-subtask-row]");
           event.target.disabled = true;
@@ -20793,6 +21854,77 @@ function bindEvents() {
     }, true);
   }
 
+  // The top hidden bar swaps with the header instead of sliding over it. While
+  // the bar is out, the wordmark, clock and achievement counters leave the
+  // paper and the settings icons take their place (style.css reads this class).
+  // The bar itself has no transition; this class only marks "it is out".
+  {
+    const topEdgeNode = $("#top-edge");
+    const topToolsNode = $("#top-tools");
+    let topToolsDismiss = 0;
+    const topToolsIsOut = () => Boolean(
+      topEdgeNode?.matches(":hover")
+      || topToolsNode?.matches(":hover")
+      || topToolsNode?.classList.contains("top-open")
+    );
+    // A risen AI card lies in the same strip: the trigger band is clipped
+    // around it (handle-position.js), and this check keeps the swap honest for
+    // an engine that does not hit-test a clipped box.
+    const topEdgeOverAi = (x, y) => {
+      if (!agentTerminalOpen) return false;
+      const panel = $("#agent-terminal");
+      const band = topEdgeNode?.getBoundingClientRect();
+      if (!panel || !panel.offsetWidth || !band) return false;
+      const rect = panel.getBoundingClientRect();
+      return y >= band.top && y <= band.top + band.height
+        && y >= rect.top && y <= rect.bottom
+        && x >= rect.left && x <= rect.right;
+    };
+    const showTopTools = (event) => {
+      // Only the bare band defers to the card: the bar itself may sit over the
+      // card, and hovering it must still swap the header out.
+      if (event?.target === topEdgeNode && topEdgeOverAi(event.clientX, event.clientY)) return;
+      if (topToolsDismiss) {
+        cancelAnimationFrame(topToolsDismiss);
+        topToolsDismiss = 0;
+      }
+      document.body.classList.add("top-tools-open");
+    };
+    const hideTopToolsSoon = () => {
+      if (topToolsDismiss) return;
+      // One frame of grace bridges leaving the trigger band and entering the
+      // bar that covers it, so the header never blinks between the two.
+      topToolsDismiss = requestAnimationFrame(() => {
+        topToolsDismiss = 0;
+        if (topToolsIsOut()) return;
+        document.body.classList.remove("top-tools-open");
+      });
+    };
+    topEdgeNode?.addEventListener("pointerenter", showTopTools);
+    topEdgeNode?.addEventListener("pointerleave", hideTopToolsSoon);
+    topToolsNode?.addEventListener("pointerenter", showTopTools);
+    topToolsNode?.addEventListener("pointerleave", hideTopToolsSoon);
+    // The pointer can leave the window without a pointerleave (a native dialog,
+    // a window switch). Never leave the header swapped out behind a bar that
+    // nobody is hovering.
+    window.addEventListener("blur", () => {
+      if (topToolsDismiss) {
+        cancelAnimationFrame(topToolsDismiss);
+        topToolsDismiss = 0;
+      }
+      document.body.classList.remove("top-tools-open");
+    });
+    if (topToolsNode && window.MutationObserver) {
+      // The touch shell opens the bar by toggling `.top-open`; keep the same
+      // swap in that path as well.
+      new MutationObserver(() => {
+        if (topToolsNode.classList.contains("top-open")) showTopTools();
+        else hideTopToolsSoon();
+      }).observe(topToolsNode, { attributes: true, attributeFilter: ["class"] });
+    }
+    if (topToolsNode?.classList.contains("top-open")) showTopTools();
+  }
+
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;
     if (event.data?.type === "neotodo-plugin-close") closePluginPanel();
@@ -21008,6 +22140,13 @@ function bindEvents() {
   const soundPanel = $("#sound-panel");
   $("#sound-toggle")?.addEventListener("click", (event) => {
     event.stopPropagation();
+    // The note is also the Music panel's disclosure button. While the panel is
+    // open, a second click folds it away instead of silently muting sound, so
+    // the button always answers the click that opened it.
+    if (soundPanel && !soundPanel.hidden) {
+      closeSoundPanel();
+      return;
+    }
     AudioFX.toggle();
     updateSoundToggle();
   });
@@ -21146,20 +22285,76 @@ function toggleSoundPanel() {
 }
 
 
+// The AI sheet rests on the page itself, so a restored conversation belongs to
+// the first visible frame. Its provider config, model list and session were
+// requested together with the board; wait for them before the page reports
+// ready, while the wallpaper decode and the card bake keep running beside them.
+// A slow or hung CLI probe must not hold the whole window hostage, so the wait
+// is bounded and the sheet fills in later if that bound is reached.
+function settleOpenAgentForFirstPaint(configReady, timeout = 800) {
+  if (!agentTerminalOpen) return Promise.resolve();
+  const ready = Promise.all([
+    configReady.catch(() => null),
+    loadAgentModels().catch(() => []),
+    (async () => {
+      const agent = activeAgent();
+      if (agent) await loadAgentSession(agent.id).catch(() => {});
+    })(),
+  ]);
+  return Promise.race([
+    ready,
+    new Promise((resolve) => setTimeout(resolve, Math.max(0, timeout))),
+  ]);
+}
+
+/** The data block the boot document carries, if this shell injected one. */
+function readBootData() {
+  try {
+    const node = document.getElementById("neotodo-boot-data");
+    return node ? JSON.parse(node.textContent || "null") : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 async function init() {
+  // Lightweight marks for the launch timeline; the shell prints them when
+  // NEOTODO_STARTUP_TRACE=1 is set. They cost a few microseconds and make a
+  // slow launch measurable instead of guesswork.
+  performance.mark("init-start");
   if (new URLSearchParams(location.search).has("still")) document.body.classList.add("still");
-  await loadInstalledPlugins();
-  await loadThemePacks();
-  await loadIconThemes();
-  await loadSoundStyles();
-  await loadBackgroundMusicTracks();
+  // The boot document already carries the board and the shelf lists, so the
+  // first render can be prepared in this parse task instead of waiting for
+  // fetch callbacks that WebKit will not run until after its first layout pass.
+  // A shell that does not inject them (or an older cache) still falls back to
+  // the same endpoints, and the AI console keeps its own live request.
+  const boot = readBootData();
+  const bootState = window.__SNAPSHOT_STATE__
+    || (boot?.state && Array.isArray(boot.state.categories) ? boot.state : null);
+  const stateReady = bootState ? Promise.resolve(bootState) : requestState();
+  if (bootState) state.data = bootState;
+  const aiConfigReady = loadAiConfig();
+  const themePacksReady = loadThemePacks(boot?.themes || null);
+  const iconThemesReady = loadIconThemes(boot?.icon_themes || null);
+  const shelvesReady = Promise.all([
+    loadInstalledPlugins(boot?.plugins || null),
+    themePacksReady,
+    iconThemesReady,
+    loadSoundStyles(boot?.sound_styles || null),
+    loadBackgroundMusicTracks(boot?.background_music || null),
+  ]);
+  // The saved wallpaper and card faces name a theme pack, so that shelf must be
+  // registered before the first settings pass. The board and the remaining
+  // shelves keep loading while the room is prepared in the background.
+  await Promise.all([themePacksReady, iconThemesReady]);
   loadSettings();
   applySettings();
   bindEvents();
   bindPageCopy();
   updateSoundToggle();
-  loadAiConfig();
-  state.data = window.__SNAPSHOT_STATE__ || await requestState();
+  state.data = await stateReady;
+  await shelvesReady;
+  performance.mark("shelves-ready");
   // Fork boards from the first build are imported into the plugin store now,
   // so the notebook index can drop those duplicate category rows.
   try {
@@ -21293,6 +22488,20 @@ async function init() {
     document.body.appendChild(grabber);
   }
   render();
+  performance.mark("render-done");
+  // The window is still fully transparent, so the finished page may become
+  // visible to the compositor now. Its first full layout and paint then happen
+  // while the wallpaper and card textures are still finishing, instead of
+  // after them: the reveal frame is the whole finished page, not a page that
+  // starts painting at the moment the window appears.
+  document.body.classList.add("app-layout");
+  // Start the two first-paint textures as soon as the board is laid out.
+  // They used to start after the handle/clock/note-material pass below, which
+  // cost the card bake a fifth of a second of extra wall time for no reason:
+  // the bake only needs the rendered boxes, not those later bindings.
+  const cardFacesReady = prewarmCardWallpaperFaces();
+  const wallpaperReady = waitForWallpaperFrame();
+  performance.mark("gates-start");
   // A run started by another window lives only on the backend. Ask for it
   // now (and once more after the first paint) so its fan spins here too.
   syncBackendRunningAgents(true).catch(() => {});
@@ -21315,17 +22524,17 @@ async function init() {
   if (!clockTimer) clockTimer = setInterval(() => { updateHeaderStamp(); updateTopClock(); }, 1000);
   updateTopClock();
   loadNoteMaterialFiles();
-  // The room is painted together with the rest of the page. Waiting for the
-  // wallpaper's decoded first frame here means the first visible frame can
-  // never show the bare theme paper before the picture arrives. The card faces
-  // are baked alongside it: a card that swapped from the room copy to its own
-  // picture after the window appeared was the "still rendering" flash on
-  // launch. Both waits overlap, so the cards cost only the time the bake needs
-  // beyond the wallpaper decode.
-  const cardFacesReady = prewarmCardWallpaperFaces();
-  await waitForWallpaperFrame();
+  // The AI request started with the board. Waiting here lets an open AI sheet
+  // arrive with the room and the cards instead of filling in after the window
+  // is already on screen; the wallpaper wait and the card bake overlap it.
+  await settleOpenAgentForFirstPaint(aiConfigReady);
+  performance.mark("ai-settled");
+  await wallpaperReady;
+  performance.mark("wallpaper-ready");
   await cardFacesReady;
+  performance.mark("cards-ready");
   document.documentElement.classList.remove("booting");
+  document.body.classList.remove("app-layout");
   document.body.classList.add("app-ready");
   window.__APP_READY_MS__ = performance.now();
   // The desktop window stays hidden until this page has actually been painted.
@@ -21339,12 +22548,14 @@ async function init() {
     const settle = () => {
       if (settled) return;
       settled = true;
+      performance.mark("paint-frames-settled");
       resolve();
     };
     requestAnimationFrame(() => requestAnimationFrame(settle));
     setTimeout(settle, 180);
   });
   document.body.classList.add("app-painted");
+  performance.mark("app-painted");
   try {
     if (window.NeoTodoAndroid && window.NeoTodoAndroid.ready) window.NeoTodoAndroid.ready();
   } catch (error) {}
@@ -21381,5 +22592,11 @@ async function init() {
 }
 
 init().catch((error) => {
+  document.documentElement.classList.remove("booting");
+  document.body.classList.remove("app-layout");
+  document.body.classList.add("app-ready");
+  document.body.style.background = "#f6f1e8";
   document.body.innerHTML = `<div style="padding:40px;color:#b65c50;font-family:monospace;font-size:12px;line-height:1.7;white-space:pre-wrap">NeoTodo could not start:\n${esc(error.message)}</div>`;
+  // A fatal init must reach the reader now, not via the shell's slow fallback.
+  document.body.classList.add("app-painted");
 });

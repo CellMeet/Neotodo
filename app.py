@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import inspect
 import io
 import json
 import mimetypes
@@ -173,6 +174,10 @@ PAGE_LINE_DEFAULT = {
     "opacity": 1.0,
     "row": 40,
     "thickness": 1,
+    # The Font tab owns an on/off switch for this row. Off hides the ruled
+    # lines without touching their colour or weight, so switching back on
+    # restores the reader's last choice.
+    "enabled": True,
 }
 # The row baseline is a separate idea from the page divider: it is the hairline
 # inside the floating cards (Doing and finished subtasks). It keeps its own file
@@ -184,6 +189,20 @@ BASELINE_ROW_DEFAULT = {
     "color": BASELINE_COLOR_DEFAULT,
     "color2": "#a8691f",
     "angle": 0,
+}
+# The frame around every floating card (the live subtask sheet, Doing, the
+# finished-subtasks drawer and the trash card) is a reader-owned outline. It
+# keeps its own file so switching a theme or repainting page_line can never
+# replace the chosen colour or weight.
+CARD_LINE_FILE = DATA_DIR / "card-line.json"
+CARD_LINE_WIDTH_MIN = 1.0
+CARD_LINE_WIDTH_MAX = 4.0
+CARD_LINE_DEFAULT = {
+    "color": "#2f5d4e",
+    "width": 1.5,
+    # Off removes the frame from every floating card while the chosen colour
+    # and weight stay saved for the next time the switch is on.
+    "enabled": True,
 }
 THEME_CATALOG_CACHE = DATA_DIR / "theme-catalog.json"
 THEME_CATALOG_URL = os.environ.get(
@@ -246,6 +265,28 @@ FOLDER_PICK_CALLBACK = None
 FILE_PICK_CALLBACK = None
 
 PROJECT_FILE_LIMIT = 160
+# A todo with this many finished subtasks can be submitted without waiting for
+# the rest: the remaining rows finish with it. Long tasks stop being trapped
+# behind one last row, and the count is high enough that a normal task still has
+# to be finished honestly.
+SUBTASK_QUICK_SUBMIT = 20
+
+
+def call_picker(callback, initial: str = ""):
+    """Call a native picker, passing the starting folder when it supports one.
+
+    Older platform shells (Windows) expose a zero-argument callback, so the
+    shared backend must not assume every picker accepts ``initial``.
+    """
+    if callback is None:
+        return None
+    try:
+        parameters = inspect.signature(callback).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    if not parameters:
+        return callback()
+    return callback(initial)
 
 
 def sound_style_id(raw) -> str:
@@ -1018,6 +1059,7 @@ def normalize_page_line(raw) -> dict:
         "opacity": opacity,
         "row": row,
         "thickness": thickness,
+        "enabled": raw.get("enabled") is not False,
     }
 
 
@@ -1107,6 +1149,51 @@ def write_baseline_row_rule(raw) -> dict:
     except Exception:
         pass
     return rule
+
+
+def normalize_card_line(raw) -> dict:
+    """Validate the frame around the floating cards: one colour and one weight."""
+    if isinstance(raw, dict) and isinstance(raw.get("card_line"), dict):
+        raw = raw["card_line"]
+    if not isinstance(raw, dict):
+        raw = {}
+    color = raw.get("color") or raw.get("card-line") or raw.get("card_line")
+    color = color.strip() if isinstance(color, str) else ""
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+        color = CARD_LINE_DEFAULT["color"]
+    width = _page_line_number(
+        raw.get("width"),
+        CARD_LINE_DEFAULT["width"],
+        CARD_LINE_WIDTH_MIN,
+        CARD_LINE_WIDTH_MAX,
+    )
+    # The picker offers half-pixel steps; store exactly what it can show.
+    width = round(width * 2) / 2
+    return {"color": color.lower(), "width": width, "enabled": raw.get("enabled") is not False}
+
+
+def read_card_line() -> dict:
+    """Read ``card-line.json``; it is independent of every theme file."""
+    return normalize_card_line(_read_json_file(CARD_LINE_FILE))
+
+
+def write_card_line(patch) -> dict:
+    """Merge a patch into the stored card frame and persist the whole object."""
+    if isinstance(patch, dict) and isinstance(patch.get("card_line"), dict):
+        patch = patch["card_line"]
+    if not isinstance(patch, dict):
+        patch = {}
+    merged = {**read_card_line(), **patch}
+    line = normalize_card_line(merged)
+    try:
+        CARD_LINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CARD_LINE_FILE.write_text(
+            json.dumps(line, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+    return line
 
 
 def _catalog_entry(raw) -> dict | None:
@@ -3151,6 +3238,7 @@ def new_id() -> str:
 
 
 STICKER_TARGET_IDS = ("completed", "focus")
+CARD_IMAGE_TARGET_IDS = ("pending", "doing", "completed", "trash")
 
 
 def sanitize_sticker_backgrounds(raw) -> dict:
@@ -3164,6 +3252,33 @@ def sanitize_sticker_backgrounds(raw) -> dict:
             continue
         image = item.get("image")
         if not isinstance(image, str) or not image.startswith("data:image/") or len(image) > 4_000_000:
+            continue
+        try:
+            zoom = max(1.0, min(2.6, float(item.get("zoom", 1))))
+            x = max(0.0, min(100.0, float(item.get("x", 50))))
+            y = max(0.0, min(100.0, float(item.get("y", 50))))
+        except (TypeError, ValueError):
+            continue
+        clean[target_id] = {
+            "image": image,
+            "zoom": round(zoom, 3),
+            "x": round(x, 2),
+            "y": round(y, 2),
+        }
+    return clean
+
+
+def sanitize_card_images(raw) -> dict:
+    """Keep only valid per-card pictures and crop values."""
+    if not isinstance(raw, dict):
+        return {}
+    clean = {}
+    for target_id in CARD_IMAGE_TARGET_IDS:
+        item = raw.get(target_id)
+        if not isinstance(item, dict):
+            continue
+        image = item.get("image")
+        if not isinstance(image, str) or not image.startswith("data:image/") or len(image) > 8_000_000:
             continue
         try:
             zoom = max(1.0, min(2.6, float(item.get("zoom", 1))))
@@ -3218,6 +3333,7 @@ def default_data() -> dict:
             "note_background_image": "",
             "note_blur": 16,
             "sticker_backgrounds": {},
+            "card_images": {},
             "wallpaper_mode": "static",
             "wallpaper_static": "art:light",
             "wallpaper_dynamic": "",
@@ -3245,14 +3361,23 @@ def _activity_stamp(item: dict) -> float:
     return stamp
 
 
-def load_data(path: Path | None = None) -> dict:
+def load_data(path: Path | None = None, meta: dict | None = None) -> dict:
+    """Read the notebook and normalise it for the current build.
+
+    ``meta["changed"]`` is set when the normalised data differs from the file
+    on disk. The caller can then skip the write a launch used to pay for even
+    when the notebook was already up to date.
+    """
     target = Path(path) if path is not None else DATA_FILE
+    if meta is not None:
+        meta["changed"] = True
     try:
         if target == DATA_FILE and not DATA_FILE.exists() and LEGACY_FILE.exists():
             DATA_DIR.mkdir(parents=True, exist_ok=True)
             LEGACY_FILE.replace(DATA_FILE)
         if target.exists():
-            data = json.loads(target.read_text())
+            raw = target.read_text()
+            data = json.loads(raw)
             if not isinstance(data, dict):
                 return default_data()
             categories = data.get("categories")
@@ -3377,6 +3502,7 @@ def load_data(path: Path | None = None) -> dict:
             if not isinstance(settings.get("caret_color"), str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", settings["caret_color"]):
                 settings["caret_color"] = "#1b1b1b"
             settings["sticker_backgrounds"] = sanitize_sticker_backgrounds(settings.get("sticker_backgrounds"))
+            settings["card_images"] = sanitize_card_images(settings.get("card_images"))
             settings.setdefault("wallpaper_mode", "theme")
             settings.setdefault("wallpaper_static", "")
             settings.setdefault("wallpaper_dynamic", "")
@@ -3412,6 +3538,13 @@ def load_data(path: Path | None = None) -> dict:
                 card.setdefault("theme", "alpine")
                 card.setdefault("seen", True)
                 card.setdefault("items", [])
+            if meta is not None:
+                try:
+                    meta["changed"] = json.dumps(
+                        data, ensure_ascii=False, indent=2
+                    ) != raw
+                except Exception:
+                    meta["changed"] = True
             return data
     except Exception:
         pass
@@ -3447,11 +3580,15 @@ class Store:
         # A fork app runs its own Store in the same process. Quitting it must
         # stop that server instead of the main window.
         self.quit_callback = None
-        self.data = load_data(self.path)
+        load_meta: dict = {}
+        self.data = load_data(self.path, load_meta)
         with self.lock:
-            self._archive_finished_weeks()
-            # Persist load-time migrations such as created_at/time_cost.
-            save_data(self.data, self.path)
+            archived = self._archive_finished_weeks()
+            # Persist load-time migrations such as created_at/time_cost. A
+            # launch whose notebook is already current must not pay to write
+            # the whole board back before the window can appear.
+            if archived or load_meta.get("changed", True):
+                save_data(self.data, self.path)
 
     def categories(self) -> list:
         return self.data.get("categories", [])
@@ -3553,9 +3690,16 @@ class Store:
 
     def state(self) -> dict:
         with self.lock:
-            self._archive_finished_weeks()
-            # Persist load-time migrations such as created_at/time_cost.
-            save_data(self.data, self.path)
+            # A read must not rewrite the whole notebook. `load_data` already
+            # persisted its load-time migrations in `__init__`, and
+            # `/api/action` saves the change before answering with this same
+            # payload — saving here wrote the file a second time on every
+            # click (twice per action when a picker path saved first), and
+            # wrote it once for a plain launch read. The only thing that can
+            # change the board during a read is the weekly archive rollover,
+            # so save exactly when that actually moved a card.
+            if self._archive_finished_weeks():
+                save_data(self.data, self.path)
             selected = self.data.get("selected_category")
             if selected is None and self.categories():
                 selected = self.categories()[0]["id"]
@@ -3587,6 +3731,9 @@ class Store:
                 # The row baseline (subtask / Doing hairlines) is its own file
                 # and can carry a gradient or a per-row height ramp.
                 "baseline_rule": read_baseline_row_rule(),
+                # The frame around the floating cards is reader-owned too: its
+                # colour and weight live in card-line.json, never in a theme.
+                "card_line": read_card_line(),
                 # Present only in a fork window; it marks the fake todo that
                 # must never add to the parent notebook's achievements.
                 "fork": self.data.get("fork"),
@@ -3642,7 +3789,17 @@ class Store:
         if payload.get("action") == "choose_project_folder":
             if FOLDER_PICK_CALLBACK is None:
                 return {"ok": False, "error": "Folder picker is not available"}
-            path = FOLDER_PICK_CALLBACK()
+            # The native chooser remembers its last directory across calls. Open
+            # it on the clicked todo's own folder instead, so switching todos or
+            # categories never makes the previous todo's folder appear to win.
+            todo_id = str(payload.get("id") or "").strip()
+            initial = str(agent_workspace())
+            if todo_id:
+                with self.lock:
+                    _, todo = self._find_todo(todo_id)
+                    if todo:
+                        initial = str(agent_workspace(todo.get("project_folder")))
+            path = call_picker(FOLDER_PICK_CALLBACK, initial)
             return {"ok": True, "path": path or "", "cancelled": not bool(path), "state": self.state()}
         # The native picker returns a path. The file is linked into the
         # dedicated pictures/wallpapers shelf so the recent list and the folder
@@ -3976,32 +4133,47 @@ class Store:
                     error = "Todo not found"
                 elif todo.get("done"):
                     error = "Already completed"
-                elif any(
-                    not subtask.get("done")
-                    for subtask in todo.get("subtasks", [])
-                ):
-                    error = "Complete the pending subtask first"
                 else:
-                    now = datetime.now()
-                    start = None
-                    if todo.get("created_at"):
-                        try:
-                            start = datetime.fromisoformat(todo["created_at"])
-                        except Exception:
-                            start = None
-                    todo["done"] = True
-                    todo["completed_at"] = now.isoformat(timespec="seconds")
-                    todo["time_cost"] = max(0, int((now - start).total_seconds())) if start else 0
-                    # A finished todo rises to the top of its category, so the
-                    # stored order matches the board and the next todo follows it.
-                    if category is not None:
-                        todos = category.setdefault("todos", [])
-                        todos[:] = [
-                            item for item in todos
-                            if str(item.get("id")) != str(todo.get("id"))
-                        ]
-                        todos.insert(0, todo)
-                    result["trophy"] = True
+                    subtasks = todo.get("subtasks", [])
+                    pending = [
+                        subtask for subtask in subtasks
+                        if not subtask.get("done")
+                    ]
+                    finished = len(subtasks) - len(pending)
+                    if pending and finished < SUBTASK_QUICK_SUBMIT:
+                        error = "Complete the pending subtask first"
+                    else:
+                        now = datetime.now()
+                        # Twenty finished rows are the finish line. Submitting
+                        # the todo finishes whatever is left, so a long task
+                        # never waits on its tail. These rows were never worked,
+                        # so they carry no time cost.
+                        for subtask in pending:
+                            subtask["done"] = True
+                            subtask["completed_at"] = now.isoformat(timespec="seconds")
+                            subtask["time_cost"] = 0
+                            subtask["submitted_early"] = True
+                        if pending:
+                            result["auto_completed"] = len(pending)
+                        start = None
+                        if todo.get("created_at"):
+                            try:
+                                start = datetime.fromisoformat(todo["created_at"])
+                            except Exception:
+                                start = None
+                        todo["done"] = True
+                        todo["completed_at"] = now.isoformat(timespec="seconds")
+                        todo["time_cost"] = max(0, int((now - start).total_seconds())) if start else 0
+                        # A finished todo rises to the top of its category, so the
+                        # stored order matches the board and the next todo follows it.
+                        if category is not None:
+                            todos = category.setdefault("todos", [])
+                            todos[:] = [
+                                item for item in todos
+                                if str(item.get("id")) != str(todo.get("id"))
+                            ]
+                            todos.insert(0, todo)
+                        result["trophy"] = True
             elif name == "complete_subtask":
                 _, todo = self._find_todo(payload.get("todo_id"))
                 subtask = None
@@ -4398,6 +4570,8 @@ class Store:
                             current.pop("highlight", None)
                     if "sticker_backgrounds" in incoming:
                         current["sticker_backgrounds"] = sanitize_sticker_backgrounds(incoming.get("sticker_backgrounds"))
+                    if "card_images" in incoming:
+                        current["card_images"] = sanitize_card_images(incoming.get("card_images"))
                     if incoming.get("wallpaper_mode") in (*WALLPAPER_MODES, "theme"):
                         current["wallpaper_mode"] = incoming["wallpaper_mode"]
                     if isinstance(incoming.get("wallpaper_static"), str):
@@ -4467,6 +4641,14 @@ class Store:
                 result["rule"] = write_baseline_row_rule(
                     raw_rule if isinstance(raw_rule, dict) else payload
                 )
+            elif name == "save_card_line":
+                # The floating-card frame is a standalone object: colour plus
+                # weight. A partial patch is merged so one control never
+                # resets the other.
+                raw_line = payload.get("card_line")
+                result["card_line"] = write_card_line(
+                    raw_line if isinstance(raw_line, dict) else payload
+                )
             elif name == "mark_seen":
                 if payload.get("all"):
                     for card in self.data.get("archive", []):
@@ -4504,6 +4686,13 @@ class Store:
             if error:
                 return {"ok": False, "error": error, "state": self.state()}
             save_data(self.data, self.path)
+            # View-only actions (which category the reader is looking at) used
+            # to echo the whole notebook back. The page already owns that data,
+            # and on a big notebook the multi-megabyte response — plus decoding
+            # and replacing the in-memory board — made every category switch
+            # hitch. `slim` asks for the acknowledgement only.
+            if payload.get("slim"):
+                return {"ok": True, **result}
             return {"ok": True, "state": self.state(), **result}
 
 
@@ -4730,6 +4919,17 @@ class AgentStore:
         self.models_cache = None
         self.models_at = 0.0
         self.config_lock = threading.Lock()
+        # Model discovery is another `opencode` process. The startup page asks
+        # for the model list twice (the AI config and the terminal) at the same
+        # time, so one probe runs and the other caller waits for its result.
+        self._models_lock = threading.Lock()
+        # `opencode --version` starts a fresh CLI process; the first one on a
+        # cold page cache costs well over a second. The AI console asks for this
+        # on startup, so keep the answer briefly and let the warm-up thread
+        # share one probe with any request that arrives meanwhile.
+        self._backend_info_cache = None
+        self._backend_info_at = 0.0
+        self._backend_info_lock = threading.Lock()
         try:
             self.build_max = max(1, min(32, int(read_ai_config().get("max_parallel") or self.build_max)))
         except Exception:
@@ -4737,18 +4937,37 @@ class AgentStore:
         # Closing the app ends every agent turn; reopening it never restarts
         # an old instruction. The user writes a new one to start again.
         self.stopping = threading.Event()
+        # A previous process may have died mid-run. No turn survives an app
+        # close, so every streaming placeholder is settled as interrupted.
+        # Fork windows share this file but must not touch a run the notebook is
+        # still working on, so only the notebook (or a headless server) passes
+        # settle_pending=True.
+        #
+        # Settling parses the whole conversation store, which on a long history
+        # is the slowest part of a launch. It runs beside the server instead of
+        # in front of it: the board, the themes and the first paint never wait
+        # for it, and the one request that really reads conversations waits on
+        # this event in `action` (and in `copy_session`). The event is set as
+        # soon as the pass finishes, including on failure, so a broken store
+        # can never leave the AI waiting forever.
+        self.settled = threading.Event()
         if settle_pending:
-            # A previous process may have died mid-run. No turn survives an
-            # app close, so every streaming placeholder is settled as
-            # interrupted. Fork windows share this file but must not touch a
-            # run the notebook is still working on, so only the notebook (or
-            # a headless server) passes settle_pending=True.
+            threading.Thread(
+                target=self._settle_on_startup, daemon=True, name="neotodo-agent-settle",
+            ).start()
+        else:
+            self.settled.set()
+
+    def _settle_on_startup(self) -> None:
+        try:
             self._settle_all_pending()
+        finally:
             # Drop the legacy run journal so an old install cannot resume a turn.
             try:
                 AGENT_RUNS_FILE.unlink(missing_ok=True)
             except Exception:
                 pass
+            self.settled.set()
 
     @staticmethod
     def _settle_pending(messages: list) -> list:
@@ -4816,6 +5035,10 @@ class AgentStore:
         pending flags and local attachment lists are stripped so the new panel
         reads as finished history rather than a live run from another window.
         """
+        # Settle first: a stream left by a killed process must not be copied
+        # into the fork as a live reply, and the startup pass must not overwrite
+        # this write with the copy it loaded before it.
+        self.settled.wait()
         source_key = str(source_id or "")
         target_key = str(target_id or "")
         if not source_key or not target_key:
@@ -4963,66 +5186,89 @@ class AgentStore:
     def _save_config(self, config: dict) -> dict:
         with self.config_lock:
             clean = write_ai_config(config)
-        self.models_cache = None
-        self.models_at = 0.0
+        self._clear_models_cache()
         self.build_max = max(1, min(32, int(clean.get("max_parallel") or 12)))
         return clean
 
-    def _opencode_info(self) -> dict:
-        path = shutil.which("opencode") or ""
-        version = ""
-        if path:
-            try:
-                process = subprocess.run(
-                    [path, "--version"], capture_output=True, text=True, timeout=8,
-                )
-                version = (process.stdout or "").strip().splitlines()[-1][:40]
-            except Exception:
-                version = ""
-        info = {
-            "opencode": {"id": "opencode", "name": "OpenCode", "available": bool(path), "supported": True, "version": version, "path": path},
-            "claude": {"id": "claude", "name": "Claude", "available": bool(shutil.which("claude")), "supported": False, "version": "", "path": shutil.which("claude") or ""},
-            "codex": {"id": "codex", "name": "Codex", "available": bool(shutil.which("codex")), "supported": False, "version": "", "path": shutil.which("codex") or ""},
-        }
-        return info
+    def _clear_models_cache(self) -> None:
+        with self._models_lock:
+            self.models_cache = None
+            self.models_at = 0.0
+
+    def _opencode_info(self, max_age: float = 30.0) -> dict:
+        # The CLI check is the only slow part of the AI config payload. Startup
+        # warms this probe in a background thread; the first config request then
+        # waits for that one process instead of starting a second one, and later
+        # requests reuse the result. `max_age=0` forces a fresh probe.
+        with self._backend_info_lock:
+            now = time.time()
+            if self._backend_info_cache is not None and now - self._backend_info_at < max_age:
+                return self._backend_info_cache
+            path = shutil.which("opencode") or ""
+            version = ""
+            if path:
+                try:
+                    process = subprocess.run(
+                        [path, "--version"], capture_output=True, text=True, timeout=8,
+                    )
+                    version = (process.stdout or "").strip().splitlines()[-1][:40]
+                except Exception:
+                    version = ""
+            info = {
+                "opencode": {"id": "opencode", "name": "OpenCode", "available": bool(path), "supported": True, "version": version, "path": path},
+                "claude": {"id": "claude", "name": "Claude", "available": bool(shutil.which("claude")), "supported": False, "version": "", "path": shutil.which("claude") or ""},
+                "codex": {"id": "codex", "name": "Codex", "available": bool(shutil.which("codex")), "supported": False, "version": "", "path": shutil.which("codex") or ""},
+            }
+            self._backend_info_cache = info
+            self._backend_info_at = time.time()
+            return info
 
     def _available_models(self) -> list:
         now = time.time()
         if self.models_cache is not None and now - self.models_at < 600:
             return self.models_cache
-        config = self._config()
-        opencode = shutil.which("opencode")
-        models = []
-        if opencode:
-            try:
-                process = subprocess.run(
-                    [opencode, "models", "--standalone"],
-                    capture_output=True,
-                    text=True,
-                    timeout=40,
-                    env=ai_opencode_env(config),
-                )
-                models = [
-                    line.strip()
-                    for line in (process.stdout or "").splitlines()
-                    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:#/-]+", line.strip())
-                ]
-            except Exception:
-                models = []
-        # Custom provider rows are part of the picker even before discovery has
-        # refreshed, so a freshly added endpoint is immediately selectable.
-        for provider in config.get("providers", []):
-            if not provider.get("enabled", True):
-                continue
-            for model_id in provider.get("models", []):
-                candidate = f"{provider['id']}/{model_id}"
-                if candidate not in models:
-                    models.append(candidate)
-        if not models:
-            models = ["deepseek/deepseek-flash"]
-        self.models_cache = models
-        self.models_at = now
-        return models
+        # The board and the AI sheet ask for their models at the same moment on
+        # startup. Share one CLI discovery instead of spawning a process for each
+        # caller; a later request for a different provider still sees the cached
+        # list until an explicit refresh.
+        with self._models_lock:
+            now = time.time()
+            if self.models_cache is not None and now - self.models_at < 600:
+                return self.models_cache
+            config = self._config()
+            opencode = shutil.which("opencode")
+            models = []
+            if opencode:
+                try:
+                    process = subprocess.run(
+                        [opencode, "models", "--standalone"],
+                        capture_output=True,
+                        text=True,
+                        timeout=40,
+                        env=ai_opencode_env(config),
+                    )
+                    models = [
+                        line.strip()
+                        for line in (process.stdout or "").splitlines()
+                        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.:#/-]+", line.strip())
+                    ]
+                except Exception:
+                    models = []
+            # Custom provider rows are part of the picker even before discovery
+            # has refreshed, so a freshly added endpoint is immediately
+            # selectable.
+            for provider in config.get("providers", []):
+                if not provider.get("enabled", True):
+                    continue
+                for model_id in provider.get("models", []):
+                    candidate = f"{provider['id']}/{model_id}"
+                    if candidate not in models:
+                        models.append(candidate)
+            if not models:
+                models = ["deepseek/deepseek-flash"]
+            self.models_cache = models
+            self.models_at = time.time()
+            return models
 
     @staticmethod
     def _configured_model() -> str:
@@ -6112,6 +6358,10 @@ class AgentStore:
         threading.Thread(target=worker, daemon=True).start()
 
     def action(self, payload: dict) -> dict:
+        # The first AI request must see settled conversations, never a stream a
+        # killed process left behind. Startup settles them beside the server, so
+        # wait here — the one place the answer actually depends on it.
+        self.settled.wait()
         name = payload.get("action")
         if name == "list":
             with self.lock:
@@ -6120,8 +6370,7 @@ class AgentStore:
         if name == "config":
             return self._config_payload()
         if name == "refresh_models":
-            self.models_cache = None
-            self.models_at = 0.0
+            self._clear_models_cache()
             return self._config_payload()
         if name == "set_config":
             patch = payload.get("config") if isinstance(payload.get("config"), dict) else {}
@@ -6587,6 +6836,94 @@ class AgentStore:
                     self.interrupts.discard(agent_id)
 
 
+def build_boot_payload(store) -> dict:
+    """Everything the first render needs, carried by the boot document.
+
+    The page used to ask for the board, theme packs, icon packs, sound styles,
+    background music and plugins after it was parsed. On a cold WebKit the first
+    layout pass holds the main thread for a second, so those responses sat in
+    the queue while the empty shell painted. Sending the same payload inline
+    lets the first render run in the parse task, before that layout, and the
+    page still keeps the HTTP endpoints for refreshes and settings.
+    """
+    def safe(call, fallback):
+        try:
+            return call()
+        except Exception:
+            return fallback
+
+    themes = safe(lambda: {
+        "ok": True,
+        "packs": discover_theme_packs(),
+        "folder": str(ensure_theme_packs_dir()),
+        "exports": str(ensure_theme_exports_dir()),
+        "note_themes": discover_pane_themes("note"),
+        "ai_themes": discover_pane_themes("ai"),
+        "note_folder": str(ensure_pane_themes_dir("note")),
+        "ai_folder": str(ensure_pane_themes_dir("ai")),
+        "catalog_url": THEME_CATALOG_URL,
+    }, None)
+    icon_themes = safe(lambda: {
+        "ok": True,
+        "themes": discover_icon_themes(),
+        "folder": str(ensure_icon_themes_dir()),
+    }, None)
+    sound_styles = safe(lambda: {
+        "ok": True,
+        "styles": discover_sound_styles(),
+        "folder": str(ensure_sounds_dir()),
+        "default": DEFAULT_SOUND_STYLE,
+    }, None)
+    background_music = safe(lambda: {
+        "ok": True,
+        "tracks": background_music_tracks(),
+        "folder": str(ensure_background_music_dir()),
+        "default": background_music_default(),
+    }, None)
+    plugins = safe(lambda: {
+        "ok": True,
+        "plugins": discover_plugins(),
+        "folder": str(ensure_plugins_dir()),
+        "catalog_url": PLUGIN_CATALOG_URL,
+    }, None)
+    return {
+        "state": safe(lambda: store.state() if store is not None else None, None),
+        "themes": themes,
+        "icon_themes": icon_themes,
+        "sound_styles": sound_styles,
+        "background_music": background_music,
+        "plugins": plugins,
+    }
+
+
+def wallpaper_preload_link(payload: dict) -> str:
+    """A head-level preload for the saved wallpaper image, or "".
+
+    The room's own <img> is mounted only after settings are applied, behind
+    thirty stylesheets and the whole app script. WebKit gives it a low fetch
+    priority there, so on a launch the first-paint gate could sit on its
+    600 ms fallback for a local file that decodes in a few dozen milliseconds.
+    A preload starts the request while the head is still parsing, and the
+    layer's <img> then finds it in the memory cache. Videos and drawn/theme
+    wallpapers are left alone: the layer already handles their first frame.
+    """
+    try:
+        settings = ((payload or {}).get("state") or {}).get("settings") or {}
+        value = sanitize_wallpaper_value(settings.get("wallpaper"))
+    except Exception:
+        return ""
+    if not value or value.startswith(("art:", "theme:")):
+        return ""
+    if Path(value).suffix.lower() not in PICTURE_IMAGE_EXTS:
+        return ""
+    absolute = value.startswith(("/", "\\\\")) or re.match(r"^[A-Za-z]:[\\/]", value)
+    if absolute:
+        href = "/user-wallpaper?path=" + quote(value, safe="")
+    else:
+        href = "/user-pictures/" + quote(value, safe="")
+    return f'<link rel="preload" as="image" href="{href}" fetchpriority="high">'
+
+
 class ApiHandler(BaseHTTPRequestHandler):
     store: Store = None
     agent_store: AgentStore = None
@@ -6944,9 +7281,22 @@ class ApiHandler(BaseHTTPRequestHandler):
             if parsed.path == "/":
                 # The boot document carries no colour of its own: the window is
                 # transparent and stays hidden until the finished page reports
-                # ready. Nothing is injected, so there is no themed first frame.
-                body = resolved.read_bytes()
-                self._send(200, body, "text/html; charset=utf-8")
+                # ready. The injected block is data only, never a style or a
+                # colour, so it cannot paint a themed first frame.
+                body = resolved.read_text(encoding="utf-8")
+                boot = build_boot_payload(self.store)
+                payload = json.dumps(
+                    boot,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).replace("<", "\\u003c")
+                body = body.replace(
+                    "<!-- BOOT_DATA -->",
+                    wallpaper_preload_link(boot)
+                    + f'<script id="neotodo-boot-data" type="application/json">{payload}</script>',
+                    1,
+                )
+                self._send(200, body.encode("utf-8"), "text/html; charset=utf-8")
                 return
             body = resolved.read_bytes()
         except Exception:
@@ -7687,14 +8037,50 @@ def start_server(store: Store):
         primary = False
     ApiHandler.store = store
     ApiHandler.agent_store = AgentStore(AGENT_FILE, settle_pending=primary)
+    # Serve first, warm second. The page is about to ask for the board and the
+    # AI config; the probes below cost a process launch and a GTK import, and
+    # doing them before `serve_forever` made every one of those requests wait
+    # for work that is not theirs. The request can now be answered while the
+    # main thread warms these caches beside it.
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
     # Warm the capability check in the main thread. Fork windows are separate
     # GTK processes; the HTTP request thread only reads this cached flag.
     try:
         fork_window_supported()
     except Exception:
         pass
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
+    # The AI console asks for the CLI version and the model list. Both probes
+    # spawn an `opencode` process: the version costs ~0.2 s and the model list
+    # ~1.3 s of CPU and disk, which is exactly what a launch does not have to
+    # spare. The page only reads them when the AI sheet is open, so start the
+    # warm-up after the first frame instead of beside the first paint. If the
+    # reader opens the console sooner, the request runs the same probe itself
+    # and the caches hand that result to the delayed thread.
+    def warm_ai_version():
+        try:
+            ApiHandler.agent_store._opencode_info(0.0)
+        except Exception:
+            pass
+
+    def warm_ai_models():
+        try:
+            ApiHandler.agent_store._available_models()
+        except Exception:
+            pass
+
+    def delayed_warm(target, name, delay=1.6):
+        def run():
+            time.sleep(delay)
+            target()
+
+        try:
+            threading.Thread(target=run, daemon=True, name=name).start()
+        except Exception:
+            pass
+
+    delayed_warm(warm_ai_version, "neotodo-ai-probe")
+    delayed_warm(warm_ai_models, "neotodo-ai-models")
     return server, server.server_address[1]
 
 
@@ -7703,12 +8089,33 @@ def start_server(store: Store):
 # Linux only. Do not copy this block into windows_app.py or Android; those
 # shells are updated together in the platform-sync step.
 # ============================================================================
+_STARTUP_T0 = time.monotonic()
+_STARTUP_TRACE = os.environ.get("NEOTODO_STARTUP_TRACE") == "1"
+
+
+def startup_trace(label: str) -> None:
+    """Print one launch milestone when NEOTODO_STARTUP_TRACE=1.
+
+    A launch is measured from the first Python statement; the page adds its own
+    `performance.mark` entries, which the GTK shell prints right after the
+    window is revealed. Off by default, so a normal start pays nothing.
+    """
+    if not _STARTUP_TRACE:
+        return
+    try:
+        print(f"[startup] {label} +{(time.monotonic() - _STARTUP_T0) * 1000:.0f} ms", flush=True)
+    except Exception:
+        pass
+
+
 def run_gtk() -> None:
+    startup_trace("shell entered")
     import gi
     gi.require_version("Gtk", "4.0")
     gi.require_version("WebKit", "6.0")
     gi.require_version("Gdk", "4.0")
     from gi.repository import Gdk, Gio, GLib, Gtk, WebKit
+    startup_trace("gtk/webkit imported")
 
     # A single, steady caret in the note: no on/off blinking.
     try:
@@ -7720,27 +8127,6 @@ def run_gtk() -> None:
         Gtk.Window.set_default_icon_name("io.github.neotodo")
     except Exception:
         pass
-    store = Store(DATA_FILE)
-    # A fork from an earlier run can only be alive if its window survived a
-    # crash; its record must never point at a reused port.
-    try:
-        cleanup_stale_fork_records()
-    except Exception:
-        pass
-    try:
-        # The window never paints a colour of its own. While the live page is
-        # being prepared the window is transparent, so a frame that escapes the
-        # reveal gate can only show the desktop, never a theme or boot colour.
-        provider = Gtk.CssProvider()
-        provider.load_from_data(
-            b"window, window.background { background-color: transparent; }"
-        )
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
-    except Exception:
-        pass
-    server, port = start_server(store)
 
     class NeoTodoApp(Gtk.Application):
         def __init__(self):
@@ -7752,12 +8138,48 @@ def run_gtk() -> None:
             app_id = os.environ.get("NEOTODO_APP_ID") or "io.github.neotodo"
             super().__init__(application_id=app_id, flags=flags)
             self.window = None
+            self.server = None
 
         def do_activate(self):
             if self.window is not None:
                 self.window.present()
                 return
+            # Build the backend only for the instance that actually owns the
+            # window. A launcher click while NeoTodo is already running is a
+            # plain GApplication activation: before this, every such click also
+            # loaded the notebook, bound the HTTP port and spawned the two AI
+            # warm-up probes, only to quit again and hand the activation over.
+            store = Store(DATA_FILE)
+            startup_trace("store loaded")
+            # A fork from an earlier run can only be alive if its window
+            # survived a crash; its record must never point at a reused port.
+            try:
+                cleanup_stale_fork_records()
+            except Exception:
+                pass
+            try:
+                # The window never paints a colour of its own. While the live
+                # page is being prepared the window is transparent, so a frame
+                # that escapes the reveal gate can only show the desktop, never
+                # a theme or boot colour.
+                provider = Gtk.CssProvider()
+                provider.load_from_data(
+                    b"window, window.background { background-color: transparent; }"
+                )
+                Gtk.StyleContext.add_provider_for_display(
+                    Gdk.Display.get_default(),
+                    provider,
+                    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+                )
+            except Exception:
+                pass
+            server, port = start_server(store)
+            startup_trace("server listening")
+            # The server is owned by its serve_forever thread; keep the object
+            # here too so it cannot be collected with this local scope.
+            self.server = server
             window = Gtk.ApplicationWindow(application=self, title="NeoTodo")
+            startup_trace("window created")
             try:
                 window.set_icon_name("io.github.neotodo")
             except Exception:
@@ -7768,7 +8190,7 @@ def run_gtk() -> None:
             window.set_decorated(False)
             window.maximize()
 
-            def pick_project_folder():
+            def pick_project_folder(initial: str = ""):
                 chosen = {"path": None}
                 done = threading.Event()
 
@@ -7782,6 +8204,17 @@ def run_gtk() -> None:
                         accept_label="Select",
                         cancel_label="Cancel",
                     )
+                    # Start in the clicked todo's own workspace. Without this the
+                    # native chooser reopens wherever the reader last picked,
+                    # which made every todo look like it shared that folder.
+                    start = Path(initial).expanduser() if initial else None
+                    if start and not start.is_dir():
+                        start = start.parent if start.parent.is_dir() else None
+                    if start:
+                        try:
+                            chooser.set_current_folder(Gio.File.new_for_path(str(start)))
+                        except Exception:
+                            pass
                     window._project_folder_dialog = chooser
 
                     def on_response(dialog, response):
@@ -7865,6 +8298,7 @@ def run_gtk() -> None:
             background.parse("rgba(0,0,0,0)")
             view = WebKit.WebView()
             view.set_background_color(background)
+            startup_trace("web view created")
             def apply_view_settings(target):
                 try:
                     target_settings = target.get_settings()
@@ -8168,6 +8602,7 @@ def run_gtk() -> None:
                 except Exception:
                     pass
                 window.present()
+                startup_trace("window mapped (transparent)")
                 return False
 
             def reveal_window(reason="ready"):
@@ -8182,6 +8617,45 @@ def run_gtk() -> None:
                     print(f"[startup] window shown after {(time.monotonic() - started_at) * 1000:.0f} ms ({reason})", flush=True)
                 except Exception:
                     pass
+                if _STARTUP_TRACE:
+                    def dump_marks(target, result, _data=None):
+                        try:
+                            value = target.evaluate_javascript_finish(result)
+                            text = value.to_string() if value is not None else ""
+                        except Exception:
+                            text = ""
+                        if text:
+                            print(f"[startup] page marks {text}", flush=True)
+                        return False
+                    try:
+                        view.evaluate_javascript(
+                            "JSON.stringify(performance.getEntriesByType('mark')"
+                            ".map((e) => [e.name, Math.round(e.startTime)]))",
+                            -1, None, None, None, dump_marks, None,
+                        )
+                        # How long after the page itself reported painted did
+                        # the shell see the flag? A large gap points at the
+                        # renderer's first large paint, not at page work.
+                        def dump_reveal_gap(target, result, _data=None):
+                            try:
+                                value = target.evaluate_javascript_finish(result)
+                                text = value.to_string() if value is not None else ""
+                                now, painted = json.loads(text)
+                            except Exception:
+                                return False
+                            print(
+                                f"[startup] reveal at page time {now} ms"
+                                f" (app-painted {painted} ms, gap {now - painted} ms)",
+                                flush=True,
+                            )
+                            return False
+                        view.evaluate_javascript(
+                            "JSON.stringify([Math.round(performance.now()),"
+                            "Math.round(performance.getEntriesByName('app-painted')[0]?.startTime||0)])",
+                            -1, None, None, None, dump_reveal_gap, None,
+                        )
+                    except Exception:
+                        pass
                 return False
 
             def poll_ready():
@@ -8219,14 +8693,46 @@ def run_gtk() -> None:
                 return False
 
             view.connect("load-changed", on_load_changed)
+            startup_trace("view prepared")
             present_window()
-            GLib.timeout_add(1200, poll_ready)
-            # Only a page that never becomes ready (a broken init) falls back
-            # to an early reveal, so its error message is still reachable.
-            GLib.timeout_add(1800, lambda: reveal_window("global-fallback"))
+            # Poll from the first moment, not after a fixed 1200 ms: the page
+            # now prepares its first render from the boot document, so a fast
+            # launch can be painted well before that timer and would otherwise
+            # sit finished but invisible until it fired.
+            GLib.timeout_add(0, poll_ready)
+            # A fallback is only for a page that never becomes ready (a broken
+            # init), so its error message stays reachable. It must not race a
+            # normal slow launch: an early cap revealed the wallpaper layer —
+            # which lives outside the hidden app shell — while the cards and the
+            # rest of the page were still waiting for their first paint, which
+            # read as the cards being laid on after the wallpaper. A fatal init
+            # now paints its error page immediately, so the finished page owns
+            # the reveal and this cap is only a last resort.
+            GLib.timeout_add(10000, lambda: reveal_window("global-fallback"))
+            startup_trace("page load requested")
             view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
 
         def _shutdown(self):
+            # Silence the notebook first. Agent and fork cleanup can take a
+            # while, and the background track must stop the moment the reader
+            # asks to quit instead of playing on over the closing window. The
+            # mute is synchronous; the page hook releases the media pipeline.
+            try:
+                view = getattr(self, "view", None)
+                if view is not None:
+                    try:
+                        view.set_is_muted(True)
+                    except Exception:
+                        pass
+                    try:
+                        view.evaluate_javascript(
+                            "window.neotodoSilenceAudio&&window.neotodoSilenceAudio()",
+                            -1, None, None, None, None, None,
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             # Forks are child processes of this notebook. Tell them to leave
             # first, so every fork window and the agents inside it stop while
             # this notebook interrupts its own agents.
@@ -8317,6 +8823,16 @@ def run_fork_gtk_window(url: str, title: str, on_close=None, on_ready=None) -> N
     gi.require_version("Gtk", "4.0")
     gi.require_version("WebKit", "6.0")
     from gi.repository import Gtk, WebKit
+
+    # A fork window is a satellite of the notebook, so it must not start a
+    # second copy of the background track. The page reads `silent=1` and keeps
+    # its own audio off, which also means closing the notebook can never leave
+    # a fork window playing the track after the main window is gone.
+    try:
+        if "silent=1" not in url:
+            url = f"{url}{'&' if '?' in url else '?'}silent=1"
+    except Exception:
+        pass
 
     try:
         Gtk.Window.set_default_icon_name("io.github.neotodo")

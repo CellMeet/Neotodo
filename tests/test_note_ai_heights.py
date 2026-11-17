@@ -5,7 +5,8 @@ line resized the other and opening the AI dropped the note on the AI's box.
 They now own one variable each:
 
     --agent-terminal-height   the AI card (viewState.aiHeight)
-    --notes-sheet-height      the note (neotodo.notesSheetHeight)
+    --notes-sheet-height      the note (neotodo.notesSheetHeight.v2, stored
+                              together with the page line it was stretched on)
 
 Sizing one must never read the other. This test pins both the stored keys and
 the two stylesheet boxes, including the side-by-side split, where the note is
@@ -37,8 +38,8 @@ def main() -> int:
 
     # Two stored values, two variables.
     assert 'const HEIGHT_VAR = "--notes-sheet-height";' in note_handle
-    assert 'const HEIGHT_KEY = "neotodo.notesSheetHeight";' in note_handle
-    assert 'localStorage.setItem(HEIGHT_KEY, String(height))' in note_handle
+    assert 'const HEIGHT_KEY = "neotodo.notesSheetHeight.v2";' in note_handle
+    assert "localStorage.setItem(HEIGHT_KEY, JSON.stringify({ height, line: rememberedLine }))" in note_handle
     assert "root.style.setProperty(HEIGHT_VAR" in note_handle
     assert 'rememberedAiSheetHeight' in app_js
     assert 'aiHeight: rememberedAiSheetHeight()' in app_js

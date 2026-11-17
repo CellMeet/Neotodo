@@ -27,7 +27,7 @@
 
   const FALLBACK = {
     highlight: "",
-    highlightFallback: "#8d63b8",
+    highlightFallback: "#1e1f23",
     pageLine: { color: "#333333", opacity: 1, row: 40, thickness: 1 },
     baselineRule: { mode: "solid", color: "#333333", color2: "#a8691f", angle: 0 },
     theme: { id: "light", name: "Light", dark: false, vars: {} },

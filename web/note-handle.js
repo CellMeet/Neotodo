@@ -132,7 +132,13 @@
       startBottom: panelRect && desk ? Math.round(Math.max(startTop + 1, panelRect.bottom - desk.top)) : 0,
       // A closed sheet has no box to pull, so the upward drag opens it first.
       closed: notesHidden || !panelRect || panelRect.height <= 0,
-      minHeight: desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120,
+      // The shortest resting sheet and the overshoot spring both measure one
+      // ruled row of the page (see handle-position.js).
+      row: pageRuledRow(),
+      // The window top and the row under the logo bar that fills it.
+      rise: pageRiseEdge(desk),
+      lastRest: null,
+      compressed: false,
       x0: x,
       y0: y,
       lastDx: 0,
@@ -151,14 +157,23 @@
     // `top` follows the pointer; the foot stays where the sheet already ended,
     // so height is derived from the two and the bottom edge is glued.
     const floor = Math.max(1, Math.min(g.desk.height, g.startBottom || g.desk.height));
-    const lowestTop = Math.max(0, floor - g.minHeight);
-    const top = Math.round(Math.max(0, Math.min(lowestTop, g.startTop + dy)));
-    if (top === g.lastTop) return;
-    g.lastTop = top;
-    const height = Math.max(1, Math.round(floor - top));
-    g.panel.style.setProperty("top", `${top}px`, "important");
+    // One ruled row above the foot is the shortest the note may get, and the
+    // row under the logo bar fills the note to the window top
+    // (handle-position.js). A pull below the floor is a compressed overshoot
+    // the drop springs back from (finish below).
+    const rest = doorRestTop(floor, g.row);
+    const edge = doorEdgeTop(g.startTop + dy, rest, g.row, g.rise);
+    g.lastRest = rest;
+    g.compressed = edge.compressed;
+    // A negative edge starts above the page body: the page stops clipping so
+    // the title row and the logo bar can be covered.
+    if (edge.top < 0) setSheetRisen(true);
+    if (edge.top === g.lastTop) return;
+    g.lastTop = edge.top;
+    const height = Math.max(1, Math.round(floor - edge.top));
+    g.panel.style.setProperty("top", `${edge.top}px`, "important");
     g.panel.style.setProperty("height", `${height}px`, "important");
-    const handleTop = Math.round(g.desk.top + top + 6);
+    const handleTop = Math.round(g.desk.top + edge.top + 6);
     if (handleTop !== g.lastHandleTop) {
       g.lastHandleTop = handleTop;
       handle.style.setProperty("top", `${handleTop}px`, "important");
@@ -220,7 +235,7 @@
         }
         // Start from the shortest allowed sheet so the line follows the finger
         // in a straight 1:1 pull from the bottom door.
-        g.startTop = Math.max(0, g.desk.height - g.minHeight);
+        g.startTop = doorRestTop(g.desk.height, g.row);
         g.startBottom = Math.max(g.startTop + 1, g.desk.height);
         g.closed = false;
         handle.classList.remove("handle-vanish");
@@ -264,6 +279,12 @@
       cancelAnimationFrame(resizeFrame);
       resizeFrame = 0;
       applyResize(pendingDy);
+    }
+    // The drop releases the floor's spring: an edge pulled below the last
+    // ruled row settles on it in this same task, so the height remembered
+    // below is the resting one and not the compressed overshoot.
+    if (g.resizing && g.compressed && g.lastRest != null) {
+      applyResize(g.lastRest - g.startTop);
     }
     setDeskHandleResizing(false);
     delete document.body.dataset.deskHandleDrag;
@@ -333,13 +354,18 @@
 
      --agent-terminal-height   the AI card, written by the AI line and restored
                                from `viewState.aiHeight`;
-     --notes-sheet-height      the note, written by this file and restored from
-                               `neotodo.notesSheetHeight`.
+     --notes-sheet-height      the note, written by this file;
+     --notes-sheet-line-top    the note's top edge (the line the door rides),
+                               a static page value.
 
    Nothing reads one to size the other. Here the note owns its geometry:
-     - reopening restores the height it had when it was last closed;
-     - with no remembered height, it fills the desk right below the subtask
-       area, so opening or closing the AI card never changes the note's height;
+     - the top edge is the page's line under the task/categories block, read
+       once per layout change and published as `--notes-sheet-line-top`; opening,
+       closing, or a split's width translation never moves it;
+     - with no stretched height the box starts on that line every single time,
+       so the note (and its line) never opens somewhere new;
+     - a stretched height belongs to the line it was taken on and is restored
+       only while that line is unchanged;
      - opening the note snapshots and restores the AI height variable, so the
        AI card never moves with it;
      - a side-by-side split only divides the width, so the note keeps its own
@@ -347,51 +373,110 @@
        AI's top is derived from the note's foot.
    ========================================================================== */
 (function () {
-  const HEIGHT_KEY = "neotodo.notesSheetHeight";
+  // v2 stores the stretched height together with the page line it was taken
+  // on (`{ height, line }`). A plain, unvalidated number was the old format:
+  // it could hold a box captured mid-split, which is how the note reopened a
+  // little lower every time. The old key is deliberately not read any more.
+  const HEIGHT_KEY = "neotodo.notesSheetHeight.v2";
   const HEIGHT_VAR = "--notes-sheet-height";
+  // The note's top edge is a page value, not a sheet value: it is the single
+  // line under the task/categories block. It is published here as a static
+  // variable so the sheet, the split rules and the door line all read the same
+  // number instead of each measuring whatever box exists right now.
+  const LINE_TOP_VAR = "--notes-sheet-line-top";
   const root = document.documentElement;
   const body = () => document.querySelector(".page-body");
   const panel = () => document.querySelector("#notes-half");
-  let shownOnce = false;
 
-  let remembered = (() => {
+  let storedHeight = (() => {
     try {
-      const saved = Number(localStorage.getItem(HEIGHT_KEY));
-      if (Number.isFinite(saved) && saved > 0) return saved;
-    } catch (error) {}
-    return null;
+      const raw = localStorage.getItem(HEIGHT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const height = Math.round(Number(parsed && parsed.height));
+      if (!Number.isFinite(height) || height <= 0) return null;
+      const line = Math.round(Number(parsed && parsed.line));
+      return { height, line: Number.isFinite(line) ? line : null };
+    } catch (error) {
+      return null;
+    }
   })();
+
+  let remembered = storedHeight ? storedHeight.height : null;
+  let rememberedLine = storedHeight ? storedHeight.line : null;
 
   // The note's own height is also published as a root variable. The stylesheet
   // uses it for the split box, so the sheet keeps that exact height even before
-  // this file writes its inline box (and while a split clears it).
+  // this file writes its inline box (and while a split clears it). It is
+  // published on every pass, not only after a stretch: with no value the split
+  // rules fell back to the full desk height, so one frame of a width
+  // translation painted the note (and its line) at the desk top.
   const publishHeight = (height) => {
     const value = Math.round(Number(height) || 0);
     if (value > 0) root.style.setProperty(HEIGHT_VAR, `${value}px`);
   };
-  if (remembered != null) publishHeight(remembered);
+
+  let lineTop = null;
+
+  const measureLineTop = () => {
+    const layer = body();
+    if (!layer) return 0;
+    const rect = layer.getBoundingClientRect();
+    if (rect.height <= 0) return 0;
+    const todos = document.querySelector(".todos-section");
+    if (!todos) return Math.round(rect.height / 2);
+    return Math.max(0, Math.round(todos.getBoundingClientRect().bottom - rect.top));
+  };
+
+  // Read the page line again. This is the only place allowed to move it: a
+  // render, an open, a close or a split width translation never changes it,
+  // because the line belongs to the page, not to the sheet.
+  const refreshLineTop = () => {
+    const next = measureLineTop();
+    // Before the page has a laid-out desk there is no line to read. Keep the
+    // last real value (or 0 on the very first pass) instead of letting a
+    // transient 0 push the sheet up to the top of the page.
+    if (next <= 0) return lineTop == null ? 0 : lineTop;
+    if (lineTop === next) return lineTop;
+    const previous = lineTop;
+    lineTop = next;
+    root.style.setProperty(LINE_TOP_VAR, `${next}px`);
+    // A stretched height belongs to the line it was taken on. When the page
+    // itself moves its line (a category row, the page_line pitch, the
+    // window), that stretch would push the sheet to yet another place, so the
+    // static line wins and the sheet opens on it again.
+    if (previous != null && rememberedLine != null && rememberedLine !== next) {
+      remembered = null;
+      rememberedLine = null;
+    }
+    return lineTop;
+  };
 
   const deskHeight = () => Math.max(1, body()?.clientHeight || window.innerHeight);
 
-  // One minimum for both the line gesture and this box. They used to disagree
-  // (190px while dragging, 220px remembered), so releasing a full shrink made
-  // the sheet jump 30px back up under the finger.
-  const minSheetHeight = () => Math.min(220, Math.max(120, deskHeight() * 0.28));
+  // One ruled row is the floor for both the line gesture and this box: the
+  // note may be pulled down to the last row of the page, so a stored one-row
+  // box must come back at that size instead of being blown up to a 120-220px
+  // minimum. The gesture itself measures the floor with doorRestTop().
+  const minSheetHeight = () => Math.max(1, Math.round(pageRuledRow()));
+
+  // A stretched note may also cover the title row and the logo bar above the
+  // page body, so its ceiling is the window top, not the desk.
+  const maxSheetHeight = () => deskHeight() + pageRiseSpan();
 
   const clampHeight = (value) => Math.round(
-    Math.max(minSheetHeight(), Math.min(Number(value) || 0, deskHeight())),
+    Math.max(minSheetHeight(), Math.min(Number(value) || 0, maxSheetHeight())),
   );
 
   const defaultHeight = () => {
     const layer = body();
-    const todos = document.querySelector(".todos-section");
     if (!layer) return 0;
     const rect = layer.getBoundingClientRect();
     if (rect.height <= 0) return 0;
-    const top = todos ? todos.getBoundingClientRect().bottom - rect.top : rect.height / 2;
-    // The default note box fills the desk below the page baseline and never
-    // grows into the task region. It is the same box the note keeps when the
-    // AI opens, so opening the AI can never resize the note.
+    // The note's default box is pinned to the page line, which is static. It
+    // fills the desk from that line to the floor and never grows into the task
+    // region, so every open starts in exactly the same place.
+    const top = refreshLineTop();
     const available = Math.max(0, rect.height - top);
     return Math.round(Math.min(clampHeight(available), available));
   };
@@ -399,12 +484,10 @@
   /** Height of the desk below the page baseline. */
   const deskAvailable = () => {
     const layer = body();
-    const todos = document.querySelector(".todos-section");
     if (!layer) return 0;
     const rect = layer.getBoundingClientRect();
     if (rect.height <= 0) return 0;
-    const top = todos ? todos.getBoundingClientRect().bottom - rect.top : rect.height / 2;
-    return Math.max(0, rect.height - top);
+    return Math.max(0, rect.height - refreshLineTop());
   };
 
   // A split needs a second look: a side-by-side split only divides the width,
@@ -426,9 +509,45 @@
   let appliedTop = null;
   let appliedHeight = null;
 
+  // A drag owns the box and the line: re-measuring them mid-gesture is exactly
+  // the rebound this file fights.
+  const dragging = () => deskHandleResizing()
+    || document.body.classList.contains("agent-split-resizing")
+    || Boolean(panel()?.classList.contains("panel-handle-resizing"));
+
+  // The line belongs to the task/categories block. When that block really
+  // changes size — a new category row, a page_line pitch, a window resize —
+  // re-read the static line once and put the sheet back on it. Opening,
+  // closing or a split's width translation never fires this, so the line stays
+  // a static number for the whole session. The page pass replaces the block
+  // node, so the watcher rebinds whenever a new one appears.
+  let lineObserver = null;
+  let observedTodos = null;
+  function watchLineLayout() {
+    if (typeof ResizeObserver !== "function") return;
+    const todos = document.querySelector(".page-body > .todos-section");
+    if (!todos || todos === observedTodos) return;
+    if (!lineObserver) {
+      lineObserver = new ResizeObserver(() => {
+        if (dragging()) return;
+        refreshLineTop();
+        applyGeometry();
+      });
+    }
+    if (observedTodos) {
+      try { lineObserver.unobserve(observedTodos); } catch (error) {}
+    }
+    observedTodos = todos;
+    lineObserver.observe(todos);
+  }
+
   function applyGeometry() {
     const node = panel();
     if (!node) return;
+    // The line is a static page value: read it here (one rect, in a pass that
+    // already measures the desk) and keep watching the block it belongs to.
+    watchLineLayout();
+    refreshLineTop();
     // While a door line is dragged (or the split divider is), the gesture owns
     // the box. A re-render, a plugin class change or the opening path used to
     // land here mid-drag and stamp the remembered box back over the pointer's
@@ -441,6 +560,10 @@
     // split or a detached window). Everywhere else the note keeps its own
     // saved height, including while the AI card is open beside it.
     if (splitOwnsHeight() || node.classList.contains("notes-hidden")) {
+      // Publish the static line and the height the sheet will use even while
+      // the sheet is off the page: the first painted frame of an open then
+      // already sits on the right line instead of a fallback box.
+      publishHeight(remembered != null ? remembered : defaultHeight());
       clearGeometry(node);
       appliedTop = null;
       appliedHeight = null;
@@ -448,15 +571,29 @@
     }
     const layer = body();
     if (!layer) return;
-    // A remembered height may come from a door-line drag that deliberately
-    // lifted the sheet above the page baseline. Only the no-height default is
-    // pinned below the task list; a user's own box is restored as-is.
-    const base = remembered == null ? defaultHeight() : remembered;
-    const height = Math.round(Math.min(clampHeight(base), Math.max(1, deskHeight())));
-    const top = Math.max(0, layer.clientHeight - height);
+    // The line is static, so the default box always starts on it: closing and
+    // reopening the note, or a split's width translation, cannot move it. Only
+    // a height the user stretched on this same line may lift the sheet away
+    // from the line.
+    const line = refreshLineTop();
+    const desk = Math.max(1, deskHeight());
+    // The note may be taller than the desk when it was stretched over the title
+    // row and the logo bar; its top goes negative by exactly that rise.
+    const rise = pageRiseSpan();
+    const height = remembered == null
+      ? Math.max(1, defaultHeight())
+      : Math.round(Math.min(clampHeight(remembered), desk + rise));
+    const top = remembered == null
+      ? Math.max(0, Math.min(line, Math.max(0, desk - height)))
+      : Math.max(-rise, desk - height);
+    // A remembered box that starts above the page body is a risen sheet: the
+    // page hands its clipping over for as long as that box is on the page.
+    if (top < 0) setSheetRisen(true);
     // Keep the stylesheet's copy of the note height on the user's value, not
     // on a window-clamped one, so a later split or resize restores it whole.
-    if (remembered != null) publishHeight(remembered);
+    // With no stretched height the resolved default is published instead, so
+    // the split rules never fall back to the full desk for a frame.
+    publishHeight(remembered != null ? remembered : height);
     // The page rule caps a sheet at the desk height. Lift that cap when the
     // chosen box reaches above the baseline, so the bottom edge stays on the
     // desk floor instead of leaving a gap under the note.
@@ -508,8 +645,14 @@
     const height = clampHeight(Number.isFinite(inline) && inline > 0 ? inline : currentHeight());
     if (!height) return;
     remembered = height;
+    // The stretch belongs to the line it was taken on. Storing that line is
+    // what lets a later layout change put the sheet back on the static line
+    // instead of reopening at some half-split box.
+    rememberedLine = refreshLineTop();
     publishHeight(height);
-    try { localStorage.setItem(HEIGHT_KEY, String(height)); } catch (error) {}
+    try {
+      localStorage.setItem(HEIGHT_KEY, JSON.stringify({ height, line: rememberedLine }));
+    } catch (error) {}
   }
 
   // Exposed for the bottom door handle's resize gesture.
@@ -533,7 +676,6 @@
         const previous = root.style.getPropertyValue("--agent-terminal-height");
         const priority = root.style.getPropertyPriority("--agent-terminal-height");
         const result = show.apply(this, args);
-        shownOnce = true;
         applyGeometry();
         if (previous) root.style.setProperty("--agent-terminal-height", previous, priority);
         else root.style.removeProperty("--agent-terminal-height");
@@ -544,13 +686,11 @@
       };
     }
 
-    const hide = window.hideNotesPanel;
-    if (typeof hide === "function") {
-      window.hideNotesPanel = function (...args) {
-        if (shownOnce && !document.body.classList.contains("notes-hidden")) rememberFromPanel();
-        return hide.apply(this, args);
-      };
-    }
+    // The note's box has exactly two owners: the static page line (the default
+    // box) and an explicit stretch on that line (rememberFromPanel, called by
+    // the two gestures). Closing no longer snapshots the rendered box: in a
+    // width split that box is the split's own band, so every close used to
+    // write a new home and the next open landed somewhere else.
 
     // A re-render rewrites the panel's inline styles; re-apply the box after it.
     const setup = window.setupNotesPanel;
@@ -566,9 +706,12 @@
     // re-writes `tools-open` on every mouse move). Re-applying the remembered
     // box during the bottom-line drag was resetting the note to its old height
     // on each frame, which is why the line could be pressed but never pulled.
-    const dragging = () => deskHandleResizing()
-      || document.body.classList.contains("agent-split-resizing")
-      || Boolean(panel()?.classList.contains("panel-handle-resizing"));
+    // (`dragging()` above is shared with the line watcher.)
+
+    // The line belongs to the task/categories block: watch it so a real page
+    // change (a new category row, a page_line pitch) is the only thing that
+    // can move the sheet's line.
+    watchLineLayout();
 
     new MutationObserver((records) => {
       if (dragging()) return;
