@@ -6713,65 +6713,17 @@ async function copyToClipboard(text) {
   }
 }
 
-function flashAgentCopy(rect) {
-  // One toast at a time: a fast second copy replaces the first card instead of
-  // stacking two of them over the line.
-  document.querySelectorAll(".agent-copy-flash").forEach((old) => old.remove());
-  const node = document.createElement("span");
-  node.className = "agent-copy-flash";
-  node.innerHTML = `<span class="agent-copy-flash-text">Copied to clipboard</span>`;
-  // Match the console's own palette so the toast reads on paper and on the
-  // dark sheet alike. The cyan side blocks are owned by the stylesheet.
-  const terminal = $("#agent-terminal");
-  const styles = terminal ? getComputedStyle(terminal) : null;
-  const bg = styles?.getPropertyValue("--oc-soft").trim() || "#f4f4f5";
-  const ink = styles?.getPropertyValue("--oc-ink").trim() || "#171718";
-  node.style.background = bg;
-  node.style.color = ink;
-  document.body.appendChild(node);
-  // OpenCode puts its copy toast above the copied line, and so do we. The
-  // toast is clamped to the viewport so a selection near an edge stays
-  // readable.
-  const size = node.getBoundingClientRect();
-  const viewportW = window.innerWidth || document.documentElement.clientWidth || 0;
-  let left = Math.round(rect.left + rect.width / 2 - size.width / 2);
-  let top = Math.round(rect.top - size.height - 8);
-  if (top < 8) top = 8;
-  if (left < 8) {
-    left = 8;
-  } else if (viewportW && left + size.width > viewportW - 8) {
-    left = Math.max(8, viewportW - size.width - 8);
-  }
-  node.style.left = `${left}px`;
-  node.style.top = `${top}px`;
-  // Show, hold, then drop it: no fade in either direction.
-  setTimeout(() => node.remove(), 1000);
-}
-
 /* Notes and the other notebook pages copy themselves the same way the
-   console does: select written text and it lands on the clipboard. One
-   "Copied to clipboard" badge answers from the top centre, squared off with a
-   theme accent block on each side. Symbols, icons, shapes and rules are not
-   text, so a selection made of them is left alone. */
+   console does: select written text and it lands on the clipboard. Symbols,
+   icons, shapes and rules are not text, so a selection made of them is left
+   alone. A copy is silent: no badge, no toast, because the selection already
+   says what happened. */
 let lastPageCopiedText = "";
-
-function flashPageCopy() {
-  // One badge at a time, like the console toast.
-  document.querySelectorAll(".page-copy-flash").forEach((old) => old.remove());
-  const node = document.createElement("span");
-  node.className = "page-copy-flash";
-  node.textContent = "Copied to clipboard";
-  // The stylesheet owns the look: notebook paper and ink with a theme accent
-  // on each side, deliberately distinct from the console's copy toast.
-  document.body.appendChild(node);
-  // Show, hold, then drop it: no fade in either direction.
-  setTimeout(() => node.remove(), 1100);
-}
 
 // The sheet a selection has to live in for the copy effect: the notebook
 // pages, Categories, the drawers, and every popup the notebook opens over
 // them (Settings, Community, AI settings, the postcard viewer, the timer and
-// the sound panel). The console keeps its own toast.
+// the sound panel). The console reads its own selection separately.
 const PAGE_COPY_ZONE = "#stage, #notes-half, #category-list, #archive-drawer, #trash-drawer, #modal-root, #timer-root, #sound-panel";
 
 // Fields in these sheets are written text too; the inline rename fields on
@@ -6805,14 +6757,13 @@ function pageCopiedText() {
   if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
   if (!node?.closest) return "";
   if (!node.closest(PAGE_COPY_ZONE)) return "";
-  if (node.closest("#agent-terminal, .context-menu, .page-copy-flash")) return "";
+  if (node.closest("#agent-terminal, .context-menu")) return "";
   if (node.closest("input, textarea, select, button, svg, [contenteditable='true'], [aria-hidden='true']")) return "";
   return text;
 }
 
 // "intheme" plugins run in their own same-origin frame, so the notebook binds
-// the same gesture handlers inside that document. The badge still belongs to
-// the notebook and paints over the plugin sheet.
+// the same gesture handlers inside that document.
 function frameCopiedText(win) {
   const doc = win?.document;
   if (!doc) return "";
@@ -6889,7 +6840,6 @@ function bindFrameCopy(frame) {
     copyFrameText(text).then((ok) => {
       if (!ok) return;
       lastText = text;
-      flashPageCopy();
     });
   };
 
@@ -6901,11 +6851,6 @@ function bindFrameCopy(frame) {
     if (event.key === "Shift" || event.key.startsWith("Arrow") || (event.key === "a" && (event.ctrlKey || event.metaKey))) {
       setTimeout(copySelection, 0);
     }
-  });
-  doc.addEventListener("copy", () => {
-    setTimeout(() => {
-      if (frameCopiedText(win)) flashPageCopy();
-    }, 0);
   });
 }
 
@@ -6923,7 +6868,6 @@ function bindPageCopy() {
     copyToClipboard(text).then((ok) => {
       if (!ok) return;
       lastPageCopiedText = text;
-      flashPageCopy();
     });
   };
 
@@ -6937,13 +6881,6 @@ function bindPageCopy() {
     if (event.key === "Shift" || event.key.startsWith("Arrow") || (event.key === "a" && (event.ctrlKey || event.metaKey))) {
       setTimeout(copySelection, 0);
     }
-  });
-  // A Ctrl+C, a native menu copy or the note's own menu copy still answers
-  // with the same badge, even when the text was already on the clipboard.
-  document.addEventListener("copy", () => {
-    setTimeout(() => {
-      if (pageCopiedText()) flashPageCopy();
-    }, 0);
   });
 }
 
@@ -6985,11 +6922,9 @@ function bindAgentMessages() {
     if (!node?.closest?.("#agent-terminal")) return;
     if (node.closest("input, textarea, [contenteditable='true']")) return;
     if (text === lastAutoCopiedText) return;
-    const rect = range.getBoundingClientRect();
     copyToClipboard(text).then((ok) => {
       if (!ok) return;
       lastAutoCopiedText = text;
-      flashAgentCopy(rect);
     });
   };
 
@@ -7018,12 +6953,12 @@ function bindAgentMessages() {
   });
 
   // The composer is a real field, so window.getSelection() stays collapsed
-  // there. Read the field's own selection range instead and show the same
-  // toast, so text typed by the user copies just like the replies do.
+  // there. Read the field's own selection range instead, so text typed by the
+  // user copies just like the replies do.
   const input = $("#agent-input");
   if (input && input.dataset.agentCopyBound !== "1") {
     input.dataset.agentCopyBound = "1";
-    const copyFieldSelection = (point) => {
+    const copyFieldSelection = () => {
       const start = input.selectionStart;
       const end = input.selectionEnd;
       if (start == null || end == null || start === end) {
@@ -7035,9 +6970,6 @@ function bindAgentMessages() {
       copyToClipboard(text).then((ok) => {
         if (!ok) return;
         lastAutoCopiedText = text;
-        // A mouse selection anchors the toast at the pointer; keyboard
-        // selections fall back to the field itself.
-        flashAgentCopy(point || input.getBoundingClientRect());
       });
     };
     // A drag can leave the field before the button comes up, so the release
@@ -7047,11 +6979,10 @@ function bindAgentMessages() {
       lastAutoCopiedText = "";
       fieldDragging = true;
     });
-    document.addEventListener("pointerup", (event) => {
+    document.addEventListener("pointerup", () => {
       if (!fieldDragging) return;
       fieldDragging = false;
-      const point = { left: event.clientX, top: event.clientY, width: 0 };
-      setTimeout(() => copyFieldSelection(point), 0);
+      setTimeout(() => copyFieldSelection(), 0);
     });
     input.addEventListener("keyup", (event) => {
       const selectKey = event.key === "Shift"
@@ -11742,7 +11673,7 @@ function showHistoryMenu(x, y, index) {
   const todo = doneTodos(selectedCategory())[Number(index)];
   if (!todo) return;
   openContextMenu(x, y, [
-    { label: "Copy name", run: async () => { if (await copyPlainText(todo.name)) flashPageCopy(); } },
+    { label: "Copy name", run: async () => { await copyPlainText(todo.name); } },
     { label: "Edit note", run: () => editHistoryNote(todo.id) },
     { label: "Completed · name locked", disabled: true },
   ]);
@@ -11756,7 +11687,7 @@ function showHistorySubtaskMenu(x, y, todoId, subtaskId) {
     ...(pluginEnabled("forktree")
       ? [{ label: "Fork", icon: FORK_ICON, run: () => forkSubtask(todo, subtask) }]
       : []),
-    { label: "Copy name", run: async () => { if (await copyPlainText(subtask.name)) flashPageCopy(); } },
+    { label: "Copy name", run: async () => { await copyPlainText(subtask.name); } },
     { label: "Edit note", run: () => selectHistorySubtaskNote(todoId, subtaskId) },
   ]);
 }
@@ -19939,12 +19870,7 @@ function bindEvents() {
           label: "Copy",
           disabled: !selectionText(),
           run: async () => {
-            if (!(await copyText(selectionText()))) return;
-            // The console answers every copy with the same toast, so a copy
-            // taken from the composer's menu reads like one taken from a reply.
-            // The note answers with the big page badge instead.
-            if (editable.closest("#agent-terminal")) flashAgentCopy(editable.getBoundingClientRect());
-            else if (editable.closest("#notes-half")) flashPageCopy();
+            await copyText(selectionText());
           },
         },
         { label: "Paste", run: paste },
