@@ -7577,7 +7577,8 @@ def run_gtk() -> None:
                 if "--new-window" in sys.argv
                 else Gio.ApplicationFlags.DEFAULT_FLAGS
             )
-            super().__init__(application_id="io.github.neotodo", flags=flags)
+            app_id = os.environ.get("NEOTODO_APP_ID") or "io.github.neotodo"
+            super().__init__(application_id=app_id, flags=flags)
             self.window = None
 
         def do_activate(self):
@@ -8050,7 +8051,7 @@ def run_gtk() -> None:
             GLib.timeout_add(1200, poll_ready)
             # Only a page that never becomes ready (a broken init) falls back
             # to an early reveal, so its error message is still reachable.
-            GLib.timeout_add(5000, lambda: reveal_window("global-fallback"))
+            GLib.timeout_add(1800, lambda: reveal_window("global-fallback"))
             view.load_uri(f"http://127.0.0.1:{port}/?desktop=1")
 
         def _shutdown(self):

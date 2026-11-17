@@ -1202,11 +1202,22 @@
 
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;
+    if (event.data?.type === "neotodo-plugin-close") {
+      hidePlayer({ pause: true });
+      return;
+    }
     if (event.data?.type !== "neotodo-music-player-open") return;
     try {
       if (typeof closePluginPanel === "function") closePluginPanel();
     } catch (error) {}
     showPlayer();
+  });
+
+  // A plugin page must never outlive its host. Closing the window, hiding the
+  // tab or unmounting the iframe stops the audio track instead of leaving the
+  // headphones playing into an empty room.
+  window.addEventListener("pagehide", () => {
+    try { nodes.audio.pause(); } catch (error) {}
   });
 
   if (window.MutationObserver) {

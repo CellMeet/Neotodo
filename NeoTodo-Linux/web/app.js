@@ -5317,7 +5317,7 @@ function activateNoteBlock(index, anchorEvent = null, caretOverride = null) {
 function noteGhostMarkup() {
   const first = noteBlocks[0];
   if (!first || String(first.raw || "").trim()) return "";
-  return '<span class="note-ghost" data-note-ghost aria-hidden="true">write mood light ...</span>';
+  return '<span class="note-ghost" data-note-ghost aria-hidden="true">Write something ...</span>';
 }
 
 function syncNoteGhost(editorIndex, raw) {
@@ -8981,7 +8981,7 @@ function renderStage() {
   } else {
     const emptyRows = Array.from({ length: 7 }, () => '<div class="current-subtask current-subtask-filler" aria-hidden="true"></div>').join("");
     metaHtml = `<div class="current-inner"><div class="current-subtasks">${emptyRows}</div></div>`;
-    headTitle = `<input id="new-todo-title" class="new-todo-title" type="text" autocomplete="off" spellcheck="false" aria-label="New task">`;
+    headTitle = `<input id="new-todo-title" class="new-todo-title" type="text" placeholder="Nothing to do ..." autocomplete="off" spellcheck="false" aria-label="New task">`;
   }
 
   // The old page-art was the postcard scene painted inside the theme. The same
@@ -10240,6 +10240,10 @@ function setPluginEnabled(pluginId, enabled) {
   state.enabled = Boolean(enabled);
   saveSettings();
   applyPluginState(true);
+  // Turning a plugin off must also tear down its live panel. Some plugin
+  // pages own media elements, so leaving the iframe mounted kept audio
+  // playing after the switch was flipped.
+  if (!state.enabled && openPluginId === pluginId) closePluginPanel();
   refreshPluginSurface(pluginId);
   AudioFX.categoryTap();
   renderSettings();
@@ -15595,9 +15599,8 @@ function rasterizeVideoFrameToBitmapUrl(src) {
 /* Two kinds of surface borrow the wallpaper pane:
      - `data-subcard`      a card made of the wallpaper (pane + card stroke),
      - `data-wallpaper-surface`  a surface that only wants the wallpaper as its
-       background (the top hidden box): same baked picture, but sampled at the
-       surface's exact box (100%) instead of a card's wide crop; no card
-       identity. */
+       background (the top hidden box): same baked picture, sampled at the
+       host's exact box (100%); no card identity. */
 const SUBCARD_SELECTOR = "[data-subcard], [data-wallpaper-surface]";
 const SUBCARD_PANE_CLASS = "card-wallpaper";
 const SUBCARD_PAPER_KEEP = 24;
@@ -15696,18 +15699,19 @@ function subcardPaperKey(host, wallpaper, box) {
   ].join("|");
 }
 
-/* A sub-card keeps the 140% wallpaper sample: it is a sheet of the room, so
-   the picture is wider than the card's own footprint and kept centred.
+/* A sub-card samples exactly its own footprint: the picture and colour come
+   from the wallpaper under that card's own region, not from a wider crop of
+   the layer below it.
 
-   Every card crops its own centre from one shared sampling object: the room's
-   bottom wallpaper. The finished card and the Doing card therefore use the
-   same 140% rule as the subtask area, but each keeps its own centre. They
+   Every card crops from one shared sampling object: the room's bottom
+   wallpaper. The finished card and the Doing card therefore read the same
+   pattern and colour as the room behind them at 100% of their own boxes. They
    never sample the card below them, which was what made the upper sheets look
    progressively darker.
 
-   The top hidden bar is sampled at 100%: it wears the wallpaper as its own
-   background and must line up with the room behind it. */
-const SUBCARD_PAPER_REGION = 1.4;
+   The top hidden bar is also sampled at 100%: it wears the wallpaper as its
+   own background and must line up with the room behind it. */
+const SUBCARD_PAPER_REGION = 1;
 const SURFACE_PAPER_REGION = 1;
 
 /** How much of the wallpaper a host samples, as a multiple of its own box. */

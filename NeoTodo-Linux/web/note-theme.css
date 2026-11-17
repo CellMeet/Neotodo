@@ -242,7 +242,7 @@ html[data-theme="postcard"] .context-menu.context-note,
   color: var(--note-ink, #4a3a28) !important;
 }
 
-/* The empty first line is a ghost prompt, not content: write mood light ...
+/* The empty first line is a ghost prompt, not content: Write something ...
    It sits over the first editor's padding so it reads in the same italic hand
    as the note, and never catches a click. */
 .note-live {
