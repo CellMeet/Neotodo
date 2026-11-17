@@ -92,6 +92,9 @@ AI_DEFAULT_CONFIG = {
 # deleted on launch instead of being painted before the app is ready.
 LEGACY_STARTUP_FILES = (DATA_DIR / "last-page.html", DATA_DIR / "last-page.png")
 SOUNDS_DIR = DATA_DIR / "sounds"
+# The optional theme music is a single bundled loop, kept apart from the sounds
+# shelf so it never appears as a one-shot cue in the sound-style picker.
+BACKGROUND_MUSIC_DIR = WEB_DIR / "background-music"
 NOTE_MATERIALS_DIR = DATA_DIR / "note-materials"
 PICTURES_DIR = DATA_DIR / "pictures"
 MUSIC_DIR = DATA_DIR / "music"
@@ -6618,6 +6621,23 @@ class ApiHandler(BaseHTTPRequestHandler):
             name = unquote(parsed.path.rsplit("/", 1)[-1])
             candidate = music_file(name)
             if candidate is None:
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            self._send_media(candidate)
+            return
+        if parsed.path.startswith("/background-music/"):
+            # The bundled theme loop is streamed with byte ranges so WebKit can
+            # loop and seek it without downloading the whole file again.
+            name = unquote(parsed.path.rsplit("/", 1)[-1])
+            if (
+                not name
+                or Path(name).name != name
+                or Path(name).suffix.lower() not in SOUND_AUDIO_EXTS
+            ):
+                self._json(404, {"ok": False, "error": "Not found"})
+                return
+            candidate = BACKGROUND_MUSIC_DIR / name
+            if not candidate.is_file():
                 self._json(404, {"ok": False, "error": "Not found"})
                 return
             self._send_media(candidate)
