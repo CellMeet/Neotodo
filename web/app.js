@@ -18394,7 +18394,7 @@ function renderSettings() {
     : settingsTab === "about" ? aboutSettings()
     : themeSettings();
   // Each page carries its name in the top row beside the close button, in the
-  // same quiet italic face the old in-page heading used. Appearance, Sound and
+  // same quiet italic face the old in-page heading used. Appearance, Music and
   // Stickers wear the calligraphic brand face instead, and drop the hairline
   // under the title so the lettering stands on its own.
   const detailPlugin = settingsTab === "plugins" && pluginDetailId ? PLUGIN_REGISTRY[pluginDetailId] : null;
@@ -18402,7 +18402,7 @@ function renderSettings() {
     : settingsTab === "font" ? "Font"
     : settingsTab === "stickers" ? "Stickers"
     : settingsTab === "plugins" ? "Plugins"
-    : settingsTab === "sound" ? "Sound"
+    : settingsTab === "sound" ? "Music"
     : settingsTab === "about" ? "About"
     : "Appearance";
   const artTitle = settingsTab === "theme" || settingsTab === "sound" || settingsTab === "stickers";
@@ -18412,7 +18412,7 @@ function renderSettings() {
       <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
       <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
       <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
-      <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Sound</button>
+      <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Music</button>
       <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
     </aside>
     <section class="settings-main">

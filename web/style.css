@@ -10303,7 +10303,7 @@ html[data-theme="postcard"] .week-count .moon-icon {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-/* Appearance, Sound and Stickers sign their name in the brand's calligraphic
+/* Appearance, Music and Stickers sign their name in the brand's calligraphic
    face. The top row keeps its height but the hairline under the lettering
    disappears, so the script can sit on bare paper. */
 .settings-page-title-art {
@@ -15074,7 +15074,7 @@ html[data-theme="postcard"] .head-right .trophy-glyph {
 #agent-custom-caret.block { border-radius: 2px; }
 #agent-custom-caret.blink { animation: custom-caret-blink 1.06s steps(1, end) infinite; }
 
-/* Settings → Sound file list. */
+/* Settings → Music file list. */
 .sound-settings-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
