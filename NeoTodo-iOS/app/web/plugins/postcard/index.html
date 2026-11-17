@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="postcard" data-postcard-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>明信片 · NeoTodo</title>
+  <script>
+    // Wear the notebook's live palette before the first stylesheet paints, so
+    // the sheet never flashes a light fallback over a dark postcard.
+    (function () {
+      var root = document.documentElement;
+      var vars = [
+        "--pc-paper", "--pc-paper2", "--pc-ink", "--pc-muted",
+        "--pc-accent", "--pc-accent-2", "--pc-accent2",
+        "--pc-accent-rgb", "--pc-accent2-rgb", "--pc-border",
+        "--pc-line", "--pc-rule", "--pc-paper-rgb", "--pc-paper2-rgb",
+        "--pc-glow", "--pc-stamp", "--pc-paper-soft",
+        "--pc-mask-soft", "--pc-mask-mid", "--pc-mask-strong",
+        "--display", "--mono", "--script", "--note-font", "--overlay-top"
+      ];
+      try {
+        root.dataset.theme = "postcard";
+        if (window.parent !== window) {
+          var parentRoot = window.parent.document.documentElement;
+          root.dataset.postcardDark = parentRoot.dataset.postcardDark === "true" ? "true" : "false";
+          var styles = window.parent.getComputedStyle(parentRoot);
+          for (var index = 0; index < vars.length; index += 1) {
+            var value = styles.getPropertyValue(vars[index]).trim();
+            if (value) root.style.setProperty(vars[index], value);
+          }
+        }
+      } catch (error) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="plugin.css">
+</head>
+<body>
+  <main class="settings-stage">
+    <div class="settings-panel" role="dialog" aria-modal="true" aria-label="明信片">
+      <aside class="settings-nav">
+        <div class="settings-brand">
+          <img class="postcard-brand-icon" src="postcard.svg" alt="">
+          <span>明信片</span>
+        </div>
+        <button class="settings-nav-item active" type="button" data-pc-nav="all">全部明信片</button>
+        <div class="pc-nav-years" id="pc-nav-years"></div>
+        <span class="pc-nav-foot" id="pc-theme-name">Theme</span>
+      </aside>
+
+      <section class="settings-main">
+        <div class="settings-topbar">
+          <button class="settings-close" type="button" data-close aria-label="Close postcards">
+            <svg class="settings-close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <div class="settings-scroll" id="pc-scroll">
+          <div class="settings-view">
+            <div class="settings-head">
+              <h2>明信片</h2>
+              <p>每一周完成的事情都收在这里。点一张卡片展开，再点一次收起；点展开的明信片可以把它放到整个窗口里看。</p>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-label"><span>Archive</span><span id="pc-summary">—</span></div>
+              <div class="pc-archive" id="pc-archive"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="plugin.js"></script>
+</body>
+</html>

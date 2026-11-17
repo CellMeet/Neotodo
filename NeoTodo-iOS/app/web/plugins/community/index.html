@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="postcard" data-postcard-dark="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>社区 · NeoTodo</title>
+  <script>
+    // The community sheet is an "intheme" page: copy the notebook's current
+    // palette before the first stylesheet paints, exactly like Settings.
+    (function () {
+      var root = document.documentElement;
+      var vars = [
+        "--pc-paper", "--pc-paper2", "--pc-ink", "--pc-muted",
+        "--pc-accent", "--pc-accent-2", "--pc-accent2",
+        "--pc-accent-rgb", "--pc-accent2-rgb", "--pc-border",
+        "--pc-line", "--pc-rule", "--pc-paper-rgb", "--pc-paper2-rgb",
+        "--pc-glow", "--pc-stamp", "--pc-paper-soft",
+        "--pc-mask-soft", "--pc-mask-mid", "--pc-mask-strong",
+        "--display", "--mono", "--script", "--note-font", "--overlay-top"
+      ];
+      try {
+        root.dataset.theme = "postcard";
+        if (window.parent !== window) {
+          var parentRoot = window.parent.document.documentElement;
+          root.dataset.postcardDark = parentRoot.dataset.postcardDark === "true" ? "true" : "false";
+          var styles = window.parent.getComputedStyle(parentRoot);
+          for (var index = 0; index < vars.length; index += 1) {
+            var value = styles.getPropertyValue(vars[index]).trim();
+            if (value) root.style.setProperty(vars[index], value);
+          }
+        }
+      } catch (error) {}
+      window.addEventListener("message", function (event) {
+        if (event.data?.type !== "neotodo-theme") return;
+        root.dataset.postcardDark = event.data.dark ? "true" : "false";
+        var incoming = event.data.vars || {};
+        for (var name in incoming) {
+          if (!Object.prototype.hasOwnProperty.call(incoming, name)) continue;
+          var value = String(incoming[name] || "").trim();
+          if (value) root.style.setProperty(name, value);
+        }
+      });
+    })();
+  </script>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="community.css">
+</head>
+<body>
+  <div class="community-stage">
+    <div class="community-panel" role="dialog" aria-modal="true" aria-label="社区">
+      <header class="community-topbar">
+        <div class="community-brand">
+          <span class="community-brand-mark" aria-hidden="true">
+            <img src="community.svg" alt="">
+          </span>
+          <span class="community-brand-copy">
+            <strong>社区</strong>
+            <small>插件、游戏和主题，来自 NeoTodo 社区。安装后的内容留在本机。</small>
+          </span>
+        </div>
+        <div class="community-topbar-tools">
+          <span class="community-server local" data-server><span class="community-server-dot" aria-hidden="true"></span><span data-server-label>正在连接…</span></span>
+          <button class="settings-close community-close" type="button" data-close aria-label="关闭社区">
+            <svg class="settings-close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="community-body">
+        <div class="community-tabs" role="tablist" aria-label="社区分区">
+          <button class="community-tab active" type="button" role="tab" aria-selected="true" data-tab="plugins">
+            <span>插件</span><small data-count-plugins>0</small>
+          </button>
+          <button class="community-tab" type="button" role="tab" aria-selected="false" data-tab="games">
+            <span>游戏</span><small data-count-games>0</small>
+          </button>
+          <button class="community-tab" type="button" role="tab" aria-selected="false" data-tab="themes">
+            <span>主题</span><small data-count-themes>0</small>
+          </button>
+        </div>
+        <div class="community-scroll"><div class="community-view" data-view></div></div>
+      </div>
+
+      <footer class="community-foot">
+        <span>目录从社区服务器读取，不用更新 NeoTodo；安装后的插件和主题放在本机。</span>
+        <span class="community-foot-actions">
+          <button class="btn small" type="button" data-action="refresh-catalog">刷新目录</button>
+          <button class="btn small" type="button" data-action="manage-plugins">管理已安装插件</button>
+        </span>
+      </footer>
+    </div>
+  </div>
+
+  <div class="community-shop-toast" data-toast role="status" aria-live="polite"></div>
+  <input type="file" accept=".zip,application/zip" data-plugin-archive hidden>
+  <script src="community.js"></script>
+</body>
+</html>

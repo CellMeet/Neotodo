@@ -1,0 +1,20 @@
+Font credits
+============
+
+SedgwickAve-400.ttf
+  "Sedgwick Ave" courtesy of Google Fonts.
+  https://fonts.google.com/specimen/Sedgwick+Ave
+  License: SIL Open Font License 1.1 (https://openfontlicense.org/)
+  Used for the NeoTodo wordmark tag in the notebook header.
+
+Bungee-Regular.ttf
+  "Bungee" courtesy of Google Fonts.
+  https://fonts.google.com/specimen/Bungee
+  License: SIL Open Font License 1.1 (https://openfontlicense.org/)
+  Fallback for the upright "Categories" label in the category spine.
+
+Michroma-Regular.ttf
+  "Michroma" courtesy of Google Fonts.
+  https://fonts.google.com/specimen/Michroma
+  License: SIL Open Font License 1.1 (https://openfontlicense.org/)
+  Used for the squared, right-angled "Categories" label in the category spine.

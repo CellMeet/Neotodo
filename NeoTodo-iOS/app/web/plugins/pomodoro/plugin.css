@@ -1,0 +1,411 @@
+/* ==========================================================================
+   番茄钟 / POMODORO — plugin control page.
+   Scoped to .pd-* so it never reaches into the notebook's own styles.
+   ========================================================================== */
+
+:root {
+  --pd-ink: #2c201d;
+  --pd-muted: #7b625b;
+  --pd-paper: #f7efe3;
+  --pd-card: #fff8f1;
+  --pd-line: rgba(92, 52, 37, 0.15);
+  --pd-tomato: #f2544b;
+  --pd-tomato-deep: #a92f2b;
+  --pd-leaf: #3bb58d;
+  --pd-gold: #b9872c;
+  --pd-shadow: rgba(82, 44, 28, 0.16);
+}
+
+html[data-pd-dark="true"] {
+  --pd-ink: #fbeee8;
+  --pd-muted: #c8aea4;
+  --pd-paper: #211b1a;
+  --pd-card: #302523;
+  --pd-line: rgba(255, 216, 199, 0.15);
+  --pd-shadow: rgba(0, 0, 0, 0.44);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 16% 10%, rgba(242, 84, 75, 0.17), transparent 36%),
+    linear-gradient(180deg, var(--pd-paper), var(--pd-paper));
+  color: var(--pd-ink);
+  font-family: "Noto Serif", Georgia, "Times New Roman", var(--serif, serif);
+}
+
+body { opacity: 1; }
+
+.pd-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 26px;
+  overflow: auto;
+}
+
+.pd-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--pd-line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pd-card) 82%, transparent);
+  color: var(--pd-muted);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.pd-close:hover {
+  color: var(--pd-ink);
+  border-color: color-mix(in srgb, var(--pd-tomato) 60%, var(--pd-line));
+  transform: rotate(6deg);
+}
+
+.pd-close svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.pd-hero {
+  width: min(680px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 6px 26px;
+}
+
+/* --------------------------------------------------------------------------
+   Preview: the achievement shelf grows leftwards when a tagged plugin lands.
+   -------------------------------------------------------------------------- */
+
+.pd-stage {
+  position: relative;
+  width: 100%;
+  height: 238px;
+  margin-bottom: 4px;
+  border: 1px solid var(--pd-line);
+  border-radius: 18px;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 39px, var(--pd-line) 39px 40px),
+    color-mix(in srgb, var(--pd-card) 42%, transparent);
+  overflow: hidden;
+}
+
+.pd-stage-head {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--pd-line);
+  background: color-mix(in srgb, var(--pd-card) 56%, transparent);
+}
+
+.pd-stage-brand {
+  color: var(--pd-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.pd-stage-shelf {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.pd-stage-ach {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--pd-gold);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pd-stage-ach svg,
+.pd-stage-ach img {
+  width: 44px;
+  height: 44px;
+  display: block;
+  object-fit: contain;
+}
+
+.pd-stage-tomato {
+  color: var(--pd-tomato-deep);
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pd-tomato) 10%, transparent);
+}
+
+.pd-stage-tomato img { filter: drop-shadow(0 2px 2px rgba(80, 30, 20, 0.16)); }
+
+.pd-stage-tomato b {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pd-stage-arrow {
+  position: absolute;
+  top: 116px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--pd-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+
+.pd-stage-arrow em {
+  color: var(--pd-tomato-deep);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.pd-stage-arrow i { font-style: normal; }
+
+.pd-stage-arrow-head { right: 168px; text-align: right; }
+.pd-stage-arrow-tomato { right: 40px; }
+
+.pd-stage-clock {
+  position: absolute;
+  left: 26px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 10px 16px 10px 12px;
+  border: 1px solid var(--pd-line);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--pd-card) 84%, transparent);
+  box-shadow: 0 12px 26px var(--pd-shadow);
+}
+
+.pd-stage-clock img {
+  width: 46px;
+  height: 46px;
+  display: block;
+  object-fit: contain;
+}
+
+.pd-stage-clock div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pd-stage-clock strong {
+  color: var(--pd-ink);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 23px;
+  letter-spacing: -0.03em;
+}
+
+.pd-stage-clock small {
+  color: var(--pd-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
+   Copy and controls
+   -------------------------------------------------------------------------- */
+
+.pd-kicker {
+  color: var(--pd-tomato-deep);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.pd-title h1 {
+  margin: 4px 0 3px;
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+
+.pd-title p {
+  margin: 0;
+  color: var(--pd-muted);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.pd-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--pd-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.pd-copy p { margin: 0; }
+
+.pd-power {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 2px;
+  padding: 15px 17px;
+  border: 1px solid color-mix(in srgb, var(--pd-tomato-deep) 25%, var(--pd-line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--pd-tomato) 10%, var(--pd-card));
+  color: var(--pd-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.pd-power:hover {
+  border-color: color-mix(in srgb, var(--pd-tomato-deep) 46%, var(--pd-line));
+  background: color-mix(in srgb, var(--pd-tomato) 17%, var(--pd-card));
+}
+
+.pd-power-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pd-power-copy strong { font-size: 15px; }
+.pd-power-copy small { color: var(--pd-muted); font-size: 12.5px; }
+
+.pd-switch {
+  flex: 0 0 50px;
+  width: 50px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--pd-tomato-deep);
+  transition: background 0.18s ease;
+}
+
+.pd-thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(52, 23, 18, 0.28);
+  transform: translateX(22px);
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pd-power.pd-off .pd-switch { background: color-mix(in srgb, var(--pd-muted) 42%, transparent); }
+.pd-power.pd-off .pd-thumb { transform: translateX(0); }
+
+.pd-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--pd-leaf) 52%, var(--pd-line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pd-leaf) 14%, var(--pd-card));
+  color: var(--pd-ink);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: filter 0.16s ease, opacity 0.16s ease;
+}
+
+.pd-start img {
+  width: 28px;
+  height: 28px;
+  display: block;
+  object-fit: contain;
+}
+
+.pd-start:hover { filter: brightness(1.05); }
+.pd-start:disabled { opacity: 0.45; cursor: default; filter: none; }
+
+.pd-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: var(--pd-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+.pd-hints span {
+  padding: 5px 9px;
+  border: 1px solid var(--pd-line);
+  border-radius: 999px;
+}
+
+.pd-hints b {
+  margin-right: 4px;
+  color: var(--pd-tomato-deep);
+  font-weight: 700;
+}
+
+.pd-done {
+  margin-top: 4px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pd-tomato-deep);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: filter 0.16s ease;
+}
+
+.pd-done:hover { filter: brightness(1.08); }
+
+@media (max-width: 560px) {
+  .pd-page { padding: 18px; }
+  .pd-stage { height: 214px; }
+  .pd-stage-head { padding: 0 12px; }
+  .pd-stage-shelf { gap: 10px; }
+  .pd-stage-ach svg,
+  .pd-stage-ach img { width: 36px; height: 36px; }
+  .pd-stage-arrow-head { right: 132px; }
+  .pd-stage-arrow-tomato { right: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .pd-close,
+  .pd-power,
+  .pd-switch,
+  .pd-thumb,
+  .pd-start,
+  .pd-done { transition: none; }
+}

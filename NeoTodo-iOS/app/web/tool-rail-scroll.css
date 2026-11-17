@@ -1,0 +1,100 @@
+/* ==========================================================================
+   LEFT TOOL SHELF: FIVE-ROW TYPEWRITER DRUM
+   --------------------------------------------------------------------------
+   The rail used to stack every built-in tool and every installed plugin in
+   one column. With enough plugins the column grew taller than the window, so
+   the icons nearest the footer were simply unreachable.
+
+   The rail is now a window exactly five rows tall. The rows keep their own
+   43px slots and 9px rhythm, and tool-rail-scroll.js turns each row around a
+   virtual platen: the row at the middle of the glass is the largest, the rows
+   above and below get smaller, and their projected spacing squeezes together
+   toward the ends — the typewriter-wheel look. The window's top and bottom
+   edges also fade, so a row caught mid-turn reads as "more above / below"
+   instead of a chopped button.
+
+   This file owns the window — height, hidden scrollbar, fade, and the fixed
+   row geometry the drum is calculated from. The per-row turn (translate +
+   scale) and the spring-driven scrolling live in tool-rail-scroll.js.
+
+   Every rule is additive; the circle, paper, border and shadow of a tool
+   button still come from style.css.
+   ========================================================================== */
+
+.tool-rail {
+  /* One place to change the window: rows, row height, row gap, fade depth. */
+  --tool-rail-rows: 5;
+  --tool-rail-row-h: 43px;
+  --tool-rail-row-gap: 7px;
+  --tool-rail-fade: 28px;
+
+  /* Five rows and the four gaps between them, never a pixel more. */
+  max-height: calc(
+    (var(--tool-rail-row-h) * var(--tool-rail-rows)) +
+    (var(--tool-rail-row-gap) * (var(--tool-rail-rows) - 1))
+  );
+
+  /* A scroll window clips both axes, so give the circles room for their
+     drop shadow and the hover nudge; the negative margin keeps the icons on
+     the same left column they always had. */
+  padding: 0 10px;
+  margin-left: -10px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tool-rail::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none !important;
+}
+
+/* Rows are never squeezed into the smaller window: the shelf scrolls instead
+   of shrinking the circles. The `display: contents` community-plugin rail
+   hands its buttons straight to this flex column, so the rule targets every
+   tool button, not only direct children. */
+.tool-rail > *,
+.tool-rail .tool-button {
+  flex: 0 0 auto;
+}
+
+/* The drum turn is a transform, so the layout slot never moves: the 43px
+   rhythm stays exact and the scroll height cannot jitter while the spring
+   settles. The script rewrites these transforms on every frame; the circle
+   keeps its own paper, border and shadow from style.css.
+   (`translateX` on hover in style.css is superseded by this transform.) */
+.tool-rail .tool-button {
+  transform-origin: 50% 50%;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* The fade only exists while there is something to scroll to. A shelf with
+   five or fewer icons stays perfectly crisp at both ends. */
+.tool-rail[data-rail-scroll="true"] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.45) calc(var(--tool-rail-fade) * 0.45),
+    #000 var(--tool-rail-fade),
+    #000 calc(100% - var(--tool-rail-fade)),
+    rgba(0, 0, 0, 0.45) calc(100% - var(--tool-rail-fade) * 0.45),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.45) calc(var(--tool-rail-fade) * 0.45),
+    #000 var(--tool-rail-fade),
+    #000 calc(100% - var(--tool-rail-fade)),
+    rgba(0, 0, 0, 0.45) calc(100% - var(--tool-rail-fade) * 0.45),
+    transparent 100%
+  );
+}

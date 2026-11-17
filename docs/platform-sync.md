@@ -98,6 +98,38 @@ The shell covers the parts of the page the GTK shell owns:
 
 No macOS items are pending.
 
+## iOS: built once (2026-11-17)
+
+`NeoTodo-iOS/` holds the saved iOS build: a native Swift + `WKWebView` shell
+(`WorkspaceViewController.swift`, `DetachedSheetController.swift`) with embedded
+CPython from the BeeWare python-apple-support XCFramework. It vendors the same
+`app.py`, `startup.py` and `web/` tree under `app/`, plus `app/ios_server.py`,
+and builds its own snapshot; refresh it with `NeoTodo-iOS/sync-sources.sh
+<commit>` only when an iOS pass is requested.
+
+What the shell covers:
+
+- `PythonRuntime.m` starts the interpreter with `PYTHONHOME`/`PYTHONPATH` in the
+  bundle and `HOME` in the app container, calls `ios_server.start()` and releases
+  the GIL so the backend's HTTP thread runs while UIKit owns the main thread.
+- The injected `NeoTodoIOS` bridge is aliased as `NeoTodoAndroid`, so the shared
+  page's existing touch branch (edge rails, no hover, `open`/`home`/`ready`)
+  works without editing `web/app.js`.
+- The reveal gate uses the page's `app-painted` → `ready` signal with an 8 s
+  fallback; detached note/AI panels are native page sheets.
+- A held finger dispatches the page's `contextmenu`, standing in for right-click;
+  drag gestures cancel it.
+- File inputs open the system photo picker for images/videos and the Files
+  picker for other types; links leave for Safari; plugin `alert`/`confirm`/
+  `prompt` become native dialogs.
+- Folder-open actions answer that iOS has no desktop file manager; `quit` is a
+  no-op; the AI terminal has no `opencode` CLI and reports that instead of
+  running. `NeoTodo-iOS/store/app-store-publish.md` carries the App Store
+  walkthrough (Bundle ID, archive, Transporter, TestFlight, privacy label,
+  China App filing and review notes).
+
+No iOS items are pending.
+
 ## Android: synced once (2026-11-16)
 
 The Gradle project moved from `android/` to **`NeoTodo-Android/`** and was brought

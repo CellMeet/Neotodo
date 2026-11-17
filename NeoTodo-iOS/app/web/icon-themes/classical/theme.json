@@ -1,0 +1,10 @@
+{
+  "id": "classical",
+  "name": "Classical",
+  "englishName": "Classical",
+  "version": "1.0.0",
+  "builtin": true,
+  "description": "NeoTodo's original set: the napkin, headphones, fan, fork flame and AI provider marks that shipped with the app.",
+  "author": "NeoTodo",
+  "icons": {}
+}

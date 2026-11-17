@@ -1,0 +1,32 @@
+/* ==========================================================================
+   Light-theme effects and icon treatments.
+   Keep the light visual language here, never in the dark file.
+   ========================================================================== */
+
+html[data-postcard-dark="false"] .sub-fan svg,
+html[data-postcard-dark="false"] .h-sub-fan svg,
+html[data-postcard-dark="false"] .doing-fan svg,
+html[data-postcard-dark="false"] .fan-icon {
+  filter: none;
+}
+
+html[data-postcard-dark="false"] .sub-agent-model.has-model img {
+  width: 28px;
+  height: 28px;
+  filter: none;
+}
+
+html[data-postcard-dark="false"] .subtask-smoke i {
+  background: radial-gradient(
+    circle,
+    rgba(92, 86, 74, 0.56) 0%,
+    rgba(138, 132, 118, 0.26) 46%,
+    rgba(190, 184, 168, 0) 74%
+  );
+  filter: blur(1.4px);
+}
+
+html[data-postcard-dark="false"] .sub-done-check,
+html[data-postcard-dark="false"] .h-sub-check {
+  filter: none;
+}

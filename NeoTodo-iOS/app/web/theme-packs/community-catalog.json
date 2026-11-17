@@ -1,0 +1,493 @@
+{
+  "schema": 1,
+  "name": "NeoTodo Theme Community",
+  "homepage": "https://github.com/CellMeet/Neotodo/tree/main/community",
+  "updated": "2026-11-15",
+  "themes": [
+    {
+      "id": "paper-moon",
+      "name": "纸月",
+      "englishName": "Paper Moon",
+      "version": "1.0.0",
+      "description": "暖米的纸、旧书页的墨，和一枚安静的月亮。适合白天慢慢写字，也适合把完成的一周收进明信片。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "light",
+        "paper",
+        "moon",
+        "quiet"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#f7f1e8",
+        "paper2": "#efe3d1",
+        "ink": "#3b3026",
+        "muted": "#8a7862",
+        "accent": "#c8845a",
+        "accent2": "#7c9c8a",
+        "border": "#dccab0",
+        "stamp": "#b86b45"
+      },
+      "note": {
+        "paper": "#f7f1e8",
+        "ink": "#3b3026",
+        "muted": "#8a7862",
+        "rule": "#d9c5a8",
+        "accent": "#c8845a",
+        "accent2": "#7c9c8a",
+        "handle": "#6a6054"
+      },
+      "ai": {
+        "bg": "#fbf7f0",
+        "soft": "#f3ece1",
+        "ink": "#3b3026",
+        "inkSoft": "#6b5c4b",
+        "muted": "#8a7862",
+        "faint": "#c3b5a1",
+        "line": "#e8ddcc",
+        "lineStrong": "#d3c2aa",
+        "accent": "#c8845a",
+        "notice": "#b86b45",
+        "handle": "#6a6054"
+      },
+      "bundled": true,
+      "official": true,
+      "featured": true,
+      "chrome": {
+        "baseline": "#d9c5a8",
+        "row": "#d9c5a8",
+        "submit": "#c8845a",
+        "highlight": "#c8845a"
+      }
+    },
+    {
+      "id": "ember-terminal",
+      "name": "余烬终端",
+      "englishName": "Ember Terminal",
+      "version": "1.0.0",
+      "description": "深色机房里的青色荧光和一点橙色余烬。附带更清脆的按键与翻页声，以及两张终端风格的成就图标。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "dark",
+        "terminal",
+        "sound",
+        "icons"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#0f1418",
+        "paper2": "#171f24",
+        "ink": "#d9f2e8",
+        "muted": "#87a89b",
+        "accent": "#4ee0a8",
+        "accent2": "#ffb454",
+        "border": "#294238",
+        "stamp": "#4ee0a8"
+      },
+      "note": {
+        "paper": "#121a1e",
+        "ink": "#d9f2e8",
+        "muted": "#87a89b",
+        "rule": "#355247",
+        "accent": "#4ee0a8",
+        "accent2": "#ffb454",
+        "handle": "#c7d8d0"
+      },
+      "ai": {
+        "bg": "#0f1418",
+        "soft": "#182126",
+        "ink": "#d9f2e8",
+        "inkSoft": "#b3d4c7",
+        "muted": "#87a89b",
+        "faint": "#5c7268",
+        "line": "#294238",
+        "lineStrong": "#3d5a4e",
+        "accent": "#4ee0a8",
+        "notice": "#ffb454",
+        "handle": "#c7d8d0"
+      },
+      "bundled": true,
+      "official": true,
+      "featured": true,
+      "chrome": {
+        "baseline": "#294238",
+        "row": "#294238",
+        "submit": "#4ee0a8",
+        "highlight": "#4ee0a8"
+      }
+    },
+    {
+      "id": "linen-garden",
+      "name": "亚麻花园",
+      "englishName": "Linen Garden",
+      "version": "1.0.0",
+      "description": "亚麻色的纸和一面很轻的植物底纹。把任务写成一张放在窗边的便签，完成时也不会惊动午后的光。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "light",
+        "garden",
+        "wallpaper",
+        "calm"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#f2f0e4",
+        "paper2": "#e6e3d2",
+        "ink": "#2f382b",
+        "muted": "#77806b",
+        "accent": "#6f8f5a",
+        "accent2": "#b08a5a",
+        "border": "#cfcbb4",
+        "stamp": "#5f7d4c"
+      },
+      "note": {
+        "paper": "#f2f0e4",
+        "ink": "#2f382b",
+        "muted": "#77806b",
+        "rule": "#c8c4ac",
+        "accent": "#6f8f5a",
+        "accent2": "#b08a5a",
+        "handle": "#5c6457"
+      },
+      "ai": {
+        "bg": "#f5f4ec",
+        "soft": "#ebe9dc",
+        "ink": "#2f382b",
+        "inkSoft": "#525c4a",
+        "muted": "#77806b",
+        "faint": "#b1b6a2",
+        "line": "#dedbcb",
+        "lineStrong": "#c5c2ad",
+        "accent": "#6f8f5a",
+        "notice": "#b08a5a",
+        "handle": "#5c6457"
+      },
+      "bundled": true,
+      "official": true,
+      "chrome": {
+        "baseline": "#c8c4ac",
+        "row": "#c8c4ac",
+        "submit": "#6f8f5a",
+        "highlight": "#6f8f5a"
+      }
+    },
+    {
+      "id": "tokyo-night",
+      "name": "东京夜",
+      "englishName": "Tokyo Night",
+      "version": "1.0.0",
+      "description": "东京深夜的霓虹：藏青的纸、蓝紫的灯和一点橙色路牌。附 Notebook 与 AI 控制台的配套夜色。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "dark",
+        "neon",
+        "night",
+        "tokyo"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#1a1b26",
+        "paper2": "#16161e",
+        "ink": "#c0caf5",
+        "muted": "#7982a9",
+        "accent": "#7aa2f7",
+        "accent2": "#bb9af7",
+        "border": "#292e42",
+        "stamp": "#ff9e64",
+        "line": "#3b4261",
+        "rule": "#414868",
+        "lineAlpha": 0.9,
+        "ruleAlpha": 0.6,
+        "glow": "rgba(122,162,247,.22)",
+        "motif": "夜",
+        "quote": "Neon signs, quiet commits."
+      },
+      "chrome": {
+        "baseline": "#3b4261",
+        "row": "#3b4261",
+        "submit": "#7aa2f7",
+        "highlight": "#7aa2f7"
+      },
+      "note": {
+        "paper": "#1a1b26",
+        "ink": "#c0caf5",
+        "muted": "#7982a9",
+        "rule": "#3b4261",
+        "accent": "#7aa2f7",
+        "accent2": "#bb9af7",
+        "handle": "#a9b1d6"
+      },
+      "ai": {
+        "bg": "#16161e",
+        "soft": "#1f2335",
+        "ink": "#c0caf5",
+        "inkSoft": "#a9b1d6",
+        "muted": "#7982a9",
+        "faint": "#565f89",
+        "line": "#292e42",
+        "lineStrong": "#3b4261",
+        "accent": "#7aa2f7",
+        "notice": "#ff9e64",
+        "handle": "#a9b1d6"
+      },
+      "bundled": true,
+      "official": true
+    },
+    {
+      "id": "catppuccin-mocha",
+      "name": "摩卡猫",
+      "englishName": "Catppuccin Mocha",
+      "version": "1.0.0",
+      "description": "Catppuccin 的摩卡夜色：深紫的纸、薰衣草与天空蓝，柔和得像一杯加奶的咖啡。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "dark",
+        "pastel",
+        "catppuccin",
+        "calm"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#1e1e2e",
+        "paper2": "#181825",
+        "ink": "#cdd6f4",
+        "muted": "#a6adc8",
+        "accent": "#cba6f7",
+        "accent2": "#89b4fa",
+        "border": "#313244",
+        "stamp": "#f5c2e7",
+        "line": "#45475a",
+        "rule": "#585b70",
+        "lineAlpha": 0.85,
+        "ruleAlpha": 0.55,
+        "glow": "rgba(203,166,247,.2)",
+        "motif": "☕",
+        "quote": "Soft colours, steady focus."
+      },
+      "chrome": {
+        "baseline": "#45475a",
+        "row": "#45475a",
+        "submit": "#cba6f7",
+        "highlight": "#cba6f7"
+      },
+      "note": {
+        "paper": "#1e1e2e",
+        "ink": "#cdd6f4",
+        "muted": "#a6adc8",
+        "rule": "#45475a",
+        "accent": "#cba6f7",
+        "accent2": "#89b4fa",
+        "handle": "#b4befe"
+      },
+      "ai": {
+        "bg": "#181825",
+        "soft": "#1e1e2e",
+        "ink": "#cdd6f4",
+        "inkSoft": "#bac2de",
+        "muted": "#a6adc8",
+        "faint": "#6c7086",
+        "line": "#313244",
+        "lineStrong": "#45475a",
+        "accent": "#cba6f7",
+        "notice": "#fab387",
+        "handle": "#b4befe"
+      },
+      "bundled": true,
+      "official": true
+    },
+    {
+      "id": "nord",
+      "name": "北境",
+      "englishName": "Nord",
+      "version": "1.0.0",
+      "description": "北欧的雪与峡湾：石板蓝的纸、霜蓝的强调色，安静、克制、适合长时间阅读。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "dark",
+        "nord",
+        "calm",
+        "blue"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#2e3440",
+        "paper2": "#292e39",
+        "ink": "#eceff4",
+        "muted": "#9aa5b8",
+        "accent": "#88c0d0",
+        "accent2": "#81a1c1",
+        "border": "#3b4252",
+        "stamp": "#a3be8c",
+        "line": "#434c5e",
+        "rule": "#4c566a",
+        "lineAlpha": 0.85,
+        "ruleAlpha": 0.55,
+        "glow": "rgba(136,192,208,.2)",
+        "motif": "❄",
+        "quote": "Cold air, clear thoughts."
+      },
+      "chrome": {
+        "baseline": "#434c5e",
+        "row": "#434c5e",
+        "submit": "#88c0d0",
+        "highlight": "#88c0d0"
+      },
+      "note": {
+        "paper": "#2e3440",
+        "ink": "#eceff4",
+        "muted": "#9aa5b8",
+        "rule": "#434c5e",
+        "accent": "#88c0d0",
+        "accent2": "#a3be8c",
+        "handle": "#d8dee9"
+      },
+      "ai": {
+        "bg": "#292e39",
+        "soft": "#2e3440",
+        "ink": "#eceff4",
+        "inkSoft": "#d8dee9",
+        "muted": "#9aa5b8",
+        "faint": "#616e88",
+        "line": "#3b4252",
+        "lineStrong": "#434c5e",
+        "accent": "#88c0d0",
+        "notice": "#d08770",
+        "handle": "#d8dee9"
+      },
+      "bundled": true,
+      "official": true
+    },
+    {
+      "id": "gruvbox-dark",
+      "name": "旧木箱",
+      "englishName": "Gruvbox Dark",
+      "version": "1.0.0",
+      "description": "旧木桌、暖灯泡和一本翻旧的手账：暖灰的纸配芥末黄，写字会慢下来。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "dark",
+        "warm",
+        "gruvbox",
+        "retro"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#282828",
+        "paper2": "#1d2021",
+        "ink": "#ebdbb2",
+        "muted": "#a89984",
+        "accent": "#fabd2f",
+        "accent2": "#8ec07c",
+        "border": "#3c3836",
+        "stamp": "#d65d0e",
+        "line": "#504945",
+        "rule": "#665c54",
+        "lineAlpha": 0.85,
+        "ruleAlpha": 0.55,
+        "glow": "rgba(250,189,47,.18)",
+        "motif": "☀",
+        "quote": "Warm lamp, worn pages."
+      },
+      "chrome": {
+        "baseline": "#504945",
+        "row": "#504945",
+        "submit": "#fabd2f",
+        "highlight": "#fabd2f"
+      },
+      "note": {
+        "paper": "#282828",
+        "ink": "#ebdbb2",
+        "muted": "#a89984",
+        "rule": "#504945",
+        "accent": "#fabd2f",
+        "accent2": "#8ec07c",
+        "handle": "#d5c4a1"
+      },
+      "ai": {
+        "bg": "#1d2021",
+        "soft": "#282828",
+        "ink": "#ebdbb2",
+        "inkSoft": "#d5c4a1",
+        "muted": "#a89984",
+        "faint": "#7c6f64",
+        "line": "#3c3836",
+        "lineStrong": "#504945",
+        "accent": "#fabd2f",
+        "notice": "#fe8019",
+        "handle": "#d5c4a1"
+      },
+      "bundled": true,
+      "official": true
+    },
+    {
+      "id": "solarized-light",
+      "name": "日晒纸",
+      "englishName": "Solarized Light",
+      "version": "1.0.0",
+      "description": "Solarized 的暖白纸面：米色的底、墨绿的正文和一点海蓝，白天读字最舒服的一组配色。",
+      "author": "NeoTodo",
+      "license": "CC BY 4.0",
+      "tags": [
+        "light",
+        "solarized",
+        "paper",
+        "calm"
+      ],
+      "preview": "preview.svg",
+      "palette": {
+        "paper": "#fdf6e3",
+        "paper2": "#eee8d5",
+        "ink": "#586e75",
+        "muted": "#93a1a1",
+        "accent": "#268bd2",
+        "accent2": "#2aa198",
+        "border": "#eee8d5",
+        "stamp": "#cb4b16",
+        "line": "#d9d2bd",
+        "rule": "#e4ddc8",
+        "lineAlpha": 0.85,
+        "ruleAlpha": 0.55,
+        "glow": "rgba(38,139,210,.16)",
+        "motif": "☀",
+        "quote": "Sunlight on old paper."
+      },
+      "chrome": {
+        "baseline": "#d9d2bd",
+        "row": "#d9d2bd",
+        "submit": "#268bd2",
+        "highlight": "#268bd2"
+      },
+      "note": {
+        "paper": "#fdf6e3",
+        "ink": "#586e75",
+        "muted": "#93a1a1",
+        "rule": "#ded8c4",
+        "accent": "#268bd2",
+        "accent2": "#2aa198",
+        "handle": "#657b83"
+      },
+      "ai": {
+        "bg": "#fdf6e3",
+        "soft": "#eee8d5",
+        "ink": "#586e75",
+        "inkSoft": "#657b83",
+        "muted": "#93a1a1",
+        "faint": "#b5af9c",
+        "line": "#eee8d5",
+        "lineStrong": "#ddd6c1",
+        "accent": "#268bd2",
+        "notice": "#cb4b16",
+        "handle": "#657b83"
+      },
+      "bundled": true,
+      "official": true
+    }
+  ]
+}

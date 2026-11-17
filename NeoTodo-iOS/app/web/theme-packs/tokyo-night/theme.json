@@ -1,0 +1,62 @@
+{
+  "id": "tokyo-night",
+  "name": "东京夜",
+  "englishName": "Tokyo Night",
+  "version": "1.0.0",
+  "description": "东京深夜的霓虹：藏青的纸、蓝紫的灯和一点橙色路牌。附 Notebook 与 AI 控制台的配套夜色。",
+  "author": "NeoTodo",
+  "license": "CC BY 4.0",
+  "tags": [
+    "dark",
+    "neon",
+    "night",
+    "tokyo"
+  ],
+  "theme": {
+    "paper": "#1a1b26",
+    "paper2": "#16161e",
+    "ink": "#c0caf5",
+    "muted": "#7982a9",
+    "accent": "#7aa2f7",
+    "accent2": "#bb9af7",
+    "border": "#292e42",
+    "stamp": "#ff9e64",
+    "line": "#3b4261",
+    "rule": "#414868",
+    "lineAlpha": 0.9,
+    "ruleAlpha": 0.6,
+    "glow": "rgba(122,162,247,.22)",
+    "motif": "夜",
+    "quote": "Neon signs, quiet commits."
+  },
+  "chrome": {
+    "baseline": "#3b4261",
+    "row": "#3b4261",
+    "submit": "#7aa2f7",
+    "highlight": "#7aa2f7"
+  },
+  "note": {
+    "paper": "#1a1b26",
+    "ink": "#c0caf5",
+    "muted": "#7982a9",
+    "rule": "#3b4261",
+    "accent": "#7aa2f7",
+    "accent2": "#bb9af7",
+    "handle": "#a9b1d6"
+  },
+  "ai": {
+    "bg": "#16161e",
+    "soft": "#1f2335",
+    "ink": "#c0caf5",
+    "inkSoft": "#a9b1d6",
+    "muted": "#7982a9",
+    "faint": "#565f89",
+    "line": "#292e42",
+    "lineStrong": "#3b4261",
+    "accent": "#7aa2f7",
+    "notice": "#ff9e64",
+    "handle": "#a9b1d6"
+  },
+  "preview": "preview.svg",
+  "icon": "icon.svg"
+}

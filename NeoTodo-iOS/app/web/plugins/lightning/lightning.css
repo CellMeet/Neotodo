@@ -1,0 +1,267 @@
+/* ==========================================================================
+   LIGHTNING — a breathing knot of white lightning around the Doing icon.
+   --------------------------------------------------------------------------
+   When an agent leaves unseen results, its Doing icon sits inside a clump of
+   white electricity rather than a plasma ball:
+
+     - three layers of tangled filaments wrap the icon: short core tangles,
+       long body leaders and a dissolving fringe;
+     - every filament is pure white with a faint cool glow in the air around
+       it, so the clump reads as white lightning on both themes;
+     - each layer breathes at its own speed (scaling and tilting) while some
+       filaments flicker, so the mass feels alive instead of looping one
+       perfect animation;
+     - a radial mask softens the outermost tips; there is no hard rim, ring or
+       ellipse anywhere, just a fuzzy, uneven edge.
+
+   Every rule is scoped to html.lightning-on, which lightning.js toggles from
+   the plugin switch. Fireflies and Firelight stay independent.
+   ========================================================================== */
+
+/* The unseen icon hosts the storm. */
+html.lightning-on .doing-mark.has-unseen,
+html.lightning-on .doing-fan.has-unseen {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Zero-size switch probe; it only carries data-plugin for the host. */
+.lightning-probe {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The icon keeps its own colour and only picks up a faint cool tint. */
+html.lightning-on .doing-mark.has-unseen > svg,
+html.lightning-on .doing-fan.has-unseen > svg {
+  position: relative;
+  z-index: 2;
+  animation: lightning-icon-charge 3.8s ease-in-out infinite;
+}
+
+@keyframes lightning-icon-charge {
+  0%, 100% {
+    filter: brightness(1.04) saturate(1.02)
+      drop-shadow(0 0 2px rgba(255, 255, 255, 0.7));
+  }
+  44% {
+    filter: brightness(1.1) saturate(1.06)
+      drop-shadow(0 0 3px rgba(255, 255, 255, 0.85))
+      drop-shadow(0 0 9px rgba(214, 242, 255, 0.6));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   The storm stage: a square box around the icon, drawn behind it.
+   -------------------------------------------------------------------------- */
+html.lightning-on .doing-storm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 168%;
+  height: 168%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  overflow: visible;
+}
+
+html.lightning-on .doing-storm > .storm-bolts {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* Fades the outer ends of the arcs so they dissolve into the paper rather
+     than ending on a hard edge. `closest-side` keeps the fade tied to the
+     icon, not to the box corners. */
+  -webkit-mask-image: radial-gradient(circle closest-side at 50% 50%, #000 0 84%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side at 50% 50%, #000 0 84%, transparent 100%);
+}
+
+/* --------------------------------------------------------------------------
+   The mass: three layers of white filaments, each breathing at its own pace.
+   -------------------------------------------------------------------------- */
+html.lightning-on .storm-mass {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  animation-name: storm-breathe;
+  animation-duration: var(--breathe-dur, 3.6s);
+  animation-delay: var(--breathe-delay, 0s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* An uneven, living swell: the layers scale and tilt on different rhythms, so
+   the clump never pulses like a perfect balloon. */
+@keyframes storm-breathe {
+  0%, 100% { transform: scale(0.9) rotate(-1.6deg); opacity: 0.84; }
+  30% { transform: scale(1.05) rotate(1.4deg); opacity: 1; }
+  54% { transform: scale(0.96) rotate(2.2deg); opacity: 0.9; }
+  78% { transform: scale(1.08) rotate(-0.6deg); opacity: 1; }
+}
+
+/* Some filaments crackle on their own, so the surface is never still. */
+html.lightning-on .storm-pulse {
+  animation: storm-crackle var(--flicker-dur, 1.2s) steps(1, end) infinite;
+  animation-delay: var(--flicker-delay, 0s);
+}
+
+@keyframes storm-crackle {
+  0% { opacity: 0.55; }
+  7% { opacity: 1; }
+  11% { opacity: 0.42; }
+  14% { opacity: 1; }
+  32% { opacity: 0.66; }
+  35% { opacity: 1; }
+  62% { opacity: 0.5; }
+  66% { opacity: 0.96; }
+  84% { opacity: 0.6; }
+  88% { opacity: 1; }
+  100% { opacity: 0.56; }
+}
+
+/* Main filament: white-hot throughout. The faint blue is only in the air
+   around it, not in the stroke itself. */
+html.lightning-on .storm-bolt {
+  fill: none;
+  stroke: #f4fbff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: miter;
+  stroke-miterlimit: 4;
+  filter: drop-shadow(0 0 3px rgba(220, 242, 255, 0.7));
+}
+
+/* The hot centre keeps every filament reading as white, not blue. */
+html.lightning-on .storm-core {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 0.75;
+  stroke-linecap: round;
+  stroke-linejoin: miter;
+  stroke-miterlimit: 4;
+}
+
+/* Forks are thinner and dimmer than the filament they leave. */
+html.lightning-on .storm-bolt.storm-fork {
+  stroke: #ffffff;
+  stroke-width: 1;
+  filter: drop-shadow(0 0 1.5px rgba(210, 238, 255, 0.55));
+}
+
+/* Hair strands: the faint filaments around the main leader. */
+html.lightning-on .storm-bolt.storm-hair {
+  stroke: #e8f7ff;
+  stroke-width: 0.65;
+}
+
+/* Hot tips: tiny white sparks where a filament ends. */
+html.lightning-on .storm-tip {
+  fill: #ffffff;
+  opacity: 0.9;
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+    drop-shadow(0 0 4px rgba(200, 235, 255, 0.8));
+}
+
+/* Air glow: a fat, blurred copy of the filament. No ellipse, no radius — the
+   light only exists along the paths the mass took. */
+html.lightning-on .storm-glow {
+  fill: none;
+  stroke: rgba(225, 246, 255, 0.28);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: miter;
+  filter: blur(3px);
+  mix-blend-mode: screen;
+}
+
+/* --------------------------------------------------------------------------
+   Light postcards: white arcs need a cool outline to stay visible on paper.
+   -------------------------------------------------------------------------- */
+html.lightning-on[data-postcard-dark="false"] .storm-bolt {
+  stroke: #ffffff;
+  stroke-width: 2.8;
+  filter:
+    drop-shadow(0 0 0.9px rgba(52, 64, 80, 0.95))
+    drop-shadow(0 0 2px rgba(80, 92, 108, 0.35));
+}
+
+html.lightning-on[data-postcard-dark="false"] .storm-core {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 0.8px rgba(52, 64, 80, 0.9));
+}
+
+html.lightning-on[data-postcard-dark="false"] .storm-bolt.storm-fork {
+  stroke: #ffffff;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 0.8px rgba(56, 68, 84, 0.9));
+}
+
+html.lightning-on[data-postcard-dark="false"] .storm-bolt.storm-hair {
+  stroke: #ffffff;
+  stroke-width: 0.8;
+  filter: drop-shadow(0 0 0.6px rgba(68, 80, 96, 0.8));
+}
+
+html.lightning-on[data-postcard-dark="false"] .storm-tip {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 1px rgba(52, 64, 80, 0.95));
+}
+
+html.lightning-on[data-postcard-dark="false"] .storm-glow {
+  stroke: rgba(110, 122, 138, 0.08);
+  stroke-width: 2.8;
+  filter: blur(1.2px);
+  mix-blend-mode: multiply;
+}
+
+html.lightning-on[data-postcard-dark="false"] .doing-mark.has-unseen > svg,
+html.lightning-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
+  animation: lightning-icon-charge-light 3.8s ease-in-out infinite;
+}
+
+@keyframes lightning-icon-charge-light {
+  0%, 100% {
+    filter: brightness(1.01) saturate(1.02)
+      drop-shadow(0 0 1px rgba(255, 255, 255, 1));
+  }
+  44% {
+    filter: brightness(1.06) saturate(1.05)
+      drop-shadow(0 0 2px rgba(255, 255, 255, 1))
+      drop-shadow(0 0 6px rgba(120, 160, 210, 0.4));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion: a still white tangle, no breathing and no flicker.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html.lightning-on .doing-mark.has-unseen > svg,
+  html.lightning-on .doing-fan.has-unseen > svg,
+  html.lightning-on[data-postcard-dark="false"] .doing-mark.has-unseen > svg,
+  html.lightning-on[data-postcard-dark="false"] .doing-fan.has-unseen > svg {
+    animation: none;
+    filter: brightness(1.06) saturate(1.04)
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.85));
+  }
+  html.lightning-on .storm-mass,
+  html.lightning-on .storm-pulse {
+    animation: none;
+  }
+  html.lightning-on .storm-mass {
+    opacity: 1;
+    transform: none;
+  }
+  html.lightning-on .storm-glow {
+    opacity: 0.5;
+  }
+  html.lightning-on .storm-tip {
+    opacity: 0.75;
+  }
+}

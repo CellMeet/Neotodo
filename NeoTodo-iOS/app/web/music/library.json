@@ -1,0 +1,36 @@
+{
+  "name": "Neon Terminal · 电子乐",
+  "description": "NeoTodo 原创电子乐。把 MP3 / WAV / OGG / FLAC / M4A 放进这个文件夹就会自动出现在播放器里；也可以在这里补充标题、作者和歌词文件。",
+  "tracks": [
+    {
+      "file": "neon-rain.mp3",
+      "title": "Neon Rain",
+      "artist": "NeoTodo Synth Lab",
+      "album": "Night Shift",
+      "lrc": "neon-rain.lrc",
+      "color": "#ff4d9d",
+      "instrumental": true,
+      "tags": ["synthwave", "night", "96 BPM"]
+    },
+    {
+      "file": "circuit-bloom.mp3",
+      "title": "Circuit Bloom",
+      "artist": "NeoTodo Synth Lab",
+      "album": "Night Shift",
+      "lrc": "circuit-bloom.lrc",
+      "color": "#41e0d0",
+      "instrumental": true,
+      "tags": ["techno", "focus", "124 BPM"]
+    },
+    {
+      "file": "midnight-compile.mp3",
+      "title": "Midnight Compile",
+      "artist": "NeoTodo Synth Lab",
+      "album": "Night Shift",
+      "lrc": "midnight-compile.lrc",
+      "color": "#8f8cff",
+      "instrumental": true,
+      "tags": ["chill", "lofi", "88 BPM"]
+    }
+  ]
+}

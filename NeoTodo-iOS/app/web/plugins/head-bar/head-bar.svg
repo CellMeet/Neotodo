@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="hbBottleSplit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4fc3ec"/>
+      <stop offset=".485" stop-color="#4fc3ec"/>
+      <stop offset=".515" stop-color="#f792b2"/>
+      <stop offset="1" stop-color="#df6b93"/>
+    </linearGradient>
+    <linearGradient id="hbBottleLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".66"/>
+      <stop offset=".45" stop-color="#ffffff" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="hbClip">
+      <rect x="13" y="21" width="38" height="22" rx="11"/>
+    </clipPath>
+  </defs>
+  <rect x="13" y="21" width="38" height="22" rx="11" fill="url(#hbBottleSplit)"/>
+  <g clip-path="url(#hbClip)">
+    <rect x="13" y="21" width="38" height="22" fill="url(#hbBottleLight)"/>
+    <rect x="29.6" y="22" width="4.8" height="20" fill="#ffffff" opacity=".16"/>
+    <rect x="15" y="24.5" width="34" height="3" rx="1.5" fill="#ffffff" opacity=".72"/>
+    <path d="M13 40 L51 36 L51 43 L13 43 Z" fill="#083a55" opacity=".16"/>
+  </g>
+  <rect x="13.5" y="21.5" width="37" height="21" rx="10.5" fill="none" stroke="#6a8f9b" stroke-width="1" opacity=".66"/>
+</svg>

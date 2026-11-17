@@ -39,11 +39,12 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 | 🐧 | **Linux x86_64** | [NeoTodo-0.0.1-Linux-x86_64.tar.gz](https://github.com/CellMeet/Neotodo/releases/latest/download/NeoTodo-0.0.1-Linux-x86_64.tar.gz) |
 | 🤖 | **Android** | Build the debug APK or a signed store build with [`NeoTodo-Android/build-release.sh`](NeoTodo-Android/build-release.sh) |
 | 🍎 | **macOS 11+** | Build from source in [`NeoTodo-MacOS/`](NeoTodo-MacOS/README.md) |
-| 📱 | **iOS** | Planned |
+| 📱 | **iOS / iPadOS 15+** | Build from source in [`NeoTodo-iOS/`](NeoTodo-iOS/README.md); App Store guide in [`NeoTodo-iOS/store/app-store-publish.md`](NeoTodo-iOS/store/app-store-publish.md) |
 
 - 📦 The Windows download is a `.zip` holding the installer: unzip it, double-click `NeoTodo-0.0.1-Windows-x64-setup.exe`, and click through the wizard. It bundles its own Python runtime and Qt WebEngine, so no Python, pip or terminal is needed. The Start Menu gets **NeoTodo** and **Uninstall NeoTodo**; Settings → Apps lists it too.
 - 🐧 The Linux package is a source package; GTK4, PyGObject and WebKitGTK must already be installed.
 - 🍎 The macOS build is a native PyObjC + WKWebView shell around the same backend; `cd NeoTodo-MacOS && ./run-macos.sh`. App Store and notarization steps are in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
+- 📱 The iOS build is a native Swift + WKWebView shell with embedded CPython; `cd NeoTodo-iOS && ./Scripts/fetch-python.sh && ./Scripts/generate-project.sh` on a Mac, then open the Xcode project. The App Store walkthrough is in [`NeoTodo-iOS/store/app-store-publish.md`](NeoTodo-iOS/store/app-store-publish.md).
 - 🤖 The Android build embeds the same Python backend and web workspace, so the desktop logic stays the single source of truth.
 
 > 🧩 想自己托管下载页和插件目录？[`site/`](site/) 是一套可以直接放到阿里云 ECS 的静态站点：
@@ -205,6 +206,22 @@ python3 -m pip install -r requirements.txt
 - 🔏 Signing, notarization and the Mac App Store checklist live in [`NeoTodo-MacOS/README.md`](NeoTodo-MacOS/README.md).
 - 🧭 The macOS folder is a snapshot: Linux stays the tree that is edited, and `NeoTodo-MacOS/sync-sources.sh` refreshes it.
 
+### 📱 iOS (source build)
+
+The iOS app embeds CPython and renders the same workspace in a `WKWebView`. It
+needs a Mac with Xcode 15+ and XcodeGen; the Python framework is downloaded once.
+
+```sh
+cd NeoTodo-iOS
+./Scripts/fetch-python.sh
+./Scripts/generate-project.sh
+open NeoTodo.xcodeproj
+```
+
+- 📦 Requirements: macOS + Xcode 15+, `brew install xcodegen`, and ~40 MB for `Python.xcframework`.
+- 🔏 `TEAM_ID=ABCDE12345 ./Scripts/archive.sh` exports the App Store `.ipa`; the step-by-step checklist (Bundle ID, TestFlight, screenshots, privacy label, review notes and the China App filing) is in [`NeoTodo-iOS/store/app-store-publish.md`](NeoTodo-iOS/store/app-store-publish.md).
+- 🧭 Like macOS and Android, `NeoTodo-iOS/` is a snapshot: `./sync-sources.sh` refreshes `app.py`, `startup.py` and `web/` from the root tree.
+
 ### 🤖 Android (source build)
 
 The Android build embeds the same Python backend and web workspace with Chaquopy.
@@ -290,7 +307,7 @@ git push origin v0.0.1
 - [x] 🍎 macOS (source build + `NeoTodo-MacOS/`, App Store path documented)
 - [x] 🤖 Android (source build + emulator + store signing kit)
 - [x] 🧩 Plugin community catalog + install from `.zip`
-- [ ] 📱 iOS
+- [x] 📱 iOS (source build + TestFlight/App Store guide)
 - [ ] 🧩 Notes and AI as independent plugins
 
 ## 💛 Support NeoTodo

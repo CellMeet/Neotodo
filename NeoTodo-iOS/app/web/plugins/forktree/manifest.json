@@ -1,0 +1,15 @@
+{
+  "id": "forktree",
+  "name": "Forktree",
+  "englishName": "Fork Tree",
+  "version": "1.2.0",
+  "description": "把子任务 fork 成独立端口的 NeoTodo 窗口：子任务变成假 todo，完成不计入主应用成就，保留原笔记与 AI 对话，并可以继续添加子子任务。",
+  "icon": "forktree.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "colors": {
+    "accent": "#4e7ad2",
+    "paper": "#f4efe6"
+  }
+}

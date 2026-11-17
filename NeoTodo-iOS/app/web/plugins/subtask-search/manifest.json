@@ -1,0 +1,16 @@
+{
+  "id": "subtask-search",
+  "name": "子任务搜索",
+  "englishName": "Subtask Search",
+  "version": "1.1.0",
+  "description": "左栏放大镜卡片可以开关子任务搜索栏。匹配结果按最近活跃时间从上到下排列，右侧显示几分钟、几小时或几天前；已完成子任务也会列出，点击即可跳转并选中它；没有匹配时按 Enter 会用输入的文字新建子任务并选中，离开搜索框会清空内容；搜索栏的磨砂模糊可在插件页调整。",
+  "icon": "subtask-search.svg",
+  "entry": "index.html",
+  "author": "NeoTodo",
+  "category": "interface",
+  "kind": "chrome",
+  "colors": {
+    "accent": "#ff8000",
+    "paper": "#f7efe3"
+  }
+}

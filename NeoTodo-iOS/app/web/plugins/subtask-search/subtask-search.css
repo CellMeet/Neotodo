@@ -1,0 +1,446 @@
+/* ==========================================================================
+   SUBTASK SEARCH PLUGIN — the horizontal search drawer above the subtask rows.
+   --------------------------------------------------------------------------
+   Everything is scoped to .subtask-search-* or to body.subtask-search-*.
+   The plugin folder owns these rules; the rest of NeoTodo is untouched.
+   ========================================================================== */
+
+/* The left rail magnifier, sized like the pomodoro and perler-bead buttons.
+   The icon is painted deep black (the source SVG is orange) so it reads as a
+   quiet ink stamp next to the coloured plugin cards. */
+.subtask-search-button {
+  overflow: visible;
+}
+
+.subtask-search-rail-icon {
+  width: 36px;
+  height: 36px;
+  display: block;
+  object-fit: contain;
+  filter: brightness(0) drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.70));
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.subtask-search-button:hover .subtask-search-rail-icon,
+.subtask-search-button.is-open .subtask-search-rail-icon {
+  transform: rotate(-6deg) scale(1.08);
+}
+
+.subtask-search-button:active .subtask-search-rail-icon {
+  transform: rotate(3deg) scale(0.96);
+}
+
+.subtask-search-button.is-open {
+  background: rgba(var(--pc-accent-rgb, 157, 111, 28), 0.12);
+  border-radius: 8px;
+}
+
+/* A black stamp would vanish on a dark note paper (the rail card is painted
+   with the notebook paper): keep the same ink but flip it to the light side. */
+html[data-note-dark="true"] .subtask-search-rail-icon {
+  filter: brightness(0) invert(1) drop-shadow(0 0 5px rgba(255, 255, 255, 0.20));
+}
+
+/* The task column is the drawer's clipping box. The pane slides down from the
+   top boundary and the column gives up exactly the strip it occupies. */
+body.subtask-search-on .current-half {
+  position: relative;
+  overflow: hidden;
+}
+
+/* The pop is one short beat shared by the pane and the column (see below). */
+body.subtask-search-on {
+  --ss-pop-ms: 100ms;
+  --ss-pop-ease: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* Opening the field makes room for it: the whole subtask column (rows, the
+   Doing card, the finished-task handle and the completed card) is pushed down
+   by exactly the drawer's own height, which the script measures into
+   --ss-open-h on .current-half. Nothing from the task block can ever sit under
+   the pane, so the search box never overlaps a card and is never covered by
+   one. The column keeps 100% of its height minus that measured strip.
+
+   One beat for the whole drawer: the column and the pane share the exact same
+   duration and curve (--ss-pop-* below), so the field can never lead or lag
+   the rows under it while the box pops out. */
+body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {
+  transition:
+    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
+    height var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1));
+  will-change: transform;
+}
+
+body.subtask-search-open .page-body > .todos-section > .current-half > .current-inner {
+  /* 48px = the 46px field plus the pane's two 1px edges. */
+  height: calc(100% - var(--ss-open-h, 48px));
+  transform: translate3d(0, var(--ss-open-h, 48px), 0);
+}
+
+/* --------------------------------------------------------------------------
+   The drawer. Closed: parked just above the top edge and clipped away.
+   Open: slid down into the strip the task block gave up for it. The surface is
+   FocusWriter's recipe — blur whatever is behind the row, then lay one flat
+   wash on it — but the wash is dense enough that nothing underneath can be
+   read through it: the pane is one solid, square-cornered sheet, exactly the
+   width of the subtask rows and at least one full row tall, so it can never
+   be mistaken for a slot cut into the card below. The blur radius is the
+   setting on the plugin page.
+   -------------------------------------------------------------------------- */
+.subtask-search-drawer {
+  --ss-field-h: 46px;
+  --ss-glass-fill: rgba(246, 248, 249, 0.90);
+  --ss-glass-ink: #0b0c0c;
+  --ss-glass-muted: rgba(14, 17, 18, 0.60);
+  --ss-glass-line: rgba(52, 64, 68, 0.18);
+  --ss-glass-edge: rgba(45, 58, 62, 0.44);
+  --ss-glass-hover: linear-gradient(
+    90deg,
+    rgba(18, 24, 26, 0.07),
+    rgba(18, 24, 26, 0) 88%
+  );
+  --ss-glass-blur: blur(var(--ss-search-blur, 26px)) saturate(1.2);
+  position: absolute;
+  top: 0;
+  /* One row's width: the same span as the subtask rows. left/right 0 plus the
+     min-width guard keep it from ever shrink-wrapping to the field's content. */
+  right: 0;
+  left: 0;
+  width: auto;
+  min-width: 100%;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  box-sizing: border-box;
+  /* Square corners, one hairline edge, and a hard clip for the result rows:
+     the pane is a box of its own, not a glass bubble. */
+  border: 1px solid var(--ss-glass-edge);
+  border-radius: 0;
+  overflow: hidden;
+  background-color: var(--ss-glass-fill);
+  background-image: none;
+  -webkit-backdrop-filter: var(--ss-glass-blur);
+  backdrop-filter: var(--ss-glass-blur);
+  color: var(--ss-glass-ink);
+  box-shadow: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate3d(0, -102%, 0);
+  will-change: transform;
+  transition:
+    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
+    opacity 80ms ease,
+    visibility 0s linear var(--ss-pop-ms, 100ms);
+}
+
+/* The open state is painted on the same frame as the column shift, with the
+   same duration and curve, so the box arrives together with its gap: no
+   stagger, no half-open pause, and the field is usable the moment it lands. */
+.subtask-search-drawer.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform var(--ss-pop-ms, 100ms) var(--ss-pop-ease, cubic-bezier(0.33, 1, 0.68, 1)),
+    opacity 50ms ease,
+    visibility 0s linear 0s;
+}
+
+/* --------------------------------------------------------------------------
+   The open bracket field. No placeholder text sits inside it; the magnifier,
+   caret and clear button are the only things in the bar. It is a transparent
+   window in the glass: black ink straight on the mask.
+   -------------------------------------------------------------------------- */
+.subtask-search-bar {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* One full rule of the page (a subtask row is 40px); the field is a little
+     taller so it reads as a box in its own right, never as a clipped slot. */
+  height: var(--ss-field-h, 46px);
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 12px 0 14px;
+  border-left: 0;
+  border-bottom: 1px solid var(--ss-glass-line);
+  background: transparent;
+  color: var(--ss-glass-muted);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.subtask-search-bar.is-focused {
+  border-bottom-color: rgba(52, 64, 68, 0.34);
+  /* A flat tint, not a gloss: the focused field is the same tray, one step
+     brighter. */
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.subtask-search-field-icon {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  display: block;
+  object-fit: contain;
+  /* The source magnifier is orange #FF8000; the field wants deep black ink. */
+  filter: brightness(0);
+  opacity: 0.94;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.subtask-search-bar.is-focused .subtask-search-field-icon {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.subtask-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ss-glass-ink);
+  caret-color: var(--ss-glass-ink);
+  font-family: var(--display, "Noto Serif", Georgia, serif);
+  font-size: 14.5px;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.subtask-search-input:focus,
+.subtask-search-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   Result rows. They keep the same 40px rhythm as the task block and each one
+   is a line item with its own bottom rule. The list lives on the same glass
+   mask as the field, so it is the same pane, not a second sheet: black text,
+   hairline rules, a quiet ink wash on hover.
+   -------------------------------------------------------------------------- */
+.subtask-search-results {
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0;
+  scrollbar-width: thin;
+}
+
+.subtask-search-drawer.has-query .subtask-search-results {
+  display: block;
+}
+
+.subtask-search-result {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 12px 0 17px;
+  border: 0;
+  border-bottom: 1px solid var(--ss-glass-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ss-glass-ink);
+  font-family: var(--display, "Noto Serif", Georgia, serif);
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.subtask-search-result:hover,
+.subtask-search-result:focus-visible {
+  background: var(--ss-glass-hover);
+  outline: none;
+}
+
+.subtask-search-result-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtask-search-result.is-done .subtask-search-result-name {
+  color: var(--ss-glass-muted);
+}
+
+.subtask-search-result-time {
+  flex: 0 0 auto;
+  color: var(--ss-glass-muted);
+  font-family: var(--mono, "SFMono-Regular", monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.72;
+}
+
+.subtask-search-result-time.is-fresh {
+  color: var(--ss-glass-ink);
+  opacity: 0.9;
+}
+
+.subtask-search-result-time.is-recent {
+  opacity: 0.82;
+}
+
+.subtask-search-result-time.is-old {
+  opacity: 0.52;
+}
+
+.subtask-search-result-check {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  display: block;
+  color: var(--ss-glass-muted);
+  opacity: 0.55;
+  fill: currentColor;
+}
+
+.subtask-search-result:hover .subtask-search-result-check,
+.subtask-search-result:focus-visible .subtask-search-result-check {
+  opacity: 1;
+}
+
+.subtask-search-empty {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  padding: 0 12px 0 17px;
+  border-bottom: 1px solid var(--ss-glass-line);
+  color: var(--ss-glass-muted);
+  font-family: var(--display, "Noto Serif", Georgia, serif);
+  font-size: 13.5px;
+  font-style: italic;
+  opacity: 0.72;
+}
+
+.subtask-search-empty-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The empty row doubles as the new-subtask hint: Enter turns the typed words
+   into a row, so say so where the missing results would be. */
+.subtask-search-empty-hint {
+  flex: 0 0 auto;
+  color: var(--ss-glass-ink);
+  font-family: var(--mono, "SFMono-Regular", monospace);
+  font-size: 9.5px;
+  font-style: normal;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  opacity: 0.78;
+}
+
+/* The row the user picked gets a brief ruled-paper highlight after the drawer
+   slides away, so the eye can find it in the live list. */
+.current-subtask.subtask-search-hit {
+  animation: subtask-search-hit 1.6s ease-out;
+}
+
+@keyframes subtask-search-hit {
+  0% {
+    box-shadow: inset 0 0 0 999px rgba(var(--pc-accent-rgb, 157, 111, 28), 0.18);
+  }
+  70% {
+    box-shadow: inset 0 0 0 999px rgba(var(--pc-accent-rgb, 157, 111, 28), 0.10);
+  }
+  100% {
+    box-shadow: inset 0 0 0 999px transparent;
+  }
+}
+
+/* Night: the room behind the pane is dark, so the sheet carries a touch more
+   light. The ink stays black, exactly as on the day theme. */
+html[data-postcard-dark="true"] .subtask-search-drawer {
+  --ss-glass-fill: rgba(242, 245, 246, 0.92);
+  --ss-glass-edge: rgba(32, 43, 47, 0.58);
+  --ss-glass-muted: rgba(12, 15, 16, 0.60);
+  --ss-glass-line: rgba(40, 50, 54, 0.22);
+  --ss-glass-hover: linear-gradient(
+    90deg,
+    rgba(14, 18, 20, 0.09),
+    rgba(14, 18, 20, 0) 88%
+  );
+  --ss-glass-blur: blur(var(--ss-search-blur, 26px)) saturate(1.16);
+}
+
+/* No backdrop blur: keep the material, just make the sheet almost solid so the
+   black ink, the hairlines and the square edge always sit on paper. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .subtask-search-drawer {
+    --ss-glass-fill: rgba(244, 247, 248, 0.97);
+  }
+  html[data-postcard-dark="true"] .subtask-search-drawer {
+    --ss-glass-fill: rgba(242, 245, 246, 0.98);
+  }
+}
+
+@media (max-width: 900px) {
+  .subtask-search-input {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .subtask-search-bar {
+    gap: 6px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .subtask-search-results {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .subtask-search-result,
+  .subtask-search-empty {
+    padding-left: 13px;
+    padding-right: 10px;
+  }
+  .subtask-search-rail-icon {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subtask-search-rail-icon,
+  .subtask-search-field-icon,
+  .subtask-search-bar,
+  .subtask-search-drawer {
+    transition: none !important;
+  }
+  body.subtask-search-on .current-half > .current-inner,
+  body.subtask-search-on .page-body > .todos-section > .current-half > .current-inner {
+    transition: none !important;
+  }
+  .current-subtask.subtask-search-hit {
+    animation: none;
+  }
+}
