@@ -90,6 +90,22 @@ def main() -> int:
     )
     assert 'bar.classList.toggle("line-hidden", !show);' in handle
 
+    # --- the click leaves the puffshroom and tallnut together -------------
+    assert 'classList.add("subtask-completing")' in app_js
+    completing = block_after(split_css, ".current-subtask.subtask-completing {", "}")
+    assert "transform: translateY(-1px);" in completing
+    assert "visibility: hidden" not in completing, "the click feedback hides the name from its paper"
+    # The fan and the provider mark keep their slots and vanish in the same
+    # frame. Hiding only the tallnut made the puffshroom slide one cell left.
+    leaving = block_after(
+        split_css,
+        ".current-subtask.subtask-completing .sub-fan,\n.current-subtask.subtask-completing .sub-agent-model {",
+        "}",
+    )
+    assert "visibility: hidden;" in leaving
+    assert "display: none;" not in leaving, "removing the tallnut's slot still drags the fan left"
+    assert ".current-subtask.subtask-completing .sub-agent-model {\n  display: none;" not in split_css
+
     # --- CSS: the finished card is hidden and shown as one sheet -----------
     assert ".subtask-flight" not in split_css and ".subtask-flight" not in page_css
     assert ".current-subtask.subtask-slot-arriving > *" not in split_css

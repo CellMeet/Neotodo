@@ -425,7 +425,13 @@ GENERATED_PALETTES.forEach((palette, index) => {
 Object.assign(THEMES, GENERATED_THEMES);
 
 const MOON = '<svg class="moon-icon" aria-hidden="true"><use href="#headphone"></use></svg>';
-const GOLD_MOON = '<svg class="moon-icon gold-moon" aria-hidden="true"><use href="#headphone-gold"></use></svg>';
+// A submitted todo that carried subtasks keeps the squash mark where the gold
+// headphone used to sit: the picture opens the same finished-subtask list. It
+// is the one mark that says "this task's board was submitted with it".
+const SUBTASK_DONE_ICON = '<img class="subtask-done-icon" src="/stickers/squash-done.gif" alt="" aria-hidden="true" draggable="false">';
+// Twenty finished subtasks let the todo be submitted in one click. The
+// backend uses the same number (SUBTASK_QUICK_SUBMIT).
+const SUBTASK_QUICK_SUBMIT = 20;
 
 const PIANO_KEYS = ["A3", "C4", "Ds4", "Fs4", "A4", "C5", "Ds5", "Fs5"];
 const pianoAudios = PIANO_KEYS.map((name) => {
@@ -2087,7 +2093,9 @@ const BackgroundMusic = (() => {
   let secondary = false;
   try {
     const params = new URLSearchParams(location.search);
-    secondary = params.get("fork") === "1" || params.has("detached");
+    secondary = params.get("fork") === "1"
+      || params.get("silent") === "1"
+      || params.has("detached");
   } catch (error) {}
   let current = BACKGROUND_MUSIC_FALLBACK;
   let tracks = [BACKGROUND_MUSIC_FALLBACK];
@@ -2156,6 +2164,21 @@ const BackgroundMusic = (() => {
     try { audio.pause(); } catch (error) {}
   }
 
+  // A quit has to take the track with it. Pausing alone leaves WebKit's media
+  // pipeline alive, so the window's last buffers can still be heard after the
+  // reader asked the app to leave. Releasing the source tears that pipeline
+  // down; a later play() builds a fresh element from `current.src`.
+  function stop() {
+    if (!audio) return;
+    const node = audio;
+    audio = null;
+    try { node.pause(); } catch (error) {}
+    try {
+      node.removeAttribute("src");
+      node.load();
+    } catch (error) {}
+  }
+
   function applyVolume() {
     if (audio) audio.volume = targetVolume();
   }
@@ -2216,13 +2239,17 @@ const BackgroundMusic = (() => {
       AudioFX.unlock();
       sync();
     } else {
-      pause();
+      // Pausing alone can leave WebKit's media pipeline holding the last
+      // buffers of the track, so "Off" could still be audible. Release the
+      // source like the quit hook does; the next play() rebuilds it.
+      stop();
     }
     return enabled;
   }
 
   return {
     start: play,
+    stop,
     sync,
     applyVolume,
     toggle: () => setEnabled(!enabled),
@@ -2234,6 +2261,22 @@ const BackgroundMusic = (() => {
     get playing() { return Boolean(audio && !audio.paused); },
   };
 })();
+
+// Silence every track the notebook owns before its window goes away. The quit
+// button and the page's own teardown both call this, so a slow agent/fork
+// shutdown can never leave the background music playing after the reader quit.
+// The backend also calls the same hook (and mutes the WebView) the moment a
+// quit begins, before it waits on anything.
+function silenceNotebookAudio() {
+  try { BackgroundMusic.stop(); } catch (error) {}
+  // Plugins keep their own <audio> elements (the music player, chimes). They
+  // pause themselves on pagehide too, but this covers a quit that never gets
+  // to fire the page's teardown.
+  document.querySelectorAll("audio").forEach((node) => {
+    try { node.pause(); } catch (error) {}
+  });
+}
+window.neotodoSilenceAudio = silenceNotebookAudio;
 
 // `wallpaper` is the single wallpaper choice: a picture or film in the
 // dedicated `pictures/wallpapers` shelf (or a legacy absolute path), a built-in
@@ -3028,7 +3071,11 @@ function clearUnseenAgentSubtask(subtaskId) {
   if (!subtaskId || !unseenAgentSubtasks.has(subtaskId)) return;
   unseenAgentSubtasks.delete(subtaskId);
   saveUnseenAgentSubtasks();
-  if (doingPeekOpen) updateDoingPeek(true);
+  // Opening a subtask puts its finished-run light out. That light is one class
+  // on one row, so repaint the markers instead of rebuilding the whole Doing
+  // card: the rebuild used to run before the note was drawn, which is the beat
+  // that made clicking a card row feel late.
+  if (doingPeekOpen) syncDoingRowMarks();
 }
 
 function pruneUnseenAgentSubtasks() {
@@ -3459,6 +3506,10 @@ function updateSubtaskAgentDom(subtaskId, { running = null, model = null, pop = 
 let agentModelsLoading = null;
 const agentLoadedIds = new Set();
 const agentLoadingIds = new Set();
+// One shared read per agent. The AI sheet asks for its session from the render
+// pass and from the first-paint wait, so both callers must await the same
+// request instead of starting two.
+const agentSessionLoads = new Map();
 const agentLive = {};
 const agentPollTimers = new Map();
 const agentAttachments = {};
@@ -4529,7 +4580,11 @@ async function requestState() {
   const response = await fetch("/api/state", { cache: "no-store" });
   return response.json();
 }
-async function action(name, payload = {}) {
+// `repaint: false` is the instant path: the caller has already printed its
+// change on the page (a new subtask row), so the reply must not rebuild the
+// board behind it. The whole stage write that used to answer every save is what
+// made Enter feel late — the row appeared, then the page coughed a frame later.
+async function action(name, payload = {}, { repaint = true } = {}) {
   const response = await fetch("/api/action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -4542,6 +4597,12 @@ async function action(name, payload = {}) {
   if (!result.ok) {
     toast(result.error || "Something went wrong", true);
     setStatus("Needs attention");
+    return result;
+  }
+  if (!repaint) {
+    // The reveal flags belong to renderStage(); leaving them set would replay
+    // the splash for this row on some later, unrelated repaint.
+    setStatus("Saved");
     return result;
   }
   if (name === "add_subtask" && result.ok) {
@@ -5070,7 +5131,7 @@ function selectCategoryRow(row) {
   AudioFX.categoryTap();
   render();
   if (archiveOpen) closeArchive();
-  silentAction("select_category", { id: row.dataset.categoryId });
+  silentAction("select_category", { slim: true, id: row.dataset.categoryId });
   saveViewState();
   // render() patches the rows in place, so the same button is still here.
   const live = categoryRows().find((item) => item.dataset.categoryId === row.dataset.categoryId);
@@ -5158,12 +5219,17 @@ function activeNoteTarget() {
   return current ? { todo: current, subtask: null, kind: "todo", completed: false } : null;
 }
 
+// The fire-and-forget writes: a note, the settings, the quit request. None of
+// their callers reads the board back — the page already owns what it just sent.
+// Asking for the slim acknowledgement keeps the server from echoing the whole
+// notebook on every debounced keystroke, and on the note flush that a category
+// switch performs before it repaints.
 async function persistAction(name, payload = {}) {
   try {
     const response = await fetch("/api/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: name, ...payload }),
+      body: JSON.stringify({ action: name, slim: true, ...payload }),
     });
     return await response.json();
   } catch (error) {
@@ -5657,11 +5723,31 @@ function notesHtml() {
     <div class="notes-body"><div class="note-live" id="note-live">${noteGhostMarkup()}${blocks}</div></div>`;
 }
 
+// The sheet each note panel is already showing. Keep it on the element, not on
+// a piece of state: renderStage() keeps the same panel mounted now, and a
+// refresh must be able to tell "the same note" from "another note".
+const notesRenderCache = new WeakMap();
+
 function renderNotesPanel() {
   const panel = $("#notes-half");
   if (!panel) return;
-  const before = $("#note-live")?.scrollTop || 0;
-  panel.innerHTML = notesHtml();
+  const targetKey = noteTargetKey(activeNoteTarget());
+  const html = notesHtml();
+  // The same note prints the same sheet. A click that only moves the
+  // selection between rows of the same note (or back to a row that was just
+  // read) must not throw the page and the live textarea away: rebuilding the
+  // note on every card click was the stutter the pointer waited through.
+  const cached = notesRenderCache.get(panel);
+  if (cached && cached.html === html) {
+    saveViewState();
+    return;
+  }
+  // A different note (a category switch, another row) opens at its first line.
+  // The same note keeps the reader's place while its sheet is refreshed.
+  const sameTarget = Boolean(cached) && cached.key === targetKey;
+  notesRenderCache.set(panel, { html, key: targetKey });
+  const before = sameTarget ? ($("#note-live")?.scrollTop || 0) : 0;
+  panel.innerHTML = html;
   setupNotesPanel();
   const scroller = $("#note-live");
   if (scroller) scroller.scrollTop = before;
@@ -5701,16 +5787,102 @@ function selectionTouchesSubtaskNames(selection) {
     .some((span) => range.intersectsNode(span));
 }
 
+/** Keep the seven ruled lines of a lane after a row left it. The lane is
+    always seven unit rows tall, so the freed row hands its line to a filler. */
+function refillSubtaskLane(list) {
+  if (!list) return;
+  const missing = Math.max(0, TASK_VISIBLE_ROWS - list.children.length);
+  for (let index = 0; index < missing; index += 1) {
+    const filler = document.createElement("div");
+    filler.className = "current-subtask current-subtask-filler";
+    filler.setAttribute("aria-hidden", "true");
+    list.appendChild(filler);
+  }
+}
+
+/** The bold "next" name belongs to the first unfinished row in the lane. When
+    that row is the one that just left, the next one inherits the mark. */
+function syncNextSubtaskRow() {
+  document.querySelectorAll(".current-subtasks").forEach((list) => {
+    let marked = false;
+    list.querySelectorAll(".current-subtask.pending[data-subtask-id]").forEach((row) => {
+      const next = !marked;
+      row.classList.toggle("next", next);
+      if (next) marked = true;
+    });
+  });
+}
+
 function deleteSubtaskRows(rows) {
   const inner = $(".current-inner");
   const todoId = inner?.dataset.currentTodo;
   if (!todoId || !rows.length) return;
-  const ids = rows.map((row) => row.dataset.subtaskId);
-  if (ids.includes(selectedSubtaskId)) selectedSubtaskId = null;
-  // Deleting a subtask has no effect of its own: the row is simply gone, and
-  // the rows under it take the free line in the same frame.
-  rows.forEach((row) => { row.style.display = "none"; });
-  action("delete_subtasks", { todo_id: todoId, subtask_ids: ids });
+  const ids = rows.filter(Boolean).map((row) => row.dataset.subtaskId).filter(Boolean);
+  if (!ids.length) return;
+  const category = selectedCategory();
+  const todo = category?.todos?.find((item) => item.id === todoId);
+  const wasSelected = ids.includes(selectedSubtaskId);
+  if (wasSelected) selectedSubtaskId = null;
+  // Deleting a subtask has no effect of its own and nothing to wait for: the
+  // rows leave the lane, their lines pass to the fillers and the local copy
+  // loses them in this same frame. The save travels behind the gesture.
+  //
+  // What used to stutter here was the reply, not the request: `action()` ran a
+  // full stage render when the answer landed, so the page rebuilt the board,
+  // the note and the console about 100ms after the click, with the repaint
+  // that followed. The board is already the answer, so it is left alone.
+  if (todo) {
+    todo.subtasks = (todo.subtasks || []).filter((item) => (
+      item.done || !ids.includes(String(item.id))
+    ));
+  }
+  const lists = new Set();
+  rows.forEach((row) => {
+    if (!row?.isConnected) return;
+    const list = row.closest(".current-subtasks");
+    if (list) lists.add(list);
+    row.remove();
+  });
+  lists.forEach(refillSubtaskLane);
+  syncNextSubtaskRow();
+  if (wasSelected) {
+    // The note and the console were reading the row that just left: hand the
+    // page back to the todo instead of keeping a deleted subtask in the sheet.
+    updateHistorySelection();
+    renderNotesPanel();
+  }
+  requestAnimationFrame(() => {
+    const live = $(".current-inner");
+    if (live) applyBaselineRowHeights(live);
+    syncTaskScrollers();
+    // The Doing card lists the same rows, but it is only rebuilt while it is on
+    // screen: a tucked card is rebuilt by its own signature the next time it
+    // opens, so a delete behind it costs nothing.
+    if (doingPeekOpen) updateDoingPeek();
+  });
+  silentAction("delete_subtasks", { todo_id: todoId, subtask_ids: ids }).then((result) => {
+    if (result && result.ok !== false) {
+      setStatus("Saved");
+      // The deleted row is already in the trash card's data; only a card that
+      // is on screen has to print it.
+      if (trashOpen) renderTrashDrawer();
+      return;
+    }
+    // The lane closed the rows on the click. The reply, not the click, decides
+    // whether that was true, so a refusal or a lost request puts the saved
+    // board back.
+    setStatus("Needs attention");
+    if (result?.error) toast(result.error, true);
+    if (result) {
+      render();
+      return;
+    }
+    requestState().then((fresh) => {
+      if (!fresh) return;
+      state.data = fresh;
+      render();
+    }).catch(() => {});
+  });
 }
 
 function deleteSelectedSubtasks(selection) {
@@ -6218,6 +6390,10 @@ function subtaskCaretIndex(span, event) {
 
 function selectCurrentSubtaskNote(row) {
   if (!row) return;
+  // A search hit can point at a row that is past the laid-out batch. Bring it
+  // (and the rows between) back before selecting so the scroll and the
+  // highlight can measure a real box.
+  revealDeferredSubtaskRow(row);
   AudioFX.categoryTap();
   saveActiveNoteCaret();
   flushNoteSave();
@@ -6343,8 +6519,10 @@ function startSubtaskRename(span, event) {
     input.disabled = true;
     input.blur();
     if (selectedSubtaskId === subtaskId) selectedSubtaskId = null;
+    // The empty rename row goes through the same delete as the fan and the
+    // keyboard: it leaves the lane at once and saves behind the gesture.
     vanishSubtaskRow(row, () => {
-      action("delete_subtask", { todo_id: todoId, subtask_id: subtaskId });
+      deleteSubtaskRows([row]);
     });
   };
   input.addEventListener("keydown", (event) => {
@@ -6666,6 +6844,14 @@ function updateAgentSplitLayout() {
   agentSplitRatio = clamp(agentSplitRatio, vertical ? 0.4 : 0.28, vertical ? 0.6 : 0.72);
   const resizing = document.body.classList.contains("agent-split-resizing")
     || deskHandleResizing();
+  // Nothing to lay out: the sheet is closed and no split geometry is on the
+  // page. Reading `.page-body` here measured the whole desk, which forced a
+  // full layout of every subtask row during startup just to compute a width
+  // that no split uses. Keep the fast path for the closed console so the
+  // first render does not pay for a measurement it immediately discards.
+  if (!active && !resizing && !document.body.classList.contains("agent-notes-split")) {
+    return;
+  }
   // Remembering the horizontal side is a synchronous localStorage write. During
   // a divider drag that would hit the disk once per frame; the drag handler
   // stores it once, on pointerup instead.
@@ -7526,9 +7712,10 @@ function renderAgentTerminal() {
   // The card is created by the stage markup, so its inline theme palette has
   // to be repainted whenever a fresh element appears.
   if (typeof settings !== "undefined" && settings) applyAiTheme();
+  performance.mark('rt-a');
   panel.classList.toggle("open", agentTerminalOpen);
   panel.setAttribute("aria-hidden", agentTerminalOpen ? "false" : "true");
-  if (!agentTerminalOpen) { updateAgentSplitLayout(); return; }
+  if (!agentTerminalOpen) { updateAgentSplitLayout();performance.mark('rt-b'); return; }
   bindAgentCompose();
   bindAgentSplitHandle();
 
@@ -7801,33 +7988,43 @@ function startAgentPoll(agentId) {
 
 async function loadAgentSession(agentId) {
   if (agentLoadedIds.has(agentId)) return;
-  agentLoadingIds.add(agentId);
-  renderAgentTerminal();
-  try {
-    const data = await agentPost({ action: "get", agent_id: agentId });
-    if (data.ok) {
-      agentSessions[agentId] = data.agent || { messages: [] };
-      if (data.model) agentSessions[agentId].model = data.model;
-      if (data.mode) agentSessions[agentId].mode = data.mode;
-      if (Array.isArray(data.models) && data.models.length) agentModels = data.models;
-      if (data.default_model) agentDefaultModel = data.default_model;
-      agentLive[agentId] = data.live || {};
-      if (Array.isArray(data.files)) agentAttachments[agentId] = data.files;
-      agentLoadedIds.add(agentId);
-      if (data.live?.started) {
-        // A run started in another window is already working; the panel
-        // follows it like any run started from this window.
-        if (!agentBusyIds.has(agentId)) {
-          agentBusyIds.add(agentId);
-          noteAgentRunStarted(agentId);
+  const running = agentSessionLoads.get(agentId);
+  if (running) return running;
+  const task = (async () => {
+    agentLoadingIds.add(agentId);
+    renderAgentTerminal();
+    try {
+      const data = await agentPost({ action: "get", agent_id: agentId });
+      if (data.ok) {
+        agentSessions[agentId] = data.agent || { messages: [] };
+        if (data.model) agentSessions[agentId].model = data.model;
+        if (data.mode) agentSessions[agentId].mode = data.mode;
+        if (Array.isArray(data.models) && data.models.length) agentModels = data.models;
+        if (data.default_model) agentDefaultModel = data.default_model;
+        agentLive[agentId] = data.live || {};
+        if (Array.isArray(data.files)) agentAttachments[agentId] = data.files;
+        agentLoadedIds.add(agentId);
+        if (data.live?.started) {
+          // A run started in another window is already working; the panel
+          // follows it like any run started from this window.
+          if (!agentBusyIds.has(agentId)) {
+            agentBusyIds.add(agentId);
+            noteAgentRunStarted(agentId);
+          }
+          startAgentPoll(agentId);
         }
-        startAgentPoll(agentId);
       }
+    } catch (error) {
+    } finally {
+      agentLoadingIds.delete(agentId);
+      if (agentTerminalOpen && activeAgent().id === agentId) renderAgentTerminal();
     }
-  } catch (error) {
+  })();
+  agentSessionLoads.set(agentId, task);
+  try {
+    return await task;
   } finally {
-    agentLoadingIds.delete(agentId);
-    if (agentTerminalOpen && activeAgent().id === agentId) renderAgentTerminal();
+    agentSessionLoads.delete(agentId);
   }
 }
 
@@ -7851,9 +8048,18 @@ function scrollAgentMessagesToBottom() {
   [40, 120, 260, 450, 700].forEach((delay) => setTimeout(pin, delay));
 }
 
+// A selection pass updates the history reel and then the subtask rows; both
+// tell the conversation to follow the new target. The conversation is the same
+// sheet either way, so it repaints once, after the click's own frame: the row
+// and the note must answer the pointer before the AI console is re-laid-out.
+let agentTerminalSyncTimer = 0;
+
 function syncAgentTerminal() {
-  if (!agentTerminalOpen) return;
-  renderAgentTerminal();
+  if (!agentTerminalOpen || agentTerminalSyncTimer) return;
+  agentTerminalSyncTimer = setTimeout(() => {
+    agentTerminalSyncTimer = 0;
+    if (agentTerminalOpen) renderAgentTerminal();
+  }, 0);
 }
 
 function openAgentTerminal(silent = false) {
@@ -8701,6 +8907,31 @@ function restoreAgentScroll(snapshot) {
   }
 }
 
+/* Swap the page's own content without touching the chrome that survives a
+   category switch.
+
+   The stage used to be replaced with one `innerHTML` write on every render.
+   That re-created the note sheet (with its live textarea and caret), the AI
+   card, the split handles and every card on the page, so moving between
+   categories looked like a page reload even though only the task board had
+   changed. The title and the board still have to be printed again; everything
+   beside them now stays mounted, and the note sheet is filled by
+   renderNotesPanel() afterwards. */
+function paintStageBoard(stage, headMarkup, boardMarkup) {
+  const body = stage.querySelector(":scope > .page-body");
+  const head = stage.querySelector(":scope > .page-head");
+  const board = body?.querySelector(":scope > .todos-section");
+  if (!body || !head || !board
+    || !body.querySelector(":scope > #notes-half")
+    || !body.querySelector(":scope > #agent-terminal")) return false;
+  // The title carries the current todo's name (or the new-task input), so it is
+  // reprinted. Comparing first keeps an unrelated render from rebuilding the
+  // input the reader may be typing in.
+  if (head.outerHTML !== headMarkup) head.outerHTML = headMarkup;
+  board.innerHTML = boardMarkup;
+  return true;
+}
+
 // A finished row is one sheet, never a picture without its paper.
 //
 // Completion used to lift the clicked row onto a page-level ghost and carry it
@@ -8739,7 +8970,8 @@ function renderStage() {
         ${agentTerminalMarkup()}
         ${agentSplitUiMarkup()}
       </div>`;
-    keepAgentTerminal(stage, liveAgentTerminal);
+    performance.mark('rs-d');
+  keepAgentTerminal(stage, liveAgentTerminal);
     renderAgentTerminal();
     restoreAgentScroll(liveAgentScroll);
     refreshTaskBoard();
@@ -8755,6 +8987,18 @@ function renderStage() {
   const todos = category.todos || [];
   const done = doneTodos(category);
   const current = todos.find((todo) => !todo.done) || null;
+  // A repaint of the same todo keeps the rows the reader already scrolled to
+  // in layout; a different task starts from the first batch again.
+  const priorTodoId = stage.querySelector(".current-inner[data-current-todo]")?.dataset.currentTodo || "";
+  const priorRowsShown = Math.max(
+    0,
+    ...[...stage.querySelectorAll("[data-subtask-list]")].map((list) => (
+      list.querySelectorAll(":scope > .current-subtask[data-subtask-id]:not(.subtask-row-deferred)").length
+    )),
+  );
+  const keptSubtaskRows = priorTodoId && priorTodoId === (current?.id || "")
+    ? priorRowsShown
+    : SUBTASK_ROW_BATCH;
   // A fork window is its own OS window. Its title bar should name the todo,
   // never the NeoTodo process/app name that the borderless main window hides.
   if (state.data?.fork) {
@@ -8807,7 +9051,7 @@ function renderStage() {
   if (historyCursor < 0 && done.length) historyCursor = 0;
   if (historyCursor >= done.length) historyCursor = done.length - 1;
 
-  const historyRows = done.map((todo, index) => {
+  performance.mark('rs-a');const historyRows = done.map((todo, index) => {
     const cursor = !selectedSubtaskId && !selectedHistoryId && index === historyCursor;
     const selected = !selectedSubtaskId && todo.id === selectedHistoryId;
     const hasSubs = (todo.subtasks || []).length > 0;
@@ -8828,7 +9072,7 @@ function renderStage() {
         }).join("")}</div>`
       : "";
     const trophy = hasSubs
-      ? `<button class="h-trophy h-trophy-action" data-history-expand="${index}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${GOLD_MOON}</button>`
+      ? `<button class="h-trophy h-trophy-action h-trophy-squash" data-history-expand="${index}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${SUBTASK_DONE_ICON}</button>`
       : `<span class="h-trophy">${completedIcon()}</span>`;
     return `<div class="history-row ${cursor ? "cursor" : ""} ${selected ? "selected" : ""}" data-history-index="${index}" data-todo-id="${esc(todo.id)}">
       ${trophy}
@@ -8842,44 +9086,26 @@ function renderStage() {
   const historyFillers = Array.from({ length: historyFillerCount }, () => '<div class="history-row history-filler" aria-hidden="true"></div>').join("");
   const history = `<div class="history-reel no-motion" id="history-reel"><div class="history-rows" id="history-rows">${historyRows}${historyFillers}</div></div>`;
 
+  performance.mark('rs-b');
   let metaHtml = "";
   let headTitle;
   if (current) {
     const subList = orderedSubtasks(current);
     const pendingList = subList.filter((subtask) => !subtask.done);
     const doneList = subList.filter((subtask) => subtask.done);
+    // Twenty finished rows arm the one-click submit: the complete action keeps
+    // its place but says the pending tail will be finished with the todo.
+    const quickSubmitReady = pendingList.length > 0 && doneList.length >= SUBTASK_QUICK_SUBMIT;
+    const submitLabel = quickSubmitReady
+      ? `Submit todo · ${doneList.length} subtasks done, the rest will be marked done`
+      : "Complete todo";
     const addSubtaskRow = addingSubtask && addingSubtaskTodoId === current.id
-      ? `<div class="current-subtask adding-subtask" data-add-subtask-row>
-          <span class="sub-fan" aria-hidden="true"><svg viewBox="0 0 1024 1024"><use href="#fan"></use></svg></span>
-          <input id="subtask-name-input" class="subtask-name-input" type="text" autocomplete="off" spellcheck="false" aria-label="Name subtask">
-        </div>`
+      ? ADD_SUBTASK_ROW_HTML
       : "";
-    const subtaskRow = (subtask) => {
-      const next = pendingSub && subtask.id === pendingSub.id;
-      const selected = subtask.id === selectedSubtaskId;
-      const fan = subtask.done
-        ? `<span class="sub-fan done" aria-hidden="true"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>`
-        : `<button class="sub-fan sub-fan-action" data-action="complete-subtask" data-todo-id="${esc(current.id)}" data-subtask-id="${esc(subtask.id)}" aria-label="Finish ${esc(subtask.name)}"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"/><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></button>`;
-      const agentId = `subtask:${subtask.id}`;
-      const agentRunning = agentIsRunning(agentId);
-      // The provider mark answers "who is working / who just worked", so it
-      // belongs to the live row only. A finished row keeps the empty slot (it
-      // is hidden when empty) so its paper and name print in their final
-      // layout, without a badge-sized gap that never belonged to the card.
-      const modelBadge = subtask.done || agentRunning
-        ? `<span class="sub-agent-model" aria-hidden="true"></span>`
-        : subtaskModelIconHtml(subtask.id);
-      const forkBranch = forkedSubtaskBranch(current.id, subtask.id);
-      const forkLink = forkBranch
-        ? `<button class="sub-fork-link" type="button" data-fork-branch="${esc(forkBranch.id)}" title="打开 Fork 子应用" aria-label="打开 Fork 子应用"><img src="/fork-link-flame.svg" alt=""></button>`
-        : "";
-      return `<div class="current-subtask ${subtask.done ? "done" : "pending"} ${next ? "next" : ""} ${selected ? "selected" : ""} ${agentRunning ? "agent-running" : ""}" data-subtask-id="${esc(subtask.id)}">
-        ${modelBadge}${fan}
-        <span class="sub-name">${esc(subtask.name)}</span>
-        ${subtask.done ? `<svg class="sub-done-check" aria-hidden="true"><use href="#check-red"></use></svg>` : ""}
-        ${forkLink}
-      </div>`;
-    };
+    const subtaskRow = (subtask) => currentSubtaskRowHtml(current, subtask, {
+      next: Boolean(pendingSub && subtask.id === pendingSub.id),
+      selected: subtask.id === selectedSubtaskId,
+    });
     const fillerRow = '<div class="current-subtask current-subtask-filler" aria-hidden="true"></div>';
     const pendingFillers = Array.from(
       { length: Math.max(0, 7 - pendingList.length - (addSubtaskRow ? 1 : 0)) },
@@ -8903,7 +9129,12 @@ function renderStage() {
     // handle line rides the sheet's bottom edge: pulled up it stretches the
     // card away until the line sits under the top line of the block and the
     // page's own ruling shows through, pulled down it hands the rows back.
-    const pendingCard = (lanes) => `<div class="pending-subtask-card card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" data-subcard="pending" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
+    //
+    // `data-draggable` is the same marker the Doing card carries: the sheet is
+    // a movable surface, and the marker says so for scripts. Like the Doing
+    // card it is a marker, not printed text; the stretchable handle line is
+    // what explains the pull to the reader.
+    const pendingCard = (lanes) => `<div class="pending-subtask-card card ${pendingSubtasksCollapsed ? "collapsed" : ""}" id="pending-subtask-card" data-subcard="pending" data-draggable="true" role="region" aria-label="Subtasks" aria-hidden="${pendingSubtasksCollapsed ? "true" : "false"}">
         ${lanes}
         <button class="pending-subtask-toggle ${pendingSubtasksCollapsed ? "collapsed" : ""}" type="button" data-action="toggle-pending-subtasks" aria-expanded="${pendingSubtasksCollapsed ? "false" : "true"}" aria-controls="pending-subtask-card" aria-label="${pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks"}">
           <span class="pending-subtask-line" aria-hidden="true"></span>
@@ -8941,7 +9172,7 @@ function renderStage() {
       <div class="head-title-inner">
         <span class="page-title-name">${esc(current.name)}</span>
         <div class="current-actions">
-          <button class="current-action icon-action" data-action="complete" data-id="${esc(current.id)}" aria-label="Complete todo"><svg aria-hidden="true"><use href="#complete-action"></use></svg></button>
+          <button class="current-action icon-action ${quickSubmitReady ? "quick-submit" : ""}" data-action="complete" data-id="${esc(current.id)}" aria-label="${submitLabel}" title="${submitLabel}"><svg aria-hidden="true"><use href="#complete-action"></use></svg></button>
           <span class="action-slash" aria-hidden="true">/</span>
           <button class="current-action icon-action" data-action="add-subtask" data-id="${esc(current.id)}" aria-label="Add subtask"><svg aria-hidden="true"><use href="#add-action"></use></svg></button>
         </div>
@@ -8956,28 +9187,42 @@ function renderStage() {
   // The old page-art was the postcard scene painted inside the theme. The same
   // art now lives in the independent wallpaper layer, so the page itself only
   // renders the theme's colours and typography.
-  stage.innerHTML = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" title="Choose or change this todo's working folder" aria-label="Choose or change this todo's working folder"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div>${headTitle}</div>
+  const headMarkup = `<div class="page-head"><div class="page-title banner-title project-folder-trigger" role="button" tabindex="0" data-action="reveal-project-folder" title="Choose or change this todo's working folder" aria-label="Choose or change this todo's working folder"><svg class="banner-icon" aria-hidden="true"><use href="#${themeSymbol("header")}"></use></svg></div>${headTitle}</div>`;
+  const boardMarkup = `<div class="history-half">${history}</div><div class="current-half">${metaHtml}</div>`;
+  // The common path patches the mounted page. A first paint (or a page built by
+  // an older layout) has no shell yet and falls back to one full write.
+  performance.mark('rs-c');
+  let paintedNotes = null;
+  performance.mark('rs-c2');
+  if (!paintStageBoard(stage, headMarkup, boardMarkup)) {
+    paintedNotes = notesHtml();performance.mark('rs-c3');
+    stage.innerHTML = `${headMarkup}
     <div class="page-body">
-      <section class="todos-section">
-        <div class="history-half">${history}</div>
-        <div class="current-half">${metaHtml}</div>
-      </section>
-      <section class="notes-half floating-notes ${notesHidden ? "notes-hidden" : ""}" id="notes-half">${notesHtml()}</section>
+      <section class="todos-section">${boardMarkup}</section>
+      <section class="notes-half floating-notes ${notesHidden ? "notes-hidden" : ""}" id="notes-half">${paintedNotes}</section>
       ${agentTerminalMarkup()}
       ${agentSplitUiMarkup()}
     </div>`;
+    performance.mark('rs-c4');const freshNotes = $("#notes-half");
+    if (freshNotes) {
+      notesRenderCache.set(freshNotes, {
+        html: paintedNotes,
+        key: noteTargetKey(activeNoteTarget()),
+      });
+    }
+  }
 
-  keepAgentTerminal(stage, liveAgentTerminal);
+  performance.mark('rs-d');deferSubtaskRows(stage, keptSubtaskRows);bindDeferredSubtaskRows(stage);keepAgentTerminal(stage, liveAgentTerminal);performance.mark('rs-d2');
   // With the AI sheet closed its element was carried over untouched, so this
   // call only re-applies the same palette and, in updateAgentSplitLayout(),
   // reads the freshly written page to re-position the split handles. It runs in
   // the same pass as the repaint: nothing in a completion waits for it now.
-  renderAgentTerminal();
+  renderAgentTerminal();performance.mark('rs-e');
   restoreAgentScroll(liveAgentScroll);
-  refreshTaskBoard();
+  refreshTaskBoard();performance.mark('rs-f');
   // The height-ramp row rule gives each row its own stop. New rows need it now
   // that the stage HTML has been replaced.
-  applyBaselineRowHeights(stage);
+  applyBaselineRowHeights(stage);performance.mark('rs-g');
   bindCompletedSubtasksBar();
   bindPendingSubtaskToggle();
   // Put the reader's scroll back before anything is measured. The rebuilt lane
@@ -9002,9 +9247,14 @@ function renderStage() {
     const doneLane = stage.querySelector('.completed-subtask-drawer .subtask-lane[data-lane="done"]');
     if (doneLane) doneLane.scrollTop = 0;
   }
-  setupNotesPanel();
-  positionTimerRoot();
-  if (!doingPeekOpen) refreshDoingZone();
+  setupNotesPanel();performance.mark('rs-h');
+  // The note sheet was carried over with the rest of the chrome, so its content
+  // is refreshed in place. With a fresh panel the fallback above already printed
+  // it and cached the sheet; calling this again would rebuild the note for
+  // nothing.
+  if (paintedNotes === null) renderNotesPanel();performance.mark('rs-i');
+  positionTimerRoot();performance.mark('rs-j');
+  if (!doingPeekOpen) refreshDoingZone();performance.mark('rs-k');
   requestAnimationFrame(() => {
     refreshNotesSwipeLine();
     // Keep the Doing sub-card built while it is tucked away: its wallpaper is
@@ -9128,10 +9378,13 @@ function setCompletedSubtasksOpen(open) {
   bar.setAttribute("aria-label", completedSubtasksOpen ? "Hide completed subtasks" : "Show completed subtasks");
   drawer.classList.toggle("open", completedSubtasksOpen);
   drawer.setAttribute("aria-hidden", completedSubtasksOpen ? "false" : "true");
-  // Mount / pause the live wallpaper pane with the card itself.
-  syncCardWallpapers();
+  // Mount / pause this card's wallpaper pane with the card itself. The page
+  // pass walked every card (and scheduled every bake) on the click; the card
+  // that just opened only needs its own face.
+  syncCardWallpaper(drawer);
+  schedulePrimeSubcardPapers();
   if (!completedSubtasksOpen) return;
-  settleCardWallpapers(460);
+  settleCardWallpaper(drawer, 460);
   const lane = drawer.querySelector(".subtask-lane");
   if (!lane) return;
   lane.scrollTop = 0;
@@ -9947,11 +10200,11 @@ function mergePluginManifests(manifests) {
   installedUserPlugins = users;
 }
 
-async function loadInstalledPlugins() {
+async function loadInstalledPlugins(preloaded = null) {
   try {
-    const response = await fetch("/api/plugins", { cache: "no-store" });
-    if (!response.ok) return;
-    const result = await response.json();
+    const response = preloaded ? null : await fetch("/api/plugins", { cache: "no-store" });
+    if (response && !response.ok) return;
+    const result = preloaded || await response.json();
     if (!result?.ok || !Array.isArray(result.plugins)) return;
     mergePluginManifests(result.plugins);
     renderPluginRail();
@@ -11086,7 +11339,7 @@ function renderCompletedLogContent() {
         </div>`).join("")}</div>`
       : "";
     const trophy = subtasks.length
-      ? `<button class="log-trophy log-trophy-action" data-log-expand="${esc(item.key)}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${GOLD_MOON}</button>`
+      ? `<button class="log-trophy log-trophy-action log-trophy-squash" data-log-expand="${esc(item.key)}" aria-label="${expanded ? "Hide subtasks" : "Show subtasks"}">${SUBTASK_DONE_ICON}</button>`
       : `<span class="log-trophy">${completedIcon()}</span>`;
     return `<div class="log-line">
       ${trophy}
@@ -11495,7 +11748,14 @@ function showCurrentSubtaskMenu(x, y, subtaskId, editable = null) {
       return;
     }
     if (subtask.done || !row) return;
-    if (!(await copyToClipboard(subtask.name))) return;
+    // Cut is a delete first and a clipboard write second: the row has to leave
+    // the page on the click, not after the clipboard answers. If the copy
+    // fails, nothing was cut and the row comes back.
+    row.style.display = "none";
+    if (!(await copyToClipboard(subtask.name))) {
+      row.style.display = "";
+      return;
+    }
     deleteSubtaskRows([row]);
   };
 
@@ -11831,6 +12091,289 @@ function orderedSubtasks(todo) {
     .map((item) => item.subtask);
 }
 
+/** One live subtask row. renderStage() and the in-place lane painter print the
+    same markup, so a row added with Enter and a row printed by a repaint are
+    the same row. */
+window.__rowMs = 0, window.__rowCount = 0;
+function currentSubtaskRowHtml(todo, subtask, { next = false, selected = false } = {}) {
+  const __t0 = performance.now();
+  try { return currentSubtaskRowHtmlInner(todo, subtask, { next, selected }); }
+  finally { window.__rowMs += performance.now() - __t0; window.__rowCount++; }
+}
+function currentSubtaskRowHtmlInner(todo, subtask, { next = false, selected = false } = {}) {
+  const fan = subtask.done
+    ? `<span class="sub-fan done" aria-hidden="true"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"></circle><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></span>`
+    : `<button class="sub-fan sub-fan-action" data-action="complete-subtask" data-todo-id="${esc(todo.id)}" data-subtask-id="${esc(subtask.id)}" aria-label="Finish ${esc(subtask.name)}"><span class="fan-stack"><svg class="fan-static" aria-hidden="true" viewBox="0 0 1024 1024"><use href="#fan"></use></svg><svg class="fan-rotor" aria-hidden="true" viewBox="0 0 1024 1024"><circle cx="493" cy="422" r="286" fill="#C8B9FC"/><g clip-path="url(#fan-wheel-clip)"><use href="#fan"></use></g></svg></span></button>`;
+  const agentRunning = agentIsRunning(`subtask:${subtask.id}`);
+  // The provider mark answers "who is working / who just worked", so it
+  // belongs to the live row only. A finished row keeps the empty slot (it is
+  // hidden when empty) so its paper and name print in their final layout,
+  // without a badge-sized gap that never belonged to the card.
+  const modelBadge = subtask.done || agentRunning
+    ? `<span class="sub-agent-model" aria-hidden="true"></span>`
+    : subtaskModelIconHtml(subtask.id);
+  const forkBranch = forkedSubtaskBranch(todo.id, subtask.id);
+  const forkLink = forkBranch
+    ? `<button class="sub-fork-link" type="button" data-fork-branch="${esc(forkBranch.id)}" title="打开 Fork 子应用" aria-label="打开 Fork 子应用"><img src="/fork-link-flame.svg" alt=""></button>`
+    : "";
+  return `<div class="current-subtask ${subtask.done ? "done" : "pending"} ${next ? "next" : ""} ${selected ? "selected" : ""} ${agentRunning ? "agent-running" : ""}" data-subtask-id="${esc(subtask.id)}">
+    ${modelBadge}${fan}
+    <span class="sub-name">${esc(subtask.name)}</span>
+    ${subtask.done ? `<svg class="sub-done-check" aria-hidden="true"><use href="#check-red"></use></svg>` : ""}
+    ${forkLink}
+  </div>`;
+}
+
+/** The inline "add subtask" row. Clicking the plus mounts this one element in
+    the live lane instead of rebuilding the stage, so the caret is in it on the
+    frame the pointer lands. */
+const ADD_SUBTASK_ROW_HTML = `<div class="current-subtask adding-subtask" data-add-subtask-row>
+  <span class="sub-fan" aria-hidden="true"><svg viewBox="0 0 1024 1024"><use href="#fan"></use></svg></span>
+  <input id="subtask-name-input" class="subtask-name-input" type="text" autocomplete="off" spellcheck="false" aria-label="Name subtask">
+</div>`;
+
+/* Only the first rows of a long lane are laid out. The sheet shows seven at a
+   time, so printing and measuring hundreds of offscreen rows was the largest
+   single cost of a launch (and of adding one subtask). The remaining rows are
+   still in the DOM — search, selection and the data model keep working — and
+   are handed to layout a batch at a time as the lane scrolls toward them. */
+const SUBTASK_ROW_BATCH = 16;
+
+function deferSubtaskRows(scope = document, keepCount = SUBTASK_ROW_BATCH) {
+  const keep = Math.max(SUBTASK_ROW_BATCH, Number(keepCount) || 0);
+  scope.querySelectorAll?.("[data-subtask-list]").forEach((list) => {
+    const rows = [...list.querySelectorAll(":scope > .current-subtask[data-subtask-id]")];
+    rows.forEach((row, index) => {
+      row.classList.toggle("subtask-row-deferred", index >= keep);
+    });
+  });
+  return scope;
+}
+
+/** Put a selected row (and the rows before it) back into layout. */
+function revealDeferredSubtaskRow(row) {
+  const list = row?.closest?.("[data-subtask-list]");
+  if (!list || !row.classList.contains("subtask-row-deferred")) return;
+  const rows = [...list.querySelectorAll(":scope > .current-subtask[data-subtask-id]")];
+  const index = rows.indexOf(row);
+  rows.forEach((item, position) => {
+    if (position <= index + SUBTASK_ROW_BATCH) item.classList.remove("subtask-row-deferred");
+  });
+}
+
+function revealMoreDeferredSubtaskRows(lane) {
+  const list = lane?.querySelector?.("[data-subtask-list]");
+  if (!list) return false;
+  let revealed = false;
+  // Keep a short runway below the scrollport instead of one batch at a time:
+  // dragging the scrollbar to the end must feel like a list, not a page that
+  // grows one screen per gesture.
+  for (let round = 0; round < 6; round += 1) {
+    if (lane.scrollTop + lane.clientHeight < lane.scrollHeight - 320) break;
+    const hidden = [...list.querySelectorAll(":scope > .current-subtask.subtask-row-deferred")];
+    if (!hidden.length) break;
+    hidden.slice(0, SUBTASK_ROW_BATCH).forEach((row) => row.classList.remove("subtask-row-deferred"));
+    revealed = true;
+  }
+  if (revealed) syncAgentFanSpins();
+  return revealed;
+}
+
+function bindDeferredSubtaskRows(stage) {
+  if (!stage || stage.dataset.deferredRowsBound === "1") return;
+  stage.dataset.deferredRowsBound = "1";
+  // Scroll does not bubble, so catch it in the capture phase on the stage.
+  stage.addEventListener("scroll", (event) => {
+    const lane = event.target;
+    if (!lane?.classList?.contains("subtask-lane")) return;
+    if (lane.scrollTop + lane.clientHeight < lane.scrollHeight - 120) return;
+    if (revealMoreDeferredSubtaskRows(lane)
+      && lane.scrollTop + lane.clientHeight >= lane.scrollHeight - 120) {
+      requestAnimationFrame(() => revealMoreDeferredSubtaskRows(lane));
+    }
+  }, { passive: true, capture: true });
+}
+
+const SUBTASK_FILLER_HTML = '<div class="current-subtask current-subtask-filler" aria-hidden="true"></div>';
+
+/** The list the live rows are printed into: the pending lane, or the single
+    lane used when the finished drawer plugin is off. */
+function subtaskLiveList() {
+  return document.querySelector('#pending-subtask-card [data-subtask-list="pending"]')
+    || document.querySelector('#pending-subtask-card [data-subtask-list="all"]')
+    || null;
+}
+
+function subtaskLaneBaselineScope(list) {
+  return list?.closest(".card") || list?.parentElement || list || null;
+}
+
+/** Mount the inline row in the lane that is already on screen and focus it. */
+function mountAddSubtaskRow() {
+  const list = subtaskLiveList();
+  if (!list) return null;
+  if (pendingSubtasksCollapsed) setPendingSubtasksCollapsed(false);
+  let input = list.querySelector("#subtask-name-input");
+  if (!input) {
+    list.insertAdjacentHTML("afterbegin", ADD_SUBTASK_ROW_HTML);
+    input = list.querySelector("#subtask-name-input");
+    // The card is seven rows tall: the add row takes the last filler's place
+    // instead of growing the sheet.
+    const fillers = list.querySelectorAll(".current-subtask-filler");
+    if (fillers.length) fillers[fillers.length - 1].remove();
+    applyBaselineRowHeights(subtaskLaneBaselineScope(list));
+  }
+  const lane = list.closest(".subtask-lane");
+  if (lane) lane.scrollTop = 0;
+  if (input) {
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+  return input;
+}
+
+/** Repaint only the live lane: its rows, the inline add row and its fillers.
+    Adding one subtask must not rebuild the stage, because that repaints every
+    card on the page while the reader is looking at one row. */
+function paintSubtaskLane({ splashId = "" } = {}) {
+  const todo = currentTodo();
+  const list = subtaskLiveList();
+  if (!todo || !list) return null;
+  const all = orderedSubtasks(todo);
+  const rows = list.dataset.subtaskList === "all" ? all : all.filter((subtask) => !subtask.done);
+  const next = all.find((subtask) => !subtask.done) || null;
+  const adding = addingSubtask && addingSubtaskTodoId === todo.id;
+  const fillerCount = Math.max(0, 7 - rows.length - (adding ? 1 : 0));
+  const keptRows = Math.max(
+    SUBTASK_ROW_BATCH,
+    list.querySelectorAll(":scope > .current-subtask[data-subtask-id]:not(.subtask-row-deferred)").length,
+  );
+  list.innerHTML = `${adding ? ADD_SUBTASK_ROW_HTML : ""}${rows.map((subtask) => currentSubtaskRowHtml(todo, subtask, {
+    next: Boolean(next && subtask.id === next.id),
+    selected: subtask.id === selectedSubtaskId,
+  })).join("")}${SUBTASK_FILLER_HTML.repeat(fillerCount)}`;
+  deferSubtaskRows(list, keptRows);
+  applyBaselineRowHeights(subtaskLaneBaselineScope(list));
+  syncAgentFanSpins();
+  if (adding) {
+    const input = list.querySelector("#subtask-name-input");
+    if (input) {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
+  const lane = list.closest(".subtask-lane");
+  if (lane) lane._slimUpdate?.();
+  if (splashId) {
+    const fresh = list.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(String(splashId))}"]`);
+    if (fresh) {
+      revealDeferredSubtaskRow(fresh);
+      revealCurrentSubtaskRow(splashId);
+      requestAnimationFrame(() => {
+        AudioFX.splash();
+        spawnPixelSplash(fresh);
+      });
+    }
+  }
+  return list;
+}
+
+/** Enter in the inline row. The row prints on the same frame as the key; the
+    save travels behind it and only swaps its local id for the stored one, so
+    neither the row nor the caret waits for the round trip or for a full stage
+    repaint. The local copy carries the subtask too: a later render must print
+    the board the reader is already looking at, not the one before Enter. */
+async function commitNewSubtask(todoId, name) {
+  const todo = currentTodo();
+  const list = todo && String(todo.id) === String(todoId) ? subtaskLiveList() : null;
+  // Without a mounted lane there is nothing to patch: take the old road.
+  if (!todo || !list) {
+    action("add_subtask", { todo_id: todoId, name });
+    return;
+  }
+  // A local id keeps the row addressable (and in recency order) while the save
+  // is in flight; the reply's real id replaces it in place.
+  const provisionalId = `pending-${Date.now().toString(36)}`;
+  todo.subtasks = [{
+    id: provisionalId,
+    name,
+    done: false,
+    created_at: new Date().toISOString(),
+    completed_at: null,
+    time_cost: null,
+  }, ...(todo.subtasks || [])];
+  // This path printed the row itself: a later stage pass must not replay the
+  // reveal/splash for a row the reader already sees.
+  revealNewSubtask = false;
+  celebrateNewSubtask = false;
+  lastAddedSubtaskId = null;
+  // The row is a convenience; the save is the promise. A paint that fails must
+  // never take the typed name down with it.
+  try {
+    paintSubtaskLane();
+    const lane = list.closest(".subtask-lane");
+    if (lane) lane.scrollTop = 0;
+  } catch (error) {}
+  let result = null;
+  try {
+    result = await action(
+      "add_subtask",
+      { todo_id: todoId, name, slim: true },
+      { repaint: false },
+    );
+  } catch (error) {
+    result = null;
+  }
+  const target = findTodo(String(todoId)) || todo;
+  if (result?.ok) {
+    const created = String(result.created || "");
+    const row = (target?.subtasks || []).find((item) => item.id === provisionalId);
+    if (row && created) row.id = created;
+    // A reply that lands after the reader moved on must not paint this lane
+    // over the task now on screen: the local copy is already saved above.
+    const stillHere = list.isConnected && list === subtaskLiveList()
+      && String(currentTodo()?.id || "") === String(todoId);
+    if (stillHere) {
+      try {
+        paintSubtaskLane({ splashId: created });
+      } catch (error) {
+        renderStage();
+      }
+    }
+    if (doingPeekOpen) updateDoingPeek(true);
+    return;
+  }
+  // The save failed: the provisional row leaves the lane and its local copy,
+  // and the text goes back into the inline row so it can be retried.
+  if (target) {
+    target.subtasks = (target.subtasks || []).filter((item) => item.id !== provisionalId);
+  }
+  addingSubtask = true;
+  addingSubtaskTodoId = todoId;
+  if (list.isConnected) {
+    paintSubtaskLane();
+    const input = list.querySelector("#subtask-name-input");
+    if (input) {
+      // If the reader already started the next row while this save was in
+      // flight, keep their words: only an empty row gets the failed name back.
+      if (!input.value) {
+        input.value = name;
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    } else {
+      // The lane moved on (the todo was completed or replaced), so there is no
+      // row to retry in: clear the flag instead of leaving it pointing at a
+      // board that is no longer mounted.
+      addingSubtask = false;
+      addingSubtaskTodoId = null;
+    }
+  } else {
+    addingSubtask = false;
+    addingSubtaskTodoId = null;
+    renderStage();
+  }
+}
+
 /** Reorder the visible subtask rows, optionally revealing a finished one. */
 function reorderCurrentSubtaskRows(revealId = "") {
   const todo = currentTodo();
@@ -11868,6 +12411,7 @@ function revealCurrentSubtaskRow(subtaskId) {
   const inner = $(".current-inner");
   const row = inner?.querySelector(`.current-subtask[data-subtask-id="${CSS.escape(String(subtaskId))}"]`);
   if (!inner || !row) return;
+  revealDeferredSubtaskRow(row);
   const scroller = row.closest(".subtask-lane") || inner;
   const rowRect = row.getBoundingClientRect();
   const scrollerRect = scroller.getBoundingClientRect();
@@ -11924,7 +12468,12 @@ function doingPeekMarkup(entries) {
 }
 
 function doingPeekStateKey(entries) {
-  return `${currentPostcardId()}|${wallpaperRenderKey()}|${doingDockSide}|${[...doingExpandedTodoIds].join(",")}|${state.selectedCategoryId || ""}|${[...unseenAgentSubtasks].sort().join(",")}|${Object.keys(runningAgentStamps).sort().join(",")}|${entries.map(({ todo }) =>
+  // The selected category is deliberately absent: it only moves the `active`
+  // marker between rows (a class flip in updateDoingPeek), never the rows
+  // themselves. Keeping it here rebuilt the whole hidden card — rows and baked
+  // wallpaper — on every category switch, which was a visible chunk of the
+  // switch's cost.
+  return `${currentPostcardId()}|${wallpaperRenderKey()}|${doingDockSide}|${[...doingExpandedTodoIds].join(",")}|${[...unseenAgentSubtasks].sort().join(",")}|${Object.keys(runningAgentStamps).sort().join(",")}|${entries.map(({ todo }) =>
     `${todo.id}:${todoHasRunningAgent(todo) ? 1 : 0}:${todo.name}:${(todo.subtasks || []).length}:${orderedSubtasks(todo).filter((subtask) => !subtask.done).map((subtask) => subtask.id).join(",")}`
   ).join(";")}`;
 }
@@ -12426,6 +12975,35 @@ function syncDoingFanSpins(list, active = doingPeekOpen) {
   });
 }
 
+/** Repaint the Doing card's markers in place: the marked todo, the marked
+    subtask and the finished-run lights. These are classes on rows that are
+    already on the card, so a click that only moves the marker must not rebuild
+    the card's markup (the rebuild was the beat the pointer waited through,
+    both for a Doing row and for a subtask row whose light just went out). */
+function syncDoingRowMarks() {
+  if (!doingPeekOpen) return;
+  const panel = $("#doing-peek");
+  if (!panel) return;
+  const entries = doingEntries();
+  const byTodo = new Map(entries.map((entry) => [String(entry.todo.id), entry]));
+  panel.querySelectorAll(".doing-item[data-doing-item]").forEach((item) => {
+    const id = String(item.dataset.doingItem || "");
+    const entry = byTodo.get(id);
+    const marked = doingMarkedTodoId === id;
+    item.classList.toggle("marked", marked);
+    item.querySelector(":scope > .doing-head")?.classList.toggle("marked", marked);
+    const mark = item.querySelector("[data-doing-expand]");
+    if (mark && entry) mark.classList.toggle("has-unseen", todoHasUnseenAgentSubtasks(entry.todo));
+    item.querySelectorAll(".doing-sub[data-doing-subtask]").forEach((row) => {
+      const subtaskId = row.dataset.doingSubtask;
+      const unseen = unseenAgentSubtasks.has(subtaskId);
+      row.classList.toggle("marked", doingMarkedSubtaskId === subtaskId);
+      row.classList.toggle("has-unseen", unseen);
+      row.querySelector(":scope > .doing-fan")?.classList.toggle("has-unseen", unseen);
+    });
+  });
+}
+
 function updateDoingPeek(force = false) {
   // A pull owns the card: a polling tick that changes the state signature
   // mid-drag must not rebuild the rows (which relayouts the card under the
@@ -12474,6 +13052,16 @@ function updateDoingPeek(force = false) {
   document.body.classList.toggle("doing-dock-left", doingDockSide === "left");
   // The Doing card keeps its own card border; it never shows a scroll thumb.
   panel.querySelector(":scope > .slim-scrollbar")?.remove();
+  // Which board the reader is looking at is only an `active` marker on its row.
+  // Patch that class in place so a category switch never has to rebuild the
+  // card (and repaint its baked wallpaper) just to move a highlight.
+  panel.querySelectorAll(".doing-item[data-doing-item]").forEach((item) => {
+    const head = item.querySelector(":scope > .doing-head[data-category-id]");
+    item.classList.toggle(
+      "active",
+      Boolean(head) && head.dataset.categoryId === state.selectedCategoryId,
+    );
+  });
   const key = doingPeekStateKey(entries);
   if (force || key !== doingPeekSignature) {
     const previousList = panel.querySelector(".doing-list");
@@ -12525,7 +13113,8 @@ function openDoingPeek() {
   if (!panel) return;
   doingPeekOpen = true;
   document.body.classList.add("doing-peek-open");
-  positionDoingPeek();
+  // updateDoingPeek() laid the card on its box in this same pass; opening is
+  // only the state cut, so the box is not measured a second time.
   clearDoingDragOffset(panel);
   panel.classList.add("open");
   syncDoingFanSpins(panel.querySelector(".doing-list"), true);
@@ -12573,7 +13162,7 @@ function activateDoingCategory(categoryId) {
   selectedSubtaskId = null;
   notesPreview = false;
   render();
-  silentAction("select_category", { id: categoryId });
+  silentAction("select_category", { slim: true, id: categoryId });
 }
 
 function jumpToDoingTodo(todoId, categoryId) {
@@ -12585,8 +13174,17 @@ function jumpToDoingTodo(todoId, categoryId) {
   // The row's name is an expander too; a fresh unfold ripples here as well.
   doingUnfoldTodoId = willUnfold ? todoId : null;
   saveDoingExpandedTodoIds();
-  updateDoingPeek(true);
-  if (categoryId && categoryId !== state.selectedCategoryId) activateDoingCategory(categoryId);
+  // A click moves the marker and (maybe) folds one row. The marker is a class
+  // flip; the fold is caught by the card's own signature check below, so the
+  // card is never rebuilt just to light a row.
+  syncDoingRowMarks();
+  updateDoingPeek();
+  if (categoryId && categoryId !== state.selectedCategoryId) {
+    activateDoingCategory(categoryId);
+    // The active row follows the new board; the signature has the category in
+    // it, so this is a cheap no-op unless the board actually moved.
+    updateDoingPeek();
+  }
 }
 
 function jumpToDoingSubtask(todoId, categoryId, subtaskId) {
@@ -12604,7 +13202,7 @@ function jumpToDoingSubtask(todoId, categoryId, subtaskId) {
     selectedSubtaskId = null;
     notesPreview = false;
     render();
-    silentAction("select_category", { id: categoryId });
+    silentAction("select_category", { slim: true, id: categoryId });
   }
   selectedSubtaskId = subtaskId;
   selectedHistoryId = null;
@@ -12622,7 +13220,11 @@ function jumpToDoingSubtask(todoId, categoryId, subtaskId) {
     const offset = scroller.scrollTop + (rowRect.top - scrollerRect.top) - scroller.clientHeight / 2 + rowRect.height / 2;
     scroller.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
   });
-  updateDoingPeek(true);
+  // The card's rows only change their marker and their finished-run light:
+  // both are class flips. The note and the board are what the click displays,
+  // so the card follows without a rebuild.
+  syncDoingRowMarks();
+  updateDoingPeek();
 }
 
 // A card in the Forktree map posts its category/todo/subtask back here. The
@@ -12656,7 +13258,7 @@ function openForkTreeTarget(target = {}) {
   selectedSubtaskId = null;
   notesPreview = false;
   render();
-  silentAction("select_category", { id: category.id });
+  silentAction("select_category", { slim: true, id: category.id });
 
   if (!todo) return;
 
@@ -13466,6 +14068,10 @@ async function handleAction(actionName, element) {
   }
   if (actionName === "close-timer") { closeFocusTimer(); return; }
   if (actionName === "quit-app") {
+    // Stop the music before the round-trip: the window may take a while to
+    // close while agents and forks shut down, and a quit must not keep
+    // playing the background track during that wait.
+    silenceNotebookAudio();
     persistAction("quit").then(() => {
       try { window.close(); } catch (error) {}
     });
@@ -13566,16 +14172,29 @@ async function handleAction(actionName, element) {
     const category = selectedCategory();
     const todo = category?.todos.find((item) => item.id === element.dataset.id);
     if (!todo) return;
-    if ((todo.subtasks || []).some((subtask) => !subtask.done)) {
-      toast("Complete the subtasks below first", true);
+    const subtasks = todo.subtasks || [];
+    const finished = subtasks.filter((subtask) => subtask.done).length;
+    const pending = subtasks.length - finished;
+    // The board's finish line: once this many subtasks are done the todo can be
+    // submitted in one click, and the rows left behind finish with it. Below
+    // that line the reader still has to close the pending rows first.
+    const quickSubmit = pending > 0 && finished >= SUBTASK_QUICK_SUBMIT;
+    if (pending > 0 && !quickSubmit) {
+      toast(`Finish the pending subtasks first, or ${SUBTASK_QUICK_SUBMIT} of them to submit now`, true);
       return;
     }
-    const ok = await confirmDialog({ kicker: "A small completion", title: "Complete todo", message: `Are you sure “${todo.name}” is complete? This cannot be undone.`, confirmLabel: "Complete" });
-    if (!ok) return;
+    if (!quickSubmit) {
+      const ok = await confirmDialog({ kicker: "A small completion", title: "Complete todo", message: `Are you sure “${todo.name}” is complete? This cannot be undone.`, confirmLabel: "Complete" });
+      if (!ok) return;
+    }
     const previousTrophy = Number(state.data?.trophy_count) || 0;
     trophyDisplayHold = previousTrophy;
     const result = await action("complete_todo", { id: todo.id });
     if (result.ok) {
+      const swept = Number(result.auto_completed) || 0;
+      if (swept > 0) {
+        toast(`Submitted · ${swept} more subtask${swept === 1 ? "" : "s"} marked done`);
+      }
       finishedToast();
       startTrophyCelebration(previousTrophy);
       celebrate();
@@ -14544,10 +15163,9 @@ function registerThemePacks(packs) {
   }
 }
 
-async function loadThemePacks() {
+async function loadThemePacks(preloaded = null) {
   try {
-    const response = await fetch("/api/themes", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/themes", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.packs)) return false;
     themePacks = data.packs;
     paneThemes = {
@@ -14565,10 +15183,9 @@ async function loadThemePacks() {
   }
 }
 
-async function loadIconThemes() {
+async function loadIconThemes(preloaded = null) {
   try {
-    const response = await fetch("/api/icon-themes", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/icon-themes", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.themes)) return false;
     const byId = new Map();
     for (const pack of data.themes) {
@@ -14591,10 +15208,9 @@ async function loadIconThemes() {
   }
 }
 
-async function loadSoundStyles() {
+async function loadSoundStyles(preloaded = null) {
   try {
-    const response = await fetch("/api/sound-styles", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/sound-styles", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.styles)) return false;
     const seen = new Set();
     const styles = [];
@@ -14619,10 +15235,9 @@ async function loadSoundStyles() {
   }
 }
 
-async function loadBackgroundMusicTracks() {
+async function loadBackgroundMusicTracks(preloaded = null) {
   try {
-    const response = await fetch("/api/background-music", { cache: "no-store" });
-    const data = await response.json();
+    const data = preloaded || await (await fetch("/api/background-music", { cache: "no-store" })).json();
     if (!data?.ok || !Array.isArray(data.tracks)) return false;
     backgroundMusicFolder = String(data.folder || "");
     BackgroundMusic.setTracks(data.tracks, String(data.default || ""));
@@ -15955,11 +16570,13 @@ function rasterizeVideoFrameToBitmapUrl(src) {
    <video>.
    ------------------------------------------------------------------------- */
 
-/* Two kinds of surface borrow the wallpaper pane:
+/* Two kinds of surface may borrow the wallpaper pane:
      - `data-subcard`      a card made of the wallpaper (pane + card stroke),
-     - `data-wallpaper-surface`  a surface that only wants the wallpaper as its
-       background (the top hidden box): same baked picture, sampled at the
-       host's exact box (100%); no card identity. */
+     - `data-wallpaper-surface`  a non-card surface that only wants the
+       wallpaper as its background: same baked picture, sampled at the host's
+       exact box, no card identity. The top hidden box is deliberately not one:
+       it is bare icons over the header, so no pane can paint a second surface
+       (or go black) behind it. */
 const SUBCARD_SELECTOR = "[data-subcard], [data-wallpaper-surface]";
 const SUBCARD_PANE_CLASS = "card-wallpaper";
 const SUBCARD_PAPER_KEEP = 24;
@@ -16068,8 +16685,8 @@ function subcardPaperKey(host, wallpaper, box) {
    never sample the card below them, which was what made the upper sheets look
    progressively darker.
 
-   The top hidden bar is also sampled at 100%: it wears the wallpaper as its
-   own background and must line up with the room behind it. */
+   The top hidden bar samples nothing: it carries no pane, so the header's own
+   surface stays the only background behind its icons. */
 const SUBCARD_PAPER_REGION = 1;
 const SURFACE_PAPER_REGION = 1;
 
@@ -16202,8 +16819,10 @@ function bakeSubcardPaper(host, wallpaper, box) {
 function primeSubcardPapers() {
   const wallpaper = activeWallpaper();
   if (!wallpaper.key) return;
-  // A film is baked from its middle frame, so it goes through the same path.
-  if (!wallpaperBitmapCache.get(wallpaper.key)?.ready) return;
+  // A still picture is cut straight from the room's own <img>, so the cards do
+  // not wait for the extra full-size bitmap copy. A film or a theme drawing has
+  // no room <img> and only becomes available when that bitmap settles.
+  if (!subcardSampleObjectFor(wallpaper)) return;
   subcardHosts().forEach((host) => {
     const box = subcardBox(host);
     if (!box || box.width < 8 || box.height < 8) return;
@@ -16580,14 +17199,43 @@ function floatingCardHosts() {
   });
 }
 
-function cardFacesPainted() {
-  return floatingCardHosts().every((host) => {
-    const pane = host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`);
-    return pane?.dataset.fit === "patch";
-  });
+/** The patch <img> a floating card is showing, once it has pixels. */
+function cardFaceMedia(host) {
+  const pane = host.querySelector(`:scope > .${SUBCARD_PANE_CLASS}`);
+  const patch = Boolean(pane && pane.dataset.fit === "patch");
+  if (!patch) return null;
+  const media = pane.firstElementChild;
+  if (!media) return null;
+  if (media.tagName !== "IMG") return media;
+  return media.complete && media.naturalWidth ? media : null;
 }
 
-function prewarmCardWallpaperFaces(timeout = 1600) {
+/** True only when the card's own picture has also been decoded.
+    A mounted patch image still has a decode step of its own; revealing the
+    window at that moment showed the wallpaper first and let each card paint its
+    face a few frames later. The first visible frame must carry the decoded
+    faces too. */
+function cardFacePainted(host) {
+  const media = cardFaceMedia(host);
+  if (!media) return false;
+  if (media.tagName !== "IMG") return true;
+  if (media.dataset.faceDecoded === "1") return true;
+  try {
+    const pending = media.decode?.();
+    if (pending && typeof pending.then === "function") {
+      pending.then(() => { media.dataset.faceDecoded = "1"; }, () => { media.dataset.faceDecoded = "1"; });
+      return false;
+    }
+  } catch (error) {}
+  media.dataset.faceDecoded = "1";
+  return true;
+}
+
+function cardFacesPainted() {
+  return floatingCardHosts().every(cardFacePainted);
+}
+
+function prewarmCardWallpaperFaces(timeout = 280) {
   const wallpaper = activeWallpaper();
   if (!wallpaper.key || !wallpaperCardsEnabled()) return Promise.resolve();
   // The Doing card is built on a frame tick after the first render. Build it
@@ -16644,7 +17292,13 @@ function sampleWallpaperTint(media, key) {
 
 function bindWallpaperMedia(media, key) {
   if (media.tagName === "DIV") return;
-  const sample = () => sampleWallpaperTint(media, key);
+  const sample = () => {
+    sampleWallpaperTint(media, key);
+    // The room picture is the card's sampling object too. As soon as it has
+    // pixels, the cards can be cut from it; waiting for the bitmap pass would
+    // leave the wallpaper painted and the cards a beat behind it on launch.
+    if (wallpaperRenderKey() === key) primeSubcardPapers();
+  };
   const dropMissingWallpaper = () => {
     if (wallpaperRenderKey() !== key) return;
     // The file was moved or deleted. Drop the choice and let the postcard
@@ -16920,6 +17574,23 @@ function applySettings() {
   updateArchiveIcon();
 }
 
+// The Appearance page reads two folders that the reader may have changed while
+// the sheet was closed. Load both shelves together and reprint the page once,
+// instead of one full Settings pass per folder.
+function refreshThemeShelves() {
+  return Promise.all([loadThemePacks(), loadIconThemes()]).then(() => {
+    if (settingsTab === "theme") renderSettings();
+  });
+}
+
+// Music reads its sound styles and the background-music shelf. Same rule: one
+// fetch pass, one reprint, so switching to Music settles in one page write.
+function refreshSoundShelves() {
+  return Promise.all([loadSoundStyles(), loadBackgroundMusicTracks()]).then(() => {
+    if (settingsTab === "sound") renderSettings();
+  });
+}
+
 function openSettings(tab = "theme") {
   // The AI sheet moved to its own window behind the robot icon in the top
   // rail. Older links and shortcuts still ask Settings for it.
@@ -16966,13 +17637,11 @@ function openSettings(tab = "theme") {
   if (settingsTab === "theme") {
     // note-theme/ and ai-theme/ are plain folders: pick up any file the user
     // dropped in while the settings sheet was closed.
-    loadThemePacks().then(() => { if (settingsTab === "theme") renderSettings(); });
-    loadIconThemes().then(() => { if (settingsTab === "theme") renderSettings(); });
+    refreshThemeShelves();
   } else if (settingsTab === "sound") {
     // A style is just a folder on the sounds shelf; refresh it so a folder
     // added in the file manager shows up without reopening Settings.
-    loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
-    loadBackgroundMusicTracks().then(() => { if (settingsTab === "sound") renderSettings(); });
+    refreshSoundShelves();
   }
 }
 
@@ -18899,20 +19568,52 @@ function renderSettings() {
     : settingsTab === "about" ? "About"
     : "Appearance";
   const artTitle = settingsTab === "theme" || settingsTab === "sound" || settingsTab === "card" || settingsTab === "stickers";
-  panel.innerHTML = `<aside class="settings-nav">
-      <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
-      <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Appearance</button>
-      <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
-      <button class="settings-nav-item ${settingsTab === "card" ? "active" : ""}" data-settings-tab="card">Card</button>
-      <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
-      <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
-      <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Music</button>
-      <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
-    </aside>
-    <section class="settings-main">
-      <div class="settings-topbar ${artTitle ? "settings-topbar-art" : ""}"><span class="settings-page-title ${artTitle ? "settings-page-title-art" : ""}">${esc(pageTitle)}</span><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
-      <div class="settings-scroll"><div class="settings-view">${view}</div></div>
-    </section>`;
+  // A tab change is a page swap, not a window rebuild. The left rail and the
+  // top row survive it, so changing pages no longer throws away (and recreates)
+  // the whole Settings panel: the nav keeps its focus and hover, the brand and
+  // the close button never flicker, and only the view under the title is
+  // reprinted. The full write is left for the first paint, when there is no
+  // shell to patch yet.
+  const nav = panel.querySelector(":scope > .settings-nav");
+  const main = panel.querySelector(":scope > .settings-main");
+  const topbar = main?.querySelector(":scope > .settings-topbar");
+  const viewHost = main?.querySelector(":scope > .settings-scroll > .settings-view");
+  if (nav && topbar && viewHost) {
+    nav.querySelectorAll("[data-settings-tab]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.settingsTab === settingsTab);
+    });
+    const title = topbar.querySelector(".settings-page-title");
+    if (title) {
+      title.textContent = pageTitle;
+      title.classList.toggle("settings-page-title-art", artTitle);
+    }
+    topbar.classList.toggle("settings-topbar-art", artTitle);
+    // The same view is often printed twice by a toggle and by the shelf fetch
+    // that follows it. Strings compare cheaply, and skipping the identical
+    // write keeps a sound or theme refresh from blinking the page the reader
+    // just switched to.
+    if (viewHost._settingsView !== view) {
+      viewHost.innerHTML = view;
+      viewHost._settingsView = view;
+    }
+  } else {
+    panel.innerHTML = `<aside class="settings-nav">
+        <div class="settings-brand"><svg class="gear-icon" aria-hidden="true"><use href="#gear"></use></svg><span>Settings</span></div>
+        <button class="settings-nav-item ${settingsTab === "theme" ? "active" : ""}" data-settings-tab="theme">Appearance</button>
+        <button class="settings-nav-item ${settingsTab === "font" ? "active" : ""}" data-settings-tab="font">Font</button>
+        <button class="settings-nav-item ${settingsTab === "card" ? "active" : ""}" data-settings-tab="card">Card</button>
+        <button class="settings-nav-item ${settingsTab === "stickers" ? "active" : ""}" data-settings-tab="stickers">Stickers</button>
+        <button class="settings-nav-item ${settingsTab === "plugins" ? "active" : ""}" data-settings-tab="plugins">Plugins</button>
+        <button class="settings-nav-item ${settingsTab === "sound" ? "active" : ""}" data-settings-tab="sound">Music</button>
+        <button class="settings-nav-item ${settingsTab === "about" ? "active" : ""}" data-settings-tab="about">About</button>
+      </aside>
+      <section class="settings-main">
+        <div class="settings-topbar ${artTitle ? "settings-topbar-art" : ""}"><span class="settings-page-title ${artTitle ? "settings-page-title-art" : ""}">${esc(pageTitle)}</span><button class="settings-close" type="button" data-action="close-settings" aria-label="Close settings"><svg class="settings-close-icon" aria-hidden="true"><use href="#close-circle"></use></svg></button></div>
+        <div class="settings-scroll"><div class="settings-view">${view}</div></div>
+      </section>`;
+    const freshView = panel.querySelector(".settings-view");
+    if (freshView) freshView._settingsView = view;
+  }
   if (settingsTab === "theme" || settingsTab === "font") syncPageLineControls();
   if (settingsTab === "font") syncCardLineControls();
   const nextScroll = $(".settings-scroll");
@@ -19190,6 +19891,8 @@ function bindEvents() {
     if (!name || !todoId) return; // an empty add row simply stays where it is
     addingSubtask = false;
     addingSubtaskTodoId = null;
+    // Enter owns the instant path; a click-away keeps the plain save so the
+    // lane is never repainted under the pointer that is about to select a row.
     action("add_subtask", { todo_id: todoId, name });
   }, true);
 
@@ -19519,8 +20222,7 @@ function bindEvents() {
       pluginPendingUninstallId = null;
       renderSettings();
       if (settingsTab === "sound") {
-        loadSoundStyles().then(() => { if (settingsTab === "sound") renderSettings(); });
-        loadBackgroundMusicTracks().then(() => { if (settingsTab === "sound") renderSettings(); });
+        refreshSoundShelves();
       }
       const settingsScroll = $(".settings-scroll");
       if (settingsScroll) settingsScroll.scrollTop = 0;
@@ -20541,6 +21243,9 @@ function bindEvents() {
     if (doingPeekOpen) positionDoingPeek();
     refreshDefaultSheetHeight();
     updateAgentSplitLayout();
+    // The closed console skips the split pass above, but a risen AI card still
+    // needs the top band re-cut to its new box.
+    syncTopEdgeOverlap();
     positionAgentScrollRail();
     if (agentModelMenuOpen || agentModeMenuOpen) positionAgentMenus();
   });
@@ -20594,6 +21299,10 @@ function bindEvents() {
       // A deliberate height is part of the workspace shape; remember it now so
       // quitting right after the resize still restores this page.
       saveViewState();
+      // With only the console open the split pass above stands down, so the
+      // door line and the top bar's cut would keep the old edge. Hand both the
+      // new box now that the drag is over.
+      positionDeskHandles();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once: true });
@@ -20728,7 +21437,10 @@ function bindEvents() {
     }
   }, true);
 
-  window.addEventListener("pagehide", () => { flushSettingsSave(); persistAgentDrafts(); saveViewState(); });
+  // Closing the notebook must not leave the background track playing behind a
+  // closed window. Silence every track before the page is torn down.
+  window.addEventListener("pagehide", () => { silenceNotebookAudio(); flushSettingsSave(); persistAgentDrafts(); saveViewState(); });
+  window.addEventListener("beforeunload", silenceNotebookAudio);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") { flushSettingsSave(); persistAgentDrafts(); saveViewState(); }
     else {
@@ -20840,7 +21552,9 @@ function bindEvents() {
           addingSubtask = false;
           addingSubtaskTodoId = null;
           AudioFX.mechanical();
-          action("add_subtask", { todo_id: todoId, name });
+          // The row is printed before the request leaves; the save lands behind
+          // the gesture instead of rebuilding the board a beat later.
+          commitNewSubtask(todoId, name);
         } else if (!name) {
           const row = event.target.closest("[data-add-subtask-row]");
           event.target.disabled = true;
@@ -21153,7 +21867,23 @@ function bindEvents() {
       || topToolsNode?.matches(":hover")
       || topToolsNode?.classList.contains("top-open")
     );
-    const showTopTools = () => {
+    // A risen AI card lies in the same strip: the trigger band is clipped
+    // around it (handle-position.js), and this check keeps the swap honest for
+    // an engine that does not hit-test a clipped box.
+    const topEdgeOverAi = (x, y) => {
+      if (!agentTerminalOpen) return false;
+      const panel = $("#agent-terminal");
+      const band = topEdgeNode?.getBoundingClientRect();
+      if (!panel || !panel.offsetWidth || !band) return false;
+      const rect = panel.getBoundingClientRect();
+      return y >= band.top && y <= band.top + band.height
+        && y >= rect.top && y <= rect.bottom
+        && x >= rect.left && x <= rect.right;
+    };
+    const showTopTools = (event) => {
+      // Only the bare band defers to the card: the bar itself may sit over the
+      // card, and hovering it must still swap the header out.
+      if (event?.target === topEdgeNode && topEdgeOverAi(event.clientX, event.clientY)) return;
       if (topToolsDismiss) {
         cancelAnimationFrame(topToolsDismiss);
         topToolsDismiss = 0;
@@ -21410,6 +22140,13 @@ function bindEvents() {
   const soundPanel = $("#sound-panel");
   $("#sound-toggle")?.addEventListener("click", (event) => {
     event.stopPropagation();
+    // The note is also the Music panel's disclosure button. While the panel is
+    // open, a second click folds it away instead of silently muting sound, so
+    // the button always answers the click that opened it.
+    if (soundPanel && !soundPanel.hidden) {
+      closeSoundPanel();
+      return;
+    }
     AudioFX.toggle();
     updateSoundToggle();
   });
@@ -21548,20 +22285,76 @@ function toggleSoundPanel() {
 }
 
 
+// The AI sheet rests on the page itself, so a restored conversation belongs to
+// the first visible frame. Its provider config, model list and session were
+// requested together with the board; wait for them before the page reports
+// ready, while the wallpaper decode and the card bake keep running beside them.
+// A slow or hung CLI probe must not hold the whole window hostage, so the wait
+// is bounded and the sheet fills in later if that bound is reached.
+function settleOpenAgentForFirstPaint(configReady, timeout = 800) {
+  if (!agentTerminalOpen) return Promise.resolve();
+  const ready = Promise.all([
+    configReady.catch(() => null),
+    loadAgentModels().catch(() => []),
+    (async () => {
+      const agent = activeAgent();
+      if (agent) await loadAgentSession(agent.id).catch(() => {});
+    })(),
+  ]);
+  return Promise.race([
+    ready,
+    new Promise((resolve) => setTimeout(resolve, Math.max(0, timeout))),
+  ]);
+}
+
+/** The data block the boot document carries, if this shell injected one. */
+function readBootData() {
+  try {
+    const node = document.getElementById("neotodo-boot-data");
+    return node ? JSON.parse(node.textContent || "null") : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 async function init() {
+  // Lightweight marks for the launch timeline; the shell prints them when
+  // NEOTODO_STARTUP_TRACE=1 is set. They cost a few microseconds and make a
+  // slow launch measurable instead of guesswork.
+  performance.mark("init-start");
   if (new URLSearchParams(location.search).has("still")) document.body.classList.add("still");
-  await loadInstalledPlugins();
-  await loadThemePacks();
-  await loadIconThemes();
-  await loadSoundStyles();
-  await loadBackgroundMusicTracks();
+  // The boot document already carries the board and the shelf lists, so the
+  // first render can be prepared in this parse task instead of waiting for
+  // fetch callbacks that WebKit will not run until after its first layout pass.
+  // A shell that does not inject them (or an older cache) still falls back to
+  // the same endpoints, and the AI console keeps its own live request.
+  const boot = readBootData();
+  const bootState = window.__SNAPSHOT_STATE__
+    || (boot?.state && Array.isArray(boot.state.categories) ? boot.state : null);
+  const stateReady = bootState ? Promise.resolve(bootState) : requestState();
+  if (bootState) state.data = bootState;
+  const aiConfigReady = loadAiConfig();
+  const themePacksReady = loadThemePacks(boot?.themes || null);
+  const iconThemesReady = loadIconThemes(boot?.icon_themes || null);
+  const shelvesReady = Promise.all([
+    loadInstalledPlugins(boot?.plugins || null),
+    themePacksReady,
+    iconThemesReady,
+    loadSoundStyles(boot?.sound_styles || null),
+    loadBackgroundMusicTracks(boot?.background_music || null),
+  ]);
+  // The saved wallpaper and card faces name a theme pack, so that shelf must be
+  // registered before the first settings pass. The board and the remaining
+  // shelves keep loading while the room is prepared in the background.
+  await Promise.all([themePacksReady, iconThemesReady]);
   loadSettings();
   applySettings();
   bindEvents();
   bindPageCopy();
   updateSoundToggle();
-  loadAiConfig();
-  state.data = window.__SNAPSHOT_STATE__ || await requestState();
+  state.data = await stateReady;
+  await shelvesReady;
+  performance.mark("shelves-ready");
   // Fork boards from the first build are imported into the plugin store now,
   // so the notebook index can drop those duplicate category rows.
   try {
@@ -21695,6 +22488,20 @@ async function init() {
     document.body.appendChild(grabber);
   }
   render();
+  performance.mark("render-done");
+  // The window is still fully transparent, so the finished page may become
+  // visible to the compositor now. Its first full layout and paint then happen
+  // while the wallpaper and card textures are still finishing, instead of
+  // after them: the reveal frame is the whole finished page, not a page that
+  // starts painting at the moment the window appears.
+  document.body.classList.add("app-layout");
+  // Start the two first-paint textures as soon as the board is laid out.
+  // They used to start after the handle/clock/note-material pass below, which
+  // cost the card bake a fifth of a second of extra wall time for no reason:
+  // the bake only needs the rendered boxes, not those later bindings.
+  const cardFacesReady = prewarmCardWallpaperFaces();
+  const wallpaperReady = waitForWallpaperFrame();
+  performance.mark("gates-start");
   // A run started by another window lives only on the backend. Ask for it
   // now (and once more after the first paint) so its fan spins here too.
   syncBackendRunningAgents(true).catch(() => {});
@@ -21717,17 +22524,17 @@ async function init() {
   if (!clockTimer) clockTimer = setInterval(() => { updateHeaderStamp(); updateTopClock(); }, 1000);
   updateTopClock();
   loadNoteMaterialFiles();
-  // The room is painted together with the rest of the page. Waiting for the
-  // wallpaper's decoded first frame here means the first visible frame can
-  // never show the bare theme paper before the picture arrives. The card faces
-  // are baked alongside it: a card that swapped from the room copy to its own
-  // picture after the window appeared was the "still rendering" flash on
-  // launch. Both waits overlap, so the cards cost only the time the bake needs
-  // beyond the wallpaper decode.
-  const cardFacesReady = prewarmCardWallpaperFaces();
-  await waitForWallpaperFrame();
+  // The AI request started with the board. Waiting here lets an open AI sheet
+  // arrive with the room and the cards instead of filling in after the window
+  // is already on screen; the wallpaper wait and the card bake overlap it.
+  await settleOpenAgentForFirstPaint(aiConfigReady);
+  performance.mark("ai-settled");
+  await wallpaperReady;
+  performance.mark("wallpaper-ready");
   await cardFacesReady;
+  performance.mark("cards-ready");
   document.documentElement.classList.remove("booting");
+  document.body.classList.remove("app-layout");
   document.body.classList.add("app-ready");
   window.__APP_READY_MS__ = performance.now();
   // The desktop window stays hidden until this page has actually been painted.
@@ -21741,12 +22548,14 @@ async function init() {
     const settle = () => {
       if (settled) return;
       settled = true;
+      performance.mark("paint-frames-settled");
       resolve();
     };
     requestAnimationFrame(() => requestAnimationFrame(settle));
     setTimeout(settle, 180);
   });
   document.body.classList.add("app-painted");
+  performance.mark("app-painted");
   try {
     if (window.NeoTodoAndroid && window.NeoTodoAndroid.ready) window.NeoTodoAndroid.ready();
   } catch (error) {}
@@ -21783,5 +22592,11 @@ async function init() {
 }
 
 init().catch((error) => {
+  document.documentElement.classList.remove("booting");
+  document.body.classList.remove("app-layout");
+  document.body.classList.add("app-ready");
+  document.body.style.background = "#f6f1e8";
   document.body.innerHTML = `<div style="padding:40px;color:#b65c50;font-family:monospace;font-size:12px;line-height:1.7;white-space:pre-wrap">NeoTodo could not start:\n${esc(error.message)}</div>`;
+  // A fatal init must reach the reader now, not via the shell's slow fallback.
+  document.body.classList.add("app-painted");
 });

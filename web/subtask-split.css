@@ -454,23 +454,17 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
    its paper is never stripped from its name. The live row answers the click,
    then the finished card prints the row on its own paper in the same repaint. */
 
-/* The click answers before the row leaves: the fan dips into its paper and the
-   row lifts a hair, so waiting for the backend never looks like a freeze. */
+/* The click answers before the row leaves: the fan and the provider mark keep
+   their places for one frame, then both plants leave together. Hiding only the
+   tallnut's slot made the puffshroom slide one cell to the left before the
+   repaint; the two marks now disappear in the same frame without moving. */
 .current-subtask.subtask-completing {
   transform: translateY(-1px);
   transition: transform 0.12s ease;
 }
-.current-subtask.subtask-completing .sub-fan {
-  transform: scale(0.94);
-  opacity: 0.86;
-  transition: transform 0.12s ease, opacity 0.12s ease;
-}
-/* The provider mark belongs to the live run, not to the submission: it leaves
-   the moment the row starts to submit and takes its slot with it, so nothing
-   shifts sideways when the finished card prints the same row without it. A
-   failed request restores the mark with the row's own state. */
+.current-subtask.subtask-completing .sub-fan,
 .current-subtask.subtask-completing .sub-agent-model {
-  display: none;
+  visibility: hidden;
 }
 
 .completed-subtask-sheet {

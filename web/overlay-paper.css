@@ -41,11 +41,12 @@
     0 18px 38px -26px rgba(30, 20, 8, 0.60),
     0 4px 12px -8px rgba(30, 20, 8, 0.30);
 
-  /* One hover / selection wash: the theme accent fading out to the right,
-     exactly like the task rows and the completed history. */
+  /* One hover / selection wash, tinted like the task rows and the completed
+     history: the reader's selection colour, not the theme accent, so hovering
+     a doing row previews exactly the colour it will keep once chosen. */
   --overlay-wash: linear-gradient(
     90deg,
-    rgba(var(--overlay-accent-rgb), 0.12),
+    rgba(var(--select-wash-rgb, var(--overlay-accent-rgb)), 0.12),
     transparent 86%
   );
 }

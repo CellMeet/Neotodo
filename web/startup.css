@@ -13,6 +13,13 @@ html.booting,
   background-image: none !important;
 }
 
+/* The room layer sits outside the app shell. Until the finished page is allowed
+   to lay out, it stays hidden with the shell: an early reveal otherwise showed
+   the wallpaper alone and made the cards look like they were laid on later. */
+html.booting #wallpaper-layer { visibility: hidden; }
+body.app-layout #wallpaper-layer,
+body.app-ready #wallpaper-layer { visibility: visible; }
+
 /* Detached note/AI windows reuse a capture of the current page. It always
    shows the normal header, never the hover utility bar. */
 body.snapshot-clean .top-tools {

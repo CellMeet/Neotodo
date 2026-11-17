@@ -67,11 +67,15 @@ class CardWallpaperPrewarmTests(unittest.TestCase):
     def test_startup_waits_for_the_faces_before_going_visible(self):
         init = self.app_js.split("async function init()", 1)[1]
         start = init.index("const cardFacesReady = prewarmCardWallpaperFaces();")
-        wallpaper_wait = init.index("await waitForWallpaperFrame();")
+        # The wallpaper wait leaves with the room so it can overlap the AI gate;
+        # the page still waits for it before it is allowed to be visible.
+        wallpaper_leaves = init.index("const wallpaperReady = waitForWallpaperFrame();")
+        wallpaper_wait = init.index("await wallpaperReady;")
         faces_wait = init.index("await cardFacesReady;")
         ready = init.index('document.body.classList.add("app-ready")')
         painted = init.index('document.body.classList.add("app-painted")')
-        self.assertLess(start, wallpaper_wait)
+        self.assertLess(start, wallpaper_leaves)
+        self.assertLess(wallpaper_leaves, wallpaper_wait)
         self.assertLess(wallpaper_wait, faces_wait)
         self.assertLess(faces_wait, ready)
         self.assertLess(faces_wait, painted)

@@ -1497,6 +1497,10 @@ body.still *, body.still *::before, body.still *::after { animation: none !impor
   color: var(--muted);
   font-size: 13px;
 }
+/* A lane can hold hundreds of subtasks while seven are on screen. Rows past
+   the first batch stay in the DOM (search and selection still find them) but
+   are not laid out until the reader scrolls near them. */
+.current-subtask.subtask-row-deferred { display: none; }
 .current-subtask .st { color: var(--muted); font-weight: 700; font-size: 12px; }
 .current-subtask.pending { color: var(--ink); }
 .current-subtask.pending .st { color: var(--gold); }
@@ -7876,8 +7880,13 @@ html[data-theme="postcard"] .head-right .tomato-glyph {
   height: 52px;
 }
 
-/* Keep the tavern/app shell invisible until final settings are applied. */
+/* Keep the tavern/app shell invisible until final settings are applied.
+   `app-layout` is the same gate as `app-ready`, but it is set right after the
+   first render while the window is still fully transparent: the finished page
+   can lay out and paint while the wallpaper/card textures finish, instead of
+   that whole paint being charged after them, on the reveal frame. */
 .app-shell { visibility: hidden; }
+body.app-layout .app-shell,
 body.app-ready .app-shell { visibility: visible; }
 .booting .notes-handle-bottom{ visibility: hidden; }
 
@@ -11053,7 +11062,11 @@ html[data-postcard-dark="true"] .theme-menu-list {
   text-align: left;
   cursor: pointer;
 }
-.theme-menu-item:hover { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.09); }
+/* The row under the pointer is the preview of the chosen option, so it wears
+   the selection wash (the same colour as the active row and the checked
+   subtask), not the theme accent: hovering a teal-washed list must not flash
+   the blue/gold accent the reader only sees in chrome. */
+.theme-menu-item:hover { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.09); }
 .theme-menu-row.active .theme-menu-item { font-weight: 600; }
 .theme-menu-row .choice-check {
   margin-left: auto;
@@ -15652,11 +15665,30 @@ html[data-theme="postcard"] .head-right #tomato-count {
   right: max(37.5%, 300px) !important;
   height: 56px !important;
 }
+/* The band is cut around a risen AI card by handle-position.js, so the card
+   keeps the pointer in the strip it covers. A door-line drag owns the pointer
+   outright: the band must not flash the utility bar while a sheet is pulled
+   up through it. */
+body[data-desk-handle-resizing="1"] .top-edge {
+  pointer-events: none !important;
+}
 .top-tools {
   /* The box does not slide down out of the border. It is either there or it is
      not, on the same frame the header row leaves. */
   transition: none !important;
+  /* The bar is not a surface of its own. The header keeps painting its paper
+     and its bottom rule; the old wordmark, clock and counters leave and these
+     icons step into the same strip. A fill here read as a second, detached
+     bar — and because --paper is the dark desk colour in the dark palettes,
+     it arrived as a black strip over the light header. No fill, no edge, no
+     shadow: only the tools. */
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
+/* Belt and braces: even if a wallpaper pane is ever mounted here again, it
+   must not paint a second surface behind the tools. */
+.top-tools > .card-wallpaper { display: none !important; }
 
 /* The top hidden bar takes the header's place instead of covering it. While it
    is out, the old row — the NeoTodo wordmark, the clock and the achievement
@@ -15936,7 +15968,8 @@ html[data-theme="postcard"] .doing-peek {
   text-align: left;
   cursor: pointer;
 }
-.note-material-option:hover { background: color-mix(in srgb, var(--pc-accent, var(--gold)) 10%, transparent); color: var(--pc-ink, var(--ink)); }
+/* Note-material rows preview the same "you are here" wash as the chosen row. */
+.note-material-option:hover { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.10); color: var(--pc-ink, var(--ink)); }
 .note-material-option.active { color: var(--pc-ink, var(--ink)); font-weight: 700; }
 .note-material-check {
   flex: 0 0 14px;
@@ -16265,7 +16298,9 @@ html[data-select] .history-subtask.selected {
   background-size: 100% 100% !important;
 }
 
-/* Category spine: the selected category and its hover preview. */
+/* Category spine: hover is the only wash left. The selected row's fill is
+   flattened by the "Categories: the current category is inked, not filled"
+   block at the end of this file. */
 html[data-select] .category-item.selected {
   background: linear-gradient(90deg, rgba(var(--select-wash-rgb), 0.22), rgba(var(--select-wash-rgb), 0.03) 88%) !important;
 }
@@ -16294,6 +16329,40 @@ html[data-select] .note-bg-choice.active,
 html[data-select] .theme-mode-card.active,
 html[data-select] .note-material-current {
   background: rgba(var(--select-wash-rgb), 0.10) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Selection rail — the Categories' side rule on the selected row
+   --------------------------------------------------------------------------
+   The index marks the current category with a short 2px rule on its leading
+   edge. The selected task, subtask and Doing card row now carry the same rule
+   over their wash, in the reader's selection colour, so the "you are here"
+   mark reads the same everywhere. The rule is inset from the row's own top and
+   bottom rules and belongs to the row itself: a floating card clips it with its
+   rounded, overflow-hidden box, so it can never spill onto the page or over the
+   card's stroke. */
+.history-row.selected,
+.current-subtask.selected,
+.history-subtask.selected,
+.doing-head.marked,
+.doing-sub.marked {
+  position: relative;
+}
+.history-row.selected::before,
+.current-subtask.selected::before,
+.history-subtask.selected::before,
+.doing-head.marked::before,
+.doing-sub.marked::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 0 1px 1px 0;
+  background: rgb(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)));
+  box-shadow: 0 0 8px rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.45);
+  pointer-events: none;
 }
 
 /* ==========================================================================
@@ -17694,7 +17763,9 @@ html[data-theme="postcard"] .community-brand-copy strong { color: var(--pc-ink);
   text-align: left;
   cursor: pointer;
 }
-.theme-unit-row:hover { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.09); }
+/* Unit rows (Theme / Note theme / AI theme) are options in the same menu, so
+   their hover preview borrows the selection wash too. */
+.theme-unit-row:hover { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.09); }
 .theme-unit-row.active { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.13); }
 .theme-unit-copy {
   flex: 1 1 auto;
@@ -17799,7 +17870,7 @@ html[data-theme] .head-title-inner .current-actions:active .action-slash {
    same colour. It now takes the mapped utility ink that colours the hidden top
    bar's marks (app.js publishes it as --utility-ink) in every state, so the
    index and the chrome always share one accent; hover and selection still speak
-   through the wash, the weight and the left rule instead of recolouring the
+   through the weight, the left rule and the dot instead of recolouring the
    text.
    ========================================================================== */
 html[data-theme] .index-head > span,
@@ -17810,11 +17881,97 @@ html[data-theme] .category-item.selected {
 }
 
 /* The selected row's own accents (left rule and dot) use the same Categories
-   ink as the wash and the name, so the whole selection reads as one colour. */
+   ink as the name, so the whole selection reads as one colour. */
 html[data-theme] .category-item.selected::before {
   background: var(--utility-ink, var(--pc-ink));
   box-shadow: 0 0 9px color-mix(in srgb, var(--utility-ink, var(--pc-ink)) 45%, transparent);
 }
 html[data-theme] .category-item.selected .cat-dot {
   background: var(--utility-ink, var(--pc-ink));
+}
+
+
+/* ==========================================================================
+   Categories: the current category is inked, not filled
+   --------------------------------------------------------------------------
+   The spine used to lay a gradient wash under the selected category on top of
+   its bold name and left rule. Two highlights for one state made the index read
+   like a column of pressed buttons, so the fill is gone in every theme and in
+   both selection-highlight modes; the row still says where you are through its
+   weight, the left rule and the square dot. The quiet hover preview stays, but
+   a selected row no longer darkens under the pointer either.
+   ========================================================================== */
+html[data-theme] .category-list .category-item.selected,
+html[data-theme] .category-list .category-item.selected:hover,
+html[data-select] .category-list .category-item.selected,
+html[data-select] .category-list .category-item.selected:hover {
+  background: transparent !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* ==========================================================================
+   The squash mark on a submitted todo
+   --------------------------------------------------------------------------
+   A completed todo that carried subtasks keeps its one-click expander, but the
+   mark is the reader's squash instead of the gold headphone. The sprite is
+   taller than it is wide, so it gets its own taller slot: the coin grows with
+   the picture and the row still keeps its 40px rhythm. */
+.history-row .h-trophy.h-trophy-squash {
+  width: 30px;
+  height: 34px;
+  flex: 0 0 30px;
+}
+.history-row .h-trophy .subtask-done-icon,
+.log-line .log-trophy .subtask-done-icon {
+  display: block;
+  width: auto;
+  height: 34px;
+  max-width: 30px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.history-row .h-trophy-action,
+.log-line .log-trophy-action { line-height: 0; }
+.log-line .log-trophy.log-trophy-squash {
+  width: 30px;
+  height: 34px;
+  flex: 0 0 30px;
+}
+
+/* The finished-subtask sunshroom follows its name: it sits on the same text
+   line instead of hovering above it, and it closes the dead gap on its right
+   so the mushroom reads as part of the name rather than a separate column. */
+.history-subtask .h-sub-fan {
+  margin-right: -4px;
+  transform: translateY(3px);
+}
+
+/* The category counter's cherry sits at the right end of the category row.
+   It is a little larger than the counter text now, matching the enlarged
+   marks around the notebook; 28px still clears the 34px category row. */
+.category-item .cat-count .moon-icon,
+.category-item .cat-count .chalice-icon {
+  width: 28px !important;
+  height: 28px !important;
+  vertical-align: -0.2em;
+}
+
+/* Twenty finished subtasks arm the complete action: gold ink and a breathing
+   underline say the whole board can be submitted in one click, even with rows
+   left in the pending lane. */
+.current-action.quick-submit {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  animation: quick-submit-breathe 2.4s ease-in-out infinite;
+}
+@keyframes quick-submit-breathe {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .current-action.quick-submit { animation: none; opacity: 1; }
 }

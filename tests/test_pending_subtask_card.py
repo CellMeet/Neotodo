@@ -77,6 +77,20 @@ class PendingSubtaskCardTests(unittest.TestCase):
         self.assertIn("border: 1px solid var(--subcard-outline", edge)
         self.assertNotIn("border-left: 0", edge)
 
+    def test_card_is_marked_draggable(self):
+        # The sheet is a movable surface, like the Doing card: the marker says
+        # so for scripts (the Doing card sets `data-draggable` too). It is a
+        # marker, not printed text; the stretchable handle line explains the
+        # pull to the reader.
+        card = block_after(
+            self.app_js,
+            "const pendingCard = (lanes) => `",
+            "`;\n",
+        )
+        self.assertIn('data-draggable="true"', card)
+        self.assertNotIn("pending-subtask-label", card)
+        self.assertIn('panel.dataset.draggable = "true"', self.app_js)
+
     def test_folded_card_leaves_no_border_behind(self):
         folded = css_block(self.split_css, ".pending-subtask-card.collapsed {")
         self.assertIn("max-height: var(--pending-card-fold", folded)

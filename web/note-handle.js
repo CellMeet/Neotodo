@@ -132,7 +132,13 @@
       startBottom: panelRect && desk ? Math.round(Math.max(startTop + 1, panelRect.bottom - desk.top)) : 0,
       // A closed sheet has no box to pull, so the upward drag opens it first.
       closed: notesHidden || !panelRect || panelRect.height <= 0,
-      minHeight: desk ? Math.min(220, Math.max(120, desk.height * 0.28)) : 120,
+      // The shortest resting sheet and the overshoot spring both measure one
+      // ruled row of the page (see handle-position.js).
+      row: pageRuledRow(),
+      // The window top and the row under the logo bar that fills it.
+      rise: pageRiseEdge(desk),
+      lastRest: null,
+      compressed: false,
       x0: x,
       y0: y,
       lastDx: 0,
@@ -151,14 +157,23 @@
     // `top` follows the pointer; the foot stays where the sheet already ended,
     // so height is derived from the two and the bottom edge is glued.
     const floor = Math.max(1, Math.min(g.desk.height, g.startBottom || g.desk.height));
-    const lowestTop = Math.max(0, floor - g.minHeight);
-    const top = Math.round(Math.max(0, Math.min(lowestTop, g.startTop + dy)));
-    if (top === g.lastTop) return;
-    g.lastTop = top;
-    const height = Math.max(1, Math.round(floor - top));
-    g.panel.style.setProperty("top", `${top}px`, "important");
+    // One ruled row above the foot is the shortest the note may get, and the
+    // row under the logo bar fills the note to the window top
+    // (handle-position.js). A pull below the floor is a compressed overshoot
+    // the drop springs back from (finish below).
+    const rest = doorRestTop(floor, g.row);
+    const edge = doorEdgeTop(g.startTop + dy, rest, g.row, g.rise);
+    g.lastRest = rest;
+    g.compressed = edge.compressed;
+    // A negative edge starts above the page body: the page stops clipping so
+    // the title row and the logo bar can be covered.
+    if (edge.top < 0) setSheetRisen(true);
+    if (edge.top === g.lastTop) return;
+    g.lastTop = edge.top;
+    const height = Math.max(1, Math.round(floor - edge.top));
+    g.panel.style.setProperty("top", `${edge.top}px`, "important");
     g.panel.style.setProperty("height", `${height}px`, "important");
-    const handleTop = Math.round(g.desk.top + top + 6);
+    const handleTop = Math.round(g.desk.top + edge.top + 6);
     if (handleTop !== g.lastHandleTop) {
       g.lastHandleTop = handleTop;
       handle.style.setProperty("top", `${handleTop}px`, "important");
@@ -220,7 +235,7 @@
         }
         // Start from the shortest allowed sheet so the line follows the finger
         // in a straight 1:1 pull from the bottom door.
-        g.startTop = Math.max(0, g.desk.height - g.minHeight);
+        g.startTop = doorRestTop(g.desk.height, g.row);
         g.startBottom = Math.max(g.startTop + 1, g.desk.height);
         g.closed = false;
         handle.classList.remove("handle-vanish");
@@ -264,6 +279,12 @@
       cancelAnimationFrame(resizeFrame);
       resizeFrame = 0;
       applyResize(pendingDy);
+    }
+    // The drop releases the floor's spring: an edge pulled below the last
+    // ruled row settles on it in this same task, so the height remembered
+    // below is the resting one and not the compressed overshoot.
+    if (g.resizing && g.compressed && g.lastRest != null) {
+      applyResize(g.lastRest - g.startTop);
     }
     setDeskHandleResizing(false);
     delete document.body.dataset.deskHandleDrag;
@@ -433,13 +454,18 @@
 
   const deskHeight = () => Math.max(1, body()?.clientHeight || window.innerHeight);
 
-  // One minimum for both the line gesture and this box. They used to disagree
-  // (190px while dragging, 220px remembered), so releasing a full shrink made
-  // the sheet jump 30px back up under the finger.
-  const minSheetHeight = () => Math.min(220, Math.max(120, deskHeight() * 0.28));
+  // One ruled row is the floor for both the line gesture and this box: the
+  // note may be pulled down to the last row of the page, so a stored one-row
+  // box must come back at that size instead of being blown up to a 120-220px
+  // minimum. The gesture itself measures the floor with doorRestTop().
+  const minSheetHeight = () => Math.max(1, Math.round(pageRuledRow()));
+
+  // A stretched note may also cover the title row and the logo bar above the
+  // page body, so its ceiling is the window top, not the desk.
+  const maxSheetHeight = () => deskHeight() + pageRiseSpan();
 
   const clampHeight = (value) => Math.round(
-    Math.max(minSheetHeight(), Math.min(Number(value) || 0, deskHeight())),
+    Math.max(minSheetHeight(), Math.min(Number(value) || 0, maxSheetHeight())),
   );
 
   const defaultHeight = () => {
@@ -551,12 +577,18 @@
     // from the line.
     const line = refreshLineTop();
     const desk = Math.max(1, deskHeight());
+    // The note may be taller than the desk when it was stretched over the title
+    // row and the logo bar; its top goes negative by exactly that rise.
+    const rise = pageRiseSpan();
     const height = remembered == null
       ? Math.max(1, defaultHeight())
-      : Math.round(Math.min(clampHeight(remembered), desk));
+      : Math.round(Math.min(clampHeight(remembered), desk + rise));
     const top = remembered == null
       ? Math.max(0, Math.min(line, Math.max(0, desk - height)))
-      : Math.max(0, desk - height);
+      : Math.max(-rise, desk - height);
+    // A remembered box that starts above the page body is a risen sheet: the
+    // page hands its clipping over for as long as that box is on the page.
+    if (top < 0) setSheetRisen(true);
     // Keep the stylesheet's copy of the note height on the user's value, not
     // on a window-clamped one, so a later split or resize restores it whole.
     // With no stretched height the resolved default is published instead, so

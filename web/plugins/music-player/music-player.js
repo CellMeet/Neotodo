@@ -126,8 +126,10 @@
   function mountRailButton() {
     const rail = document.querySelector(".tool-rail");
     if (!rail || rail.querySelector(".music-player-button")) return;
-    const anchor = rail.querySelector(".forktree-button") || rail.querySelector(".pindou-button");
-    if (anchor) anchor.after(railButton);
+    // Keep the old slot the Forktree mark used to sit in (just above the
+    // storage box); Forktree now lives in Settings → Plugins.
+    const anchor = rail.querySelector(".storage-box-button");
+    if (anchor) anchor.before(railButton);
     else rail.appendChild(railButton);
   }
 

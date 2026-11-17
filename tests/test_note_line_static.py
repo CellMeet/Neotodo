@@ -60,10 +60,18 @@ def main() -> int:
     assert "const notesCenter = notesRect ? notesRect.center : closedLineCenters.note;" in handles
     assert "const ratio = agentSplitRatio;" not in handles, "the closed slot must not read the live ratio"
 
-    # The pair sits slightly inward of the pane centres (AI right, note left),
-    # so the two bars are read as one pair around the middle of the page.
-    assert "const CLOSED_SLOT_NUDGE = 0.04;" in handles
+    # The pair is then pulled one finger width toward the page middle: on the
+    # default notes-right split that moves the note line left and the AI line
+    # right, so the two bars read as one pair and both pop-open targets sit
+    # within an easy reach.
+    assert "const CLOSED_SLOT_NUDGE = 0.08;" in handles
     assert "const half = 0.25 - CLOSED_SLOT_NUDGE;" in handles
+    assert "const CLOSED_SLOT_FINGER = 48;" in handles
+    assert "const middle = bodyRect.left + bodyRect.width / 2;" in handles
+    assert (
+        "return base + (base < middle ? CLOSED_SLOT_FINGER : -CLOSED_SLOT_FINGER);"
+        in handles
+    ), "the closed bars must both be pulled toward the middle"
 
     print("the AI/note line is one static page value")
     return 0

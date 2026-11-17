@@ -27,7 +27,6 @@ web/icon-themes/pvs/
     "aiDone": "icons/ai-done-tallnut.gif",
     "aiDoneFinal": "icons/ai-done-final-tallnut.png",
     "achievement": "icons/achievement-cherry.gif",
-    "checkDone": "icons/check-done-marigold.gif",
     "rowBurn": "icons/row-burn.gif",
     "fork": "icons/fork-coffee.gif"
   }

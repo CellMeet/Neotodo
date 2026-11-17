@@ -22,11 +22,11 @@
         is baked from its paused middle frame, so its card is a still of the
         same scene. The cards show that picture edge to edge — one complete
         card with one fixed outline — and only a shadow below lifts it off the
-        room. The top hidden box is not a card: it borrows the same wallpaper
-        picture as its background (`data-wallpaper-surface`), at 100% so it
-        lines up with the room, and it keeps its own bar edge and shadow, with
-        no card outline. The remaining floating controls are frosted panes, so
-        their text always stays readable.
+        room. The top hidden box carries no pane at all: it is a bare row of
+        icons that replaces the wordmark and clock, so the header's own surface
+        — the room's wallpaper here, the theme paper without one — shows
+        through unchanged. The remaining floating controls are frosted panes,
+        so their text always stays readable.
 
    Everything here is scoped to an active wallpaper, so the plain paper
    themes keep their existing notebook look untouched.
@@ -316,11 +316,11 @@ html[data-wallpaper] [data-wallpaper-surface] > :not(.card-wallpaper) {
   z-index: 1;
 }
 
-/* The top hidden box: the room's own picture behind the tools, sampled at the
-   box's exact size (100%) so it sits perfectly in the room, and nothing else.
-   It is not a card, so it gets no card stroke, no card radius and no card
-   shadow — only its own bar edge and drop shadow stay, exactly as without a
-   wallpaper. */
+/* The top hidden box never gets a pane: it is only the icons, printed on the
+   header strip. On a wallpaper the header is already transparent, so the room
+   itself is the background; without one the header paper is. A pane here was
+   a second copy of that surface and could arrive black (a stale or failed
+   bake), so the bar is explicitly kept bare. */
 html[data-wallpaper] #top-tools {
   background-color: transparent !important;
   background-image: none !important;
