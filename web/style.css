@@ -17514,3 +17514,21 @@ html[data-theme] .head-title-inner .action-slash {
 html[data-theme] .head-title-inner .current-actions:active .action-slash {
   opacity: 0.5;
 }
+
+
+/* ==========================================================================
+   The Categories index reads the hidden top bar's ink
+   --------------------------------------------------------------------------
+   The left index used the page ink, so it competed with the task title for the
+   same colour. It now takes the mapped utility ink that colours the hidden top
+   bar's marks (app.js publishes it as --utility-ink) in every state, so the
+   index and the chrome always share one accent; hover and selection still speak
+   through the wash, the weight and the left rule instead of recolouring the
+   text.
+   ========================================================================== */
+html[data-theme] .index-head > span,
+html[data-theme] .category-item,
+html[data-theme] .category-item:hover,
+html[data-theme] .category-item.selected {
+  color: var(--utility-ink, var(--pc-ink));
+}
