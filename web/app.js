@@ -2384,8 +2384,8 @@ function applyThemeChrome(id) {
       color2: normalizeBaselineColorInput(chrome.row2 || "") || row,
     }, { immediate: true });
   }
-  // An empty highlight means "follow the page's font ink"; the custom wash of
-  // the previous theme must never leak into the new one.
+  // An empty highlight means "follow the Categories accent"; the custom wash
+  // of the previous theme must never leak into the new one.
   settings.highlight = normalizeHighlightColorInput(chrome.highlight || "");
   applyHighlight();
 }
@@ -4070,7 +4070,7 @@ function normalizeHighlightColorInput(raw) {
   return "";
 }
 
-/** The saved highlight colour, or "" when the font ink owns the wash. */
+/** The saved highlight colour, or "" when the Categories accent owns the wash. */
 function highlightColor() {
   return normalizeHighlightColorInput(settings.highlight);
 }
@@ -4108,9 +4108,10 @@ function bodyInkColor() {
 function applyHighlight() {
   const root = document.documentElement;
   const custom = highlightColor();
-  // Auto follows the font ink, not the theme accent, so the selected row reads
-  // as a tint of the text sitting on it. A saved colour still wins.
-  const color = custom || bodyInkColor();
+  // Auto follows the Categories accent — the same mapped utility ink that
+  // paints the hidden top bar and the left index — instead of mixing a wash
+  // from the font ink, which muddied the paper. A saved colour still wins.
+  const color = custom || inkAccents(bodyInkColor()).utility;
   root.dataset.select = custom ? "custom" : "auto";
   root.style.setProperty("--select-wash-rgb", hexToRgb(color));
 }
@@ -13461,7 +13462,7 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "reset-highlight-color") {
-    // Empty means "let the page's font ink paint the wash again".
+    // Empty means "let the Categories accent paint the wash again".
     settings.highlight = "";
     saveSettings();
     applySettings();
@@ -16593,9 +16594,9 @@ function applySettings() {
   // Sizes and inks land after the postcard slots so a reader-picked body ink
   // is not immediately replaced by the theme's own --pc-ink.
   applyFontSettings();
-  // The reader's own highlight wash: the page's font ink by default, or their
-  // saved colour behind the active row, the focused menu entry and the chosen
-  // settings card.
+  // The reader's own highlight wash: the Categories accent by default, or
+  // their saved colour behind the active row, the focused menu entry and the
+  // chosen settings card.
   applyHighlight();
   applyWallpaper();
   applyIconTheme();

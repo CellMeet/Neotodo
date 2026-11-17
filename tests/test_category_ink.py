@@ -39,6 +39,13 @@ def main() -> int:
         "html[data-theme] .category-item.selected",
     )
     assert "color: var(--utility-ink, var(--pc-ink))" in index
+    # The selected row's rule and dot use the same ink as the wash and name.
+    assert "background: var(--utility-ink, var(--pc-ink))" in rule(
+        style, "html[data-theme] .category-item.selected::before"
+    )
+    assert "background: var(--utility-ink, var(--pc-ink))" in rule(
+        style, "html[data-theme] .category-item.selected .cat-dot"
+    )
     # Every state stays bound; hover/selection speak through the wash and the
     # left rule, never by recolouring the text back to the page ink.
     assert "--pc-ink))" in index and "color: var(--pc-ink)" not in index

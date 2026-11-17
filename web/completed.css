@@ -36,7 +36,7 @@ html[data-theme="postcard"] #history-reel .history-subs .h-sub-time {
 }
 
 /* One wash, one shape, defined here and nowhere else. The colour follows the
-   page's font ink until the reader saves a selection-highlight colour in
+   Categories accent until the reader saves a selection-highlight colour in
    Settings → Theme. */
 :root {
   --completed-wash: linear-gradient(

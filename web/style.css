@@ -11295,7 +11295,7 @@ html[data-theme="postcard"] .settings-close::before{
   .custom-theme-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Selected surfaces tint with the page's font ink instead of the theme accent. */
+/* Selected surfaces tint with the Categories accent instead of the theme accent. */
 .current-theme-row {
   background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.07);
 }
@@ -11503,7 +11503,7 @@ html[data-theme="postcard"] .action-slash {
   opacity: 0.9;
 }
 
-/* Selected category wash follows the page's font ink. */
+/* Selected category wash follows the Categories accent. */
 html[data-theme="postcard"] .category-item:hover {
   background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.08);
 }
@@ -15969,11 +15969,12 @@ html[data-postcard-dark="true"] .nt-sparks i {
    Selection highlight — the reader's own "you are here" wash
    --------------------------------------------------------------------------
    Every theme marks the active subtask and the hovered menu entry with a wash.
-   Auto tints it with the page's font ink, so the highlight belongs to the text
-   instead of clashing with the theme accent. Settings → Theme → Selection
-   highlight can replace that wash without touching the ink, checks or icons.
-   Auto still publishes `--select-wash-rgb`, so a live font-colour drag repaints
-   the wash immediately.
+   Auto tints it with the Categories accent — the same mapped utility ink as
+   the hidden top bar and the left index — so the wash and the index belong to
+   one family instead of being mixed from the font ink. Settings → Theme →
+   Selection highlight can replace that wash without touching the ink, checks or
+   icons. Auto still publishes `--select-wash-rgb`, so a live font-colour drag
+   repaints the wash immediately.
    ========================================================================== */
 
 /* Active/finished rows share the one faded wash the app already uses. */
@@ -17531,4 +17532,14 @@ html[data-theme] .category-item,
 html[data-theme] .category-item:hover,
 html[data-theme] .category-item.selected {
   color: var(--utility-ink, var(--pc-ink));
+}
+
+/* The selected row's own accents (left rule and dot) use the same Categories
+   ink as the wash and the name, so the whole selection reads as one colour. */
+html[data-theme] .category-item.selected::before {
+  background: var(--utility-ink, var(--pc-ink));
+  box-shadow: 0 0 9px color-mix(in srgb, var(--utility-ink, var(--pc-ink)) 45%, transparent);
+}
+html[data-theme] .category-item.selected .cat-dot {
+  background: var(--utility-ink, var(--pc-ink));
 }
