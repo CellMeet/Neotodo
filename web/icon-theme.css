@@ -60,8 +60,20 @@ html[data-icon-ai-running="1"] .doing-sub.agent-running .fan-stack {
   background-image: var(--icon-ai-running);
   /* The spraying gif is much wider than the idle puffshroom. Match its
      mushroom height to the static fan instead of fitting the whole canvas,
-     otherwise the running icon reads markedly smaller. */
+     otherwise the running icon reads markedly smaller. Anchor it on the left:
+     centering a wider-than-box picture cuts the mushroom's left edge. */
   background-size: auto 100%;
+  background-position: left center;
+}
+/* Give the spraying sprite enough horizontal room while it works; the short
+   shift of the name is the same quiet nudge a caret makes in the row. */
+html[data-icon-ai-running="1"] .current-subtask.agent-running .sub-fan {
+  width: 48px;
+  flex-basis: 48px;
+}
+html[data-icon-ai-running="1"] .doing-sub.agent-running .doing-fan {
+  width: 32px;
+  flex-basis: 32px;
 }
 /* The Doing card's fan is the same picture; lift it onto the text line. */
 html[data-icon-fan="1"] .doing-fan {
@@ -75,13 +87,16 @@ html[data-icon-ai-done="1"] .sub-agent-model.has-model {
   width: 34px !important;
   height: 34px !important;
   margin-right: 2px !important;
+  /* The fan sits at -2px too; matching that margin puts the tallnut's drawn
+     bottom line on the same rule as the puffshroom beside it. */
+  margin-bottom: -2px !important;
 }
 html[data-icon-ai-done="1"] .sub-agent-model.has-model img {
   opacity: 0;
 }
-/* The emerge clip plays once after a fresh run, then app.js marks the slot as
-   settled: the last zombie stands still inside its own small shake instead of
-   replaying the whole entrance forever. */
+/* The finished clip plays once after a fresh run, then app.js marks the slot
+   as settled: the last tallnut frame stays put inside a small shake instead of
+   replaying the idle loop forever. */
 html[data-icon-ai-done="1"][data-icon-ai-done-final="1"] .sub-agent-model.has-model.ai-done-settled {
   background-image: var(--icon-ai-done-final);
   transform-origin: 50% 85%;

@@ -3218,9 +3218,9 @@ function syncAgentFanSpins() {
   });
 }
 
-// One turn cycle is ~1.2s. Let a fresh run finish it once, then hold the last
-// zombie in a tiny shake instead of looping the whole entrance forever.
-const AI_DONE_SETTLE_MS = 1250;
+// The tallnut idle loop is ~1.36s. Let a fresh run finish it once, then hold
+// the last frame in a tiny shake instead of looping the badge forever.
+const AI_DONE_SETTLE_MS = 1400;
 
 function settleAgentDoneIcon(slot, delay = AI_DONE_SETTLE_MS) {
   if (!slot) return;
