@@ -2384,7 +2384,7 @@ function applyThemeChrome(id) {
       color2: normalizeBaselineColorInput(chrome.row2 || "") || row,
     }, { immediate: true });
   }
-  // An empty highlight means "follow this theme's accent"; the custom wash of
+  // An empty highlight means "follow the page's font ink"; the custom wash of
   // the previous theme must never leak into the new one.
   settings.highlight = normalizeHighlightColorInput(chrome.highlight || "");
   applyHighlight();
@@ -4070,7 +4070,7 @@ function normalizeHighlightColorInput(raw) {
   return "";
 }
 
-/** The saved highlight colour, or "" when the theme still owns the wash. */
+/** The saved highlight colour, or "" when the font ink owns the wash. */
 function highlightColor() {
   return normalizeHighlightColorInput(settings.highlight);
 }
@@ -4098,18 +4098,21 @@ function syncHighlightFields(color, source = "") {
   }
 }
 
+/** The ink the page writes in: the reader's font colour, or the theme's own. */
+function bodyInkColor() {
+  const theme = THEMES[currentPostcardId()] || THEMES.light;
+  return fontHexColor(settings.body_font_color) || theme?.ink || "#332b2d";
+}
+
 /** Publish the wash colour. Called on every theme pass and while the picker drags. */
 function applyHighlight() {
   const root = document.documentElement;
-  const color = highlightColor();
-  if (color) {
-    root.dataset.select = "custom";
-    root.style.setProperty("--select-wash-rgb", hexToRgb(color));
-  } else {
-    // Hand the wash back to the active theme's accent.
-    delete root.dataset.select;
-    root.style.removeProperty("--select-wash-rgb");
-  }
+  const custom = highlightColor();
+  // Auto follows the font ink, not the theme accent, so the selected row reads
+  // as a tint of the text sitting on it. A saved colour still wins.
+  const color = custom || bodyInkColor();
+  root.dataset.select = custom ? "custom" : "auto";
+  root.style.setProperty("--select-wash-rgb", hexToRgb(color));
 }
 
 function aiThemeIsDark() {
@@ -10298,7 +10301,7 @@ function paletteSnapshot() {
   const rule = baselineRowRule();
   return {
     highlight: highlightColor(),
-    highlightFallback: readableAccent(theme, theme.accent) || "#8d63b8",
+    highlightFallback: bodyInkColor(),
     pageLine: line,
     pageLinePaint: pageLinePaint(line),
     baselineRule: rule,
@@ -13458,7 +13461,7 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "reset-highlight-color") {
-    // Empty means "let the active theme's accent paint the wash again".
+    // Empty means "let the page's font ink paint the wash again".
     settings.highlight = "";
     saveSettings();
     applySettings();
@@ -16438,6 +16441,10 @@ function applyFontSettings() {
   for (const slot of ["--ink", "--ink-soft", "--pc-ink", "--pc-ink-soft"]) {
     root.style.setProperty(slot, bodyInk);
   }
+  // Selected rows and cards tint with the same ink, so a live font-colour drag
+  // repaints the wash without waiting for the next theme pass.
+  root.style.setProperty("--ink-rgb", hexToRgb(bodyInk));
+  applyHighlight();
 }
 
 function applySettings() {
@@ -16522,7 +16529,7 @@ function applySettings() {
   // Sizes and inks land after the postcard slots so a reader-picked body ink
   // is not immediately replaced by the theme's own --pc-ink.
   applyFontSettings();
-  // The reader's own highlight wash: the theme accent by default, or their
+  // The reader's own highlight wash: the page's font ink by default, or their
   // saved colour behind the active row, the focused menu entry and the chosen
   // settings card.
   applyHighlight();
@@ -19640,7 +19647,7 @@ function bindEvents() {
       const color = normalizeHighlightColorInput(event.target.value);
       if (!color) {
         // Leave invalid text behind instead of pretending it was saved.
-        event.target.value = highlightColor() || (THEMES[currentPostcardId()] || THEMES.light).accent || "#8d63b8";
+        event.target.value = highlightColor() || bodyInkColor();
         return;
       }
       settings.highlight = color;

@@ -35,14 +35,14 @@ html[data-theme="postcard"] #history-reel .history-subs .h-sub-time {
   color: var(--pc-muted) !important;
 }
 
-/* One wash, one shape, defined here and nowhere else. The colour falls back to
-   the theme accent until the reader saves a selection-highlight colour in
+/* One wash, one shape, defined here and nowhere else. The colour follows the
+   page's font ink until the reader saves a selection-highlight colour in
    Settings → Theme. */
 :root {
   --completed-wash: linear-gradient(
     90deg,
-    rgba(var(--select-wash-rgb, var(--pc-accent-rgb, 157, 111, 28)), 0.20),
-    rgba(var(--select-wash-rgb, var(--pc-accent-rgb, 157, 111, 28)), 0.04) 80%
+    rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.20),
+    rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.04) 80%
   );
 }
 

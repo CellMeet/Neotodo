@@ -494,7 +494,7 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
 }
 
 /* What travels is the row's paper: its bottom line, its fan and its name. The
-   accent wash under a selected row stays in the pending lane — it marks where
+   font ink wash under a selected row stays in the pending lane — it marks where
    the reader is working, and a wash moving with the row would paint a coloured
    block over the page and leave it on the finished card. */
 .subtask-flight,
@@ -590,7 +590,7 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
 .subtask-lane .current-subtask.done.selected {
   background: linear-gradient(
     90deg,
-    rgba(var(--pc-accent-rgb, 157, 111, 28), 0.08),
+    rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.08),
     transparent 86%
   );
 }

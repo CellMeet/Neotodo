@@ -4641,14 +4641,14 @@ html[data-theme="postcard"] .category-item:hover {
 }
 html[data-theme="postcard"] .category-item.selected {
   color: #fff3ff;
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.2), transparent 88%);
+  background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.2), transparent 88%);
 }
 html[data-theme="postcard"] .category-item.selected::before {
-  background: var(--pc-accent);
-  box-shadow: 0 0 9px rgba(var(--pc-accent-rgb), 0.5);
+  background: var(--pc-ink);
+  box-shadow: 0 0 9px rgba(var(--ink-rgb, 51, 43, 45), 0.35);
 }
 html[data-theme="postcard"] .cat-dot { background: var(--pc-accent); opacity: 0.45; filter: none; box-shadow: none; }
-html[data-theme="postcard"] .category-item.selected .cat-dot { background: var(--pc-accent); opacity: 0.95; }
+html[data-theme="postcard"] .category-item.selected .cat-dot { background: var(--pc-ink); opacity: 0.95; }
 html[data-theme="postcard"] .cat-count { color: var(--pc-accent); }
 html[data-theme="postcard"] .page {
   background-color: transparent;
@@ -4684,7 +4684,7 @@ html[data-theme="postcard"] .history-row .h-name {
 html[data-theme="postcard"] .history-row .h-date { color: var(--muted); }
 html[data-theme="postcard"] .history-row.cursor { background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.18), transparent 74%); }
 html[data-theme="postcard"] .history-row.cursor::after { border-bottom-color: rgba(var(--pc-accent-rgb), 0.65); }
-html[data-theme="postcard"] .history-row.selected { background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.13), transparent 80%); }
+html[data-theme="postcard"] .history-row.selected { background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.13), transparent 80%); }
 html[data-theme="postcard"] .history-subtask .h-sub-name,
 html[data-theme="postcard"] .log-subtask .log-sub-name{ color: var(--ink-soft); }
 html[data-theme="postcard"] .history-empty { color: var(--muted); }
@@ -5062,7 +5062,7 @@ html[data-theme="postcard"] .notes-half.floating-notes {
   background: var(--notes-mask);
 }
 html[data-theme="postcard"] .current-subtask.selected {
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.15), transparent 86%);
+  background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.15), transparent 86%);
 }
 html[data-theme="postcard"] .sub-complete { color: var(--pc-accent); }
 html[data-theme="postcard"] .sub-complete:hover { color: #fff3ff; }
@@ -5315,7 +5315,7 @@ html[data-theme="postcard"] .category-item.selected {
   color: var(--pc-ink);
   background: rgba(0, 0, 0, 0.055);
 }
-html[data-theme="postcard"] .category-item.selected::before { background: var(--pc-accent); }
+html[data-theme="postcard"] .category-item.selected::before { background: var(--pc-ink); }
 html[data-theme="postcard"] .cat-dot { background: var(--pc-accent); opacity: 0.55; filter: none; }
 html[data-theme="postcard"] .category-item.selected .cat-dot { opacity: 0.95; }
 html[data-theme="postcard"] .cat-count { color: var(--pc-accent); }
@@ -9338,7 +9338,7 @@ html[data-theme="postcard"] .banner-title .banner-icon {
 .current-subtask.selected,
 .history-subtask.selected {
   background-color: transparent !important;
-  background-image: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-image: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.20), rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.04) 80%) !important;
   background-origin: border-box !important;
   background-clip: padding-box !important;
   background-repeat: no-repeat !important;
@@ -9349,7 +9349,7 @@ html[data-theme="postcard"] .history-row.selected,
 html[data-theme="postcard"] .current-subtask.selected,
 html[data-theme="postcard"] .history-subtask.selected {
   background-color: transparent !important;
-  background-image: linear-gradient(90deg, rgba(var(--pc-accent-rgb, 157, 111, 28), 0.20), rgba(var(--pc-accent-rgb, 157, 111, 28), 0.04) 80%) !important;
+  background-image: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.20), rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.04) 80%) !important;
   background-origin: border-box !important;
   background-clip: padding-box !important;
   background-repeat: no-repeat !important;
@@ -11019,7 +11019,7 @@ html[data-theme="postcard"] .settings-close::before{
   text-transform: uppercase;
 }
 .theme-menu-row { display: flex; align-items: center; border-radius: 5px; }
-.theme-menu-row.active { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.13); }
+.theme-menu-row.active { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.13); }
 .theme-menu-item {
   flex: 1 1 auto;
   min-width: 0;
@@ -11295,9 +11295,9 @@ html[data-theme="postcard"] .settings-close::before{
   .custom-theme-colors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Theme-aware selected surfaces instead of a fixed grey wash. */
+/* Selected surfaces tint with the page's font ink instead of the theme accent. */
 .current-theme-row {
-  background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.07);
+  background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.07);
 }
 html[data-theme="postcard"] .postcard-choice:hover {
   background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.08);
@@ -11503,12 +11503,12 @@ html[data-theme="postcard"] .action-slash {
   opacity: 0.9;
 }
 
-/* Selected category wash follows the postcard accent. */
+/* Selected category wash follows the page's font ink. */
 html[data-theme="postcard"] .category-item:hover {
-  background: rgba(var(--pc-accent-rgb), 0.08);
+  background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.08);
 }
 html[data-theme="postcard"] .category-item.selected {
-  background: linear-gradient(90deg, rgba(var(--pc-accent-rgb), 0.22), rgba(var(--pc-accent-rgb), 0.03) 88%);
+  background: linear-gradient(90deg, rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.22), rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.03) 88%);
 }
 
 /* About links and the italic closing note. */
@@ -15968,10 +15968,12 @@ html[data-postcard-dark="true"] .nt-sparks i {
 /* ==========================================================================
    Selection highlight — the reader's own "you are here" wash
    --------------------------------------------------------------------------
-   Every theme marks the active subtask and the hovered menu entry with the
-   accent tint. Settings → Theme → Selection highlight can replace that wash
-   without touching the accent ink, so text, checks and icons keep the theme.
-   Auto leaves `--select-wash-rgb` unset and the theme accent paints as before.
+   Every theme marks the active subtask and the hovered menu entry with a wash.
+   Auto tints it with the page's font ink, so the highlight belongs to the text
+   instead of clashing with the theme accent. Settings → Theme → Selection
+   highlight can replace that wash without touching the ink, checks or icons.
+   Auto still publishes `--select-wash-rgb`, so a live font-colour drag repaints
+   the wash immediately.
    ========================================================================== */
 
 /* Active/finished rows share the one faded wash the app already uses. */
@@ -17417,7 +17419,7 @@ html[data-theme="postcard"] .community-brand-copy strong { color: var(--pc-ink);
   cursor: pointer;
 }
 .theme-unit-row:hover { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.09); }
-.theme-unit-row.active { background: rgba(var(--pc-accent-rgb, 141, 99, 184), 0.13); }
+.theme-unit-row.active { background: rgba(var(--select-wash-rgb, var(--ink-rgb, 51, 43, 45)), 0.13); }
 .theme-unit-copy {
   flex: 1 1 auto;
   min-width: 0;
