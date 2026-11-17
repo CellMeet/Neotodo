@@ -2063,6 +2063,102 @@ const AudioFX = (() => {
   };
 })();
 
+// Optional theme music. It is deliberately not a member of SAMPLE_FILES: a
+// long looping track has its own switch in Settings → Sound, while the master
+// sound switch and volume still govern it. The bundled cue is the default
+// login theme of 《阴阳师：百闻牌》; see web/background-music/CREDITS.txt.
+const BACKGROUND_MUSIC_TRACK = {
+  src: "/background-music/oborozukiyo.mp3",
+  title: "朧月夜",
+  credit: "阴阳师：百闻牌 · 神前暁",
+};
+const BackgroundMusic = (() => {
+  let enabled = true;
+  try {
+    const saved = localStorage.getItem("neotodo.backgroundMusic");
+    if (saved !== null) enabled = saved === "1";
+  } catch (error) {}
+  // Fork boards and detached note/AI windows are satellites of the main
+  // notebook. They stay silent so the theme never stacks across windows.
+  let secondary = false;
+  try {
+    const params = new URLSearchParams(location.search);
+    secondary = params.get("fork") === "1" || params.has("detached");
+  } catch (error) {}
+  let audio = null;
+
+  // The slider is a master level; the theme rides at roughly half of it so
+  // bead clicks and completion chimes stay on top of the music.
+  function targetVolume() {
+    return Math.max(0, Math.min(1, AudioFX.getVolume() * 0.45));
+  }
+
+  function element() {
+    if (audio) return audio;
+    try {
+      audio = new Audio(BACKGROUND_MUSIC_TRACK.src);
+    } catch (error) {
+      return null;
+    }
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = targetVolume();
+    try { audio.setAttribute("playsinline", ""); } catch (error) {}
+    return audio;
+  }
+
+  function canPlay() {
+    return enabled && !AudioFX.muted && !secondary;
+  }
+
+  function play() {
+    if (!canPlay()) return;
+    const node = element();
+    if (!node || !node.paused) return;
+    // Autoplay may be refused until the first gesture. The next pointerdown or
+    // keydown calls start() again, so the track joins the notebook then.
+    const attempt = node.play();
+    if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
+  }
+
+  function pause() {
+    if (!audio) return;
+    try { audio.pause(); } catch (error) {}
+  }
+
+  function applyVolume() {
+    if (audio) audio.volume = targetVolume();
+  }
+
+  function sync() {
+    if (canPlay()) play();
+    else pause();
+    applyVolume();
+  }
+
+  function setEnabled(next) {
+    enabled = Boolean(next);
+    try { localStorage.setItem("neotodo.backgroundMusic", enabled ? "1" : "0"); } catch (error) {}
+    if (enabled) {
+      AudioFX.unlock();
+      sync();
+    } else {
+      pause();
+    }
+    return enabled;
+  }
+
+  return {
+    start: play,
+    sync,
+    applyVolume,
+    toggle: () => setEnabled(!enabled),
+    track: BACKGROUND_MUSIC_TRACK,
+    get enabled() { return enabled; },
+    get playing() { return Boolean(audio && !audio.paused); },
+  };
+})();
+
 // `wallpaper` is the single wallpaper choice: a picture or film in the
 // dedicated `pictures/wallpapers` shelf (or a legacy absolute path), a built-in
 // postcard (`art:<id>`) or a theme-pack picture (`theme:<pack-id>`). The shelf
@@ -13220,6 +13316,12 @@ async function handleAction(actionName, element) {
   if (actionName === "choose-project-folder") { revealProjectFolder(); return; }
   if (actionName === "clear-project-folder") { clearProjectFolder(); return; }
   if (actionName === "toggle-sound") { AudioFX.toggle(); updateSoundToggle(); renderSettings(); return; }
+  if (actionName === "toggle-background-music") {
+    BackgroundMusic.toggle();
+    updateSoundToggle();
+    renderSettings();
+    return;
+  }
   if (actionName === "preview-sound") {
     AudioFX.unlock();
     if (element?.dataset.soundKey) AudioFX.audition(element.dataset.soundKey);
@@ -17257,6 +17359,8 @@ function soundSettings() {
   const on = !AudioFX.muted;
   const volume = Math.round(AudioFX.getVolume() * 100);
   const current = activeSoundStyle();
+  const bgmOn = BackgroundMusic.enabled;
+  const bgmPlaying = BackgroundMusic.playing;
   const chevron = `<svg class="theme-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const rows = soundStyles.map((style) => {
     const active = style.id === current.id;
@@ -17292,6 +17396,13 @@ function soundSettings() {
         <label class="title-adjust-label">Volume <span id="sound-volume-value">${volume}%</span></label>
         <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-settings-volume>
       </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Background music <span>${esc(BackgroundMusic.track.title)} · ${esc(BackgroundMusic.track.credit)}</span></div>
+      <button class="settings-toggle ${bgmOn ? "active" : ""}" data-action="toggle-background-music" aria-pressed="${bgmOn ? "true" : "false"}">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-copy"><strong>${bgmOn ? "On" : "Off"}</strong><small>${bgmPlaying ? "Playing" : "Loops the notebook's theme track"}</small></span>
+      </button>
     </div>
     <div class="settings-section theme-settings-row sound-settings-row">
       <div class="theme-settings-title">Sound style</div>
@@ -20041,6 +20152,7 @@ function bindEvents() {
     if (event.target.matches("[data-settings-volume]")) {
       const value = Number(event.target.value) || 0;
       AudioFX.setVolume(value / 100);
+      BackgroundMusic.applyVolume();
       const label = document.querySelector("#sound-volume-value");
       if (label) label.textContent = `${Math.round(value)}%`;
       return;
@@ -20778,6 +20890,7 @@ function bindEvents() {
 
   const primeAudio = () => {
     AudioFX.unlock();
+    BackgroundMusic.start();
   };
   // Keep priming on every gesture: a wheel is enough to resume the audio
   // context in some WebKit builds, but it is not a pointerdown, so the old
@@ -20809,6 +20922,12 @@ function bindEvents() {
       renderSoundPanel();
       return;
     }
+    if (event.target.closest("[data-bgm-toggle]")) {
+      BackgroundMusic.toggle();
+      updateSoundToggle();
+      renderSoundPanel();
+      return;
+    }
     const play = event.target.closest("[data-sound-play]");
     if (play) {
       AudioFX.unlock();
@@ -20819,6 +20938,7 @@ function bindEvents() {
     if (!event.target.matches("[data-sound-volume]")) return;
     const value = Number(event.target.value) || 0;
     AudioFX.setVolume(value / 100);
+    BackgroundMusic.applyVolume();
     const label = soundPanel.querySelector(".sound-volume-value");
     if (label) label.textContent = `${Math.round(value)}%`;
   });
@@ -20836,6 +20956,7 @@ function bindEvents() {
 }
 
 function updateSoundToggle() {
+  BackgroundMusic.sync();
   const button = $("#sound-toggle");
   if (!button) return;
   button.classList.toggle("muted", AudioFX.muted);
@@ -20847,6 +20968,8 @@ function updateSoundToggle() {
 function soundPanelMarkup() {
   const off = AudioFX.muted;
   const volume = Math.round(AudioFX.getVolume() * 100);
+  const bgmOn = BackgroundMusic.enabled;
+  const bgmPlaying = BackgroundMusic.playing;
   const files = Object.entries(AudioFX.sampleFiles())
     .map(([name, url]) => `<button class="sound-file" type="button" data-sound-play="${esc(name)}">
       <span class="sound-file-play" aria-hidden="true">▶</span>
@@ -20864,6 +20987,14 @@ function soundPanelMarkup() {
     <div class="sound-volume-row">
       <input class="sound-volume" type="range" min="0" max="100" step="1" value="${volume}" data-sound-volume aria-label="Sound volume">
       <span class="sound-volume-value">${volume}%</span>
+    </div>
+    <div class="sound-music-row${bgmPlaying ? " playing" : ""}">
+      <span class="sound-music-mark" aria-hidden="true">${bgmPlaying ? "♪" : "♫"}</span>
+      <span class="sound-music-copy">
+        <span class="sound-music-title">Background music</span>
+        <span class="sound-music-detail">${esc(BackgroundMusic.track.title)} · ${esc(BackgroundMusic.track.credit)}</span>
+      </span>
+      <button class="sound-switch ${bgmOn ? "on" : "off"}" type="button" data-bgm-toggle aria-pressed="${bgmOn ? "true" : "false"}" aria-label="${bgmOn ? "Turn background music off" : "Turn background music on"}"><span class="sound-switch-knob"></span></button>
     </div>
     <div class="sound-files">${files}</div>
   </div>`;

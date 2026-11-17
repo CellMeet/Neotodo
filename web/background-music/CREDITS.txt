@@ -1,0 +1,15 @@
+Background music
+================
+
+oborozukiyo.mp3
+  "朧月夜" (Oborozukiyo) — the default login theme of the mobile card game
+  《阴阳师：百闻牌》 (Onmyoji: The Card Game).
+  Composed by 神前暁 (Satoru Kousaki). © NetEase Games.
+  Collected from the public login-BGM compilation on Bilibili
+  (BV1k84y1M7vg, part 1) and encoded to 128 kbps MP3 for NeoTodo's
+  optional background-music track.
+
+This file is bundled only as the notebook's optional theme music. It is not
+covered by NeoTodo's own license; all rights remain with NetEase Games and the
+composer. Turn the Background music switch off in Settings → Sound if you do
+not want it to play.
