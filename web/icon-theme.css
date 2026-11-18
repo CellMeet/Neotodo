@@ -160,6 +160,48 @@ html[data-icon-achievement="1"] .cat-count .moon-icon {
   height: 16px;
 }
 
+/* The completed-todo mark is the squash's neighbour in the same column. The
+   cherry picture is landscape, so it needs a wider slot to carry the squash's
+   visual weight: 34px of width lands the fruit at about 34×27, close to the
+   portrait squash's 30×34 instead of the old 29px shrunk mark. */
+html[data-icon-achievement="1"] .history-row .h-trophy:not(.h-trophy-squash),
+html[data-icon-achievement="1"] .log-line .log-trophy:not(.log-trophy-squash) {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+}
+html[data-icon-achievement="1"] .history-row .h-trophy .moon-icon,
+html[data-icon-achievement="1"] .log-line .log-trophy .moon-icon {
+  width: 34px;
+  height: 34px;
+}
+
+/* A pack may also own the burst that lands when a whole todo is completed.
+   PvZ's cherry bomb fills the middle of the window at a third of its width.
+   The picture is decoration: it never takes a click, and it leaves once its
+   1.6s clip has played. The node only exists when the pack provides the slot,
+   so Classical and every other set keep the plain confetti celebration. */
+html[data-icon-finish-burst="1"] .finish-burst {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+  background: var(--icon-finish-burst) center / 42vw auto no-repeat;
+  animation: finish-burst-pop 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+html[data-icon-finish-burst="1"] .finish-burst.is-leaving {
+  animation: finish-burst-leave 0.26s ease forwards;
+}
+@keyframes finish-burst-pop {
+  0% { opacity: 0; transform: scale(0.64); }
+  60% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes finish-burst-leave { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-icon-finish-burst="1"] .finish-burst { animation: none; }
+}
+
 /* Finished subtask: the red check becomes the coin. */
 html[data-icon-check-done="1"] .sub-done-check,
 html[data-icon-check-done="1"] .h-sub-check {

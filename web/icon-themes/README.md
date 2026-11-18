@@ -28,7 +28,8 @@ web/icon-themes/pvs/
     "aiDoneFinal": "icons/ai-done-final-tallnut.png",
     "achievement": "icons/achievement-cherry.gif",
     "rowBurn": "icons/row-burn.gif",
-    "fork": "icons/fork-coffee.gif"
+    "fork": "icons/fork-coffee.gif",
+    "finishBurst": "icons/finish-burst.gif"
   }
 }
 ```
@@ -48,6 +49,7 @@ Supported slots:
 | `checkDone` | Red check on a finished subtask (optional) |
 | `rowBurn` | Full-row effect while a subtask is deleted from its context menu (optional) |
 | `fork` | Fork flame in the context menu and on forked boards (optional) |
+| `finishBurst` | Picture that fills the middle of the window when a whole todo is completed (optional) |
 
 A missing slot keeps the Classical mark. `classical` is the built-in set and
 uses NeoTodo's original inline icons. Bundled sets are read-only; the reader's

@@ -15,7 +15,10 @@
 #history-reel .history-row .h-date,
 #history-reel .history-row .h-time,
 #history-reel .history-row .h-trophy,
-#history-reel .history-row .h-trophy *,
+/* Pin the trophy's own glyph, but never its <use>: an icon theme hides that
+   node with opacity 0 when it swaps in a picture (PvZ's cherry). Pinning it
+   here would print the old headphone on top of the picture. */
+#history-reel .history-row .h-trophy *:not(use),
 #history-reel .history-subs .h-sub-name,
 #history-reel .history-subs .h-sub-time,
 #history-reel .history-subs .h-sub-check {

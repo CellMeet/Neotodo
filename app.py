@@ -145,6 +145,7 @@ ICON_THEMES_DIR = DATA_DIR / "icon-themes"
 ICON_THEME_SLOTS = (
     "tissue", "fan", "fanDone", "aiRunning", "aiDone", "aiDoneFinal",
     "achievement", "achievementGold", "checkDone", "rowBurn", "fork",
+    "finishBurst",
 )
 ICON_THEME_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg"}
 # The notebook and the AI console own their themes. Each one keeps its palette

@@ -2612,7 +2612,7 @@ let pluginCloseTimer = 0;
 let themePacks = [];
 // Icon themes are their own shelf. They swap the small marks around the
 // notebook without touching the paper, wallpaper, note palette or AI palette.
-const ICON_THEME_SLOTS = ["tissue", "fan", "fanDone", "aiRunning", "aiDone", "aiDoneFinal", "achievement", "achievementGold", "checkDone", "rowBurn", "fork"];
+const ICON_THEME_SLOTS = ["tissue", "fan", "fanDone", "aiRunning", "aiDone", "aiDoneFinal", "achievement", "achievementGold", "checkDone", "rowBurn", "fork", "finishBurst"];
 const ICON_THEME_FALLBACK = Object.freeze({
   id: "classical",
   name: "Classical",
@@ -11864,6 +11864,25 @@ function finishedToast() {
   }, 3000);
 }
 
+// [shared] A finished todo is the week's big reward. Classical stops at the
+// confetti; a picture pack that owns the `finishBurst` slot sends its picture
+// across the middle of the window. A fresh node per completion restarts the
+// gif instead of leaving it on its last frame; reduced motion keeps only the
+// toast.
+const FINISH_BURST_MS = 1720;
+function finishedBurst() {
+  const pack = iconThemeById(settings.icon_theme);
+  if (!iconThemeAsset(pack, "finishBurst")) return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  document.querySelector(".finish-burst")?.remove();
+  const node = document.createElement("div");
+  node.className = "finish-burst";
+  node.setAttribute("aria-hidden", "true");
+  document.body.appendChild(node);
+  setTimeout(() => node.classList.add("is-leaving"), FINISH_BURST_MS);
+  setTimeout(() => node.remove(), FINISH_BURST_MS + 280);
+}
+
 /** Find the live todo that owns a subtask, wherever the board is scrolled. */
 function liveSubtaskOwner(subtaskId) {
   if (!subtaskId) return null;
@@ -14195,6 +14214,7 @@ async function handleAction(actionName, element) {
       if (swept > 0) {
         toast(`Submitted · ${swept} more subtask${swept === 1 ? "" : "s"} marked done`);
       }
+      finishedBurst();
       finishedToast();
       startTrophyCelebration(previousTrophy);
       celebrate();
