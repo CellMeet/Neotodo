@@ -60,10 +60,11 @@ def main() -> int:
     # "Open palette" row or a second switch for it.
     assert "Open palette" not in theme_body
     assert 'data-action="open-palette"' not in theme_body
-    # The note surface belongs to the note palette, not to the page palette.
-    assert "Note surface" in theme_body
-    assert "data-note-surface-file" in theme_body
-    assert "glassBackgroundRow" in theme_body
+    # The note surfaces belong to the note pane, not to the page palette: the
+    # notebook ships one Glass plate, so there are no surface chips here.
+    assert "data-note-surface-file" not in theme_body
+    assert "Frost blur" in theme_body
+    assert "Glass image" in theme_body
 
     plugin_html = (PLUGIN / "index.html").read_text(encoding="utf-8")
     for hook in (

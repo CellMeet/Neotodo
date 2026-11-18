@@ -2,20 +2,14 @@
    NOTE SHAPE ONLY
    --------------------------------------------------------------------------
    This file owns the note card's shape and its split geometry. Do not put AI
-   rules here. The note is a square sheet: no rounded corners anywhere, and it
-   sits flush against the AI pane with no gap.
+   rules here. The default sheet is square and sits flush against the AI pane
+   with no gap; the Glass material lifts it into a rounded plate instead.
    ========================================================================== */
 
-/* Square card, paper and glass alike. */
+/* The sheet is square by default. The Glass plate overrides this with its own
+   rounded pane (note-materials/glass.css owns that radius). */
 .notes-half,
-.notes-half.floating-notes,
-html[data-note-material="paper"] .notes-half.floating-notes,
-html[data-note-material="glass"] .notes-half.floating-notes {
-  border-radius: 0 !important;
-}
-
-/* The inner frosted page is square too. */
-html[data-note-material="glass"] .notes-half.floating-notes::before {
+.notes-half.floating-notes {
   border-radius: 0 !important;
 }
 

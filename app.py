@@ -386,13 +386,13 @@ def discover_sound_styles() -> list[dict]:
 
 
 def ensure_note_materials_dir() -> Path:
-    """Create a user-editable note material folder seeded with bundled CSS.
+    """Create the note material folder seeded with the bundled Glass CSS.
 
-    A built-in material is refreshed when the shipped file is newer than the
-    copy in the data folder, so a build can update Paper/Glass/Focus without
-    asking the user to delete the folder. ``copy2`` keeps the shipped mtime,
-    and a copy the user edited afterwards has a newer mtime, so their edits
-    stay untouched.
+    The shipped Glass file is refreshed when it is newer than the copy in the
+    data folder, so a build can update the plate without asking the user to
+    delete the folder. ``copy2`` keeps the shipped mtime, and a copy the reader
+    edited afterwards has a newer mtime, so their edits stay untouched. The
+    retired Paper and Focus files are removed here.
     """
     try:
         NOTE_MATERIALS_DIR.mkdir(parents=True, exist_ok=True)
@@ -408,6 +408,13 @@ def ensure_note_materials_dir() -> Path:
                 except OSError:
                     continue
                 shutil.copy2(src, dest)
+        # Paper and Focus are gone: drop them from older data folders so the
+        # shelf cannot offer a surface the build no longer ships.
+        for retired in ("paper.css", "focus.css"):
+            try:
+                (NOTE_MATERIALS_DIR / retired).unlink()
+            except OSError:
+                pass
     except Exception:
         pass
     return NOTE_MATERIALS_DIR
@@ -3016,33 +3023,23 @@ def sanitize_wallpaper_settings(settings: dict, derive_legacy: bool = True) -> N
 
 
 def note_material_file_names() -> list:
+    """The notebook ships one material: the Glass frost.
+
+    The shelf is not scanned any more. Paper and Focus were removed, and a CSS
+    file left in an older data folder must not come back as a note surface.
+    """
     ensure_note_materials_dir()
-    try:
-        return sorted(
-            item.name for item in NOTE_MATERIALS_DIR.iterdir()
-            if item.is_file() and item.suffix.lower() == ".css"
-        )
-    except Exception:
-        return []
+    return ["glass.css"] if (NOTE_MATERIALS_DIR / "glass.css").is_file() else []
 
 
 def normalize_note_surface_id(value) -> str:
-    """Keep a valid note-surface id; legacy ``glass`` means the frosted glass."""
-    material = str(value or "").strip().lower()
-    files = {name.lower() for name in note_material_file_names()}
-    if material in ("glass", "blur") and "glass.css" in files:
-        return "glass"
-    if material and re.fullmatch(r"[a-z0-9_-]{1,40}", material) and f"{material}.css" in files:
-        return material
-    return "focus" if "focus.css" in files else "paper"
+    """The notebook's only surface is the Glass frost."""
+    return "glass"
 
 
 def normalize_note_theme_id(value) -> str:
     """Keep a safe note-theme id; the frontend resolves installed packs."""
-    theme = str(value or "").strip().lower()
-    if re.fullmatch(r"[a-z0-9:_-]{1,80}", theme):
-        return theme
-    return "default"
+    return "glass"
 
 
 def sound_file_names(style: str = "") -> list:
@@ -3340,14 +3337,15 @@ def default_data() -> dict:
             "show_clock": True,
             "show_brand": True,
             "show_achievements": True,
+            "note_center": True,
             "focus_count": 0,
             "focus_log": [],
             "caret_blink": False,
             "caret_shape": "line",
             "caret_color": "#1b1b1b",
-            "note_material": "focus",
-            "note_material_file": "focus.css",
-            "note_theme": "default",
+            "note_material": "glass",
+            "note_material_file": "glass.css",
+            "note_theme": "glass",
             "ai_theme": "auto",
             "icon_theme": "classical",
             "note_background": "",
@@ -3486,6 +3484,7 @@ def load_data(path: Path | None = None, meta: dict | None = None) -> dict:
             settings["show_clock"] = settings.get("show_clock") is not False
             settings["show_brand"] = settings.get("show_brand") is not False
             settings["show_achievements"] = settings.get("show_achievements") is not False
+            settings["note_center"] = settings.get("note_center") is not False
             try:
                 settings["focus_count"] = max(0, int(settings.get("focus_count", 0)))
             except (TypeError, ValueError):
@@ -3493,20 +3492,11 @@ def load_data(path: Path | None = None, meta: dict | None = None) -> dict:
             if not isinstance(settings.get("focus_log"), list):
                 settings["focus_log"] = []
             settings["caret_blink"] = settings.get("caret_blink") is True
-            material_files = {name.lower() for name in note_material_file_names()}
-            saved_file = str(settings.get("note_material_file") or "").strip().lower()
-            if saved_file and saved_file in material_files:
-                settings["note_material_file"] = saved_file
-                settings["note_material"] = "glass" if saved_file == "glass.css" else saved_file[:-4]
-            else:
-                # A legacy "glass" with no saved file came from builds that
-                # forced that id on every save; those notebooks move to the
-                # FocusWriter surface. A real glass pick now writes glass.css.
-                legacy = settings.get("note_material")
-                material = "focus" if legacy == "glass" else normalize_note_surface_id(legacy)
-                settings["note_material"] = material
-                settings["note_material_file"] = f"{material}.css"
-            settings["note_theme"] = normalize_note_theme_id(settings.get("note_theme"))
+            # One notebook surface and palette: Glass. Older Paper / Focus /
+            # pack choices migrate here; a stored Glass picture is kept.
+            settings["note_material"] = "glass"
+            settings["note_material_file"] = "glass.css"
+            settings["note_theme"] = "glass"
             ai_theme = settings.get("ai_theme")
             if not isinstance(ai_theme, str) or not re.fullmatch(r"[a-z0-9:_-]{1,80}", ai_theme):
                 settings["ai_theme"] = "auto"
@@ -4547,7 +4537,7 @@ class Store:
                             current[color_key] = color.lower()
                         elif color == "":
                             current.pop(color_key, None)
-                    for key in ("show_time_cost", "show_clock", "show_brand", "show_achievements"):
+                    for key in ("show_time_cost", "show_clock", "show_brand", "show_achievements", "note_center"):
                         if isinstance(incoming.get(key), bool):
                             current[key] = incoming[key]
                     try:
@@ -4560,19 +4550,10 @@ class Store:
                         current["caret_blink"] = incoming["caret_blink"]
                     if incoming.get("caret_shape") in ("line", "block"):
                         current["caret_shape"] = incoming["caret_shape"]
-                    material_files = {name.lower() for name in note_material_file_names()}
-                    incoming_file = str(incoming.get("note_material_file") or "").strip().lower()
-                    if incoming_file in material_files:
-                        current["note_material_file"] = incoming_file
-                        current["note_material"] = "glass" if incoming_file == "glass.css" else incoming_file[:-4]
-                    else:
-                        current["note_material"] = normalize_note_surface_id(
-                            incoming.get("note_material", current.get("note_material"))
-                        )
-                        current["note_material_file"] = f"{current['note_material']}.css"
-                    current["note_theme"] = normalize_note_theme_id(
-                        incoming.get("note_theme", current.get("note_theme"))
-                    )
+                    # The notebook has one surface and one palette: Glass.
+                    current["note_material"] = "glass"
+                    current["note_material_file"] = "glass.css"
+                    current["note_theme"] = "glass"
                     value = incoming.get("ai_theme")
                     if isinstance(value, str) and re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
                         current["ai_theme"] = value

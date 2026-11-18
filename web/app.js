@@ -2288,7 +2288,7 @@ const WALLPAPER_RECENT_LIMIT = 6;
 // The little folder that opens a shelf on disk. Drawn inline so it borrows the
 // current theme ink instead of carrying the SVG file's own dark fill.
 const FOLDER_GLYPH = `<svg class="theme-folder-glyph" viewBox="0 0 1025 1024" aria-hidden="true"><path d="M961.793 446.344 961.793 446.344 202.079 446.344c-28.215 0-52.07 18.43-60.285 43.93l0 0L75.51 694.483 75.51 129.847l0 0 316.499 0 0 0 0.07 0c0 69.927 56.645 126.57 126.575 126.57l0 0 316.499 0 0 126.572 63.28 0L898.433 256.417c0-34.927-28.35-63.287-63.28-63.287L518.579 193.13c-34.925 0-63.285-28.355-63.285-63.282l0 0c0-34.93-28.285-63.287-63.285-63.287l0 0L75.51 66.561c-34.927 0-63.285 28.357-63.285 63.287l0 759.571c0 34.93 28.357 63.28 63.285 63.28l759.573 0c28.215 0 52.07-18.425 60.285-43.93l0.07 0 129.5-399.137C1024.937 474.704 996.722 446.416 961.793 446.344zM838.368 889.418 75.51 889.418l123.285-379.787 762.853 0L838.368 889.418z" fill="currentColor"/></svg>`;
-const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, show_brand: true, show_achievements: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "focus", note_theme: "default", ai_theme: "auto", icon_theme: "classical", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, card_images: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {}, sound_style: "classical" };
+const DEFAULT_SETTINGS = { theme: "postcard", postcard: "light", resolved_postcard: "light", light_postcard: "light", dark_postcard: "dark", font: "serif", note_font: "pen", scale: 1, body_font_size: 16, note_font_size: 14, body_font_color: "", note_font_color: "", show_time_cost: false, show_clock: true, show_brand: true, show_achievements: true, note_center: true, focus_count: 0, focus_log: [], caret_blink: false, caret_shape: "line", caret_color: "#1b1b1b", ai_caret_blink: true, ai_caret_shape: "line", ai_caret_dark: "#f4f6f8", ai_caret_light: "#1b1b1b", note_material: "glass", note_material_file: "glass.css", note_theme: "glass", ai_theme: "auto", icon_theme: "classical", note_background: "", note_background_image: "", note_blur: 16, highlight: "", sticker_backgrounds: {}, card_images: {}, wallpaper: "", wallpaper_recent: [], wallpaper_blur: 30, wallpaper_blur_on: false, wallpaper_cards: true, plugins: {}, sound_overrides: {}, sound_style: "classical" };
 // The page baseline is saved in its own baseline-color.json file, outside the
 // theme and outside the notebook settings. This is only the first-paint
 // fallback until /api/state answers with the stored colour.
@@ -2377,8 +2377,7 @@ let aiCommandDraft = null;
 let aiConfigLoading = null;
 let aiConfigLoaded = false;
 let aiInstructionsTimer = null;
-let noteMaterialFiles = ["paper.css", "glass.css", "focus.css"];
-let noteMaterialMenuOpen = false;
+let noteMaterialFiles = ["glass.css"];
 let wallpaperMediaKey = "";
 let wallpaperVisibilityBound = false;
 // Pre-rendered static wallpapers. Rasterising the postcard art (or decoding a
@@ -4432,6 +4431,10 @@ function updateCustomCaret() {
     hideCustomCaret();
     return;
   }
+  if (editor.clientWidth < 2 || editor.clientHeight < 2) {
+    hideCustomCaret();
+    return;
+  }
   const caret = ensureCustomCaret(host, caretId);
   if (!caret) return;
   // Only one custom caret is visible at a time.
@@ -4517,7 +4520,24 @@ function setupCustomCaret() {
   document.addEventListener("scroll", (event) => {
     if (event.target.id === "note-live") scheduleCustomCaret();
   }, true);
-  window.addEventListener("resize", scheduleCustomCaret);
+  // A maximise, a fullscreen toggle or a monitor change moves the note without
+  // a keystroke. Re-seat the caret and rebuild the glass plate at the new size.
+  const refitNote = () => {
+    scheduleCustomCaret();
+    scheduleNotePlateRefresh(120);
+    setTimeout(scheduleCustomCaret, 320);
+  };
+  window.addEventListener("resize", refitNote);
+  window.visualViewport?.addEventListener("resize", refitNote);
+  document.addEventListener("fullscreenchange", refitNote);
+  // A swapped webfont reflows the note after the first paint; the caret and
+  // the plate have to follow it.
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => {
+      scheduleCustomCaret();
+      scheduleNotePlateRefresh(0);
+    });
+  }
 }
 
 function saveActiveNoteCaret() {
@@ -5406,9 +5426,8 @@ function keepNoteBaseline(node) {
 
 let noteCenterFrame = 0;
 let noteCenterNode = null;
-// Both frosted surfaces keep FocusWriter's typewriter band; the beige paper
-// stays a normal, soft-baseline page.
-const NOTE_TYPEWRITER_SURFACES = new Set(["focus", "glass"]);
+// Glass keeps FocusWriter's typewriter band; it is the notebook's only page.
+const NOTE_TYPEWRITER_SURFACES = new Set(["glass"]);
 
 function noteUsesTypewriter() {
   return NOTE_TYPEWRITER_SURFACES.has(settings.note_material);
@@ -5416,7 +5435,7 @@ function noteUsesTypewriter() {
 
 /** FocusWriter's typewriter line: hold the caret near the middle of the page. */
 function centerNoteCaret(node) {
-  if (!node || !node.isConnected || !noteUsesTypewriter()) return;
+  if (!node || !node.isConnected || !noteUsesTypewriter() || settings.note_center === false) return;
   const scroller = $("#note-live");
   if (!scroller) return;
   const caret = node.selectionStart ?? 0;
@@ -5426,8 +5445,13 @@ function centerNoteCaret(node) {
   const contentTop = editorRect.top - scrollerRect.top + scroller.scrollTop;
   const lineHeight = point.lineHeight || parseFloat(getComputedStyle(node).lineHeight) || 24;
   const caretY = contentTop + point.y + lineHeight / 2;
-  const target = scroller.scrollTop + scroller.clientHeight * 0.46;
-  const delta = caretY - target;
+  const centerY = scroller.clientHeight * 0.46;
+  // FocusWriter starts at the top: the page does not jump to the middle on the
+  // first keystroke. Only when the line reaches the middle (or the page has
+  // already scrolled, so moving back up keeps it there) does the centre hold.
+  const viewportY = caretY - scroller.scrollTop;
+  if (scroller.scrollTop <= 0 && viewportY < centerY) return;
+  const delta = caretY - (scroller.scrollTop + centerY);
   if (Math.abs(delta) > 1) scroller.scrollTop += delta;
 }
 
@@ -5442,8 +5466,12 @@ function scheduleNoteCaretCenter(node) {
 
 /** The typewriter centre for the Focus surface, the softer baseline for others. */
 function settleNoteCaret(node) {
-  if (noteUsesTypewriter()) centerNoteCaret(node);
-  else keepNoteBaseline(node);
+  if (noteUsesTypewriter()) {
+    // With the reader's switch off, the native caret scroll owns the page.
+    if (settings.note_center !== false) centerNoteCaret(node);
+  } else {
+    keepNoteBaseline(node);
+  }
 }
 
 function focusNoteBlock(index) {
@@ -5794,6 +5822,7 @@ function renderNotesPanel() {
   const scroller = $("#note-live");
   if (scroller) scroller.scrollTop = before;
   scheduleCustomCaret();
+  scheduleNotePlateRefresh(0);
   saveViewState();
 }
 
@@ -5954,6 +5983,73 @@ function applyNotesPanelRect() {
   if (panel.style.top !== top) panel.style.top = top;
   if (panel.style.width !== width) panel.style.width = width;
   if (panel.style.height !== height) panel.style.height = height;
+  scheduleNotePlateRefresh(110);
+}
+
+let notePlateTimer = 0;
+
+/**
+ * Rebuild the glass plate at the pane's current size.
+ *
+ * WebKitGTK keeps the composited `backdrop-filter` layer from before a window
+ * was maximised: the words reflow to the new page while the frost stays at the
+ * old box, so the note looks like a sheet of paper parked beside the text.
+ * Switching the plate off for one frame forces the layer to be rebuilt at the
+ * new size; the caret is re-seated in the same pass.
+ */
+let notePlateSize = "";
+
+function refreshNotePlate() {
+  const pane = $("#notes-half");
+  if (!pane || !pane.isConnected) return;
+  const size = `${pane.clientWidth}x${pane.clientHeight}`;
+  const resized = size !== notePlateSize;
+  notePlateSize = size;
+  if (resized) {
+    // Only a real box change can leave a stale layer, and only then is the
+    // one-frame hide needed — a same-size render must not blink.
+    pane.classList.add("note-plate-reset");
+    requestAnimationFrame(() => {
+      if (pane.isConnected) pane.classList.remove("note-plate-reset");
+    });
+  }
+  requestAnimationFrame(() => {
+    scheduleCustomCaret();
+    const editor = document.querySelector("#note-live [data-note-block-editor]");
+    if (editor && document.activeElement === editor) settleNoteCaret(editor);
+  });
+}
+
+/** One rebuild after a burst of resize frames, never one per frame. */
+function scheduleNotePlateRefresh(delay = 110) {
+  clearTimeout(notePlateTimer);
+  notePlateTimer = setTimeout(() => {
+    notePlateTimer = 0;
+    refreshNotePlate();
+  }, delay);
+}
+
+let notePanelObserver = null;
+let notePanelObserved = null;
+
+/**
+ * Track the sheet's box directly. GTK can resize the WebView for a fullscreen
+ * toggle without delivering a window `resize` event to the page, which left
+ * both the frost and the caret at the old window size. A ResizeObserver sees
+ * the new box either way.
+ */
+function watchNotePanel(panel) {
+  if (!panel || typeof ResizeObserver !== "function") return;
+  if (!notePanelObserver) {
+    notePanelObserver = new ResizeObserver(() => {
+      scheduleCustomCaret();
+      scheduleNotePlateRefresh(90);
+    });
+  }
+  if (notePanelObserved === panel) return;
+  if (notePanelObserved) notePanelObserver.unobserve(notePanelObserved);
+  notePanelObserved = panel;
+  notePanelObserver.observe(panel);
 }
 
 const TASK_ROW_HEIGHT = 40;
@@ -6316,6 +6412,7 @@ function setupNotesPanel() {
   panel.style.width = "";
   panel.style.height = "";
   applyNotesStretch();
+  watchNotePanel(panel);
   if (!panel.dataset.pointerBound) {
     panel.dataset.pointerBound = "1";
     panel.addEventListener("click", (event) => {
@@ -13938,12 +14035,12 @@ async function handleAction(actionName, element) {
     if (entry.kind === "note") {
       settings.note_background_image = "";
       settings.note_background = "";
-      settings.note_material = "focus";
-      settings.note_material_file = "focus.css";
+      settings.note_material = "glass";
+      settings.note_material_file = "glass.css";
       saveSettings();
       applySettings();
       renderSettings();
-      toast("Default note surface restored");
+      toast("Glass picture cleared");
       return;
     }
     if (entry.kind === "sticker") {
@@ -13962,8 +14059,10 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "open-note-materials-folder") { silentAction("open_note_materials_folder"); return; }
-  if (actionName === "toggle-note-material-menu") {
-    noteMaterialMenuOpen = !noteMaterialMenuOpen;
+  if (actionName === "toggle-note-center") {
+    AudioFX.categoryTap();
+    settings.note_center = settings.note_center === false;
+    saveSettings();
     renderSettings();
     return;
   }
@@ -14544,6 +14643,7 @@ function loadSettings() {
   settings.show_clock = settings.show_clock !== false;
   settings.show_brand = settings.show_brand !== false;
   settings.show_achievements = settings.show_achievements !== false;
+  settings.note_center = settings.note_center !== false;
   settings.focus_count = Math.max(0, Math.floor(Number(settings.focus_count) || 0));
   if (!Array.isArray(settings.focus_log)) settings.focus_log = [];
   if (!FONT_OPTIONS.some((font) => font.id === settings.font)) settings.font = "serif";
@@ -14562,24 +14662,11 @@ function loadSettings() {
   // name; only a missing/invalid one falls back to the FocusWriter sheet.
   // Legacy ids such as "glass" follow the file instead of resetting the
   // reader on every launch.
-  let noteSurfaceFile = String(settings.note_material_file || "").toLowerCase();
-  if (!noteSurfaceFile) {
-    // Older builds forced "glass" on every save without recording a file.
-    // A stored Glass picture means the reader really chose Glass; a bare
-    // legacy "glass" (no picture) was never a choice, so those notebooks start
-    // on the image-free FocusWriter sheet.
-    noteSurfaceFile = settings.note_material === "glass"
-      ? (settings.note_background_image ? "glass.css" : "focus.css")
-      : materialFileForId(settings.note_material);
-  }
-  if (!/^[a-z0-9_-]+\.css$/.test(noteSurfaceFile)) noteSurfaceFile = "focus.css";
-  settings.note_material_file = noteSurfaceFile;
-  settings.note_material = materialIdForFile(noteSurfaceFile);
-  // Pane themes: the built-in palette plus every installed note theme. A
-  // legacy bare pack id ("glass") resolves to its "pack:" choice instead of
-  // silently resetting to the built-in Default.
-  const noteChoice = noteThemeChoiceFor(settings.note_theme);
-  settings.note_theme = noteChoice ? noteChoice.id : "default";
+  // One note surface and one note palette: Glass. Older Paper / Focus / pack
+  // choices migrate here; the Glass picture (if any) stays for the image.
+  settings.note_material = "glass";
+  settings.note_material_file = "glass.css";
+  settings.note_theme = "glass";
   const aiIds = new Set(aiThemeChoices().map((choice) => choice.id));
   if (!aiIds.has(settings.ai_theme)) settings.ai_theme = "auto";
   const background = typeof settings.note_background === "string" ? settings.note_background : "";
@@ -14916,11 +15003,11 @@ const AI_BUILTIN_PALETTES = {
 // defaults.
 const NOTE_THEME_BUILTINS = [
   {
-    id: "default", name: "Default", english: "Beige sticky note · white ruled lines",
+    id: "glass", name: "Glass", english: "Frosted glass",
     palette: {
-      paper: "#f6e8c4", ink: "#4a3a28", muted: "rgba(74, 58, 40, 0.55)",
-      rule: "rgba(255, 255, 255, 0.90)", accent: "#9a7443", accent2: "#7f5f38",
-      handle: "rgba(74, 58, 40, 0.70)", handleHover: "rgba(58, 45, 30, 0.92)",
+      paper: "#eef0ea", ink: "#23261f", muted: "rgba(35, 38, 31, 0.55)",
+      rule: "rgba(35, 38, 31, 0.14)", accent: "#6d3f18", accent2: "#8a5a2a",
+      handle: "rgba(35, 38, 31, 0.55)", handleHover: "rgba(30, 33, 26, 0.80)",
       handleHalo: "rgba(255, 255, 255, 0.20)", handleHaloHover: "rgba(255, 255, 255, 0.30)",
     },
   },
@@ -15014,12 +15101,9 @@ function installedPaneChoices(kind) {
 }
 
 function noteThemeChoices() {
-  // The built-in sticky note plus every note palette installed in the
-  // note-theme/ shelf. The app theme never chooses this palette.
-  return [
-    ...NOTE_THEME_BUILTINS.map((theme) => ({ ...theme, source: "builtin" })),
-    ...installedPaneChoices("note"),
-  ];
+  // One notebook palette: Glass. Installed note-theme packs are ignored, so an
+  // app theme pack can never repaint the notebook.
+  return NOTE_THEME_BUILTINS.map((theme) => ({ ...theme, source: "builtin" }));
 }
 
 /** Resolve a saved note-theme id, including legacy bare pack ids. */
@@ -15029,60 +15113,6 @@ function noteThemeChoiceFor(id) {
   return choices.find((choice) => choice.id === wanted)
     || choices.find((choice) => choice.packId && choice.packId === wanted)
     || null;
-}
-
-// The two notebook surfaces the notebook used before palettes existed. They
-// are the note's own setting: Paper paints the chosen paper colour, Glass
-// frosts the chosen ink over a mask. Neither follows the app or OS theme.
-const NOTE_SURFACE_BUILTINS = [
-  { id: "paper", name: "Paper", english: "Solid notebook page", file: "paper.css" },
-  { id: "glass", name: "Glass", english: "Frosted mask", file: "glass.css" },
-  { id: "focus", name: "Focus", english: "FocusWriter-style glass pane", file: "focus.css" },
-];
-
-function noteSurfaceChoices() {
-  const builtinFiles = new Set(NOTE_SURFACE_BUILTINS.map((surface) => surface.file));
-  const extra = noteMaterialFiles
-    .filter((file) => !builtinFiles.has(String(file).toLowerCase()))
-    .map((file) => ({
-      id: materialIdForFile(file),
-      name: materialDisplayName(file),
-      english: "Your material",
-      file: String(file).toLowerCase(),
-    }));
-  return [...NOTE_SURFACE_BUILTINS, ...extra];
-}
-
-function activeNoteSurfaceFile() {
-  return String(settings.note_material_file || materialFileForId(settings.note_material)).toLowerCase();
-}
-
-function noteSurfaceCardMarkup(surface) {
-  const active = activeNoteSurfaceFile() === surface.file;
-  const palette = selectedNoteTheme().palette;
-  const glass = surface.id === "glass";
-  const focus = surface.id === "focus";
-  const dark = hexLuminance(palette.paper) < 0.45;
-  const swatch = focus
-    // A sharp photo with a frosted inset pane and a drop shadow: the
-    // FocusWriter mask in miniature.
-    ? `background:linear-gradient(135deg,rgba(24,28,24,.20),rgba(24,28,24,.08)),url("/notes-forest.jpg") center/cover;color:${esc(palette.ink)};text-shadow:0 1px 2px rgba(255,255,255,.7);box-shadow:inset 0 0 0 6px rgba(255,255,255,.20),inset 0 0 0 7px rgba(255,255,255,.44),inset 0 -14px 24px rgba(0,0,0,.16)`
-    : glass
-    ? (dark
-      ? `background:linear-gradient(135deg,rgba(38,44,52,.90),rgba(20,24,30,.62)),radial-gradient(circle at 24% 18%,rgba(255,255,255,.18),transparent 58%);color:${esc(palette.ink)};box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),inset 0 -14px 28px rgba(0,0,0,.30)`
-      : `background:linear-gradient(135deg,rgba(255,255,255,.84),rgba(212,224,233,.42)),radial-gradient(circle at 24% 18%,rgba(255,255,255,.96),transparent 58%);color:${esc(palette.ink)};box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),inset 0 -14px 28px rgba(126,146,160,.16)`)
-    : `background:${esc(palette.paper)};color:${esc(palette.ink)}`;
-  return `<button class="pane-theme-card note-surface-card ${active ? "active" : ""}" type="button" data-note-surface-file="${esc(surface.file)}" aria-pressed="${active ? "true" : "false"}">
-    <span class="pane-theme-swatch ${glass ? "note-surface-glass" : ""}" style="${swatch}">
-      <span class="pane-theme-aa">Aa</span>
-      <span class="pane-theme-rule one" style="background:${esc(palette.rule)}"></span>
-      <span class="pane-theme-rule two" style="background:${esc(palette.rule)};opacity:.6"></span>
-      <span class="pane-theme-rule three" style="background:${esc(palette.rule)};opacity:.35"></span>
-      <span class="pane-theme-dots"><i style="background:${esc(palette.accent)}"></i><i style="background:${esc(palette.accent2)}"></i></span>
-    </span>
-    <span class="pane-theme-copy"><strong>${esc(surface.name)}</strong><small>${esc(surface.english || "")}</small></span>
-    <span class="choice-check">✓</span>
-  </button>`;
 }
 
 function aiThemeChoices() {
@@ -15176,8 +15206,8 @@ function applyAiTheme() {
 }
 
 function normalizePaneThemeSettings() {
-  const noteChoice = noteThemeChoiceFor(settings.note_theme);
-  settings.note_theme = noteChoice ? noteChoice.id : "default";
+  // The notebook has one palette: Glass.
+  settings.note_theme = "glass";
   const aiIds = new Set(aiThemeChoices().map((choice) => choice.id));
   if (!aiIds.has(settings.ai_theme)) settings.ai_theme = "auto";
 }
@@ -16340,24 +16370,6 @@ function updateArchiveIcon() {
   if (use) use.setAttribute("href", `#${themeSymbol("archive")}`);
 }
 
-function materialFileForId(id) {
-  if (id === "paper") return "paper.css";
-  if (id === "glass" || id === "blur") return "glass.css";
-  return `${String(id || "paper")}.css`;
-}
-
-function materialIdForFile(file) {
-  const stem = String(file || "").replace(/\.css$/i, "").trim();
-  if (!stem) return "paper";
-  return stem.replace(/[^a-z0-9_-]/gi, "") || "paper";
-}
-
-function materialDisplayName(file) {
-  const stem = String(file || "").replace(/\.css$/i, "").trim();
-  if (stem === "paper") return "Paper";
-  if (stem === "glass") return "Glass";
-  return stem || "Paper";
-}
 
 /** A wallpaper the reader picked from their own disk is remembered as a path. */
 function wallpaperIsFilePath(value) {
@@ -17892,11 +17904,9 @@ function restoreThemeFocus(selector) {
 
 /** The blur the frost actually paints, from the shared 0..40 slider. */
 function noteFrostScale() {
-  if (settings.note_material === "focus") return 2;
-  if (settings.note_material === "glass") {
-    return settings.note_background_image ? 0.45 : 2;
-  }
-  return 1;
+  // A picture already carries the colour, so it takes a lighter blur; the
+  // bare frost doubles the slider like FocusWriter's 32px default.
+  return settings.note_background_image ? 0.45 : 2;
 }
 
 function themeSettings() {
@@ -17958,26 +17968,24 @@ function themeSettings() {
   const fieldName = unitThemeName(fieldMode);
   // Note surface belongs to the note palette, not to the page-wide Palette
   // plugin: it only appears while the Theme unit is switched to Note theme.
-  const currentSurface = activeNoteSurfaceFile();
-  const noteSurfaceRow = noteSurfaceChoices().map((surface) => `<button class="theme-chip ${currentSurface === surface.file ? "active" : ""}" type="button" data-note-surface-file="${esc(surface.file)}" aria-pressed="${currentSurface === surface.file ? "true" : "false"}">${esc(surface.name)}</button>`).join("");
-  const noteFrost = settings.note_material === "focus" || settings.note_material === "glass";
-  // The note palette owns the surface. Focus is the default clear frost (no
-  // picture); Glass is the same frost with a picture the reader picks the way
-  // a card picture is picked. The picture row only appears while Glass is the
-  // active surface, so the default Focus page has no image controls at all.
+  // The notebook's only surface is the Glass frost, so it has no surface chips.
+  // The rows it does keep are its own: the frost blur, the typewriter centre
+  // and the picture the reader picks with the card crop dialog.
   const noteSurfaceSection = fieldMode === "note" ? `
     <div class="settings-section theme-settings-row">
-      <div class="theme-settings-title">Note surface</div>
-      <div class="theme-settings-controls note-surface-row">${noteSurfaceRow}</div>
-    </div>
-    ${noteFrost ? `<div class="settings-section theme-settings-row">
       <div class="theme-settings-title">Frost blur</div>
       <div class="theme-settings-controls">
         <input id="note-blur-range" type="range" min="0" max="40" step="2" value="${settings.note_blur}" aria-label="Frost blur">
         <span id="note-blur-value" class="theme-value">${Math.round(settings.note_blur * noteFrostScale())} px</span>
       </div>
-    </div>` : ""}
-    ${settings.note_material === "glass" ? cardSettingsRow("note:background", "note", "background", "Glass image", noteBackgroundSettingsFor()) : ""}
+    </div>
+    <div class="settings-section theme-settings-row">
+      <div class="theme-settings-title">Always vertically center</div>
+      <div class="theme-settings-controls">
+        <button class="sound-switch theme-setting-switch ${settings.note_center !== false ? "on" : "off"}" type="button" data-action="toggle-note-center" aria-pressed="${settings.note_center !== false ? "true" : "false"}" aria-label="${settings.note_center !== false ? "Turn always vertically center off" : "Turn always vertically center on"}"><span class="sound-switch-knob"></span></button>
+      </div>
+    </div>
+    ${cardSettingsRow("note:background", "note", "background", "Glass image", noteBackgroundSettingsFor())}
   ` : "";
   // One compact name for the style box: "Blink · Line" or "Line". The shared
   // unit follows the note caret and applies its choice to both panes, so it
@@ -18243,12 +18251,12 @@ async function loadNoteMaterialFiles() {
   if (Array.isArray(result?.files) && result.files.length) {
     noteMaterialFiles = result.files;
   }
-  if (!noteMaterialFiles.includes(settings.note_material_file)) {
-    // A removed custom CSS is the only reason to fall back; the reader's
-    // built-in choice is never rewritten here.
-    const fallback = noteMaterialFiles.includes("focus.css") ? "focus.css" : "paper.css";
-    settings.note_material_file = fallback;
-    settings.note_material = materialIdForFile(fallback);
+  if (!noteMaterialFiles.includes("glass.css")) {
+    noteMaterialFiles = ["glass.css"];
+  }
+  if (settings.note_material_file !== "glass.css" || settings.note_material !== "glass") {
+    settings.note_material_file = "glass.css";
+    settings.note_material = "glass";
     saveSettings();
     applySettings();
   }
@@ -19976,7 +19984,7 @@ function bindEvents() {
   for (const type of ["input", "keyup", "click"]) {
     document.addEventListener(type, (event) => {
       const editor = event.target.closest?.("#note-live [data-note-block-editor]");
-      if (!editor || !noteUsesTypewriter()) return;
+      if (!editor || !noteUsesTypewriter() || settings.note_center === false) return;
       scheduleNoteCaretCenter(editor);
     }, { passive: true });
   }
@@ -20262,21 +20270,6 @@ function bindEvents() {
       restoreThemeFocus(".caret-unit-trigger");
       return;
     }
-    const noteSurface = event.target.closest("[data-note-surface-file]");
-    if (noteSurface) {
-      event.preventDefault();
-      const file = noteSurface.dataset.noteSurfaceFile;
-      settings.note_material_file = file;
-      settings.note_material = materialIdForFile(file);
-      noteMaterialMenuOpen = false;
-      saveSettings();
-      // Paper/Glass belongs to the notebook only: repaint it in place without
-      // touching the app theme, and without closing Settings.
-      applySettings();
-      renderSettings();
-      scheduleCustomCaret();
-      return;
-    }
     const noteThemeChoice = event.target.closest("[data-note-theme-choice]");
     if (noteThemeChoice) {
       event.preventDefault();
@@ -20311,19 +20304,6 @@ function bindEvents() {
       saveSettings();
       applySettings();
       renderSettings();
-      return;
-    }
-    const noteMaterial = event.target.closest("[data-note-material-file]");
-    if (noteMaterial) {
-      event.preventDefault();
-      const file = noteMaterial.dataset.noteMaterialFile;
-      settings.note_material_file = file;
-      settings.note_material = materialIdForFile(file);
-      noteMaterialMenuOpen = false;
-      saveSettings();
-      applySettings();
-      renderSettings();
-      scheduleCustomCaret();
       return;
     }
     const noteBgPreset = event.target.closest("[data-note-bg-preset]");
@@ -21494,10 +21474,6 @@ function bindEvents() {
   });
 
   document.addEventListener("click", (event) => {
-    if (noteMaterialMenuOpen && !event.target.closest?.(".note-material-picker")) {
-      noteMaterialMenuOpen = false;
-      if (settingsTab === "theme") renderSettings();
-    }
     if (agentModelMenuOpen || agentModeMenuOpen) {
       agentModelMenuOpen = false;
       agentModeMenuOpen = false;

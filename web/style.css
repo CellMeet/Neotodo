@@ -5600,10 +5600,10 @@ html[data-theme="postcard"] {
   font-weight: 500;
   line-height: 1.5;
 }
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h2,
-html[data-note-material="paper"] .notes-half.floating-notes .note-block h3,
+.notes-half.floating-notes .note-block h2,
+.notes-half.floating-notes .note-block h3,
 .notes-half.floating-notes .note-block h4{ color: var(--note-ink, var(--ink)); }
-html[data-note-material="paper"] .notes-half.floating-notes .note-block-placeholder { color: var(--note-muted, var(--faint)); }
+.notes-half.floating-notes .note-block-placeholder { color: var(--note-muted, var(--faint)); }
 .notes-half.floating-notes .note-block-editor {
   color: var(--note-ink, var(--ink));
   font-family: var(--note-font, var(--display));
@@ -5626,7 +5626,7 @@ html[data-theme="postcard"] .notes-half.floating-notes {
 }
 html[data-theme="postcard"] .notes-half.floating-notes .notes-head { border-bottom-color: var(--note-rule); }
 html[data-theme="postcard"] .notes-half.floating-notes .notes-title { color: var(--note-ink); }
-html[data-theme="postcard"] html[data-note-material="paper"] .notes-half.floating-notes .note-block,
+html[data-theme="postcard"] .notes-half.floating-notes .note-block,
 html[data-theme="postcard"] .notes-half.floating-notes .note-block h2,
 html[data-theme="postcard"] .notes-half.floating-notes .note-block h3,
 html[data-theme="postcard"] .notes-half.floating-notes .note-block h4{ color: var(--note-ink); }
@@ -6380,7 +6380,7 @@ html[data-theme] .page-body .notes-half.floating-notes .note-block blockquote { 
 html[data-theme] .page-body .notes-half.floating-notes .note-block a,
 html[data-theme] .page-body .notes-half.floating-notes .note-link{ color: #7b4d20; }
 html[data-theme] .page-body .notes-half.floating-notes .note-link:hover{ color: #2f1d0e; }
-html[data-theme] .page-body html[data-note-material="paper"] .notes-half.floating-notes .notes-empty,
+html[data-theme] .page-body .notes-half.floating-notes .notes-empty,
 html[data-theme] .page-body .notes-half.floating-notes .note-block-placeholder{ color: #8b6a45; }
 html[data-theme] .page-body .notes-half.floating-notes .note-hide { color: #7d5937; }
 html[data-theme] .page-body .notes-half.floating-notes .note-hide:hover { color: #2f1d0e; }
@@ -10012,92 +10012,6 @@ html[data-postcard-dark="true"] .trash-clear:hover { background: rgba(255, 255, 
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.16), rgba(18, 24, 32, 0.28)),
     url("/notes-forest.jpg");
-}
-
-/* Note material: FocusWriter-style misted forest behind the words. */
-html[data-note-material="glass"] .notes-half.floating-notes {
-  --note-ink: #eef5fb;
-  --note-muted: rgba(230, 241, 250, 0.68);
-  --note-rule: rgba(255, 255, 255, 0.14);
-  --note-accent: #d9edff;
-  --note-paper: transparent;
-  color: #eaf3fa;
-  border: 1px solid rgba(255, 255, 255, 0.17) !important;
-  border-radius: 12px !important;
-  background-color: transparent !important;
-  background-size: cover !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  background-blend-mode: normal !important;
-  box-shadow:
-    0 22px 60px rgba(0, 0, 0, 0.38),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
-  backdrop-filter: none !important;
-  isolation: isolate;
-}
-html[data-note-material="glass"] .notes-half.floating-notes::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(10, 16, 23, 0.34));
-  -webkit-backdrop-filter: blur(var(--note-blur, 16px)) saturate(1.08);
-  backdrop-filter: blur(var(--note-blur, 16px)) saturate(1.08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-title,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-title > span {
-  color: #f6faff !important;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-head {
-  border-bottom-color: rgba(255, 255, 255, 0.15) !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block-editor {
-  color: #eaf3fa !important;
-  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.55);
-}
-html[data-note-material="glass"] .page-body html[data-note-material="paper"] .notes-half.floating-notes .note-block h1,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h2,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h3,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h4 {
-  color: #ffffff !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-empty,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block-placeholder {
-  color: rgba(236, 245, 252, 0.58) !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block:hover {
-  background: rgba(255, 255, 255, 0.055) !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block code,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block pre {
-  color: #eaf3fa !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-  border-left-color: rgba(255, 255, 255, 0.22) !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block blockquote {
-  color: rgba(231, 241, 250, 0.78) !important;
-  border-left-color: rgba(217, 237, 255, 0.45) !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block a,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-link {
-  color: #d9edff !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-link:hover{
-  color: #ffffff !important;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-icon {
-  color: rgba(235, 245, 255, 0.72) !important;
-  opacity: 0.7;
-}
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-drag-handle span,
-html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-resize-handle {
-  color: rgba(235, 245, 255, 0.65) !important;
-  background: rgba(235, 245, 255, 0.6) !important;
 }
 
 /* Note background image picker inside Settings. */
@@ -13763,16 +13677,6 @@ body.notes-hidden .notes-handle-bottom:not(.handle-vanish){
   pointer-events: auto !important;
 }
 
-/* Solid note panes make the *paper* split slide crisp; glass keeps its mask. */
-html[data-note-material="paper"] body.agent-notes-split .notes-half.floating-notes,
-html[data-note-material="paper"] body:not(.agent-terminal-open) .notes-half.floating-notes:not(.notes-hidden){
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  /* The pane is solid only for crisp split motion; it stays notebook paper,
-     never the app theme's paper. */
-  background-color: var(--note-paper, #ffffff) !important;
-}
-
 /* Independent pane geometry: the AI card stays rounded; notes stay square. */
 .agent-terminal {
   left: 0;
@@ -14156,10 +14060,8 @@ body.detached-arriving.detached-note #notes-half {
 }
 
 /* A height drag moves the sheet's top and height on every frame, so whatever
-   the note paints at sheet size is painted again. The notebook page is now one
-   flat white fill (note-materials/paper.css), so a Paper note has nothing to
-   re-raster and follows the pointer cheaply. Glass and Focus still pay for
-   their frost / photograph, but that is the material's own look.
+   the note paints at sheet size is painted again. The Glass plate pays for its
+   frost / photograph, but that is the material's own look.
 
    What a drag must NOT do is repaint the sheet in another colour. Replacing
    the surface with a flat paper fill flipped Glass and Focus to solid
@@ -14181,9 +14083,6 @@ html body .page-body > .notes-half.floating-notes.panel-handle-resizing:not(.not
      pointer, not an enter keyframe. */
   animation: none !important;
   /* The note keeps its own surface: no background / backdrop override here. */
-}
-html[data-note-material="paper"] body .page-body > .notes-half.floating-notes.panel-handle-resizing:not(.notes-hidden) {
-  contain: layout paint;
 }
 html body .page-body > .notes-half.floating-notes.panel-handle-resizing .note-block,
 html body .page-body > .notes-half.floating-notes.panel-handle-resizing .note-block-editor,

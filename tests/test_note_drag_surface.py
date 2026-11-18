@@ -1,17 +1,14 @@
 """Pulling the note's bottom line must not repaint the notebook.
 
 The door drag used to swap the sheet's surface for a flat paper fill so the
-height frames stayed cheap. Glass and Focus take their colour from the frost
-and the photograph behind them, so that shortcut flipped the note to solid
-parchment for the whole pull, and `contain: paint` made the sheet its own
-backdrop root — which left the frost nothing to blur. Keeping the surface,
-though, brought the stutter back: the Paper material used to paint five
-full-sheet gradients, so every height frame re-rastered the whole note.
+height frames stayed cheap. Glass takes its colour from the frost and the
+picture behind it, so that shortcut flipped the note to solid parchment for
+the whole pull, and `contain: paint` made the sheet its own backdrop root —
+which left the frost nothing to blur.
 
-The notebook owns its palette and the reader's surface choice (Paper, Glass,
-Focus and installed note themes). This test keeps both halves of the contract:
-the surface is not repainted during the gesture, and the Paper surface has only
-one cheap rule gradient left to repaint.
+The notebook now has one surface (Glass), so this test keeps the drag contract
+only: the surface is not repainted during the gesture, and the sheet is never
+contained while it is pulled.
 """
 import re
 import sys
@@ -62,17 +59,12 @@ def main() -> int:
     assert "transition: none !important;" in note_rule
     assert "animation: none !important;" in note_rule
 
-    # Containment is only safe on the solid paper: it creates a backdrop root,
-    # so the frosted materials must not be contained while they are pulled.
+    # Containment creates a backdrop root, which would leave the frost nothing
+    # to blur; the glass sheet must never be contained while it is pulled.
     assert "contain: layout paint;" not in note_rule, (
         "the frost lost its backdrop because the sheet is contained"
     )
-    paper_rule = section.split(
-        'html[data-note-material="paper"] body .page-body > .notes-half.floating-notes'
-        ".panel-handle-resizing:not(.notes-hidden) {",
-        1,
-    )[1].split("}", 1)[0]
-    assert "contain: layout paint;" in paper_rule, "the solid sheet lost its containment"
+    assert 'data-note-material="paper"' not in section, "a removed surface still paints"
 
     # The top-edge stretch shares the same trade (shadow only, surface intact),
     # so the two lines of the same sheet behave identically.
@@ -82,33 +74,34 @@ def main() -> int:
     assert "background-color:" not in stretch
     assert "background-image: none" not in stretch
 
-    # The notebook keeps the reader's palette and surface choice: the built-in
-    # Default palette plus installed note themes; the surface file is never
-    # forced back to paper/glass on load.
+    # One notebook surface and one palette. The old Paper / Focus surfaces and
+    # the installed note-theme packs are gone; a saved paper/focus choice
+    # migrates to Glass on load.
     app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
     builtins = app_js.split("const NOTE_THEME_BUILTINS = [", 1)[1].split("\n];", 1)[0]
-    assert 'id: "default"' in builtins, "the built-in note palette is missing"
-    assert 'name: "Default"' in builtins
-    assert 'installedPaneChoices("note")' in app_js, "installed note palettes are ignored"
-    assert 'settings.note_material = "paper";\n' not in app_js, "the surface is forced to paper"
-    assert 'settings.note_material = materialIdForFile(noteSurfaceFile);' in app_js
-    assert 'note_material: "focus", note_theme: "default"' in app_js
-    assert "Parchment" not in builtins and "Ivory" not in builtins
-    assert "Rose paper" not in builtins and '"Mint"' not in builtins
     assert builtins.count("palette:") == 1, "a second built-in note palette came back"
+    assert 'id: "glass"' in builtins and 'name: "Glass"' in builtins
+    assert 'installedPaneChoices("note")' not in app_js, "installed note palettes are back"
+    assert 'settings.note_material = "glass";' in app_js, "the surface is not forced to Glass"
+    assert 'settings.note_material_file = "glass.css";' in app_js
+    assert 'settings.note_theme = "glass";' in app_js
+    assert 'note_material: "glass"' in app_js
+    assert "noteSurfaceChoices" not in app_js, "the surface picker came back"
 
     note_theme = (ROOT / "web" / "note-theme.css").read_text(encoding="utf-8")
     assert "--note-theme-paper: #eef0ea;" in note_theme, "the glass note paper is missing"
     assert "--note-theme-rule: rgba(35, 38, 31, 0.14);" in note_theme, "the glass rules are missing"
-    assert "#e8d3a6" not in note_theme, "the old parchment palette is back"
+    assert "--note-theme-ink: #23261f;" in note_theme
+    assert 'data-note-material="paper"' not in note_theme, "a removed surface still paints"
 
-    # The beige page keeps one flat fill plus one repeating rule gradient. No
-    # sheet-sized wash is re-rastered on every height frame.
-    paper = (ROOT / "web" / "note-materials" / "paper.css").read_text(encoding="utf-8")
-    assert "background-color: var(--note-paper, #f6e8c4) !important;" in paper
-    assert "repeating-linear-gradient(" in paper, "the white note rules are missing"
-    assert "var(--note-rule, rgba(255, 255, 255, 0.90)) 39px 40px" in paper
-    assert "radial-gradient" not in paper, "the paper wash re-rastered every drag frame"
+    # The removed materials are gone from the build and from the stylesheet
+    # links, so an old settings file cannot bring them back.
+    assert not (ROOT / "web" / "note-materials" / "paper.css").exists()
+    assert not (ROOT / "web" / "note-materials" / "focus.css").exists()
+    index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    assert "/note-materials/glass.css" in index
+    assert "/note-materials/paper.css" not in index
+    assert "/note-materials/focus.css" not in index
 
     # The first empty line is a ghost prompt, in italic.
     assert 'aria-hidden="true">Write something ...</span>' in app_js
@@ -116,12 +109,12 @@ def main() -> int:
     assert ".note-ghost {" in note_theme and "font-style: italic;" in note_theme
 
     app_py = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert '"note_material": "focus",' in app_py, "a fresh install does not start on Focus"
-    assert '"note_theme": "default",' in app_py
+    assert '"note_material": "glass",' in app_py, "a fresh install does not start on Glass"
+    assert '"note_material_file": "glass.css",' in app_py
+    assert '"note_theme": "glass",' in app_py
     assert "def normalize_note_surface_id" in app_py
     assert "def normalize_note_theme_id" in app_py
-    assert 'settings["note_material"] = "glass"\n' not in app_py
-    assert 'settings["note_theme"] = "glass"\n' not in app_py
+    assert "paper.css" not in app_py.split("def note_material_file_names")[1].split("def ")[0]
 
     # A missing or extra brace here would silently drop the drag rules.
     assert css.count("{") == css.count("}"), "the stylesheet is unbalanced"

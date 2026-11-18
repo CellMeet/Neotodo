@@ -83,9 +83,8 @@ Everything lives on your disk. No account, no cloud, no subscription. The interf
 ### 📝 Notes that feel like paper
 - 📄 **A note beside every todo and subtask.** The note card is a real Markdown surface for headings, lists, quotes, code and checklists.
 - 🖼️ **Pictures in the margin.** Add images to a note; they stay attached to that todo or subtask and survive restarts.
-- 📜 **Paper material.** A warm, ruled notebook page with soft edges and a gentle grain.
-- 🧊 **Glass material.** A frosted mask over your chosen background, with adjustable blur and a custom image slot.
-- 🎨 **Make the surface yours.** Note materials are small CSS files in a user folder, so you can add your own paper, tint or texture.
+- 🧊 **One Glass plate.** A lifted, bevelled pane that frosts the wallpaper behind it — rounded corners, a lit top edge and a real shadow instead of a flat page. The blur is a slider, and a picture you crop the way you crop a card can live inside the plate.
+- 🎯 **FocusWriter typing.** The line you write drifts down to the middle of the plate and holds there; *Always vertically center* turns that band off.
 - ✍️ **Caret, not cursor.** Choose a line or block caret, its colour, and whether it blinks — independently for notes and the AI console.
 
 ### 🤖 The Captain & Crew AI console

@@ -266,31 +266,12 @@ html[data-theme="postcard"] .context-menu.context-note,
 
 /* --------------------------------------------------------------------------
    Dark notebook themes
-   The parchment material paints a warm paper wash and a warm inner shadow.
-   On a dark note paper that reads as muddy brown, so a dark theme gets a
-   neutral, cooler version of the same material instead.
+   The Glass plate is always light, so a dark note palette flips the frost and
+   keeps its light ink readable.
    -------------------------------------------------------------------------- */
-html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes {
-  background-image:
-    radial-gradient(ellipse at 50% 42%, rgba(255, 255, 255, 0.06), transparent 66%),
-    radial-gradient(ellipse at 4% 0%, rgba(0, 0, 0, 0.30), transparent 52%),
-    radial-gradient(ellipse at 100% 100%, rgba(0, 0, 0, 0.26), transparent 56%) !important;
-  box-shadow:
-    inset 0 0 68px rgba(0, 0, 0, 0.34),
-    inset 0 0 14px rgba(255, 255, 255, 0.05),
-    0 16px 40px rgba(0, 0, 0, 0.42) !important;
-}
-
-html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .notes-title > span,
-html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .note-block h1,
-html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .note-block h2,
-html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-notes .note-block h3 {
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35) !important;
-}
-
 /* The frosted mask is always light; a dark note theme flips the frost so the
    light ink stays readable. */
-html[data-note-material="glass"][data-note-dark="true"] .notes-half.floating-notes::before {
+html[data-note-material="glass"][data-note-dark="true"] body .notes-half.floating-notes:not(.notes-hidden)::before {
   background-color: rgba(22, 26, 30, 0.58) !important;
   background-image:
     var(--note-noise),
@@ -298,24 +279,10 @@ html[data-note-material="glass"][data-note-dark="true"] .notes-half.floating-not
 }
 
 /* --------------------------------------------------------------------------
-   Theme slots travel with every note material
-   The note-materials folder is user-editable and was seeded from an older
-   build: paper.css/glass.css/focus.css in that folder may hard-code the
-   original parchment ink and paper. The notebook palette is a living setting,
-   so its slots must win even when an older material file is loaded; picking a
-   note theme then repaints the page immediately instead of having no effect.
-   Only the built-in surface names are themed, so a custom material keeps its
-   own surface untouched.
+   Theme slots travel with the note material
+   The notebook palette is a living setting, so its slots must win over any
+   material file: picking a palette repaints the page immediately.
    -------------------------------------------------------------------------- */
-html[data-note-material="paper"] body .page-body .notes-half.floating-notes {
-  --note-paper: var(--note-theme-paper) !important;
-  --note-ink: var(--note-theme-ink) !important;
-  --note-muted: var(--note-theme-muted) !important;
-  --note-rule: var(--note-theme-rule) !important;
-  --note-accent: var(--note-theme-accent) !important;
-  --note-accent-2: var(--note-theme-accent2) !important;
-  background-color: var(--note-theme-paper) !important;
-}
 html[data-note-material="glass"] body .page-body .notes-half.floating-notes {
   --note-ink: var(--note-theme-ink) !important;
   --note-muted: var(--note-theme-muted) !important;
@@ -323,12 +290,4 @@ html[data-note-material="glass"] body .page-body .notes-half.floating-notes {
   --note-accent: var(--note-theme-accent) !important;
   --note-accent-2: var(--note-theme-accent2) !important;
 }
-/* Focus frosts the note's own photograph; the palette owns its ink, hairlines
-   and accent, while the frost itself stays a neutral glass veil. */
-html[data-note-material="focus"] body .page-body .notes-half.floating-notes {
-  --note-ink: var(--note-theme-ink) !important;
-  --note-muted: var(--note-theme-muted) !important;
-  --note-rule: var(--note-theme-rule) !important;
-  --note-accent: var(--note-theme-accent) !important;
-  --note-accent-2: var(--note-theme-accent2) !important;
-}
+
