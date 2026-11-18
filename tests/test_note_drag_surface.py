@@ -8,11 +8,10 @@ backdrop root — which left the frost nothing to blur. Keeping the surface,
 though, brought the stutter back: the Paper material used to paint five
 full-sheet gradients, so every height frame re-rastered the whole note.
 
-The notebook therefore owns one style only: a beige sticky note with white
-ruled lines (note-theme.css and note-materials/paper.css), and every other note
-palette or surface is gone. This test keeps both halves of the contract: the
-surface is not repainted during the gesture, and the Paper surface has only one
-cheap rule gradient left to repaint.
+The notebook owns its palette and the reader's surface choice (Paper, Glass,
+Focus and installed note themes). This test keeps both halves of the contract:
+the surface is not repainted during the gesture, and the Paper surface has only
+one cheap rule gradient left to repaint.
 """
 import re
 import sys
@@ -83,20 +82,24 @@ def main() -> int:
     assert "background-color:" not in stretch
     assert "background-image: none" not in stretch
 
-    # The notebook has one style of its own: the beige `default` sticky note.
-    # The old preset shelf (Parchment / Ivory / Rose / Mint) stays deleted.
+    # The notebook keeps the reader's palette and surface choice: the built-in
+    # Default palette plus installed note themes; the surface file is never
+    # forced back to paper/glass on load.
     app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
     builtins = app_js.split("const NOTE_THEME_BUILTINS = [", 1)[1].split("\n];", 1)[0]
-    assert 'id: "default"' in builtins, "the default note style is missing"
-    assert 'name: "Default"' in builtins, "the note style is not named default"
+    assert 'id: "default"' in builtins, "the built-in note palette is missing"
+    assert 'name: "Default"' in builtins
+    assert 'installedPaneChoices("note")' in app_js, "installed note palettes are ignored"
+    assert 'settings.note_material = "paper";\n' not in app_js, "the surface is forced to paper"
+    assert 'settings.note_material = materialIdForFile(noteSurfaceFile);' in app_js
+    assert 'note_material: "focus", note_theme: "default"' in app_js
     assert "Parchment" not in builtins and "Ivory" not in builtins
     assert "Rose paper" not in builtins and '"Mint"' not in builtins
-    assert builtins.count("palette:") == 1, "a second note palette came back"
-    assert 'note_theme: "default"' in app_js, "the notebook does not default to default"
+    assert builtins.count("palette:") == 1, "a second built-in note palette came back"
 
     note_theme = (ROOT / "web" / "note-theme.css").read_text(encoding="utf-8")
-    assert "--note-theme-paper: #f6e8c4;" in note_theme, "the note paper is not beige"
-    assert "--note-theme-rule: rgba(255, 255, 255, 0.90);" in note_theme, "the rules are not white"
+    assert "--note-theme-paper: #eef0ea;" in note_theme, "the glass note paper is missing"
+    assert "--note-theme-rule: rgba(35, 38, 31, 0.14);" in note_theme, "the glass rules are missing"
     assert "#e8d3a6" not in note_theme, "the old parchment palette is back"
 
     # The beige page keeps one flat fill plus one repeating rule gradient. No
@@ -113,13 +116,17 @@ def main() -> int:
     assert ".note-ghost {" in note_theme and "font-style: italic;" in note_theme
 
     app_py = (ROOT / "app.py").read_text(encoding="utf-8")
-    assert '"note_theme": "default",' in app_py, "a fresh install does not start on default"
-    assert 'settings["note_theme"] = "default"' in app_py
+    assert '"note_material": "focus",' in app_py, "a fresh install does not start on Focus"
+    assert '"note_theme": "default",' in app_py
+    assert "def normalize_note_surface_id" in app_py
+    assert "def normalize_note_theme_id" in app_py
+    assert 'settings["note_material"] = "glass"\n' not in app_py
+    assert 'settings["note_theme"] = "glass"\n' not in app_py
 
     # A missing or extra brace here would silently drop the drag rules.
     assert css.count("{") == css.count("}"), "the stylesheet is unbalanced"
 
-    print("the beige default note keeps its white rules and drags smoothly")
+    print("the glass note keeps its frosted rules and drags smoothly")
     return 0
 
 

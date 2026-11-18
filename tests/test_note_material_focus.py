@@ -85,19 +85,24 @@ def main() -> int:
     assert "--note-focus-blur: calc(var(--note-blur, 16px) * 2);" in css
     assert "--note-focus-fill: rgba(246, 248, 247, 0.50);" in css
 
+    # Focus is the default surface and never paints the Glass picture: the
+    # image exists only for Glass.
+    assert "var(--note-bg-image)" not in css
+
     # A dark note palette frosts with ink instead of milk.
     assert 'html[data-note-material="focus"][data-note-dark="true"]' in css
 
     app_js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+    assert 'note_material: "focus"' in app_js
     assert '{ id: "focus", name: "Focus", english: "FocusWriter-style glass pane", file: "focus.css" }' in app_js
-    assert "NOTE_BG_PRESETS = {" in app_js
-    # No hidden forest default: the focus frost works on the real backdrop.
-    assert 'settings.note_material === "focus") noteBg' not in app_js
+    # The focus frost works on the real backdrop: it never falls back to a
+    # baked note picture, and the typewriter centre lives in app.js.
+    assert "centerNoteCaret" in app_js
+    assert 'NOTE_TYPEWRITER_SURFACES = new Set(["focus", "glass"])' in app_js
     # The surface picker lives in Settings → Theme → Note theme, not in the
     # page-wide Palette plugin.
-    assert 'const focusSurface = settings.note_material === "focus";' in app_js
-    assert '${focusSurface ? "Frost blur" : "Glass background"}' in app_js
     assert "data-note-surface-file=" in app_js
+    assert "glass.css" in app_js
     assert 'noteMaterialFiles = ["paper.css", "glass.css", "focus.css"]' in app_js
 
     index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
@@ -105,6 +110,10 @@ def main() -> int:
 
     # The note theme file carries the Focus surface with the other built-ins:
     # the palette owns its ink, hairlines and accent.
+    # The FocusWriter measure and the fading band are part of the surface.
+    assert 'html[data-note-material="focus"] .page-body .notes-half.floating-notes .note-live' in css
+    assert "mask-image:" in css
+    assert "26vh" in css
     note_theme = (ROOT / "web" / "note-theme.css").read_text(encoding="utf-8")
     assert 'html[data-note-material="focus"] body .page-body .notes-half.floating-notes {' in note_theme
     assert "--note-ink: var(--note-theme-ink) !important;" in note_theme

@@ -3026,6 +3026,25 @@ def note_material_file_names() -> list:
         return []
 
 
+def normalize_note_surface_id(value) -> str:
+    """Keep a valid note-surface id; legacy ``glass`` means the frosted glass."""
+    material = str(value or "").strip().lower()
+    files = {name.lower() for name in note_material_file_names()}
+    if material in ("glass", "blur") and "glass.css" in files:
+        return "glass"
+    if material and re.fullmatch(r"[a-z0-9_-]{1,40}", material) and f"{material}.css" in files:
+        return material
+    return "focus" if "focus.css" in files else "paper"
+
+
+def normalize_note_theme_id(value) -> str:
+    """Keep a safe note-theme id; the frontend resolves installed packs."""
+    theme = str(value or "").strip().lower()
+    if re.fullmatch(r"[a-z0-9:_-]{1,80}", theme):
+        return theme
+    return "default"
+
+
 def sound_file_names(style: str = "") -> list:
     """Audio files inside one style folder (classical/ when none is given)."""
     folder = sound_style_dir(style)
@@ -3326,7 +3345,8 @@ def default_data() -> dict:
             "caret_blink": False,
             "caret_shape": "line",
             "caret_color": "#1b1b1b",
-            "note_material": "paper",
+            "note_material": "focus",
+            "note_material_file": "focus.css",
             "note_theme": "default",
             "ai_theme": "auto",
             "icon_theme": "classical",
@@ -3473,11 +3493,20 @@ def load_data(path: Path | None = None, meta: dict | None = None) -> dict:
             if not isinstance(settings.get("focus_log"), list):
                 settings["focus_log"] = []
             settings["caret_blink"] = settings.get("caret_blink") is True
-            settings["note_material"] = "paper"
-            # One note style only: the beige `default` sticky note. Older ids
-            # (white, pack references) and the Paper / Glass / Focus surfaces
-            # collapse back to it.
-            settings["note_theme"] = "default"
+            material_files = {name.lower() for name in note_material_file_names()}
+            saved_file = str(settings.get("note_material_file") or "").strip().lower()
+            if saved_file and saved_file in material_files:
+                settings["note_material_file"] = saved_file
+                settings["note_material"] = "glass" if saved_file == "glass.css" else saved_file[:-4]
+            else:
+                # A legacy "glass" with no saved file came from builds that
+                # forced that id on every save; those notebooks move to the
+                # FocusWriter surface. A real glass pick now writes glass.css.
+                legacy = settings.get("note_material")
+                material = "focus" if legacy == "glass" else normalize_note_surface_id(legacy)
+                settings["note_material"] = material
+                settings["note_material_file"] = f"{material}.css"
+            settings["note_theme"] = normalize_note_theme_id(settings.get("note_theme"))
             ai_theme = settings.get("ai_theme")
             if not isinstance(ai_theme, str) or not re.fullmatch(r"[a-z0-9:_-]{1,80}", ai_theme):
                 settings["ai_theme"] = "auto"
@@ -4531,8 +4560,19 @@ class Store:
                         current["caret_blink"] = incoming["caret_blink"]
                     if incoming.get("caret_shape") in ("line", "block"):
                         current["caret_shape"] = incoming["caret_shape"]
-                    current["note_material"] = "paper"
-                    current["note_theme"] = "default"
+                    material_files = {name.lower() for name in note_material_file_names()}
+                    incoming_file = str(incoming.get("note_material_file") or "").strip().lower()
+                    if incoming_file in material_files:
+                        current["note_material_file"] = incoming_file
+                        current["note_material"] = "glass" if incoming_file == "glass.css" else incoming_file[:-4]
+                    else:
+                        current["note_material"] = normalize_note_surface_id(
+                            incoming.get("note_material", current.get("note_material"))
+                        )
+                        current["note_material_file"] = f"{current['note_material']}.css"
+                    current["note_theme"] = normalize_note_theme_id(
+                        incoming.get("note_theme", current.get("note_theme"))
+                    )
                     value = incoming.get("ai_theme")
                     if isinstance(value, str) and re.fullmatch(r"[a-z0-9:_-]{1,80}", value):
                         current["ai_theme"] = value

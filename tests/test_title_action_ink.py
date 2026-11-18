@@ -1,11 +1,11 @@
 """The title actions and the hidden top bar take mapped accent inks.
 
-The reader picks a body font colour in Settings → Font. Neither the complete /
-slash / add trio nor the hidden top bar repeats that colour: app.js walks the
-colour wheel from the font ink, giving the trio the counter-note half a turn
-away and the top bar the split-complement 30° nearer. The marks themselves —
-including every icon the reader already chose — stay untouched; only the inks
-and the press feedback live here.
+The reader picks a body font colour in Settings → Font. The complete / slash /
+add trio keeps the theme's own accent so the title actions read as one warm
+piece of the page, while the hidden top bar takes the split-complement 30° ink
+app.js walks from the font colour. The marks themselves — including every icon
+the reader already chose — stay untouched; only the inks and the press feedback
+live here.
 """
 import sys
 from pathlib import Path
@@ -50,12 +50,12 @@ def main() -> int:
 
     # applyFontSettings publishes the pair on every font-colour change.
     font_body = app_js.split("function applyFontSettings()", 1)[1].split("\n}", 1)[0]
-    assert '"--action-ink", accents.action' in font_body
     assert '"--utility-ink", accents.utility' in font_body
 
     # The ink is only colour: no geometry rules for the marks.
     actions = rule(style, "html[data-theme] .head-title-inner .current-action,\nhtml[data-theme] .head-title-inner .action-slash")
-    assert "color: var(--action-ink, var(--pc-accent))" in actions
+    assert "color: var(--pc-accent)" in actions
+    assert "color: var(--action-ink" not in actions
     utilities = rule(style, "html[data-theme] .top-tools .sound-toggle,\nhtml[data-theme] .top-tools .settings-button,\nhtml[data-theme] .top-tools .exit-button")
     assert "color: var(--utility-ink, var(--pc-accent))" in utilities
     assert ".top-tools .agent-settings-button { color: var(--utility-ink, var(--gold)); }" in style

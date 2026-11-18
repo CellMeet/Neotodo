@@ -67,6 +67,13 @@ html[data-note-material="focus"] .notes-half.floating-notes::before {
   pointer-events: none;
   border-radius: 0;
   background-color: var(--note-focus-fill);
+  /* A soft vignette keeps the desk quiet around the writing column, the way
+     FocusWriter dims everything outside the page. */
+  background-image: radial-gradient(
+    ellipse at 50% 46%,
+    transparent 34%,
+    rgba(8, 10, 9, 0.28) 100%
+  );
   -webkit-backdrop-filter: blur(var(--note-focus-blur, 32px)) saturate(1.06);
   backdrop-filter: blur(var(--note-focus-blur, 32px)) saturate(1.06);
 }
@@ -85,4 +92,47 @@ html[data-note-material="focus"] .notes-half.floating-notes .notes-head {
 
 html[data-note-material="focus"] .notes-half.floating-notes .note-block:hover {
   background: rgba(255, 255, 255, 0.035) !important;
+}
+
+
+/* FocusWriter's writing measure: a calm, centred column, with the first line
+   low enough that the caret starts in the middle of the page. The mask fades
+   the lines that leave the band, so the eye stays on the sentence being
+   typed; app.js keeps the caret line near the same height. */
+html[data-note-material="focus"] .page-body .notes-half.floating-notes .note-live {
+  flex: 0 1 68ch;
+  width: min(100%, 68ch);
+  margin-inline: auto;
+  padding: 26vh 12px 46%;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.14) 7%,
+    #000 22%,
+    #000 76%,
+    rgba(0, 0, 0, 0.14) 92%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.14) 7%,
+    #000 22%,
+    #000 76%,
+    rgba(0, 0, 0, 0.14) 92%,
+    transparent 100%
+  );
+}
+
+/* The empty prompt starts on the same writing line as the first paragraph. */
+html[data-note-material="focus"] .notes-half.floating-notes .note-ghost {
+  top: calc(26vh + 2px);
+  left: 12px;
+}
+
+/* A slightly airier hand for the focus page, matching the centred measure. */
+html[data-note-material="focus"] .notes-half.floating-notes .note-block,
+html[data-note-material="focus"] .notes-half.floating-notes .note-block-editor {
+  font-size: calc(15px * var(--user-scale, 1));
+  line-height: 1.85;
 }

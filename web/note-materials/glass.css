@@ -1,21 +1,21 @@
-/* Glass note material — the frosted mask, with no side border/frame.
-   The mask fills the whole centre area; the old 10px inset frame is gone. */
-html[data-note-material="blur"] .notes-half.floating-notes {
+/* Glass note material — a frosted pane with no picture of its own.
+   --------------------------------------------------------------------------
+   The card is a transparent pane. The frost lives in ::before: it blurs
+   whatever is really behind the note (the page, the wallpaper) and lays one
+   light wash over it. No image, preset or baked photograph is ever drawn, so
+   the material works on any backdrop and on any note palette. The shared
+   "Glass blur" slider feeds --note-blur. */
+html[data-note-material="glass"] .notes-half.floating-notes {
   --note-paper: transparent;
-  --note-ink: var(--note-theme-ink, #171713);
-  --note-muted: var(--note-theme-muted, rgba(30, 30, 25, 0.55));
-  --note-rule: var(--note-theme-rule, rgba(30, 30, 24, 0.14));
+  --note-ink: var(--note-theme-ink, #23261f);
+  --note-muted: var(--note-theme-muted, rgba(35, 38, 31, 0.55));
+  --note-rule: var(--note-theme-rule, rgba(35, 38, 31, 0.14));
   --note-accent: var(--note-theme-accent, #6d3f18);
   --note-accent-2: var(--note-theme-accent2, #8a5a2a);
   color: var(--note-ink) !important;
   padding: 20px 30px 26px !important;
   background-color: transparent !important;
-  background-image:
-    var(--note-bg-image, none),
-    var(--note-glass-default) !important;
-  background-size: cover, cover !important;
-  background-position: center, center !important;
-  background-repeat: no-repeat, no-repeat !important;
+  background-image: none !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.30) !important;
@@ -23,7 +23,7 @@ html[data-note-material="blur"] .notes-half.floating-notes {
   backdrop-filter: none !important;
 }
 
-html[data-note-material="blur"] .notes-half.floating-notes::before {
+html[data-note-material="glass"] .notes-half.floating-notes::before {
   content: "";
   position: absolute;
   inset: 0 !important;
@@ -31,18 +31,104 @@ html[data-note-material="blur"] .notes-half.floating-notes::before {
   pointer-events: none;
   border: 0 !important;
   border-radius: 0 !important;
-  background-color: rgba(246, 241, 228, 0.44) !important;
+  /* A milky, matte frost: the wash carries most of the colour, the blur
+     softens the backdrop, and two offset grain layers keep it from reading as
+     plain transparency (the reference's sand-blasted glass). The radius comes
+     from the "Glass blur" slider, doubled like FocusWriter's 32px default. */
+  background-color: rgba(242, 244, 242, 0.80) !important;
   background-image:
     var(--note-noise),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(238, 242, 238, 0.04)) !important;
-  background-size: 180px 180px, auto !important;
-  -webkit-backdrop-filter: blur(22px) saturate(1.06) !important;
-  backdrop-filter: blur(22px) saturate(1.06) !important;
-  box-shadow: none !important;
+    var(--note-noise),
+    linear-gradient(102deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(226, 231, 229, 0.10) 40%,
+      rgba(255, 255, 255, 0.18) 72%,
+      rgba(232, 236, 234, 0.10) 100%),
+    radial-gradient(130% 110% at 42% 24%,
+      rgba(255, 255, 255, 0.16),
+      rgba(210, 216, 213, 0.06) 68%) !important;
+  background-size: 180px 180px, 113px 113px, auto, auto !important;
+  background-position: 0 0, 37px 61px, 0 0, 0 0 !important;
+  -webkit-backdrop-filter: blur(calc(var(--note-blur, 16px) * 2)) saturate(0.90) brightness(1.02) !important;
+  backdrop-filter: blur(calc(var(--note-blur, 16px) * 2)) saturate(0.90) brightness(1.02) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10) !important;
 }
 
-html[data-note-material="blur"] .notes-half.floating-notes .notes-title,
-html[data-note-material="blur"] .notes-half.floating-notes .note-block,
-html[data-note-material="blur"] .notes-half.floating-notes .note-block-editor {
+/* FocusWriter's page is a calm, centred measure rather than a
+   full-width slab. Keep the scrolling viewport, but hold the words to a
+   comfortable column and give them the room to breathe. */
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-live {
+  flex: 0 1 68ch;
+  width: min(100%, 68ch);
+  margin-inline: auto;
+  padding-inline: 10px;
+  padding-top: 10px;
+}
+html[data-note-material="glass"] .notes-half.floating-notes .note-block,
+html[data-note-material="glass"] .notes-half.floating-notes .note-block-editor {
+  font-size: calc(15px * var(--user-scale, 1));
+  line-height: 1.8;
+}
+/* The paper watermark belongs to the paper material; the frost is clean. */
+html[data-note-material="glass"] .notes-half.floating-notes .notes-art {
+  display: none !important;
+}
+
+html[data-note-material="glass"] .notes-half.floating-notes .notes-title,
+html[data-note-material="glass"] .notes-half.floating-notes .note-block,
+html[data-note-material="glass"] .notes-half.floating-notes .note-block-editor {
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.55) !important;
+}
+
+/* FocusWriter's band for the frosted page: the line being written sits near
+   the middle, and the lines leaving the band fade into the glass. The glass
+   keeps its milky wash; only the measure and the focus band are shared. */
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-live {
+  padding-top: 22vh;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.16) 8%,
+    #000 22%,
+    #000 78%,
+    rgba(0, 0, 0, 0.16) 92%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 0.16) 8%,
+    #000 22%,
+    #000 78%,
+    rgba(0, 0, 0, 0.16) 92%,
+    transparent 100%
+  );
+}
+
+/* The empty prompt starts on the same writing line as the first paragraph. */
+html[data-note-material="glass"] .notes-half.floating-notes .note-ghost {
+  top: calc(22vh + 2px);
+}
+
+/* Glass picture: the reader's cropped image becomes the pane, softened behind
+   the same frost. Focus never reads this layer — it stays the image-free
+   default. The crop is stored as a data URL in note_background_image, chosen
+   with the same crop dialog as a card picture. */
+html[data-note-material="glass"][data-note-image="1"] .notes-half.floating-notes::before {
+  background-image:
+    var(--note-bg-image),
+    linear-gradient(180deg, rgba(242, 244, 242, 0.26), rgba(242, 244, 242, 0.42)),
+    var(--note-noise) !important;
+  background-size: cover, auto, 180px 180px !important;
+  background-position: center, 0 0, 0 0 !important;
+  background-repeat: no-repeat, repeat, repeat !important;
+  /* With a picture the pane is the picture: no backdrop frost on top of it,
+     only a light blur so the words stay readable. */
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: blur(calc(var(--note-blur, 16px) * 0.45));
+  transform: scale(1.08);
+  transform-origin: center;
 }

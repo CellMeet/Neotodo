@@ -1,24 +1,25 @@
 /* ==========================================================================
    The notebook has its own style, independent of the NeoTodo app theme.
-   There is exactly one: a beige sticky note ruled with white hairlines. The
-   paper material reads only the --note-* variables declared here. Nothing in
-   this file may take a colour from a postcard slot; the few --pc-* names below
-   are only re-pointed at the notebook palette for legacy rules.
+   There is exactly one: the Glass frost, a transparent pane that blurs what is
+   behind it. Nothing is painted with a photograph; the material reads only the
+   --note-* variables declared here. Nothing in this file may take a colour from
+   a postcard slot; the few --pc-* names below are only re-pointed at the
+   notebook palette for legacy rules.
    ========================================================================== */
 
 :root {
-  /* Theme slots. The notebook owns one style: a beige sticky note with white
-     ruled lines. app.js writes these same values when it applies the single
-     built-in note style; the paper material only reads them, so no app theme
-     or wallpaper can tint the notebook. */
-  --note-theme-paper: #f6e8c4;
-  --note-theme-ink: #4a3a28;
-  --note-theme-muted: rgba(74, 58, 40, 0.55);
-  --note-theme-rule: rgba(255, 255, 255, 0.90);
-  --note-theme-accent: #9a7443;
-  --note-theme-accent2: #7f5f38;
-  --note-handle-line: rgba(74, 58, 40, 0.70);
-  --note-handle-hover: rgba(58, 45, 30, 0.92);
+  /* Theme slots. The notebook owns one style: frosted Glass. app.js writes
+     these same values when it applies the single built-in note style; the
+     glass material only reads them, so no app theme or wallpaper can tint the
+     notebook. */
+  --note-theme-paper: #eef0ea;
+  --note-theme-ink: #23261f;
+  --note-theme-muted: rgba(35, 38, 31, 0.55);
+  --note-theme-rule: rgba(35, 38, 31, 0.14);
+  --note-theme-accent: #6d3f18;
+  --note-theme-accent2: #8a5a2a;
+  --note-handle-line: rgba(35, 38, 31, 0.55);
+  --note-handle-hover: rgba(30, 33, 26, 0.80);
   --note-handle-halo: rgba(255, 255, 255, 0.20);
   --note-handle-halo-hover: rgba(255, 255, 255, 0.30);
 
@@ -29,10 +30,6 @@
   --note-accent: var(--note-theme-accent);
   --note-accent-2: var(--note-theme-accent2);
   --notes-mask: var(--note-theme-paper);
-
-  /* Static default cover for the Glass mask. It is the notebook's own
-     material, not the app wallpaper, so themes cannot tint it. */
-  --note-glass-default: none;
 
   --note-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
 }
@@ -293,7 +290,7 @@ html[data-note-material="paper"][data-note-dark="true"] .notes-half.floating-not
 
 /* The frosted mask is always light; a dark note theme flips the frost so the
    light ink stays readable. */
-html[data-note-material="blur"][data-note-dark="true"] .notes-half.floating-notes::before {
+html[data-note-material="glass"][data-note-dark="true"] .notes-half.floating-notes::before {
   background-color: rgba(22, 26, 30, 0.58) !important;
   background-image:
     var(--note-noise),
@@ -319,7 +316,7 @@ html[data-note-material="paper"] body .page-body .notes-half.floating-notes {
   --note-accent-2: var(--note-theme-accent2) !important;
   background-color: var(--note-theme-paper) !important;
 }
-html[data-note-material="blur"] body .page-body .notes-half.floating-notes {
+html[data-note-material="glass"] body .page-body .notes-half.floating-notes {
   --note-ink: var(--note-theme-ink) !important;
   --note-muted: var(--note-theme-muted) !important;
   --note-rule: var(--note-theme-rule) !important;

@@ -10008,14 +10008,14 @@ html[data-postcard-dark="true"] .trash-clear:hover { background: rgba(255, 255, 
   background-position: center;
 }
 .material-paper { background: linear-gradient(135deg, #f5ebd6, #e3d0ad); }
-.material-blur {
+.material-glass {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.16), rgba(18, 24, 32, 0.28)),
     url("/notes-forest.jpg");
 }
 
 /* Note material: FocusWriter-style misted forest behind the words. */
-html[data-note-material="blur"] .notes-half.floating-notes {
+html[data-note-material="glass"] .notes-half.floating-notes {
   --note-ink: #eef5fb;
   --note-muted: rgba(230, 241, 250, 0.68);
   --note-rule: rgba(255, 255, 255, 0.14);
@@ -10025,7 +10025,6 @@ html[data-note-material="blur"] .notes-half.floating-notes {
   border: 1px solid rgba(255, 255, 255, 0.17) !important;
   border-radius: 12px !important;
   background-color: transparent !important;
-  background-image: var(--note-bg-image, none) !important;
   background-size: cover !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
@@ -10036,7 +10035,7 @@ html[data-note-material="blur"] .notes-half.floating-notes {
   backdrop-filter: none !important;
   isolation: isolate;
 }
-html[data-note-material="blur"] .notes-half.floating-notes::before {
+html[data-note-material="glass"] .notes-half.floating-notes::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -10048,55 +10047,55 @@ html[data-note-material="blur"] .notes-half.floating-notes::before {
   backdrop-filter: blur(var(--note-blur, 16px)) saturate(1.08);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-title,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-title > span {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-title,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-title > span {
   color: #f6faff !important;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-head {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-head {
   border-bottom-color: rgba(255, 255, 255, 0.15) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block-editor {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block-editor {
   color: #eaf3fa !important;
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.55);
 }
-html[data-note-material="blur"] .page-body html[data-note-material="paper"] .notes-half.floating-notes .note-block h1,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h2,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h3,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h4 {
+html[data-note-material="glass"] .page-body html[data-note-material="paper"] .notes-half.floating-notes .note-block h1,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h2,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h3,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h4 {
   color: #ffffff !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-empty,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block-placeholder {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-empty,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block-placeholder {
   color: rgba(236, 245, 252, 0.58) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block:hover {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block:hover {
   background: rgba(255, 255, 255, 0.055) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block code,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block pre {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block code,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block pre {
   color: #eaf3fa !important;
   background: rgba(255, 255, 255, 0.08) !important;
   border-left-color: rgba(255, 255, 255, 0.22) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block blockquote {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block blockquote {
   color: rgba(231, 241, 250, 0.78) !important;
   border-left-color: rgba(217, 237, 255, 0.45) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block a,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-link {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block a,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-link {
   color: #d9edff !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-link:hover{
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-link:hover{
   color: #ffffff !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-icon {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-icon {
   color: rgba(235, 245, 255, 0.72) !important;
   opacity: 0.7;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-drag-handle span,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-resize-handle {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-drag-handle span,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-resize-handle {
   color: rgba(235, 245, 255, 0.65) !important;
   background: rgba(235, 245, 255, 0.6) !important;
 }
@@ -10342,7 +10341,7 @@ html[data-theme="postcard"] .settings-close:hover{
 }
 
 /* Glass note: always a light, opaque frosted mask with black ink. */
-html[data-note-material="blur"] .notes-half.floating-notes {
+html[data-note-material="glass"] .notes-half.floating-notes {
   --note-ink: #171713;
   --note-muted: rgba(30, 30, 25, 0.55);
   --note-rule: rgba(30, 30, 24, 0.14);
@@ -10352,75 +10351,74 @@ html[data-note-material="blur"] .notes-half.floating-notes {
   border: 1px solid rgba(255, 255, 255, 0.55) !important;
   border-radius: 0 !important;
   background-color: transparent !important;
-  background-image: var(--note-bg-image, none) !important;
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.18) !important;
 }
-html[data-note-material="blur"] .notes-half.floating-notes::before {
+html[data-note-material="glass"] .notes-half.floating-notes::before {
   background: rgba(250, 250, 247, 0.84) !important;
   -webkit-backdrop-filter: blur(var(--note-blur, 16px)) saturate(1.02) !important;
   backdrop-filter: blur(var(--note-blur, 16px)) saturate(1.02) !important;
   border-radius: 0 !important;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-title,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-title > span {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-title,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-title > span {
   color: #11110e !important;
   text-shadow: none !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-head {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-head {
   border-bottom-color: rgba(0, 0, 0, 0.12) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block-editor {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block-editor {
   color: #1a1a16 !important;
   text-shadow: none !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h1,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h2,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h3,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block h4 {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h1,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h2,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h3,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block h4 {
   color: #11110e !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-empty,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block-placeholder {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-empty,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block-placeholder {
   color: rgba(30, 30, 25, 0.5) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block:hover {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block:hover {
   background: rgba(0, 0, 0, 0.035) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block code,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block pre {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block code,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block pre {
   color: #1a1a16 !important;
   background: rgba(0, 0, 0, 0.06) !important;
   border-left-color: rgba(0, 0, 0, 0.14) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block blockquote {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block blockquote {
   color: rgba(30, 30, 25, 0.7) !important;
   border-left-color: rgba(80, 60, 35, 0.35) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-block a,
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-link {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-block a,
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-link {
   color: #6d3f18 !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .note-link:hover{
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-link:hover{
   color: #11110e !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-icon {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-icon {
   color: #11110e !important;
   opacity: 1 !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-drag-handle span {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-drag-handle span {
   background: rgba(30, 30, 25, 0.35) !important;
 }
-html[data-note-material="blur"] .page-body .notes-half.floating-notes .notes-resize-handle {
+html[data-note-material="glass"] .page-body .notes-half.floating-notes .notes-resize-handle {
   color: rgba(30, 30, 25, 0.45) !important;
 }
 
 /* Lighter material previews for the light glass surface. */
-.material-blur {
+.material-glass {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.58), rgba(244, 246, 242, 0.58)),
-    url("/notes-forest.jpg");
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(226, 233, 230, 0.52)),
+    radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.92), transparent 58%);
 }
 .note-bg-default {
   background-color: #f2f4ef;
@@ -10658,7 +10656,7 @@ html[data-theme] body .page-body .notes-half.floating-notes {
 .archive-top:hover { color: var(--pc-ink, var(--ink)); }
 
 /* More visible frosted-glass grain in the note mask. */
-html[data-note-material="blur"] .notes-half.floating-notes::before {
+html[data-note-material="glass"] .notes-half.floating-notes::before {
   background-color: rgba(250, 250, 247, 0.62) !important;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.1'/%3E%3C/svg%3E"),
@@ -10672,14 +10670,13 @@ html[data-note-material="blur"] .notes-half.floating-notes::before {
 }
 
 /* Restore the simpler mask: the mask's own light glass base, black ink. */
-html[data-note-material="blur"] .notes-half.floating-notes {
+html[data-note-material="glass"] .notes-half.floating-notes {
   border: 0 !important;
   border-radius: 0 !important;
   background-color: transparent !important;
-  background-image: var(--note-bg-image, none) !important;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16) !important;
 }
-html[data-note-material="blur"] .notes-half.floating-notes::before {
+html[data-note-material="glass"] .notes-half.floating-notes::before {
   /* Translucent frosted mask: the image/background shows through, blurred. */
   background-color: rgba(250, 250, 247, 0.14) !important;
   background-image:
@@ -17801,17 +17798,17 @@ html[data-theme="postcard"] .community-brand-copy strong { color: var(--pc-ink);
 /* ==========================================================================
    Mapped accent ink for the title actions and the hidden top bar
    --------------------------------------------------------------------------
-   Neither group repeats the reading ink. app.js walks the colour wheel from
-   the font colour (``inkAccents``): the complete / slash / add trio takes the
-   counter-note half a turn away, and the hidden top bar takes the split-
-   complement 30° nearer, so the chrome and the task answer the page without
-   falling into one flat colour. The marks keep the shapes the reader picked;
-   only the ink and the press feedback are here.
+   The complete / slash / add trio keeps the theme's own accent, so the three
+   title marks read as one warm piece of the page. The hidden top bar takes the
+   split-complement 30° ink app.js walks from the font colour, so the chrome
+   and the task answer the page without falling into one flat colour. The marks
+   keep the shapes the reader picked; only the ink and the press feedback are
+   here.
    ========================================================================== */
 html[data-theme] .head-title-inner .current-action,
 html[data-theme] .head-title-inner .action-slash {
-  color: var(--action-ink, var(--pc-accent));
-  text-decoration-color: var(--action-ink, var(--pc-accent));
+  color: var(--pc-accent);
+  text-decoration-color: var(--pc-accent);
 }
 html[data-theme] .top-tools .sound-toggle,
 html[data-theme] .top-tools .settings-button,
@@ -17974,4 +17971,11 @@ html[data-select] .category-list .category-item.selected:hover {
 }
 @media (prefers-reduced-motion: reduce) {
   .current-action.quick-submit { animation: none; opacity: 1; }
+}
+
+/* A blank Glass image preview: the frost itself, before a picture is chosen. */
+.note-glass-preview {
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.92), transparent 58%),
+    linear-gradient(135deg, #dfe6e2, #aebbb6);
 }

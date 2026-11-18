@@ -10,12 +10,12 @@
 .notes-half,
 .notes-half.floating-notes,
 html[data-note-material="paper"] .notes-half.floating-notes,
-html[data-note-material="blur"] .notes-half.floating-notes {
+html[data-note-material="glass"] .notes-half.floating-notes {
   border-radius: 0 !important;
 }
 
 /* The inner frosted page is square too. */
-html[data-note-material="blur"] .notes-half.floating-notes::before {
+html[data-note-material="glass"] .notes-half.floating-notes::before {
   border-radius: 0 !important;
 }
 

@@ -65,6 +65,23 @@ class PendingSubtaskCardTests(unittest.TestCase):
         drawer = block_after(self.app_js, "const drawerMarkup = completedDrawerOn", "metaHtml =")
         self.assertEqual(drawer.count("pendingCard(`"), 2)
 
+    def test_a_todo_without_subtasks_prints_no_card_until_the_first_row(self):
+        # A bare todo is plain ruled paper. The card is the rows' sheet, so it
+        # only exists while a real row (or the inline add row) is there; a todo
+        # with nothing to show never gets an empty sheet whose purple handle
+        # has nothing to fold.
+        current = block_after(
+            self.app_js,
+            "if (current) {\n    const subList = orderedSubtasks(current);",
+            "\n  } else {\n    metaHtml",
+        )
+        self.assertIn(
+            "const showSubtaskCard = subList.length > 0 || Boolean(addSubtaskRow);",
+            current,
+        )
+        self.assertIn("metaHtml = showSubtaskCard", current)
+        self.assertIn('<div class="current-subtasks">${emptyRows}</div>', current)
+
     def test_card_is_closed_on_all_four_sides(self):
         card = css_block(self.split_css, ".pending-subtask-card {")
         # Seven unit rows: the card never grows past the page's task sheet.
