@@ -63,8 +63,9 @@ def main() -> int:
     assert 'html[data-note-material="glass"]' in glass
     assert 'html[data-note-material="blur"]' not in glass
     assert "url(" not in glass, "the material paints a picture again"
-    # The plate: rounded, bevelled, lifted.
-    assert "border-radius: 26px !important;" in glass
+    # The plate: square, bevelled, lifted.
+    assert "border-radius: 0 !important;" in glass
+    assert "26px" not in glass, "the plate grew its rounded corners back"
     assert "inset 0 1px 0 rgba(255, 255, 255, 0.90)" in glass, "the lit top edge is gone"
     assert "0 54px 96px -38px rgba(14, 20, 16, 0.50) !important;" in glass, "the lift shadow is gone"
     assert "html[data-note-material=\"glass\"] body .notes-half.floating-notes:" in glass
@@ -79,9 +80,9 @@ def main() -> int:
     # A chosen picture becomes the pane, still behind the frost.
     assert 'html[data-note-material="glass"][data-note-image="1"]' in glass
     assert "var(--note-bg-image)" in glass
-    # A detached note keeps the rounded plate, inset for its shadow.
+    # A detached note fills its transparent window with the same square plate.
     assert 'html[data-note-material="glass"] body.detached-note #notes-half {' in glass
-    assert "inset: 10px !important;" in glass
+    assert "inset: 10px !important;" not in glass
 
     shape = read("web/note-shape.css")
     assert 'data-note-material="glass"' not in shape, "the square rule still fights the plate"

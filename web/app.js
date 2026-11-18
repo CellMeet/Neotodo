@@ -1320,6 +1320,12 @@ const AudioFX = (() => {
     src.stop(now + 0.6);
   }
 
+  // A key click should carry across a quiet room, like a blue-switch board:
+  // the typing cue is mixed 2.7x hotter than the rest of the foley. Background
+  // music and the other cues keep their own level, so the slider's effect on
+  // them is unchanged.
+  const KEY_GAIN = 2.7;
+
   function type() {
     if (!sampleBuffers.type) {
       const c = ensure();
@@ -1334,7 +1340,7 @@ const AudioFX = (() => {
         band.Q.value = 1.2;
         const gain = c.createGain();
         gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(0.045, now + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.045 * KEY_GAIN, now + 0.004);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
         src.connect(band);
         band.connect(gain);
@@ -1345,7 +1351,7 @@ const AudioFX = (() => {
       preloadSamples();
       return;
     }
-    playSample("type", 0.44, 0.94 + Math.random() * 0.14);
+    playSample("type", 0.44 * KEY_GAIN, 0.94 + Math.random() * 0.14);
   }
 
   function mechanical() {
@@ -3819,6 +3825,14 @@ function showNotesPanel(silent = false) {
     panel.classList.add("notes-solid-opening", "sheet-opening");
     setTimeout(() => panel.classList.remove("sheet-opening", "notes-solid-opening"), 160);
   }
+  // The sheet rises by changing its box, so a caret placed mid-rise would keep
+  // the old offsets. Focus the first line once the rise is done, then re-seat
+  // it so the caret really starts on line one.
+  setTimeout(() => {
+    if (notesHidden) return;
+    focusActiveNoteEditor();
+    scheduleCustomCaret();
+  }, 190);
   updateNotesHandle();
   positionNotesHandle();
   updateAgentSplitLayout();
@@ -3866,7 +3880,7 @@ function focusActiveNoteEditor(force = false) {
   const [start, end] = noteCaretSelection(activeNoteTarget(), editor);
   editor.setSelectionRange(start, end);
   autoSizeNoteBlock(editor);
-  setTimeout(() => keepNoteBaseline(editor), 30);
+  setTimeout(() => settleNoteCaret(editor), 30);
 }
 
 /* ---------------------------------------------------------------------------
@@ -5438,6 +5452,9 @@ function centerNoteCaret(node) {
   if (!node || !node.isConnected || !noteUsesTypewriter() || settings.note_center === false) return;
   const scroller = $("#note-live");
   if (!scroller) return;
+  // A short note has nowhere to scroll: centring it would slide the first line
+  // down the plate and leave the caret away from where the words start.
+  if (scroller.scrollHeight <= scroller.clientHeight + 1) return;
   const caret = node.selectionStart ?? 0;
   const point = noteCaretPoint(node, caret);
   const scrollerRect = scroller.getBoundingClientRect();
@@ -6413,6 +6430,12 @@ function setupNotesPanel() {
   panel.style.height = "";
   applyNotesStretch();
   watchNotePanel(panel);
+  if (!panel.dataset.caretSettled) {
+    panel.dataset.caretSettled = "1";
+    const reseat = () => scheduleCustomCaret();
+    panel.addEventListener("animationend", reseat);
+    panel.addEventListener("transitionend", reseat);
+  }
   if (!panel.dataset.pointerBound) {
     panel.dataset.pointerBound = "1";
     panel.addEventListener("click", (event) => {
@@ -9972,6 +9995,7 @@ function openTrashDrawer() {
   if (!drawer) return;
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
+  $("[data-action='open-trash']")?.setAttribute("aria-expanded", "true");
   document.body.classList.add("trash-open");
   // The drawer is a card made of the wallpaper. Its pane is baked while the
   // card is still closed; a film that has no still yet mounts its live window
@@ -9986,6 +10010,7 @@ function closeTrashDrawer() {
   const drawer = $("#trash-drawer");
   drawer?.classList.remove("open");
   drawer?.setAttribute("aria-hidden", "true");
+  $("[data-action='open-trash']")?.setAttribute("aria-expanded", "false");
   document.body.classList.remove("trash-open");
   AudioFX.drawer(false);
 }
@@ -13886,7 +13911,13 @@ async function handleAction(actionName, element) {
     return;
   }
   if (actionName === "open-plugin-details") { openPluginSettingsPage(element?.dataset.pluginId || ""); return; }
-  if (actionName === "open-trash") { openTrashDrawer(); return; }
+  if (actionName === "open-trash") {
+    // The hat is the card's only switch now: click it to open, click it again
+    // to put the card away.
+    if (trashOpen) closeTrashDrawer();
+    else openTrashDrawer();
+    return;
+  }
   if (actionName === "close-trash") { closeTrashDrawer(); return; }
   if (actionName === "clear-trash") { clearTrash(); return; }
   if (actionName === "open-terminal") { toggleAgentTerminal(); return; }

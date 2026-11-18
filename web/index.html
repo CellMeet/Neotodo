@@ -916,7 +916,7 @@
     <button class="tool-button storage-box-button" type="button" data-plugin="storage-box" aria-label="收纳箱">
       <img class="storage-box-glyph" src="/plugins/storage-box/storage-box.svg" alt="">
     </button>
-    <button class="tool-button magic-hat-button" type="button" data-action="open-trash" aria-label="Deleted subtasks">
+    <button class="tool-button magic-hat-button" type="button" data-action="open-trash" aria-label="Deleted subtasks" aria-expanded="false" aria-controls="trash-drawer">
       <img class="magic-hat-img" src="/magic-hat.svg" alt="">
     </button>
     <button class="tool-button terminal-tool" type="button" data-action="open-terminal" aria-label="AI terminal">
@@ -957,8 +957,7 @@
       <button class="trash-clear" type="button" data-action="clear-trash" aria-label="Clear deleted subtasks">
         <svg class="trash-clear-glyph" viewBox="0 0 1024 1024" aria-hidden="true"><use href="#clear-trash"></use></svg>
       </button>
-      <div class="trash-title"><span>Deleted subtasks</span><small>The magic hat keeps them.</small></div>
-      <button class="plain-x" type="button" data-action="close-trash" aria-label="Close deleted subtasks">×</button>
+      <div class="trash-title"><span>Deleted subtasks</span></div>
     </div>
     <div class="trash-body" id="trash-list"></div>
   </aside>

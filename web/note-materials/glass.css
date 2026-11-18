@@ -1,6 +1,6 @@
 /* Glass note material — a frosted plate lifted off the page.
    --------------------------------------------------------------------------
-   The card is a rounded, bevelled pane. The frost lives in ::before: it blurs
+   The card is a square, bevelled pane. The frost lives in ::before: it blurs
    whatever is really behind the note (the page, the wallpaper) through a milky
    wash, and two shadows (a hairline rim and a long drop shadow on the pane)
    separate the plate from the room. The reader may crop a picture into the
@@ -18,9 +18,10 @@ html[data-note-material="glass"] body .notes-half.floating-notes:not(.notes-hidd
   background-color: transparent !important;
   background-image: none !important;
   border: 0 !important;
-  /* A lifted pane, not a page clipped to the sheet: the rounded corner and
-     the double shadow are what put the glass "above" the wallpaper. */
-  border-radius: 26px !important;
+  /* A lifted pane, not a page clipped to the sheet: the hairline rim and the
+     double shadow are what put the glass "above" the wallpaper. The reader
+     wants square corners, so the plate stays a rectangle. */
+  border-radius: 0 !important;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.30),
     0 2px 5px rgba(14, 20, 16, 0.20),
@@ -37,7 +38,7 @@ html[data-note-material="glass"] body .notes-half.floating-notes:not(.notes-hidd
   z-index: 0;
   pointer-events: none;
   border: 0 !important;
-  border-radius: 26px !important;
+  border-radius: 0 !important;
   /* A glass plate has thickness. Four layers do the work: a milky wash that
      keeps the words readable, a top-down sheen that catches the light, the
      sand-blasted grain, and a faint sheen across the middle so the plate is
@@ -156,21 +157,16 @@ html[data-note-material="glass"][data-note-image="1"] body .notes-half.floating-
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   filter: blur(calc(var(--note-blur, 16px) * 0.45));
-  border-radius: 26px !important;
+  border-radius: 0 !important;
   transform: scale(1.07);
   transform-origin: center;
 }
 
-/* A popped-out note is a window of its own, and the window is transparent:
-   the desk shows around it. Insetting the plate leaves room for its shadow,
-   so the detached window reads as one glass card on the desktop instead of a
-   sheet glued to the window frame. */
+/* A popped-out note is a window of its own and is transparent by default. The
+   plate fills it, square like the docked sheet. */
 html[data-note-material="glass"] body.detached-note #notes-half {
-  inset: 10px !important;
-  width: auto !important;
-  height: auto !important;
-  border-radius: 22px !important;
+  border-radius: 0 !important;
 }
 html[data-note-material="glass"] body.detached-note #notes-half::before {
-  border-radius: 22px !important;
+  border-radius: 0 !important;
 }
