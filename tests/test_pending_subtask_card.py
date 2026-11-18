@@ -168,7 +168,11 @@ class PendingSubtaskCardTests(unittest.TestCase):
         # hands it back in place.
         bind = block_after(self.app_js, "function bindPendingSubtaskToggle(", "\n}\n")
         self.assertIn("syncSubtaskHandleLine(", bind)
-        self.assertIn('[data-add-subtask-row]', bind)
+        # "has rows (or the add row)" lives in one helper now, shared by the
+        # bind and the unfold path.
+        self.assertIn("pendingCardHasRows(card)", bind)
+        rows_helper = block_after(self.app_js, "function pendingCardHasRows(", "\n}\n")
+        self.assertIn('[data-add-subtask-row]', rows_helper)
         helper = block_after(self.app_js, "function syncSubtaskHandleLine(", "\n}\n")
         self.assertIn('bar.classList.toggle("line-hidden", !show);', helper)
         self.assertNotIn('bar.classList.add("line-reveal");', helper)

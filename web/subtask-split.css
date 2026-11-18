@@ -216,6 +216,28 @@
   cursor: grabbing;
 }
 
+/* The page-level mirror of that line. The task block paints below the note and
+   AI sheets, so a raised sheet hides the real pill; the mirror lives above
+   every sheet and sits exactly where the line is. It is shown only while the
+   sheet actually covers the line (see updatePendingHandleFloat). */
+.pending-subtask-float {
+  position: fixed;
+  z-index: 30;
+  width: 140px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pending-subtask-float[hidden] { display: none; }
+
 .pending-subtask-line {
   position: absolute;
   left: 50%;
@@ -234,7 +256,9 @@
 }
 
 .pending-subtask-toggle:hover .pending-subtask-line,
-.pending-subtask-toggle:focus-visible .pending-subtask-line {
+.pending-subtask-toggle:focus-visible .pending-subtask-line,
+.pending-subtask-float:hover .pending-subtask-line,
+.pending-subtask-float:focus-visible .pending-subtask-line {
   width: 90px;
   margin-left: -45px;
   background: var(--subtask-handle-hover, #9333EA);
@@ -244,7 +268,8 @@
   opacity: 1;
 }
 
-.pending-subtask-toggle:active .pending-subtask-line {
+.pending-subtask-toggle:active .pending-subtask-line,
+.pending-subtask-float:active .pending-subtask-line {
   width: 84px;
   margin-left: -42px;
 }
@@ -303,8 +328,12 @@ html[data-theme="postcard"] .page-body > .todos-section > .current-half::before 
 /* Folded, the card is a tab in the top band of the block — the finished tray's
    own handle lives in that band too, and two purple pills side by side would
    read as two different folds. The tray belongs to the card, so its handle
-   travels with it: unfold the card and the tray handle is back. */
-.pending-subtask-card.collapsed ~ .completed-subtask-toggle {
+   travels with it: unfold the card and the tray handle is back.
+   The one exception is an OPEN tray: its handle is the only way to tuck the
+   finished rows away again, so folding the live card first must not bury it.
+   That left the tray open with no control, which read as "the purple line
+   disappeared". */
+.pending-subtask-card.collapsed ~ .completed-subtask-toggle:not(.open) {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
