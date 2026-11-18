@@ -9971,9 +9971,10 @@ function renderTrashDrawer() {
   const summary = $("#trash-summary");
   if (summary) summary.textContent = items.length
     ? `${items.length} deleted subtask${items.length === 1 ? "" : "s"}`
-    : "The hat is empty";
+    : "";
+  // An empty hat is just an empty card: no placeholder line inside it.
   if (!items.length) {
-    list.innerHTML = `<div class="trash-empty">Empty magic hat.</div>`;
+    list.innerHTML = "";
     return;
   }
   list.innerHTML = items.map((item) => `

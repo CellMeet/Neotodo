@@ -45,6 +45,8 @@ def main() -> int:
     drawer = index.split('<aside class="trash-drawer"', 1)[1].split("</aside>", 1)[0]
     assert "plain-x" not in drawer, "the hat card grew its close cross back"
     assert "<small>" not in drawer, "the hat card kept its hint line"
+    assert "Empty magic hat" not in read("web/app.js"), "the empty hat still prints a line"
+    assert "trash-empty" not in read("web/style.css")
     assert 'data-action="clear-trash"' in drawer
     assert 'aria-expanded="false" aria-controls="trash-drawer"' in index
 

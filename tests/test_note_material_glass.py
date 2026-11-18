@@ -74,9 +74,13 @@ def main() -> int:
     # The frost is the reader's slider, doubled like FocusWriter's 32px default.
     assert "backdrop-filter: blur(calc(var(--note-blur, 16px) * 2))" in glass
     assert "background-color: rgba(246, 248, 245, 0.42) !important;" in glass
-    # The page itself: a centred measure with the typewriter band.
-    assert "68ch" in glass
-    assert "mask-image:" in glass and "8vh" in glass
+    # The page itself: words at the note's left edge, first line under the head.
+    # Only the vertical typewriter band is shared with FocusWriter.
+    assert "68ch" not in glass, "the writing column is centred again"
+    assert "margin-inline: auto" not in glass
+    assert "mask-image: none" in glass, "the first line fades at the top"
+    assert "8vh" not in glass, "the first line is pushed down the plate"
+    assert ".note-ghost {\n  top: 2px;" in glass
     # A chosen picture becomes the pane, still behind the frost.
     assert 'html[data-note-material="glass"][data-note-image="1"]' in glass
     assert "var(--note-bg-image)" in glass

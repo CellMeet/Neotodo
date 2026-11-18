@@ -85,14 +85,15 @@ html[data-note-material="glass"] body .notes-half.floating-notes.note-plate-rese
   display: none !important;
 }
 
-/* FocusWriter's page is a calm, centred measure rather than a
-   full-width slab. Keep the scrolling viewport, but hold the words to a
-   comfortable column and give them the room to breathe. */
+/* The words start at the note's own left edge, on the first line under the
+   title. Only the vertical band follows FocusWriter: as the page fills, the
+   line being written drifts down the plate and then holds near the middle. */
 html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-live {
-  flex: 0 1 68ch;
-  width: min(100%, 68ch);
-  margin-inline: auto;
-  padding-inline: 10px;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 2px 0 0;
 }
 html[data-note-material="glass"] .notes-half.floating-notes .note-block,
 html[data-note-material="glass"] .notes-half.floating-notes .note-block-editor {
@@ -110,34 +111,19 @@ html[data-note-material="glass"] .notes-half.floating-notes .note-block-editor {
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.55) !important;
 }
 
-/* FocusWriter's band for the frosted page: the line being written sits near
-   the middle, and the lines leaving the band fade into the glass. The glass
-   keeps its milky wash; only the measure and the focus band are shared. */
+/* The first line sits right under the head, so the caret is where the words
+   start. The top of the page is never faded — only the text that has been
+   scrolled away needs to soften, and the typewriter band already does that by
+   keeping the live line in the middle. */
 html[data-note-material="glass"] .page-body .notes-half.floating-notes .note-live {
-  padding-top: 8vh;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    rgba(0, 0, 0, 0.10) 3%,
-    #000 10%,
-    #000 84%,
-    rgba(0, 0, 0, 0.10) 96%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    rgba(0, 0, 0, 0.10) 3%,
-    #000 10%,
-    #000 84%,
-    rgba(0, 0, 0, 0.10) 96%,
-    transparent 100%
-  );
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 /* The empty prompt starts on the same writing line as the first paragraph. */
 html[data-note-material="glass"] .notes-half.floating-notes .note-ghost {
-  top: calc(8vh + 2px);
+  top: 2px;
+  left: 2px;
 }
 
 /* Glass picture: the reader's cropped image becomes the plate, softened behind

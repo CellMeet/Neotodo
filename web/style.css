@@ -9952,14 +9952,6 @@ html[data-theme="postcard"] .current-subtask { padding-left: 29px; }
   color: var(--pc-muted, var(--muted));
   font-size: 10px;
 }
-.trash-empty {
-  padding: 22px 8px;
-  text-align: center;
-  color: var(--pc-muted, var(--muted));
-  font-family: var(--display);
-  font-size: 13px;
-  font-style: italic;
-}
 .trash-foot {
   padding-top: 8px;
   border-top: 1px solid var(--page-line-paint, var(--pc-line, var(--line)));
