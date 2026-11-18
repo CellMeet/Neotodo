@@ -3836,7 +3836,6 @@ function showNotesPanel(silent = false) {
   updateNotesHandle();
   positionNotesHandle();
   updateAgentSplitLayout();
-  schedulePendingHandleFloat();
   requestAnimationFrame(() => {
     positionDeskHandles();
     DeskHandle.appear("note", "above");
@@ -4543,7 +4542,6 @@ function setupCustomCaret() {
     setTimeout(scheduleCustomCaret, 320);
   };
   window.addEventListener("resize", refitNote);
-  window.addEventListener("resize", schedulePendingHandleFloat);
   window.visualViewport?.addEventListener("resize", refitNote);
   document.addEventListener("fullscreenchange", refitNote);
   // A swapped webfont reflows the note after the first paint; the caret and
@@ -6003,7 +6001,6 @@ function applyNotesPanelRect() {
   if (panel.style.width !== width) panel.style.width = width;
   if (panel.style.height !== height) panel.style.height = height;
   scheduleNotePlateRefresh(110);
-  schedulePendingHandleFloat();
 }
 
 let notePlateTimer = 0;
@@ -6064,7 +6061,6 @@ function watchNotePanel(panel) {
     notePanelObserver = new ResizeObserver(() => {
       scheduleCustomCaret();
       scheduleNotePlateRefresh(90);
-      schedulePendingHandleFloat();
     });
   }
   if (notePanelObserved === panel) return;
@@ -8264,7 +8260,6 @@ function openAgentTerminal(silent = false) {
     if (input?.value) resizeAgentInput(input);
     positionDeskHandles();
     DeskHandle.appear("ai", "above");
-    schedulePendingHandleFloat();
   });
   // Never leave the list hidden if rAF is throttled (background window).
   setTimeout(() => {
@@ -8278,7 +8273,6 @@ function openAgentTerminal(silent = false) {
 
 function closeAgentTerminal() {
   if (!agentTerminalOpen || agentClosing) return;
-  schedulePendingHandleFloat();
   const panel = $("#agent-terminal");
   if (!panel) {
     agentTerminalOpen = false;
@@ -9405,7 +9399,6 @@ function renderStage() {
   applyBaselineRowHeights(stage);performance.mark('rs-g');
   bindCompletedSubtasksBar();
   bindPendingSubtaskToggle();
-  schedulePendingHandleFloat();
   // Put the reader's scroll back before anything is measured. The rebuilt lane
   // starts at the top; restoring it a frame later moved every row a second
   // time, after the repaint had already shown the settled list.
@@ -9580,7 +9573,7 @@ function toggleCompletedSubtasks(force) {
   AudioFX.drawer(willOpen);
 }
 
-/** The live card holds rows (or the inline add row) if its handle is useful. */
+/** Does the live card hold rows (or the inline add row) for its handle? */
 function pendingCardHasRows(card = $("#pending-subtask-card")) {
   const lane = card?.querySelector("[data-subtask-list]");
   return Boolean(lane?.querySelector(".current-subtask[data-subtask-id], [data-add-subtask-row]"));
@@ -9605,63 +9598,11 @@ function setPendingSubtasksCollapsed(collapsed) {
   bar.classList.toggle("collapsed", pendingSubtasksCollapsed);
   bar.setAttribute("aria-expanded", pendingSubtasksCollapsed ? "false" : "true");
   bar.setAttribute("aria-label", pendingSubtasksCollapsed ? "Show subtasks" : "Hide subtasks");
-  // An unfolded card with rows always shows its handle: the fold is the only
-  // way back, and a stale "line hidden" from a previous render used to leave
-  // the area open with no control.
+  // Unfolding hands the line back: an open card with rows must always show the
+  // one control that folds it again. An earlier render that ran before the
+  // lane was printed could leave `line-hidden` on the bar, and the open card
+  // stayed open with no handle.
   if (!pendingSubtasksCollapsed) syncSubtaskHandleLine(bar, pendingCardHasRows());
-  schedulePendingHandleFloat();
-}
-
-let pendingFloatFrame = 0;
-
-/** Do two boxes share any pixels? */
-function boxesOverlap(a, b) {
-  return Boolean(a && b) && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-}
-
-/**
- * The purple fold line lives inside the task block, which paints below the note
- * and the AI sheet. A raised sheet hides the line — and with it the only
- * control that folds the subtask area. When that happens the same pill is
- * mirrored above the sheets, in the line's own place, so the area can always be
- * closed. With nothing over it the mirror stays hidden and the real line works
- * as before.
- */
-function updatePendingHandleFloat() {
-  const mirror = $("#pending-subtask-float");
-  const bar = $(".pending-subtask-toggle");
-  const card = $("#pending-subtask-card");
-  if (!mirror) return;
-  if (!bar || !card || card.classList.contains("collapsed") || !pendingCardHasRows(card)) {
-    mirror.hidden = true;
-    return;
-  }
-  const line = bar.querySelector(".pending-subtask-line") || bar;
-  const lineRect = line.getBoundingClientRect();
-  const barRect = bar.getBoundingClientRect();
-  const note = $("#notes-half");
-  const agent = $("#agent-terminal");
-  const sheets = [];
-  if (note && !note.classList.contains("notes-hidden")) sheets.push(note);
-  if (agent && agent.classList.contains("open")) sheets.push(agent);
-  const covered = sheets.some((sheet) => boxesOverlap(sheet.getBoundingClientRect(), lineRect));
-  if (!covered) {
-    mirror.hidden = true;
-    return;
-  }
-  mirror.hidden = false;
-  mirror.style.left = `${Math.round(barRect.left)}px`;
-  mirror.style.top = `${Math.round(barRect.top)}px`;
-  mirror.setAttribute("aria-label", bar.getAttribute("aria-label") || "Hide subtasks");
-}
-
-/** One placement per frame, however many layout passes asked for it. */
-function schedulePendingHandleFloat() {
-  if (pendingFloatFrame) return;
-  pendingFloatFrame = requestAnimationFrame(() => {
-    pendingFloatFrame = 0;
-    updatePendingHandleFloat();
-  });
 }
 
 /** The purple line on the card's bottom edge folds the live rows away. */
@@ -9812,7 +9753,6 @@ function bindCompletedSubtasksBar() {
   const doneLane = drawer?.querySelector("[data-subtask-list]");
   const hasFinishedRows = Boolean(doneLane?.querySelector(".current-subtask[data-subtask-id]"));
   syncSubtaskHandleLine(bar, hasFinishedRows);
-  if (hasFinishedRows) bar.classList.remove("line-hidden");
   if (!hasFinishedRows && completedSubtasksOpen) setCompletedSubtasksOpen(false);
   if (bar.dataset.gestureBound === "1") return;
   bar.dataset.gestureBound = "1";
